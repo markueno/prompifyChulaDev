@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { classNames } from '~/utils/classNames';
-import { IconButton } from '~/components/ui/IconButton';
 
 interface SolutionDesignProps {
   applicationType: string;

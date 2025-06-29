@@ -36,8 +36,47 @@ import ProgressCompilation from './ProgressCompilation';
 import type { ProgressAnnotation } from '~/types/context';
 import type { ActionRunner } from '~/lib/runtime/action-runner';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
+import { SolutionDesign } from './SolutionDesign';
 
 const TEXTAREA_MIN_HEIGHT = 76;
+
+const APPLICATION_TYPES = [
+  { value: 'ecommerce site', label: 'E-commerce Site' },
+  { value: 'blog', label: 'Blog' },
+  { value: 'portfolio', label: 'Portfolio' },
+  { value: 'dashboard', label: 'Dashboard' },
+  { value: 'landing page', label: 'Landing Page' },
+  { value: 'social media platform', label: 'Social Media Platform' },
+  { value: 'learning management system', label: 'Learning Management System' },
+  { value: 'restaurant website', label: 'Restaurant Website' },
+  { value: 'real estate platform', label: 'Real Estate Platform' },
+  { value: 'healthcare portal', label: 'Healthcare Portal' },
+  { value: 'booking system', label: 'Booking System' },
+  { value: 'forum', label: 'Forum' },
+  { value: 'news website', label: 'News Website' },
+  { value: 'job board', label: 'Job Board' },
+  { value: 'marketplace', label: 'Marketplace' },
+];
+
+const BUSINESS_TYPES = [
+  { value: 'university', label: 'University' },
+  { value: 'restaurant', label: 'Restaurant' },
+  { value: 'hospital', label: 'Hospital' },
+  { value: 'real estate agency', label: 'Real Estate Agency' },
+  { value: 'retail store', label: 'Retail Store' },
+  { value: 'consulting firm', label: 'Consulting Firm' },
+  { value: 'law firm', label: 'Law Firm' },
+  { value: 'accounting firm', label: 'Accounting Firm' },
+  { value: 'non-profit organization', label: 'Non-profit Organization' },
+  { value: 'startup', label: 'Startup' },
+  { value: 'corporate business', label: 'Corporate Business' },
+  { value: 'fitness center', label: 'Fitness Center' },
+  { value: 'salon/spa', label: 'Salon/Spa' },
+  { value: 'automotive dealership', label: 'Automotive Dealership' },
+  { value: 'travel agency', label: 'Travel Agency' },
+  { value: 'insurance company', label: 'Insurance Company' },
+  { value: 'bank/financial institution', label: 'Bank/Financial Institution' },
+];
 
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
@@ -113,12 +152,43 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
     const [apiKeys, setApiKeys] = useState<Record<string, string>>(getApiKeysFromCookies());
     const [modelList, setModelList] = useState<ModelInfo[]>([]);
-    const [isModelSettingsCollapsed, setIsModelSettingsCollapsed] = useState(false);
+    const [isModelSettingsCollapsed, setIsModelSettingsCollapsed] = useState(true);
     const [isListening, setIsListening] = useState(false);
     const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
     const [transcript, setTranscript] = useState('');
     const [isModelLoading, setIsModelLoading] = useState<string | undefined>('all');
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
+
+    // Add state for guided form
+    const [selectedApplicationType, setSelectedApplicationType] = useState('');
+    const [selectedBusinessType, setSelectedBusinessType] = useState('');
+    const [customInput, setCustomInput] = useState('');
+
+    // Add state for solution design page
+    const [showSolutionDesign, setShowSolutionDesign] = useState(false);
+
+    // Construct the prompt from selections
+    const constructPrompt = () => {
+      if (selectedApplicationType && selectedBusinessType) {
+        return `Build me a ${selectedApplicationType} for ${selectedBusinessType}${customInput ? ` - ${customInput}` : ''}`;
+      }
+
+      return customInput;
+    };
+
+    // Update the input when selections change
+    useEffect(() => {
+      const newPrompt = constructPrompt();
+
+      if (handleInputChange && newPrompt !== input) {
+        // Create a synthetic event to update the input
+        const syntheticEvent = {
+          target: { value: newPrompt },
+        } as React.ChangeEvent<HTMLTextAreaElement>;
+        handleInputChange(syntheticEvent);
+      }
+    }, [selectedApplicationType, selectedBusinessType, customInput]);
+
     useEffect(() => {
       if (data) {
         const progressList = data.filter(
@@ -127,6 +197,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         setProgressAnnotations(progressList);
       }
     }, [data]);
+
     useEffect(() => {
       console.log(transcript);
     }, [transcript]);
@@ -306,6 +377,28 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
+    // Handle proceeding to solution design
+    const handleProceedToSolutionDesign = () => {
+      setShowSolutionDesign(true);
+    };
+
+    // Handle going back to form
+    const handleBackToForm = () => {
+      setShowSolutionDesign(false);
+    };
+
+    // Handle proceeding to code generation
+    const handleProceedToCode = () => {
+      setShowSolutionDesign(false);
+
+      // Send the constructed prompt to start the chat
+      const prompt = constructPrompt();
+
+      if (prompt && sendMessage) {
+        sendMessage({} as React.UIEvent, prompt);
+      }
+    };
+
     const baseChat = (
       <div
         ref={ref}
@@ -343,186 +436,309 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   ) : null;
                 }}
               </ClientOnly>
-              <div
-                className={classNames('flex flex-col gap-4 w-full max-w-chat mx-auto z-prompt mb-6', {
-                  'sticky bottom-2': chatStarted,
-                })}
-              >
-                <div className="bg-bolt-elements-background-depth-2">
-                  {actionAlert && (
-                    <ChatAlert
-                      alert={actionAlert}
-                      clearAlert={() => clearAlert?.()}
-                      postMessage={(message) => {
-                        sendMessage?.({} as any, message);
-                        clearAlert?.();
-                      }}
-                    />
-                  )}
-                </div>
-                {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
-                <div
-                  className={classNames(
-                    'bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full max-w-chat mx-auto z-prompt',
 
-                    /*
-                     * {
-                     *   'sticky bottom-2': chatStarted,
-                     * },
-                     */
-                  )}
+              {/* Show Solution Design page */}
+              {!chatStarted && showSolutionDesign ? (
+                <SolutionDesign
+                  applicationType={selectedApplicationType}
+                  businessType={selectedBusinessType}
+                  additionalDetails={customInput}
+                  onProceedToCode={handleProceedToCode}
+                  onBackToForm={handleBackToForm}
+                />
+              ) : (
+                /* Show guided form or chat input */
+                <div
+                  className={classNames('flex flex-col gap-4 w-full max-w-chat mx-auto z-prompt mb-6', {
+                    'sticky bottom-2': chatStarted,
+                  })}
                 >
-                  <svg className={classNames(styles.PromptEffectContainer)}>
-                    <defs>
-                      <linearGradient
-                        id="line-gradient"
-                        x1="20%"
-                        y1="0%"
-                        x2="-14%"
-                        y2="10%"
-                        gradientUnits="userSpaceOnUse"
-                        gradientTransform="rotate(-45)"
-                      >
-                        <stop offset="0%" stopColor="#b44aff" stopOpacity="0%"></stop>
-                        <stop offset="40%" stopColor="#b44aff" stopOpacity="80%"></stop>
-                        <stop offset="50%" stopColor="#b44aff" stopOpacity="80%"></stop>
-                        <stop offset="100%" stopColor="#b44aff" stopOpacity="0%"></stop>
-                      </linearGradient>
-                      <linearGradient id="shine-gradient">
-                        <stop offset="0%" stopColor="white" stopOpacity="0%"></stop>
-                        <stop offset="40%" stopColor="#ffffff" stopOpacity="80%"></stop>
-                        <stop offset="50%" stopColor="#ffffff" stopOpacity="80%"></stop>
-                        <stop offset="100%" stopColor="white" stopOpacity="0%"></stop>
-                      </linearGradient>
-                    </defs>
-                    <rect className={classNames(styles.PromptEffectLine)} pathLength="100" strokeLinecap="round"></rect>
-                    <rect className={classNames(styles.PromptShine)} x="48" y="24" width="70" height="1"></rect>
-                  </svg>
-                  <div>
-                    <ClientOnly>
-                      {() => (
-                        <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
-                          <ModelSelector
-                            key={provider?.name + ':' + modelList.length}
-                            model={model}
-                            setModel={setModel}
-                            modelList={modelList}
-                            provider={provider}
-                            setProvider={setProvider}
-                            providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
-                            apiKeys={apiKeys}
-                            modelLoading={isModelLoading}
-                          />
-                          {(providerList || []).length > 0 && provider && !LOCAL_PROVIDERS.includes(provider.name) && (
-                            <APIKeyManager
-                              provider={provider}
-                              apiKey={apiKeys[provider.name] || ''}
-                              setApiKey={(key) => {
-                                onApiKeysChange(provider.name, key);
-                              }}
-                            />
-                          )}
-                        </div>
-                      )}
-                    </ClientOnly>
-                  </div>
-                  <FilePreview
-                    files={uploadedFiles}
-                    imageDataList={imageDataList}
-                    onRemove={(index) => {
-                      setUploadedFiles?.(uploadedFiles.filter((_, i) => i !== index));
-                      setImageDataList?.(imageDataList.filter((_, i) => i !== index));
-                    }}
-                  />
-                  <ClientOnly>
-                    {() => (
-                      <ScreenshotStateManager
-                        setUploadedFiles={setUploadedFiles}
-                        setImageDataList={setImageDataList}
-                        uploadedFiles={uploadedFiles}
-                        imageDataList={imageDataList}
+                  <div className="bg-bolt-elements-background-depth-2">
+                    {actionAlert && (
+                      <ChatAlert
+                        alert={actionAlert}
+                        clearAlert={() => clearAlert?.()}
+                        postMessage={(message) => {
+                          sendMessage?.({} as any, message);
+                          clearAlert?.();
+                        }}
                       />
                     )}
-                  </ClientOnly>
+                  </div>
+                  {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
                   <div
                     className={classNames(
-                      'relative shadow-xs border border-bolt-elements-borderColor backdrop-blur rounded-lg',
+                      'bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full max-w-chat mx-auto z-prompt',
+
+                      /*
+                       * {
+                       *   'sticky bottom-2': chatStarted,
+                       * },
+                       */
                     )}
                   >
-                    <textarea
-                      ref={textareaRef}
-                      className={classNames(
-                        'w-full pl-4 pt-4 pr-16 outline-none resize-none text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent text-sm',
-                        'transition-all duration-200',
-                        'hover:border-bolt-elements-focus',
-                      )}
-                      onDragEnter={(e) => {
-                        e.preventDefault();
-                        e.currentTarget.style.border = '2px solid #1488fc';
+                    <svg className={classNames(styles.PromptEffectContainer)}>
+                      <defs>
+                        <linearGradient
+                          id="line-gradient"
+                          x1="20%"
+                          y1="0%"
+                          x2="-14%"
+                          y2="10%"
+                          gradientUnits="userSpaceOnUse"
+                          gradientTransform="rotate(-45)"
+                        >
+                          <stop offset="0%" stopColor="#ec4899" stopOpacity="0%"></stop>
+                          <stop offset="40%" stopColor="#ec4899" stopOpacity="80%"></stop>
+                          <stop offset="50%" stopColor="#ec4899" stopOpacity="80%"></stop>
+                          <stop offset="100%" stopColor="#ec4899" stopOpacity="0%"></stop>
+                        </linearGradient>
+                        <linearGradient id="shine-gradient">
+                          <stop offset="0%" stopColor="#ec4899" stopOpacity="0%"></stop>
+                          <stop offset="50%" stopColor="#ec4899" stopOpacity="40%"></stop>
+                          <stop offset="100%" stopColor="#ec4899" stopOpacity="0%"></stop>
+                        </linearGradient>
+                      </defs>
+                      <rect
+                        className={classNames(styles.PromptEffectLine)}
+                        pathLength="100"
+                        strokeLinecap="round"
+                      ></rect>
+                      <rect className={classNames(styles.PromptShine)} x="48" y="24" width="70" height="1"></rect>
+                    </svg>
+                    <div>
+                      <ClientOnly>
+                        {() => (
+                          <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
+                            <ModelSelector
+                              key={provider?.name + ':' + modelList.length}
+                              model={model}
+                              setModel={setModel}
+                              modelList={modelList}
+                              provider={provider}
+                              setProvider={setProvider}
+                              providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
+                              apiKeys={apiKeys}
+                              modelLoading={isModelLoading}
+                            />
+                            {(providerList || []).length > 0 &&
+                              provider &&
+                              !LOCAL_PROVIDERS.includes(provider.name) && (
+                                <APIKeyManager
+                                  provider={provider}
+                                  apiKey={apiKeys[provider.name] || ''}
+                                  setApiKey={(key) => {
+                                    onApiKeysChange(provider.name, key);
+                                  }}
+                                />
+                              )}
+                          </div>
+                        )}
+                      </ClientOnly>
+                    </div>
+                    <FilePreview
+                      files={uploadedFiles}
+                      imageDataList={imageDataList}
+                      onRemove={(index) => {
+                        setUploadedFiles?.(uploadedFiles.filter((_, i) => i !== index));
+                        setImageDataList?.(imageDataList.filter((_, i) => i !== index));
                       }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.currentTarget.style.border = '2px solid #1488fc';
-                      }}
-                      onDragLeave={(e) => {
-                        e.preventDefault();
-                        e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
-
-                        const files = Array.from(e.dataTransfer.files);
-                        files.forEach((file) => {
-                          if (file.type.startsWith('image/')) {
-                            const reader = new FileReader();
-
-                            reader.onload = (e) => {
-                              const base64Image = e.target?.result as string;
-                              setUploadedFiles?.([...uploadedFiles, file]);
-                              setImageDataList?.([...imageDataList, base64Image]);
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        });
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          if (event.shiftKey) {
-                            return;
-                          }
-
-                          event.preventDefault();
-
-                          if (isStreaming) {
-                            handleStop?.();
-                            return;
-                          }
-
-                          // ignore if using input method engine
-                          if (event.nativeEvent.isComposing) {
-                            return;
-                          }
-
-                          handleSendMessage?.(event);
-                        }
-                      }}
-                      value={input}
-                      onChange={(event) => {
-                        handleInputChange?.(event);
-                      }}
-                      onPaste={handlePaste}
-                      style={{
-                        minHeight: TEXTAREA_MIN_HEIGHT,
-                        maxHeight: TEXTAREA_MAX_HEIGHT,
-                      }}
-                      placeholder="How can Bolt help you today?"
-                      translate="no"
                     />
+                    <ClientOnly>
+                      {() => (
+                        <ScreenshotStateManager
+                          setUploadedFiles={setUploadedFiles}
+                          setImageDataList={setImageDataList}
+                          uploadedFiles={uploadedFiles}
+                          imageDataList={imageDataList}
+                        />
+                      )}
+                    </ClientOnly>
+                    <div
+                      className={classNames(
+                        'relative shadow-xs border border-bolt-elements-borderColor backdrop-blur rounded-lg',
+                      )}
+                    >
+                      {!chatStarted ? (
+                        // Guided form for landing page
+                        <div className="p-6">
+                          <div className="text-center mb-8">
+                            <h3 className="text-xl font-semibold text-bolt-elements-textPrimary mb-3">
+                              What would you like to build?
+                            </h3>
+                            <p className="text-sm text-bolt-elements-textSecondary">
+                              Select your options below to get started
+                            </p>
+                          </div>
+
+                          <div className="space-y-6">
+                            {/* Application Type Dropdown */}
+                            <div>
+                              <label className="block text-sm font-medium text-bolt-elements-textPrimary mb-3">
+                                Application Type
+                              </label>
+                              <select
+                                value={selectedApplicationType}
+                                onChange={(e) => setSelectedApplicationType(e.target.value)}
+                                className={classNames(
+                                  'w-full p-4 rounded-lg border border-bolt-elements-borderColor',
+                                  'bg-bolt-elements-background-depth-2 text-bolt-elements-textPrimary',
+                                  'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
+                                  'transition-all duration-200 text-base',
+                                  'hover:border-bolt-elements-focus',
+                                )}
+                              >
+                                <option value="">Select an application type...</option>
+                                {APPLICATION_TYPES.map((type) => (
+                                  <option key={type.value} value={type.value}>
+                                    {type.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Business Type Dropdown */}
+                            <div>
+                              <label className="block text-sm font-medium text-bolt-elements-textPrimary mb-3">
+                                Business Type
+                              </label>
+                              <select
+                                value={selectedBusinessType}
+                                onChange={(e) => setSelectedBusinessType(e.target.value)}
+                                className={classNames(
+                                  'w-full p-4 rounded-lg border border-bolt-elements-borderColor',
+                                  'bg-bolt-elements-background-depth-2 text-bolt-elements-textPrimary',
+                                  'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
+                                  'transition-all duration-200 text-base',
+                                  'hover:border-bolt-elements-focus',
+                                )}
+                              >
+                                <option value="">Select a business type...</option>
+                                {BUSINESS_TYPES.map((type) => (
+                                  <option key={type.value} value={type.value}>
+                                    {type.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {/* Additional Details Input */}
+                            <div>
+                              <label className="block text-sm font-medium text-bolt-elements-textPrimary mb-3">
+                                Additional Details (Optional)
+                              </label>
+                              <textarea
+                                value={customInput}
+                                onChange={(e) => setCustomInput(e.target.value)}
+                                placeholder="Add any specific requirements or features you'd like..."
+                                className={classNames(
+                                  'w-full p-4 rounded-lg border border-bolt-elements-borderColor',
+                                  'bg-bolt-elements-background-depth-2 text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
+                                  'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
+                                  'transition-all duration-200 resize-none text-base',
+                                  'min-h-[100px] max-h-[150px]',
+                                  'hover:border-bolt-elements-focus',
+                                )}
+                              />
+                            </div>
+
+                            {/* Generated Prompt Preview */}
+                            {selectedApplicationType && selectedBusinessType && (
+                              <div className="p-4 bg-bolt-elements-background-depth-3 rounded-lg border border-bolt-elements-borderColor">
+                                <p className="text-xs text-bolt-elements-textSecondary mb-2 font-medium">
+                                  Generated Prompt:
+                                </p>
+                                <p className="text-sm text-bolt-elements-textPrimary font-medium leading-relaxed">
+                                  {constructPrompt()}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        // Original textarea for chat mode
+                        <textarea
+                          ref={textareaRef}
+                          className={classNames(
+                            'w-full pl-4 pt-4 pr-16 outline-none resize-none text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent text-sm',
+                            'transition-all duration-200',
+                            'hover:border-bolt-elements-focus',
+                          )}
+                          onDragEnter={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.style.border = '2px solid #1488fc';
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.style.border = '2px solid #1488fc';
+                          }}
+                          onDragLeave={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
+
+                            const files = Array.from(e.dataTransfer.files);
+                            files.forEach((file) => {
+                              if (file.type.startsWith('image/')) {
+                                const reader = new FileReader();
+
+                                reader.onload = (e) => {
+                                  const base64Image = e.target?.result as string;
+                                  setUploadedFiles?.([...uploadedFiles, file]);
+                                  setImageDataList?.([...imageDataList, base64Image]);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            });
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              if (event.shiftKey) {
+                                return;
+                              }
+
+                              event.preventDefault();
+
+                              if (isStreaming) {
+                                handleStop?.();
+                                return;
+                              }
+
+                              // ignore if using input method engine
+                              if (event.nativeEvent.isComposing) {
+                                return;
+                              }
+
+                              handleSendMessage?.(event);
+                            }
+                          }}
+                          value={input}
+                          onChange={(event) => {
+                            handleInputChange?.(event);
+                          }}
+                          onPaste={handlePaste}
+                          style={{
+                            minHeight: TEXTAREA_MIN_HEIGHT,
+                            maxHeight: TEXTAREA_MAX_HEIGHT,
+                          }}
+                          placeholder="How can Bolt help you today?"
+                          translate="no"
+                        />
+                      )}
+                    </div>
+
+                    {/* Send Button - show only when there's content or in chat mode */}
                     <ClientOnly>
                       {() => (
                         <SendButton
-                          show={input.length > 0 || isStreaming || uploadedFiles.length > 0}
+                          show={
+                            chatStarted
+                              ? Boolean(input.length > 0 || isStreaming || uploadedFiles.length > 0)
+                              : Boolean(selectedApplicationType && selectedBusinessType)
+                          }
                           isStreaming={isStreaming}
                           disabled={!providerList || providerList.length === 0}
                           onClick={(event) => {
@@ -531,67 +747,77 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               return;
                             }
 
-                            if (input.length > 0 || uploadedFiles.length > 0) {
-                              handleSendMessage?.(event);
+                            if (chatStarted) {
+                              if (input.length > 0 || uploadedFiles.length > 0) {
+                                handleSendMessage?.(event);
+                              }
+                            } else {
+                              // For guided form, proceed to solution design
+                              handleProceedToSolutionDesign();
                             }
                           }}
                         />
                       )}
                     </ClientOnly>
-                    <div className="flex justify-between items-center text-sm p-4 pt-2">
-                      <div className="flex gap-1 items-center">
-                        <IconButton title="Upload file" className="transition-all" onClick={() => handleFileUpload()}>
-                          <div className="i-ph:paperclip text-xl"></div>
-                        </IconButton>
-                        <IconButton
-                          title="Enhance prompt"
-                          disabled={input.length === 0 || enhancingPrompt}
-                          className={classNames('transition-all', enhancingPrompt ? 'opacity-100' : '')}
-                          onClick={() => {
-                            enhancePrompt?.();
-                            toast.success('Prompt enhanced!');
-                          }}
-                        >
-                          {enhancingPrompt ? (
-                            <div className="i-svg-spinners:90-ring-with-bg text-bolt-elements-loader-progress text-xl animate-spin"></div>
-                          ) : (
-                            <div className="i-bolt:stars text-xl"></div>
-                          )}
-                        </IconButton>
 
-                        <SpeechRecognitionButton
-                          isListening={isListening}
-                          onStart={startListening}
-                          onStop={stopListening}
-                          disabled={isStreaming}
-                        />
-                        {chatStarted && <ClientOnly>{() => <ExportChatButton exportChat={exportChat} />}</ClientOnly>}
-                        <IconButton
-                          title="Model Settings"
-                          className={classNames('transition-all flex items-center gap-1', {
-                            'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent':
-                              isModelSettingsCollapsed,
-                            'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault':
-                              !isModelSettingsCollapsed,
-                          })}
-                          onClick={() => setIsModelSettingsCollapsed(!isModelSettingsCollapsed)}
-                          disabled={!providerList || providerList.length === 0}
-                        >
-                          <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
-                          {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
-                        </IconButton>
-                      </div>
-                      {input.length > 3 ? (
-                        <div className="text-xs text-bolt-elements-textTertiary">
-                          Use <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd>{' '}
-                          + <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd>{' '}
-                          a new line
+                    {/* Action buttons - only show in chat mode */}
+                    {chatStarted && (
+                      <div className="flex justify-between items-center text-sm p-4 pt-2">
+                        <div className="flex gap-1 items-center">
+                          <IconButton title="Upload file" className="transition-all" onClick={() => handleFileUpload()}>
+                            <div className="i-ph:paperclip text-xl"></div>
+                          </IconButton>
+                          <IconButton
+                            title="Enhance prompt"
+                            disabled={input.length === 0 || enhancingPrompt}
+                            className={classNames('transition-all', enhancingPrompt ? 'opacity-100' : '')}
+                            onClick={() => {
+                              enhancePrompt?.();
+                              toast.success('Prompt enhanced!');
+                            }}
+                          >
+                            {enhancingPrompt ? (
+                              <div className="i-svg-spinners:90-ring-with-bg text-bolt-elements-loader-progress text-xl animate-spin"></div>
+                            ) : (
+                              <div className="i-bolt:stars text-xl"></div>
+                            )}
+                          </IconButton>
+
+                          <SpeechRecognitionButton
+                            isListening={isListening}
+                            onStart={startListening}
+                            onStop={stopListening}
+                            disabled={isStreaming}
+                          />
+                          {chatStarted && <ClientOnly>{() => <ExportChatButton exportChat={exportChat} />}</ClientOnly>}
+                          <IconButton
+                            title="Model Settings"
+                            className={classNames('transition-all flex items-center gap-1', {
+                              'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent':
+                                isModelSettingsCollapsed,
+                              'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault':
+                                !isModelSettingsCollapsed,
+                            })}
+                            onClick={() => setIsModelSettingsCollapsed(!isModelSettingsCollapsed)}
+                            disabled={!providerList || providerList.length === 0}
+                          >
+                            <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
+                            {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
+                          </IconButton>
                         </div>
-                      ) : null}
-                    </div>
+                        {input.length > 3 ? (
+                          <div className="text-xs text-bolt-elements-textTertiary">
+                            Use{' '}
+                            <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd> +{' '}
+                            <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd>{' '}
+                            a new line
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
+              )}
             </div>
             <div className="flex flex-col justify-center gap-5">
               {!chatStarted && (
