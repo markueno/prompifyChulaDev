@@ -25,7 +25,7 @@ const StarterTemplates: React.FC = () => {
   React.useEffect(() => {
     console.log(
       'Available templates:',
-      STARTER_TEMPLATES.map((t) => ({ name: t.name, icon: t.icon })),
+      STARTER_TEMPLATES.map(t => ({ name: t.name, icon: t.icon }))
     );
   }, []);
 
@@ -34,7 +34,7 @@ const StarterTemplates: React.FC = () => {
       <span className="text-sm text-gray-500">or start a blank app with your favorite stack</span>
       <div className="flex justify-center">
         <div className="flex w-70 flex-wrap items-center justify-center gap-4">
-          {STARTER_TEMPLATES.map((template) => (
+          {STARTER_TEMPLATES.map(template => (
             <FrameworkLink key={template.name} template={template} />
           ))}
         </div>

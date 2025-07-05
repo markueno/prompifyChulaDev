@@ -67,7 +67,7 @@ const getInitialProviderSettings = (): ProviderSetting => {
   const initialSettings: ProviderSetting = {};
 
   // Start with default settings
-  PROVIDER_LIST.forEach((provider) => {
+  PROVIDER_LIST.forEach(provider => {
     initialSettings[provider.name] = {
       ...provider,
       settings: {
@@ -226,7 +226,7 @@ const getInitialTabConfiguration = (): TabWindowConfig => {
     return {
       userTabs: parsed.userTabs.filter((tab: TabVisibilityConfig): tab is UserTabConfig => tab.window === 'user'),
       developerTabs: parsed.developerTabs.filter(
-        (tab: TabVisibilityConfig): tab is DevTabConfig => tab.window === 'developer',
+        (tab: TabVisibilityConfig): tab is DevTabConfig => tab.window === 'developer'
       ),
     };
   } catch (error) {
@@ -248,10 +248,10 @@ export const updateTabConfiguration = (config: TabVisibilityConfig) => {
   const targetArray = isUserTab ? 'userTabs' : 'developerTabs';
 
   // Only update the tab in its respective window
-  const updatedTabs = currentConfig[targetArray].map((tab) => (tab.id === config.id ? { ...config } : tab));
+  const updatedTabs = currentConfig[targetArray].map(tab => (tab.id === config.id ? { ...config } : tab));
 
   // If tab doesn't exist in this window yet, add it
-  if (!updatedTabs.find((tab) => tab.id === config.id)) {
+  if (!updatedTabs.find(tab => tab.id === config.id)) {
     updatedTabs.push(config);
   }
 
@@ -302,7 +302,7 @@ interface SettingsStore {
   setSelectedTab: (tab: string) => void;
 }
 
-export const useSettingsStore = create<SettingsStore>((set) => ({
+export const useSettingsStore = create<SettingsStore>(set => ({
   isOpen: false,
   selectedTab: 'user', // Default tab
 

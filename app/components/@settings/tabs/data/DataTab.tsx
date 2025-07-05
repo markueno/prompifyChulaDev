@@ -192,7 +192,7 @@ export default function DataTab() {
 
       // Get all chats and delete them
       const chats = await getAll(db as IDBDatabase);
-      const deletePromises = chats.map((chat) => deleteById(db as IDBDatabase, chat.id));
+      const deletePromises = chats.map(chat => deleteById(db as IDBDatabase, chat.id));
       await Promise.all(deletePromises);
 
       // Close the dialog first
@@ -224,7 +224,7 @@ export default function DataTab() {
 
       // Get all chats and delete them one by one
       const chats = await getAll(db as IDBDatabase);
-      const deletePromises = chats.map((chat) => deleteById(db as IDBDatabase, chat.id));
+      const deletePromises = chats.map(chat => deleteById(db as IDBDatabase, chat.id));
       await Promise.all(deletePromises);
 
       // Close the dialog first

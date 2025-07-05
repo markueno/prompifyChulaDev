@@ -23,7 +23,7 @@ export const DropdownItem = ({ children, onSelect, className }: DropdownItemProp
       'hover:bg-bolt-elements-background-depth-3',
       'transition-colors cursor-pointer',
       'outline-none',
-      className,
+      className
     )}
     onSelect={onSelect}
   >
@@ -50,7 +50,7 @@ export const Dropdown = ({ trigger, children, align = 'end', sideOffset = 5 }: D
             'data-[side=left]:slide-in-from-right-2',
             'data-[side=right]:slide-in-from-left-2',
             'data-[side=top]:slide-in-from-bottom-2',
-            'z-[1000]',
+            'z-[1000]'
           )}
           sideOffset={sideOffset}
           align={align}

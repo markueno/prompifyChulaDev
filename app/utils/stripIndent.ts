@@ -16,7 +16,7 @@ export function stripIndents(arg0: string | TemplateStringsArray, ...values: any
 function _stripIndents(value: string) {
   return value
     .split('\n')
-    .map((line) => line.trim())
+    .map(line => line.trim())
     .join('\n')
     .trimStart()
     .replace(/[\r\n]$/, '');

@@ -101,7 +101,7 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                             key="i-ph:arrow-u-up-left"
                             className={classNames(
                               'i-ph:arrow-u-up-left',
-                              'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
+                              'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors'
                             )}
                           />
                         </WithTooltip>
@@ -113,7 +113,7 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                           key="i-ph:git-fork"
                           className={classNames(
                             'i-ph:git-fork',
-                            'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors',
+                            'text-xl text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors'
                           )}
                         />
                       </WithTooltip>
@@ -128,5 +128,5 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
         )}
       </div>
     );
-  },
+  }
 );

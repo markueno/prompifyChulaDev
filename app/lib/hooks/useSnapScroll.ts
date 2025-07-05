@@ -72,7 +72,7 @@ export function useSnapScroll(options: ScrollOptions = {}) {
 
       animationFrameRef.current = requestAnimationFrame(animation);
     },
-    [cubicBezier],
+    [cubicBezier]
   );
 
   const isScrolledToBottom = useCallback(
@@ -80,7 +80,7 @@ export function useSnapScroll(options: ScrollOptions = {}) {
       const { scrollTop, scrollHeight, clientHeight } = element;
       return scrollHeight - scrollTop - clientHeight <= bottomThreshold;
     },
-    [bottomThreshold],
+    [bottomThreshold]
   );
 
   const messageRef = useCallback(
@@ -107,7 +107,7 @@ export function useSnapScroll(options: ScrollOptions = {}) {
         }
       }
     },
-    [duration, easing, smoothScroll],
+    [duration, easing, smoothScroll]
   );
 
   const scrollRef = useCallback(
@@ -148,7 +148,7 @@ export function useSnapScroll(options: ScrollOptions = {}) {
         onScrollRef.current = undefined;
       }
     },
-    [isScrolledToBottom],
+    [isScrolledToBottom]
   );
 
   return [messageRef, scrollRef] as const;

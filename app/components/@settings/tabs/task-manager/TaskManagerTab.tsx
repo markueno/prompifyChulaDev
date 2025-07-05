@@ -367,7 +367,7 @@ const TaskManagerTab: React.FC = () => {
         }
 
         if (savedProfile) {
-          const profile = POWER_PROFILES.find((p) => p.name === savedProfile);
+          const profile = POWER_PROFILES.find(p => p.name === savedProfile);
 
           if (profile) {
             setSelectedProfile(profile);
@@ -407,13 +407,13 @@ const TaskManagerTab: React.FC = () => {
       const resourceMetrics = {
         total: resources.length,
         size: resources.reduce((total, r) => total + (r.transferSize || 0), 0),
-        loadTime: Math.max(0, ...resources.map((r) => r.duration)),
+        loadTime: Math.max(0, ...resources.map(r => r.duration)),
       };
 
       // Get Web Vitals
       const ttfb = navigation.responseStart - navigation.requestStart;
       const paintEntries = performance.getEntriesByType('paint');
-      const fcp = paintEntries.find((entry) => entry.name === 'first-contentful-paint')?.startTime || 0;
+      const fcp = paintEntries.find(entry => entry.name === 'first-contentful-paint')?.startTime || 0;
       const lcpEntry = await getLargestContentfulPaint();
 
       return {
@@ -455,7 +455,7 @@ const TaskManagerTab: React.FC = () => {
     // Set up interval with immediate assignment
     const metricsInterval = setInterval(
       updateMetricsWrapper,
-      energySaverMode ? UPDATE_INTERVALS.energySaver.metrics : UPDATE_INTERVALS.normal.metrics,
+      energySaverMode ? UPDATE_INTERVALS.energySaver.metrics : UPDATE_INTERVALS.normal.metrics
     );
 
     // Cleanup function
@@ -526,7 +526,7 @@ const TaskManagerTab: React.FC = () => {
 
   // Measure frame rate
   const measureFrameRate = async (): Promise<number> => {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       const frameCount = { value: 0 };
       const startTime = performance.now();
 
@@ -546,8 +546,8 @@ const TaskManagerTab: React.FC = () => {
 
   // Get Largest Contentful Paint
   const getLargestContentfulPaint = async (): Promise<PerformanceEntry | undefined> => {
-    return new Promise((resolve) => {
-      new PerformanceObserver((list) => {
+    return new Promise(resolve => {
+      new PerformanceObserver(list => {
         const entries = list.getEntries();
         resolve(entries[entries.length - 1]);
       }).observe({ entryTypes: ['largest-contentful-paint'] });
@@ -685,7 +685,7 @@ const TaskManagerTab: React.FC = () => {
 
       // Update metrics history
       const now = new Date().toLocaleTimeString();
-      setMetricsHistory((prev) => {
+      setMetricsHistory(prev => {
         const timestamps = [...prev.timestamps, now].slice(-MAX_HISTORY_POINTS);
         const cpu = [...prev.cpu, metrics.cpu.usage].slice(-MAX_HISTORY_POINTS);
         const memory = [...prev.memory, metrics.memory.percentage].slice(-MAX_HISTORY_POINTS);
@@ -743,7 +743,7 @@ const TaskManagerTab: React.FC = () => {
     }
 
     const updateNetworkInfo = () => {
-      setMetrics((prev) => ({
+      setMetrics(prev => ({
         ...prev,
         network: {
           downlink: connection.downlink || 0,
@@ -769,7 +769,7 @@ const TaskManagerTab: React.FC = () => {
           updateMetrics();
         }
       },
-      energySaverMode ? UPDATE_INTERVALS.energySaver.metrics : UPDATE_INTERVALS.normal.metrics,
+      energySaverMode ? UPDATE_INTERVALS.energySaver.metrics : UPDATE_INTERVALS.normal.metrics
     );
 
     return () => {
@@ -902,8 +902,8 @@ const TaskManagerTab: React.FC = () => {
     }
 
     if (newAlerts.length > 0) {
-      setAlerts((prev) => [...prev, ...newAlerts]);
-      newAlerts.forEach((alert) => {
+      setAlerts(prev => [...prev, ...newAlerts]);
+      newAlerts.forEach(alert => {
         toast.warning(alert.message);
       });
     }
@@ -921,7 +921,7 @@ const TaskManagerTab: React.FC = () => {
                 type="checkbox"
                 id="autoEnergySaver"
                 checked={autoEnergySaver}
-                onChange={(e) => handleAutoEnergySaverChange(e.target.checked)}
+                onChange={e => handleAutoEnergySaverChange(e.target.checked)}
                 className="form-checkbox h-4 w-4 text-purple-600 rounded border-gray-300 dark:border-gray-700"
               />
               <div className="i-ph:gauge-duotone w-4 h-4 text-bolt-elements-textSecondary" />
@@ -934,7 +934,7 @@ const TaskManagerTab: React.FC = () => {
                 type="checkbox"
                 id="energySaver"
                 checked={energySaverMode}
-                onChange={(e) => !autoEnergySaver && handleEnergySaverChange(e.target.checked)}
+                onChange={e => !autoEnergySaver && handleEnergySaverChange(e.target.checked)}
                 disabled={autoEnergySaver}
                 className="form-checkbox h-4 w-4 text-purple-600 rounded border-gray-300 dark:border-gray-700 disabled:opacity-50"
               />
@@ -950,8 +950,8 @@ const TaskManagerTab: React.FC = () => {
             <div className="relative">
               <select
                 value={selectedProfile.name}
-                onChange={(e) => {
-                  const profile = POWER_PROFILES.find((p) => p.name === e.target.value);
+                onChange={e => {
+                  const profile = POWER_PROFILES.find(p => p.name === e.target.value);
 
                   if (profile) {
                     setSelectedProfile(profile);
@@ -961,7 +961,7 @@ const TaskManagerTab: React.FC = () => {
                 className="pl-8 pr-8 py-1.5 rounded-md bg-bolt-background-secondary dark:bg-[#1E1E1E] border border-bolt-border dark:border-bolt-borderDark text-sm text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimaryDark hover:border-bolt-action-primary dark:hover:border-bolt-action-primary focus:outline-none focus:ring-1 focus:ring-bolt-action-primary appearance-none min-w-[160px] cursor-pointer transition-colors duration-150"
                 style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
               >
-                {POWER_PROFILES.map((profile) => (
+                {POWER_PROFILES.map(profile => (
                   <option
                     key={profile.name}
                     value={profile.name}
@@ -1137,7 +1137,7 @@ const TaskManagerTab: React.FC = () => {
                 <span
                   className={classNames(
                     'text-sm font-medium',
-                    metrics.battery.level > 20 ? 'text-bolt-elements-textPrimary' : 'text-red-500',
+                    metrics.battery.level > 20 ? 'text-bolt-elements-textPrimary' : 'text-red-500'
                   )}
                 >
                   {Math.round(metrics.battery.level)}%

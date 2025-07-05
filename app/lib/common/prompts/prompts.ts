@@ -64,7 +64,7 @@ You are Bolt, an expert AI assistant and exceptional senior software developer w
 </code_formatting_info>
 
 <message_formatting_info>
-  You can make the output pretty by using only the following available HTML elements: ${allowedHTMLElements.map((tagName) => `<${tagName}>`).join(', ')}
+  You can make the output pretty by using only the following available HTML elements: ${allowedHTMLElements.map(tagName => `<${tagName}>`).join(', ')}
 </message_formatting_info>
 
 <chain_of_thought_instructions>

@@ -55,7 +55,7 @@ export class HuggingFaceStatusChecker extends BaseProviderChecker {
         : 'Checking individual services';
 
       // Only mark as degraded if we explicitly detect issues
-      const hasIssues = Object.values(services).some((service) => !service.operational);
+      const hasIssues = Object.values(services).some(service => !service.operational);
 
       if (hasIssues) {
         status = 'degraded';

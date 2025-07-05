@@ -29,7 +29,7 @@ export const useFeatures = () => {
     const checkNewFeatures = async () => {
       try {
         const features = await getFeatureFlags();
-        const unviewed = features.filter((feature) => !viewedFeatureIds.includes(feature.id));
+        const unviewed = features.filter(feature => !viewedFeatureIds.includes(feature.id));
         setUnviewedFeatures(unviewed);
         setHasNewFeatures(unviewed.length > 0);
       } catch (error) {
@@ -47,7 +47,7 @@ export const useFeatures = () => {
       const newViewedIds = [...viewedFeatureIds, featureId];
       setViewedFeatureIds(newViewedIds);
       setViewedFeatures(newViewedIds);
-      setUnviewedFeatures((prev) => prev.filter((feature) => feature.id !== featureId));
+      setUnviewedFeatures(prev => prev.filter(feature => feature.id !== featureId));
       setHasNewFeatures(unviewedFeatures.length > 1);
     } catch (error) {
       console.error('Failed to acknowledge feature:', error);
@@ -56,9 +56,9 @@ export const useFeatures = () => {
 
   const acknowledgeAllFeatures = async () => {
     try {
-      await Promise.all(unviewedFeatures.map((feature) => markFeatureViewed(feature.id)));
+      await Promise.all(unviewedFeatures.map(feature => markFeatureViewed(feature.id)));
 
-      const newViewedIds = [...viewedFeatureIds, ...unviewedFeatures.map((f) => f.id)];
+      const newViewedIds = [...viewedFeatureIds, ...unviewedFeatures.map(f => f.id)];
       setViewedFeatureIds(newViewedIds);
       setViewedFeatures(newViewedIds);
       setUnviewedFeatures([]);

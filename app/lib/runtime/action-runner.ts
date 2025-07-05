@@ -75,7 +75,7 @@ export class ActionRunner {
   constructor(
     webcontainerPromise: Promise<WebContainer>,
     getShellTerminal: () => BoltShell,
-    onAlert?: (alert: ActionAlert) => void,
+    onAlert?: (alert: ActionAlert) => void
   ) {
     this.#webcontainer = webcontainerPromise;
     this.#shellTerminal = getShellTerminal;
@@ -133,7 +133,7 @@ export class ActionRunner {
       .then(() => {
         return this.#executeAction(actionId, isStreaming);
       })
-      .catch((error) => {
+      .catch(error => {
         console.error('Action failed:', error);
       });
 
@@ -193,7 +193,7 @@ export class ActionRunner {
            * adding a delay to avoid any race condition between 2 start actions
            * i am up for a better approach
            */
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
 
           return;
         }
@@ -359,7 +359,7 @@ export class ActionRunner {
         write(data) {
           output += data;
         },
-      }),
+      })
     );
 
     const exitCode = await buildProcess.exit;

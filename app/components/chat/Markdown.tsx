@@ -43,7 +43,7 @@ export const Markdown = memo(({ children, html = false, limitedMarkdown = false 
           </div>
         );
       },
-      pre: (props) => {
+      pre: props => {
         const { children, node, ...rest } = props;
 
         const [firstChild] = node?.children ?? [];
@@ -103,7 +103,7 @@ export const stripCodeFenceFromArtifact = (content: string) => {
   }
 
   const lines = content.split('\n');
-  const artifactLineIndex = lines.findIndex((line) => line.includes('__boltArtifact__'));
+  const artifactLineIndex = lines.findIndex(line => line.includes('__boltArtifact__'));
 
   // Return original content if artifact line not found
   if (artifactLineIndex === -1) {

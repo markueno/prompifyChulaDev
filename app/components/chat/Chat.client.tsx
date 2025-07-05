@@ -40,7 +40,7 @@ export function Chat() {
   const { ready, initialMessages, storeMessageHistory, importChat, exportChat } = useChatHistory();
   const title = useStore(description);
   useEffect(() => {
-    workbenchStore.setReloadedMessages(initialMessages.map((m) => m.id));
+    workbenchStore.setReloadedMessages(initialMessages.map(m => m.id));
   }, [initialMessages]);
 
   return (
@@ -97,10 +97,10 @@ const processSampledMessages = createSampler(
     parseMessages(messages, isLoading);
 
     if (messages.length > initialMessages.length) {
-      storeMessageHistory(messages).catch((error) => toast.error(error.message));
+      storeMessageHistory(messages).catch(error => toast.error(error.message));
     }
   },
-  50,
+  50
 );
 
 interface ChatProps {
@@ -131,7 +131,7 @@ export const ChatImpl = memo(
     });
     const [provider, setProvider] = useState(() => {
       const savedProvider = Cookies.get('selectedProvider');
-      return (PROVIDER_LIST.find((p) => p.name === savedProvider) || DEFAULT_PROVIDER) as ProviderInfo;
+      return (PROVIDER_LIST.find(p => p.name === savedProvider) || DEFAULT_PROVIDER) as ProviderInfo;
     });
 
     const { showChat } = useStore(chatStore);
@@ -162,7 +162,7 @@ export const ChatImpl = memo(
         contextOptimization: contextOptimizationEnabled,
       },
       sendExtraMessageFields: true,
-      onError: (e) => {
+      onError: e => {
         logger.error('Request failed\n\n', e, error);
         logStore.logError('Chat request failed', e, {
           component: 'Chat',
@@ -170,7 +170,7 @@ export const ChatImpl = memo(
           error: e.message,
         });
         toast.error(
-          'There was an error processing your request: ' + (e.message ? e.message : 'No details were returned'),
+          'There was an error processing your request: ' + (e.message ? e.message : 'No details were returned')
         );
       },
       onFinish: (message, response) => {
@@ -307,7 +307,7 @@ export const ChatImpl = memo(
           });
 
           if (template !== 'blank') {
-            const temResp = await getTemplates(template, title).catch((e) => {
+            const temResp = await getTemplates(template, title).catch(e => {
               if (e.message.includes('rate limit')) {
                 toast.warning('Rate limit exceeded. Skipping starter template\n Continuing with blank template');
               } else {
@@ -355,7 +355,7 @@ export const ChatImpl = memo(
                 type: 'text',
                 text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${messageContent}`,
               },
-              ...imageDataList.map((imageData) => ({
+              ...imageDataList.map(imageData => ({
                 type: 'image',
                 image: imageData,
               })),
@@ -385,7 +385,7 @@ export const ChatImpl = memo(
               type: 'text',
               text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userUpdateArtifact}${messageContent}`,
             },
-            ...imageDataList.map((imageData) => ({
+            ...imageDataList.map(imageData => ({
               type: 'image',
               image: imageData,
             })),
@@ -401,7 +401,7 @@ export const ChatImpl = memo(
               type: 'text',
               text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${messageContent}`,
             },
-            ...imageDataList.map((imageData) => ({
+            ...imageDataList.map(imageData => ({
               type: 'image',
               image: imageData,
             })),
@@ -437,7 +437,7 @@ export const ChatImpl = memo(
         const trimmedValue = event.target.value.trim();
         Cookies.set(PROMPT_COOKIE_KEY, trimmedValue, { expires: 30 });
       }, 1000),
-      [],
+      []
     );
 
     const [messageRef, scrollRef] = useSnapScroll();
@@ -468,7 +468,7 @@ export const ChatImpl = memo(
         showChat={showChat}
         chatStarted={chatStarted}
         isStreaming={isLoading || fakeLoading}
-        onStreamingChange={(streaming) => {
+        onStreamingChange={streaming => {
           streamingState.set(streaming);
         }}
         enhancingPrompt={enhancingPrompt}
@@ -481,7 +481,7 @@ export const ChatImpl = memo(
         providerList={activeProviders}
         messageRef={messageRef}
         scrollRef={scrollRef}
-        handleInputChange={(e) => {
+        handleInputChange={e => {
           onTextareaChange(e);
           debouncedCachePrompt(e);
         }}
@@ -502,13 +502,13 @@ export const ChatImpl = memo(
         enhancePrompt={() => {
           enhancePrompt(
             input,
-            (input) => {
+            input => {
               setInput(input);
               scrollTextArea();
             },
             model,
             provider,
-            apiKeys,
+            apiKeys
           );
         }}
         uploadedFiles={uploadedFiles}
@@ -520,5 +520,5 @@ export const ChatImpl = memo(
         data={chatData}
       />
     );
-  },
+  }
 );

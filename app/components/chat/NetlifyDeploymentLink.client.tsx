@@ -14,7 +14,7 @@ export function NetlifyDeploymentLink() {
     }
   }, [connection.token, currentChatId]);
 
-  const deployedSite = connection.stats?.sites?.find((site) => site.name.includes(`bolt-diy-${currentChatId}`));
+  const deployedSite = connection.stats?.sites?.find(site => site.name.includes(`bolt-diy-${currentChatId}`));
 
   if (!deployedSite) {
     return null;
@@ -29,7 +29,7 @@ export function NetlifyDeploymentLink() {
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center w-8 h-8 rounded hover:bg-bolt-elements-item-backgroundActive text-bolt-elements-textSecondary hover:text-[#00AD9F] z-50"
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation(); // Add this to prevent click from bubbling up
             }}
           >

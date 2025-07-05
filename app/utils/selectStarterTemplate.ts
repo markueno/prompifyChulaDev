@@ -15,13 +15,13 @@ Available templates:
 </template>
 ${templates
   .map(
-    (template) => `
+    template => `
 <template>
   <name>${template.name}</name>
   <description>${template.description}</description>
   ${template.tags ? `<tags>${template.tags.join(', ')}</tags>` : ''}
 </template>
-`,
+`
   )
   .join('\n')}
 
@@ -62,7 +62,7 @@ Important: Provide only the selection tags in your response, no additional text.
 MOST IMPORTANT: YOU DONT HAVE TIME TO THINK JUST START RESPONDING BASED ON HUNCH 
 `;
 
-const templates: Template[] = STARTER_TEMPLATES.filter((t) => !t.name.includes('shadcn'));
+const templates: Template[] = STARTER_TEMPLATES.filter(t => !t.name.includes('shadcn'));
 
 const parseSelectedTemplate = (llmOutput: string): { template: string; title: string } | null => {
   try {
@@ -113,7 +113,7 @@ export const selectStarterTemplate = async (options: { message: string; model: s
 
 const getGitHubRepoContent = async (
   repoName: string,
-  path: string = '',
+  path: string = ''
 ): Promise<{ name: string; path: string; content: string }[]> => {
   const baseUrl = 'https://api.github.com';
 
@@ -179,7 +179,7 @@ const getGitHubRepoContent = async (
         }
 
         return [];
-      }),
+      })
     );
 
     // Flatten the array of contents
@@ -191,7 +191,7 @@ const getGitHubRepoContent = async (
 };
 
 export async function getTemplates(templateName: string, title?: string) {
-  const template = STARTER_TEMPLATES.find((t) => t.name == templateName);
+  const template = STARTER_TEMPLATES.find(t => t.name == templateName);
 
   if (!template) {
     return null;
@@ -206,17 +206,17 @@ export async function getTemplates(templateName: string, title?: string) {
    * ignoring common unwanted files
    * exclude    .git
    */
-  filteredFiles = filteredFiles.filter((x) => x.path.startsWith('.git') == false);
+  filteredFiles = filteredFiles.filter(x => x.path.startsWith('.git') == false);
 
   // exclude    lock files
   const comminLockFiles = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'];
-  filteredFiles = filteredFiles.filter((x) => comminLockFiles.includes(x.name) == false);
+  filteredFiles = filteredFiles.filter(x => comminLockFiles.includes(x.name) == false);
 
   // exclude    .bolt
-  filteredFiles = filteredFiles.filter((x) => x.path.startsWith('.bolt') == false);
+  filteredFiles = filteredFiles.filter(x => x.path.startsWith('.bolt') == false);
 
   // check for ignore file in .bolt folder
-  const templateIgnoreFile = files.find((x) => x.path.startsWith('.bolt') && x.name == 'ignore');
+  const templateIgnoreFile = files.find(x => x.path.startsWith('.bolt') && x.name == 'ignore');
 
   const filesToImport = {
     files: filteredFiles,
@@ -225,11 +225,11 @@ export async function getTemplates(templateName: string, title?: string) {
 
   if (templateIgnoreFile) {
     // redacting files specified in ignore file
-    const ignorepatterns = templateIgnoreFile.content.split('\n').map((x) => x.trim());
+    const ignorepatterns = templateIgnoreFile.content.split('\n').map(x => x.trim());
     const ig = ignore().add(ignorepatterns);
 
     // filteredFiles = filteredFiles.filter(x => !ig.ignores(x.path))
-    const ignoredFiles = filteredFiles.filter((x) => ig.ignores(x.path));
+    const ignoredFiles = filteredFiles.filter(x => ig.ignores(x.path));
 
     filesToImport.files = filteredFiles;
     filesToImport.ignoreFile = ignoredFiles;
@@ -239,16 +239,16 @@ export async function getTemplates(templateName: string, title?: string) {
 <boltArtifact id="imported-files" title="${title || 'Importing Starter Files'}" type="bundled">
 ${filesToImport.files
   .map(
-    (file) =>
+    file =>
       `<boltAction type="file" filePath="${file.path}">
 ${file.content}
-</boltAction>`,
+</boltAction>`
   )
   .join('\n')}
 </boltArtifact>
 `;
   let userMessage = ``;
-  const templatePromptFile = files.filter((x) => x.path.startsWith('.bolt')).find((x) => x.name == 'prompt');
+  const templatePromptFile = files.filter(x => x.path.startsWith('.bolt')).find(x => x.name == 'prompt');
 
   if (templatePromptFile) {
     userMessage = `
@@ -267,7 +267,7 @@ IMPORTANT: Dont Forget to install the dependencies before running the app
 STRICT FILE ACCESS RULES - READ CAREFULLY:
 
 The following files are READ-ONLY and must never be modified:
-${filesToImport.ignoreFile.map((file) => `- ${file.path}`).join('\n')}
+${filesToImport.ignoreFile.map(file => `- ${file.path}`).join('\n')}
 
 Permitted actions:
 ✓ Import these files as dependencies

@@ -133,5 +133,5 @@ export const EditorPanel = memo(
         <TerminalTabs />
       </PanelGroup>
     );
-  },
+  }
 );

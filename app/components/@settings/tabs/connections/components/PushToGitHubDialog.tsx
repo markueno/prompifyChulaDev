@@ -76,7 +76,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
             Accept: 'application/vnd.github.v3+json',
             Authorization: `Bearer ${token.trim()}`,
           },
-        },
+        }
       );
 
       if (!response.ok) {
@@ -143,7 +143,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
 
         // If we get here, the repo exists
         const confirmOverwrite = window.confirm(
-          `Repository "${repoName}" already exists. Do you want to update it? This will add or modify files in the repository.`,
+          `Repository "${repoName}" already exists. Do you want to update it? This will add or modify files in the repository.`
         );
 
         if (!confirmOverwrite) {
@@ -190,7 +190,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
   // Success Dialog
   if (showSuccessDialog) {
     return (
-      <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <Dialog.Root open={isOpen} onOpenChange={open => !open && handleClose()}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999]" />
           <div className="fixed inset-0 flex items-center justify-center z-[9999]">
@@ -243,7 +243,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
                       Pushed Files ({pushedFiles.length})
                     </p>
                     <div className="max-h-[200px] overflow-y-auto custom-scrollbar">
-                      {pushedFiles.map((file) => (
+                      {pushedFiles.map(file => (
                         <div
                           key={file.path}
                           className="flex items-center justify-between py-1 text-sm text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary-dark"
@@ -301,7 +301,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
 
   if (!user) {
     return (
-      <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+      <Dialog.Root open={isOpen} onOpenChange={open => !open && handleClose()}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999]" />
           <div className="fixed inset-0 flex items-center justify-center z-[9999]">
@@ -345,7 +345,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
   }
 
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog.Root open={isOpen} onOpenChange={open => !open && handleClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999]" />
         <div className="fixed inset-0 flex items-center justify-center z-[9999]">
@@ -400,7 +400,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
                       id="repoName"
                       type="text"
                       value={repoName}
-                      onChange={(e) => setRepoName(e.target.value)}
+                      onChange={e => setRepoName(e.target.value)}
                       placeholder="my-awesome-project"
                       className="w-full px-4 py-2 rounded-lg bg-bolt-elements-background-depth-2 dark:bg-bolt-elements-background-depth-3 border border-[#E5E5E5] dark:border-[#1A1A1A] text-gray-900 dark:text-white placeholder-gray-400"
                       required
@@ -411,7 +411,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
                     <div className="space-y-2">
                       <label className="text-sm text-gray-600 dark:text-gray-400">Recent Repositories</label>
                       <div className="space-y-2">
-                        {recentRepos.map((repo) => (
+                        {recentRepos.map(repo => (
                           <motion.button
                             key={repo.full_name}
                             type="button"
@@ -476,7 +476,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
                       type="checkbox"
                       id="private"
                       checked={isPrivate}
-                      onChange={(e) => setIsPrivate(e.target.checked)}
+                      onChange={e => setIsPrivate(e.target.checked)}
                       className="rounded border-[#E5E5E5] dark:border-[#1A1A1A] text-purple-500 focus:ring-purple-500 dark:bg-[#0A0A0A]"
                     />
                     <label htmlFor="private" className="text-sm text-gray-600 dark:text-gray-400">
@@ -499,7 +499,7 @@ export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDial
                       disabled={isLoading}
                       className={classNames(
                         'flex-1 px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-sm inline-flex items-center justify-center gap-2',
-                        isLoading ? 'opacity-50 cursor-not-allowed' : '',
+                        isLoading ? 'opacity-50 cursor-not-allowed' : ''
                       )}
                       whileHover={!isLoading ? { scale: 1.02 } : {}}
                       whileTap={!isLoading ? { scale: 0.98 } : {}}

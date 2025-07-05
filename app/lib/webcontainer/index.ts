@@ -29,13 +29,13 @@ if (!import.meta.env.SSR) {
           forwardPreviewErrors: true, // Enable error forwarding from iframes
         });
       })
-      .then(async (webcontainer) => {
+      .then(async webcontainer => {
         webcontainerContext.loaded = true;
 
         const { workbenchStore } = await import('~/lib/stores/workbench');
 
         // Listen for preview errors
-        webcontainer.on('preview-message', (message) => {
+        webcontainer.on('preview-message', message => {
           console.log('WebContainer preview message:', message);
 
           // Handle both uncaught exceptions and unhandled promise rejections

@@ -103,7 +103,7 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
 
       const dynamicMaxTokens = modelDetails && modelDetails.maxTokenAllowed ? modelDetails.maxTokenAllowed : MAX_TOKENS;
 
-      const providerInfo = PROVIDER_LIST.find((p) => p.name === provider.name);
+      const providerInfo = PROVIDER_LIST.find(p => p.name === provider.name);
 
       if (!providerInfo) {
         throw new Error('Provider not found');

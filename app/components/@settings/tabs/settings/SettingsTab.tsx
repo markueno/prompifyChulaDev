@@ -80,14 +80,14 @@ export default function SettingsTab() {
           </div>
           <select
             value={settings.language}
-            onChange={(e) => setSettings((prev) => ({ ...prev, language: e.target.value }))}
+            onChange={e => setSettings(prev => ({ ...prev, language: e.target.value }))}
             className={classNames(
               'w-full px-3 py-2 rounded-lg text-sm',
               'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
               'border border-[#E5E5E5] dark:border-[#1A1A1A]',
               'text-bolt-elements-textPrimary',
               'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
-              'transition-all duration-200',
+              'transition-all duration-200'
             )}
           >
             <option value="en">English</option>
@@ -114,9 +114,9 @@ export default function SettingsTab() {
             </span>
             <Switch
               checked={settings.notifications}
-              onCheckedChange={(checked) => {
+              onCheckedChange={checked => {
                 // Update local state
-                setSettings((prev) => ({ ...prev, notifications: checked }));
+                setSettings(prev => ({ ...prev, notifications: checked }));
 
                 // Update localStorage immediately
                 const existingProfile = JSON.parse(localStorage.getItem('bolt_user_profile') || '{}');
@@ -131,7 +131,7 @@ export default function SettingsTab() {
                   new StorageEvent('storage', {
                     key: 'bolt_user_profile',
                     newValue: JSON.stringify(updatedProfile),
-                  }),
+                  })
                 );
 
                 toast.success(`Notifications ${checked ? 'enabled' : 'disabled'}`);
@@ -160,14 +160,14 @@ export default function SettingsTab() {
           </div>
           <select
             value={settings.timezone}
-            onChange={(e) => setSettings((prev) => ({ ...prev, timezone: e.target.value }))}
+            onChange={e => setSettings(prev => ({ ...prev, timezone: e.target.value }))}
             className={classNames(
               'w-full px-3 py-2 rounded-lg text-sm',
               'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
               'border border-[#E5E5E5] dark:border-[#1A1A1A]',
               'text-bolt-elements-textPrimary',
               'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
-              'transition-all duration-200',
+              'transition-all duration-200'
             )}
           >
             <option value={currentTimezone}>{currentTimezone}</option>

@@ -36,7 +36,7 @@ const FeatureCard = memo(
         'bg-bolt-elements-background-depth-2',
         'hover:bg-bolt-elements-background-depth-3',
         'transition-colors duration-200',
-        'rounded-lg overflow-hidden',
+        'rounded-lg overflow-hidden'
       )}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -58,13 +58,13 @@ const FeatureCard = memo(
               )}
             </div>
           </div>
-          <Switch checked={feature.enabled} onCheckedChange={(checked) => onToggle(feature.id, checked)} />
+          <Switch checked={feature.enabled} onCheckedChange={checked => onToggle(feature.id, checked)} />
         </div>
         <p className="mt-2 text-sm text-bolt-elements-textSecondary">{feature.description}</p>
         {feature.tooltip && <p className="mt-1 text-xs text-bolt-elements-textTertiary">{feature.tooltip}</p>}
       </div>
     </motion.div>
-  ),
+  )
 );
 
 const FeatureSection = memo(
@@ -102,7 +102,7 @@ const FeatureSection = memo(
         ))}
       </div>
     </motion.div>
-  ),
+  )
 );
 
 export default function FeaturesTab() {
@@ -174,7 +174,7 @@ export default function FeaturesTab() {
           break;
       }
     },
-    [enableLatestBranch, setAutoSelectTemplate, enableContextOptimization, setEventLogs],
+    [enableLatestBranch, setAutoSelectTemplate, enableContextOptimization, setEventLogs]
   );
 
   const features = {
@@ -242,7 +242,7 @@ export default function FeaturesTab() {
           'hover:bg-bolt-elements-background-depth-3',
           'transition-all duration-200',
           'rounded-lg p-4',
-          'group',
+          'group'
         )}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -254,7 +254,7 @@ export default function FeaturesTab() {
               'p-2 rounded-lg text-xl',
               'bg-bolt-elements-background-depth-3 group-hover:bg-bolt-elements-background-depth-4',
               'transition-colors duration-200',
-              'text-purple-500',
+              'text-purple-500'
             )}
           >
             <div className="i-ph:book" />
@@ -269,7 +269,7 @@ export default function FeaturesTab() {
           </div>
           <select
             value={promptId}
-            onChange={(e) => {
+            onChange={e => {
               setPromptId(e.target.value);
               toast.success('Prompt template updated');
             }}
@@ -279,10 +279,10 @@ export default function FeaturesTab() {
               'text-bolt-elements-textPrimary',
               'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
               'group-hover:border-purple-500/30',
-              'transition-all duration-200',
+              'transition-all duration-200'
             )}
           >
-            {PromptLibrary.getList().map((x) => (
+            {PromptLibrary.getList().map(x => (
               <option key={x.id} value={x.id}>
                 {x.label}
               </option>

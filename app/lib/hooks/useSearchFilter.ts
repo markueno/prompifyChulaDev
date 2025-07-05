@@ -21,7 +21,7 @@ export function useSearchFilter({
     (event: React.ChangeEvent<HTMLInputElement>) => {
       debouncedSetSearch(event.target.value);
     },
-    [debouncedSetSearch],
+    [debouncedSetSearch]
   );
 
   const filteredItems = useMemo(() => {
@@ -31,8 +31,8 @@ export function useSearchFilter({
 
     const query = searchQuery.toLowerCase();
 
-    return items.filter((item) =>
-      searchFields.some((field) => {
+    return items.filter(item =>
+      searchFields.some(field => {
         const value = item[field];
 
         if (typeof value === 'string') {
@@ -40,7 +40,7 @@ export function useSearchFilter({
         }
 
         return false;
-      }),
+      })
     );
   }, [items, searchQuery, searchFields]);
 

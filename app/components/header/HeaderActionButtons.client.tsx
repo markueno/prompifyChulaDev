@@ -151,7 +151,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
               headers: {
                 Authorization: `Bearer ${connection.token}`,
               },
-            },
+            }
           );
 
           deploymentStatus = (await statusResponse.json()) as any;
@@ -165,11 +165,11 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
           }
 
           attempts++;
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error) {
           console.error('Status check error:', error);
           attempts++;
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }
 
@@ -193,7 +193,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
           >
             View site
           </a>
-        </div>,
+        </div>
       );
     } catch (error) {
       console.error('Deploy error:', error);
@@ -326,7 +326,7 @@ function Button({ active = false, disabled = false, children, onClick, className
           'bg-bolt-elements-item-backgroundDefault text-alpha-gray-20 dark:text-alpha-white-20 cursor-not-allowed':
             disabled,
         },
-        className,
+        className
       )}
       onClick={onClick}
     >

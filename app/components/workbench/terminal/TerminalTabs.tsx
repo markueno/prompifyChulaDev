@@ -102,7 +102,7 @@ export const TerminalTabs = memo(() => {
                             isActive,
                           'bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary hover:bg-bolt-elements-terminals-buttonBackground':
                             !isActive,
-                        },
+                        }
                       )}
                       onClick={() => setActiveTerminal(index)}
                     >
@@ -119,7 +119,7 @@ export const TerminalTabs = memo(() => {
                             'bg-bolt-elements-terminals-buttonBackground text-bolt-elements-textPrimary': isActive,
                             'bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary hover:bg-bolt-elements-terminals-buttonBackground':
                               !isActive,
-                          },
+                          }
                         )}
                         onClick={() => setActiveTerminal(index)}
                       >
@@ -153,10 +153,10 @@ export const TerminalTabs = memo(() => {
                   className={classNames('h-full overflow-hidden', {
                     hidden: !isActive,
                   })}
-                  ref={(ref) => {
+                  ref={ref => {
                     terminalRefs.current.push(ref);
                   }}
-                  onTerminalReady={(terminal) => workbenchStore.attachBoltTerminal(terminal)}
+                  onTerminalReady={terminal => workbenchStore.attachBoltTerminal(terminal)}
                   onTerminalResize={(cols, rows) => workbenchStore.onTerminalResize(cols, rows)}
                   theme={theme}
                 />
@@ -169,10 +169,10 @@ export const TerminalTabs = memo(() => {
                   className={classNames('h-full overflow-hidden', {
                     hidden: !isActive,
                   })}
-                  ref={(ref) => {
+                  ref={ref => {
                     terminalRefs.current.push(ref);
                   }}
-                  onTerminalReady={(terminal) => workbenchStore.attachTerminal(terminal)}
+                  onTerminalReady={terminal => workbenchStore.attachTerminal(terminal)}
                   onTerminalResize={(cols, rows) => workbenchStore.onTerminalResize(cols, rows)}
                   theme={theme}
                 />

@@ -6,9 +6,9 @@ export function parseCookies(cookieHeader: string | null) {
   }
 
   // Split the cookie string by semicolons and spaces
-  const items = cookieHeader.split(';').map((cookie) => cookie.trim());
+  const items = cookieHeader.split(';').map(cookie => cookie.trim());
 
-  items.forEach((item) => {
+  items.forEach(item => {
     const [name, ...rest] = item.split('=');
 
     if (name && rest.length > 0) {

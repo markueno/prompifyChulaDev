@@ -50,7 +50,7 @@ export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
             'rounded-lg shadow-lg',
             'border border-gray-200/50 dark:border-gray-800/50',
             'animate-in fade-in-0 zoom-in-95',
-            'py-1',
+            'py-1'
           )}
           sideOffset={5}
           align="end"
@@ -58,7 +58,7 @@ export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
           <div
             className={classNames(
               'px-4 py-3 flex items-center gap-3',
-              'border-b border-gray-200/50 dark:border-gray-800/50',
+              'border-b border-gray-200/50 dark:border-gray-800/50'
             )}
           >
             <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-white dark:bg-gray-800 shadow-sm">
@@ -92,7 +92,7 @@ export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
               'hover:text-purple-500 dark:hover:text-purple-400',
               'cursor-pointer transition-all duration-200',
               'outline-none',
-              'group',
+              'group'
             )}
             onClick={() => onSelectTab('profile')}
           >
@@ -108,7 +108,7 @@ export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
               'hover:text-purple-500 dark:hover:text-purple-400',
               'cursor-pointer transition-all duration-200',
               'outline-none',
-              'group',
+              'group'
             )}
             onClick={() => onSelectTab('settings')}
           >
@@ -126,7 +126,7 @@ export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
               'hover:text-purple-500 dark:hover:text-purple-400',
               'cursor-pointer transition-all duration-200',
               'outline-none',
-              'group',
+              'group'
             )}
             onClick={() => onSelectTab('task-manager')}
           >
@@ -143,7 +143,7 @@ export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
               'hover:text-purple-500 dark:hover:text-purple-400',
               'cursor-pointer transition-all duration-200',
               'outline-none',
-              'group',
+              'group'
             )}
             onClick={() => onSelectTab('service-status')}
           >

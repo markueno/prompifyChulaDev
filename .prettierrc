@@ -6,5 +6,8 @@
   "semi": true,
   "bracketSpacing": true,
   "proseWrap": "preserve",
-  "endOfLine": "lf"
+  "endOfLine": "auto",
+  "trailingComma": "es5",
+  "arrowParens": "avoid",
+  "quoteProps": "as-needed"
 }

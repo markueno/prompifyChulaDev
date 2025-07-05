@@ -49,17 +49,17 @@ export const FileTree = memo(
 
     const [collapsedFolders, setCollapsedFolders] = useState(() => {
       return collapsed
-        ? new Set(fileList.filter((item) => item.kind === 'folder').map((item) => item.fullPath))
+        ? new Set(fileList.filter(item => item.kind === 'folder').map(item => item.fullPath))
         : new Set<string>();
     });
 
     useEffect(() => {
       if (collapsed) {
-        setCollapsedFolders(new Set(fileList.filter((item) => item.kind === 'folder').map((item) => item.fullPath)));
+        setCollapsedFolders(new Set(fileList.filter(item => item.kind === 'folder').map(item => item.fullPath)));
         return;
       }
 
-      setCollapsedFolders((prevCollapsed) => {
+      setCollapsedFolders(prevCollapsed => {
         const newCollapsed = new Set<string>();
 
         for (const folder of fileList) {
@@ -102,7 +102,7 @@ export const FileTree = memo(
     }, [fileList, collapsedFolders]);
 
     const toggleCollapseState = (fullPath: string) => {
-      setCollapsedFolders((prevSet) => {
+      setCollapsedFolders(prevSet => {
         const newSet = new Set(prevSet);
 
         if (newSet.has(fullPath)) {
@@ -133,7 +133,7 @@ export const FileTree = memo(
 
     return (
       <div className={classNames('text-sm', className, 'overflow-y-auto')}>
-        {filteredFileList.map((fileOrFolder) => {
+        {filteredFileList.map(fileOrFolder => {
           switch (fileOrFolder.kind) {
             case 'file': {
               return (
@@ -181,7 +181,7 @@ export const FileTree = memo(
         })}
       </div>
     );
-  },
+  }
 );
 
 export default FileTree;
@@ -310,7 +310,7 @@ function File({
 
         return acc;
       },
-      { additions: 0, deletions: 0 },
+      { additions: 0, deletions: 0 }
     );
   }, [fileModifications]);
 
@@ -364,7 +364,7 @@ function NodeButton({ depth, iconClasses, onClick, className, children }: Button
     <button
       className={classNames(
         'flex items-center gap-1.5 w-full pr-2 border-2 border-transparent text-faded py-0.5',
-        className,
+        className
       )}
       style={{ paddingLeft: `${6 + depth * NODE_PADDING_LEFT}px` }}
       onClick={() => onClick?.()}
@@ -396,7 +396,7 @@ function buildFileList(
   files: FileMap,
   rootFolder = '/',
   hideRoot: boolean,
-  hiddenFiles: Array<string | RegExp>,
+  hiddenFiles: Array<string | RegExp>
 ): Node[] {
   const folderPaths = new Set<string>();
   const fileList: Node[] = [];
@@ -409,7 +409,7 @@ function buildFileList(
   }
 
   for (const [filePath, dirent] of Object.entries(files)) {
-    const segments = filePath.split('/').filter((segment) => segment);
+    const segments = filePath.split('/').filter(segment => segment);
     const fileName = segments.at(-1);
 
     if (!fileName || isHiddenFile(filePath, fileName, hiddenFiles)) {
@@ -459,7 +459,7 @@ function buildFileList(
 }
 
 function isHiddenFile(filePath: string, fileName: string, hiddenFiles: Array<string | RegExp>) {
-  return hiddenFiles.some((pathOrRegex) => {
+  return hiddenFiles.some(pathOrRegex => {
     if (typeof pathOrRegex === 'string') {
       return fileName === pathOrRegex;
     }

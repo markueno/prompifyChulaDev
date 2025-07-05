@@ -27,6 +27,6 @@ export const tabConfigurationStore = create<TabConfigurationStore>((set, get) =>
     userTabs: get().userTabs,
     developerTabs: get().developerTabs,
   }),
-  set: (config) => set(config),
+  set: config => set(config),
   reset: () => set(DEFAULT_CONFIG),
 }));

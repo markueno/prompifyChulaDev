@@ -86,14 +86,14 @@ export const Preview = memo(() => {
 
       return false;
     },
-    [activePreview],
+    [activePreview]
   );
 
   const findMinPortIndex = useCallback(
     (minIndex: number, preview: { port: number }, index: number, array: { port: number }[]) => {
       return preview.port < array[minIndex].port ? index : minIndex;
     },
-    [],
+    []
   );
 
   useEffect(() => {
@@ -130,7 +130,7 @@ export const Preview = memo(() => {
   }, []);
 
   const toggleDeviceMode = () => {
-    setIsDeviceModeOn((prev) => !prev);
+    setIsDeviceModeOn(prev => !prev);
   };
 
   const startResizing = (e: React.MouseEvent, side: ResizeSide) => {
@@ -230,7 +230,7 @@ export const Preview = memo(() => {
         const newWindow = window.open(
           previewUrl,
           '_blank',
-          `noopener,noreferrer,width=${size.width},height=${size.height},menubar=no,toolbar=no,location=no,status=no`,
+          `noopener,noreferrer,width=${size.width},height=${size.height},menubar=no,toolbar=no,location=no,status=no`
         );
 
         if (newWindow) {
@@ -267,10 +267,10 @@ export const Preview = memo(() => {
             className="w-full bg-transparent outline-none"
             type="text"
             value={url}
-            onChange={(event) => {
+            onChange={event => {
               setUrl(event.target.value);
             }}
-            onKeyDown={(event) => {
+            onKeyDown={event => {
               if (event.key === 'Enter' && validateUrl(url)) {
                 setIframeUrl(url);
 
@@ -288,7 +288,7 @@ export const Preview = memo(() => {
               activePreviewIndex={activePreviewIndex}
               setActivePreviewIndex={setActivePreviewIndex}
               isDropdownOpen={isPortDropdownOpen}
-              setHasSelectedPreview={(value) => (hasSelectedPreview.current = value)}
+              setHasSelectedPreview={value => (hasSelectedPreview.current = value)}
               setIsDropdownOpen={setIsPortDropdownOpen}
               previews={previews}
             />
@@ -329,7 +329,7 @@ export const Preview = memo(() => {
               <>
                 <div className="fixed inset-0 z-50" onClick={() => setIsWindowSizeDropdownOpen(false)} />
                 <div className="absolute right-0 top-full mt-2 z-50 min-w-[240px] bg-white dark:bg-black rounded-xl shadow-2xl border border-[#E5E7EB] dark:border-[rgba(255,255,255,0.1)] overflow-hidden">
-                  {WINDOW_SIZES.map((size) => (
+                  {WINDOW_SIZES.map(size => (
                     <button
                       key={size.name}
                       className="w-full px-4 py-3.5 text-left text-[#111827] dark:text-gray-300 text-sm whitespace-nowrap flex items-center gap-3 group hover:bg-[#F5EEFF] dark:hover:bg-gray-900 bg-white dark:bg-black"
@@ -395,7 +395,7 @@ export const Preview = memo(() => {
           {isDeviceModeOn && (
             <>
               <div
-                onMouseDown={(e) => startResizing(e, 'left')}
+                onMouseDown={e => startResizing(e, 'left')}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -411,15 +411,15 @@ export const Preview = memo(() => {
                   transition: 'background 0.2s',
                   userSelect: 'none',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.5)')}
-                onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.2)')}
+                onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,.5)')}
+                onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,255,255,.2)')}
                 title="Drag to resize width"
               >
                 <GripIcon />
               </div>
 
               <div
-                onMouseDown={(e) => startResizing(e, 'right')}
+                onMouseDown={e => startResizing(e, 'right')}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -435,8 +435,8 @@ export const Preview = memo(() => {
                   transition: 'background 0.2s',
                   userSelect: 'none',
                 }}
-                onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.5)')}
-                onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,.2)')}
+                onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,255,255,.5)')}
+                onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,255,255,.2)')}
                 title="Drag to resize width"
               >
                 <GripIcon />

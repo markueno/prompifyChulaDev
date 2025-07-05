@@ -19,9 +19,9 @@ export function cleanStackTrace(stackTrace: string): string {
   // Split the stack trace into lines and process each line
   return stackTrace
     .split('\n')
-    .map((line) => {
+    .map(line => {
       // Match any URL in the line that contains webcontainer-api.io
-      return line.replace(/(https?:\/\/[^\/]+\.webcontainer-api\.io\/[^\s\)]+)/g, (match) => cleanUrl(match));
+      return line.replace(/(https?:\/\/[^\/]+\.webcontainer-api\.io\/[^\s\)]+)/g, match => cleanUrl(match));
     })
     .join('\n');
 }

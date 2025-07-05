@@ -89,8 +89,8 @@ export const getDebugStatus = async (): Promise<DebugStatus> => {
     }
 
     // Filter out acknowledged issues
-    issues.warnings = issues.warnings.filter((warning) => !acknowledgedIssues.has(warning.id));
-    issues.errors = issues.errors.filter((error) => !acknowledgedIssues.has(error.id));
+    issues.warnings = issues.warnings.filter(warning => !acknowledgedIssues.has(warning.id));
+    issues.errors = issues.errors.filter(error => !acknowledgedIssues.has(error.id));
 
     return issues;
   } catch (error) {

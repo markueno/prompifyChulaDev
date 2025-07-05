@@ -95,7 +95,7 @@ export function NetlifyConnection() {
               <input
                 type="password"
                 value={connection.token}
-                onChange={(e) => updateNetlifyConnection({ ...connection, token: e.target.value })}
+                onChange={e => updateNetlifyConnection({ ...connection, token: e.target.value })}
                 disabled={connecting}
                 placeholder="Enter your Netlify personal access token"
                 className={classNames(
@@ -104,7 +104,7 @@ export function NetlifyConnection() {
                   'border border-[#E5E5E5] dark:border-[#333333]',
                   'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
                   'focus:outline-none focus:ring-1 focus:ring-[#00AD9F]',
-                  'disabled:opacity-50',
+                  'disabled:opacity-50'
                 )}
               />
               <div className="mt-2 text-sm text-bolt-elements-textSecondary">
@@ -127,7 +127,7 @@ export function NetlifyConnection() {
                 'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
                 'bg-[#00AD9F] text-white',
                 'hover:bg-[#00968A]',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
             >
               {connecting ? (
@@ -152,7 +152,7 @@ export function NetlifyConnection() {
                   className={classNames(
                     'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
                     'bg-red-500 text-white',
-                    'hover:bg-red-600',
+                    'hover:bg-red-600'
                   )}
                 >
                   <div className="i-ph:plug w-4 h-4" />
@@ -195,13 +195,13 @@ export function NetlifyConnection() {
                   <div
                     className={classNames(
                       'i-ph:caret-down w-4 h-4 ml-auto transition-transform',
-                      isSitesExpanded ? 'rotate-180' : '',
+                      isSitesExpanded ? 'rotate-180' : ''
                     )}
                   />
                 </button>
                 {isSitesExpanded && connection.stats?.sites?.length ? (
                   <div className="grid gap-3">
-                    {connection.stats.sites.map((site) => (
+                    {connection.stats.sites.map(site => (
                       <a
                         key={site.id}
                         href={site.admin_url}

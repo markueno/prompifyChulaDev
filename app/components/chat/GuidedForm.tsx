@@ -85,17 +85,17 @@ export const GuidedForm: React.FC<GuidedFormProps> = ({ onProceedToSolutionDesig
             <select
               id="applicationType"
               value={selectedApplicationType}
-              onChange={(e) => setSelectedApplicationType(e.target.value)}
+              onChange={e => setSelectedApplicationType(e.target.value)}
               className={classNames(
                 'w-full px-4 py-3 rounded-lg border transition-all duration-200',
                 'bg-bolt-elements-background-depth-3 border-bolt-elements-borderColor',
                 'text-bolt-elements-textPrimary',
                 'focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500',
-                'hover:border-bolt-elements-borderColorAccent',
+                'hover:border-bolt-elements-borderColorAccent'
               )}
             >
               <option value="">Select an application type...</option>
-              {APPLICATION_TYPES.map((type) => (
+              {APPLICATION_TYPES.map(type => (
                 <option key={type.value} value={type.value}>
                   {type.label}
                 </option>
@@ -111,17 +111,17 @@ export const GuidedForm: React.FC<GuidedFormProps> = ({ onProceedToSolutionDesig
             <select
               id="businessType"
               value={selectedBusinessType}
-              onChange={(e) => setSelectedBusinessType(e.target.value)}
+              onChange={e => setSelectedBusinessType(e.target.value)}
               className={classNames(
                 'w-full px-4 py-3 rounded-lg border transition-all duration-200',
                 'bg-bolt-elements-background-depth-3 border-bolt-elements-borderColor',
                 'text-bolt-elements-textPrimary',
                 'focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500',
-                'hover:border-bolt-elements-borderColorAccent',
+                'hover:border-bolt-elements-borderColorAccent'
               )}
             >
               <option value="">Select a business type...</option>
-              {BUSINESS_TYPES.map((type) => (
+              {BUSINESS_TYPES.map(type => (
                 <option key={type.value} value={type.value}>
                   {type.label}
                 </option>
@@ -140,7 +140,7 @@ export const GuidedForm: React.FC<GuidedFormProps> = ({ onProceedToSolutionDesig
             <textarea
               id="additionalDetails"
               value={additionalDetails}
-              onChange={(e) => setAdditionalDetails(e.target.value)}
+              onChange={e => setAdditionalDetails(e.target.value)}
               placeholder="e.g., with user authentication, payment integration, mobile responsive design..."
               rows={3}
               className={classNames(
@@ -149,7 +149,7 @@ export const GuidedForm: React.FC<GuidedFormProps> = ({ onProceedToSolutionDesig
                 'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
                 'focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500',
                 'hover:border-bolt-elements-borderColorAccent',
-                'resize-none',
+                'resize-none'
               )}
             />
           </div>
@@ -175,7 +175,7 @@ export const GuidedForm: React.FC<GuidedFormProps> = ({ onProceedToSolutionDesig
             'flex items-center gap-2 px-8 py-3 rounded-lg font-medium transition-all duration-200',
             canProceed
               ? 'bg-accent-500 text-white hover:bg-accent-600'
-              : 'bg-bolt-elements-background-depth-3 text-bolt-elements-textTertiary cursor-not-allowed',
+              : 'bg-bolt-elements-background-depth-3 text-bolt-elements-textTertiary cursor-not-allowed'
           )}
         >
           <div className="i-ph:arrow-right"></div>

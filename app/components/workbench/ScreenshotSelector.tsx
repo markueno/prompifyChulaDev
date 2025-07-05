@@ -26,7 +26,7 @@ export const ScreenshotSelector = memo(
         }
 
         if (mediaStreamRef.current) {
-          mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+          mediaStreamRef.current.getTracks().forEach(track => track.stop());
           mediaStreamRef.current = null;
         }
       };
@@ -55,7 +55,7 @@ export const ScreenshotSelector = memo(
             }
 
             if (mediaStreamRef.current) {
-              mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+              mediaStreamRef.current.getTracks().forEach(track => track.stop());
               mediaStreamRef.current = null;
             }
 
@@ -106,7 +106,7 @@ export const ScreenshotSelector = memo(
         }
 
         // Wait for video to be ready
-        await new Promise((resolve) => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         // Create temporary canvas for full screenshot
         const tempCanvas = document.createElement('canvas');
@@ -139,10 +139,10 @@ export const ScreenshotSelector = memo(
 
         // Calculate the scaled coordinates with scroll offset and adjustments
         const scaledX = Math.round(
-          (containerRect.left + Math.min(selectionStart.x, selectionEnd.x) + scrollX + leftOffset) * scaleX,
+          (containerRect.left + Math.min(selectionStart.x, selectionEnd.x) + scrollX + leftOffset) * scaleX
         );
         const scaledY = Math.round(
-          (containerRect.top + Math.min(selectionStart.y, selectionEnd.y) + scrollY + bottomOffset) * scaleY,
+          (containerRect.top + Math.min(selectionStart.y, selectionEnd.y) + scrollY + bottomOffset) * scaleY
         );
         const scaledWidth = Math.round(Math.abs(selectionEnd.x - selectionStart.x) * scaleX);
         const scaledHeight = Math.round(Math.abs(selectionEnd.y - selectionStart.y) * scaleY);
@@ -163,7 +163,7 @@ export const ScreenshotSelector = memo(
 
         // Convert to blob
         const blob = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob((blob) => {
+          canvas.toBlob(blob => {
             if (blob) {
               resolve(blob);
             } else {
@@ -175,7 +175,7 @@ export const ScreenshotSelector = memo(
         // Create a FileReader to convert blob to base64
         const reader = new FileReader();
 
-        reader.onload = (e) => {
+        reader.onload = e => {
           const base64Image = e.target?.result as string;
 
           // Find the textarea element
@@ -205,7 +205,7 @@ export const ScreenshotSelector = memo(
         toast.error('Failed to capture screenshot');
 
         if (mediaStreamRef.current) {
-          mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+          mediaStreamRef.current.getTracks().forEach(track => track.stop());
           mediaStreamRef.current = null;
         }
       } finally {
@@ -231,7 +231,7 @@ export const ScreenshotSelector = memo(
         setSelectionStart({ x, y });
         setSelectionEnd({ x, y });
       },
-      [isSelectionMode],
+      [isSelectionMode]
     );
 
     const handleSelectionMove = useCallback(
@@ -248,7 +248,7 @@ export const ScreenshotSelector = memo(
         const y = e.clientY - rect.top;
         setSelectionEnd({ x, y });
       },
-      [isSelectionMode, selectionStart],
+      [isSelectionMode, selectionStart]
     );
 
     if (!isSelectionMode) {
@@ -289,5 +289,5 @@ export const ScreenshotSelector = memo(
         )}
       </div>
     );
-  },
+  }
 );

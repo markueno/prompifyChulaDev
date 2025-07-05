@@ -57,13 +57,13 @@ export function ConnectionForm({ authState, setAuthState, onSave, onDisconnect }
               id="username"
               type="text"
               value={authState.username}
-              onChange={(e) => setAuthState((prev: GitHubAuthState) => ({ ...prev, username: e.target.value }))}
+              onChange={e => setAuthState((prev: GitHubAuthState) => ({ ...prev, username: e.target.value }))}
               className={classNames(
                 'w-full px-4 py-2.5 bg-[#F5F5F5] dark:bg-[#1A1A1A] border rounded-lg',
                 'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary text-base',
                 'border-[#E5E5E5] dark:border-[#1A1A1A]',
                 'focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500',
-                'transition-all duration-200',
+                'transition-all duration-200'
               )}
               placeholder="e.g., octocat"
             />
@@ -81,7 +81,7 @@ export function ConnectionForm({ authState, setAuthState, onSave, onDisconnect }
                 className={classNames(
                   'inline-flex items-center gap-1.5 text-xs',
                   'text-purple-500 hover:text-purple-600 dark:text-purple-400 dark:hover:text-purple-300',
-                  'transition-colors duration-200',
+                  'transition-colors duration-200'
                 )}
               >
                 <span>Generate new token</span>
@@ -92,7 +92,7 @@ export function ConnectionForm({ authState, setAuthState, onSave, onDisconnect }
               id="token"
               type="password"
               value={authState.tokenInfo?.token || ''}
-              onChange={(e) =>
+              onChange={e =>
                 setAuthState((prev: GitHubAuthState) => ({
                   ...prev,
                   tokenInfo: {
@@ -114,7 +114,7 @@ export function ConnectionForm({ authState, setAuthState, onSave, onDisconnect }
                 'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary text-base',
                 'border-[#E5E5E5] dark:border-[#1A1A1A]',
                 'focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500',
-                'transition-all duration-200',
+                'transition-all duration-200'
               )}
               placeholder="ghp_xxxxxxxxxxxx"
             />
@@ -130,7 +130,7 @@ export function ConnectionForm({ authState, setAuthState, onSave, onDisconnect }
                     'inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
                     'bg-purple-500 hover:bg-purple-600',
                     'text-white',
-                    'disabled:opacity-50 disabled:cursor-not-allowed',
+                    'disabled:opacity-50 disabled:cursor-not-allowed'
                   )}
                 >
                   {authState.isVerifying ? (
@@ -153,7 +153,7 @@ export function ConnectionForm({ authState, setAuthState, onSave, onDisconnect }
                       'inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors',
                       'bg-[#F5F5F5] hover:bg-red-500/10 hover:text-red-500',
                       'dark:bg-[#1A1A1A] dark:hover:bg-red-500/20 dark:hover:text-red-500',
-                      'text-bolt-elements-textPrimary',
+                      'text-bolt-elements-textPrimary'
                     )}
                   >
                     <div className="i-ph:plug-fill" />

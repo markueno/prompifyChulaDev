@@ -136,13 +136,13 @@ export default function LocalProvidersTab() {
 
   // Add effect to update category toggle state based on provider states
   useEffect(() => {
-    const newCategoryState = filteredProviders.every((p) => p.settings.enabled);
+    const newCategoryState = filteredProviders.every(p => p.settings.enabled);
     setCategoryEnabled(newCategoryState);
   }, [filteredProviders]);
 
   // Fetch Ollama models when enabled
   useEffect(() => {
-    const ollamaProvider = filteredProviders.find((p) => p.name === 'Ollama');
+    const ollamaProvider = filteredProviders.find(p => p.name === 'Ollama');
 
     if (ollamaProvider?.settings.enabled) {
       fetchOllamaModels();
@@ -157,10 +157,10 @@ export default function LocalProvidersTab() {
       const data = (await response.json()) as { models: OllamaModel[] };
 
       setOllamaModels(
-        data.models.map((model) => ({
+        data.models.map(model => ({
           ...model,
           status: 'idle' as const,
-        })),
+        }))
       );
     } catch (error) {
       console.error('Error fetching Ollama models:', error);
@@ -205,8 +205,8 @@ export default function LocalProvidersTab() {
             continue;
           }
 
-          setOllamaModels((current) =>
-            current.map((m) =>
+          setOllamaModels(current =>
+            current.map(m =>
               m.name === modelName
                 ? {
                     ...m,
@@ -217,15 +217,15 @@ export default function LocalProvidersTab() {
                     },
                     newDigest: rawData.digest,
                   }
-                : m,
-            ),
+                : m
+            )
           );
         }
       }
 
       const updatedResponse = await fetch('http://127.0.0.1:11434/api/tags');
       const updatedData = (await updatedResponse.json()) as { models: OllamaModel[] };
-      const updatedModel = updatedData.models.find((m) => m.name === modelName);
+      const updatedModel = updatedData.models.find(m => m.name === modelName);
 
       return updatedModel !== undefined;
     } catch (error) {
@@ -236,12 +236,12 @@ export default function LocalProvidersTab() {
 
   const handleToggleCategory = useCallback(
     async (enabled: boolean) => {
-      filteredProviders.forEach((provider) => {
+      filteredProviders.forEach(provider => {
         updateProviderSettings(provider.name, { ...provider.settings, enabled });
       });
       toast(enabled ? 'All local providers enabled' : 'All local providers disabled');
     },
-    [filteredProviders, updateProviderSettings],
+    [filteredProviders, updateProviderSettings]
   );
 
   const handleToggleProvider = (provider: IProviderConfig, enabled: boolean) => {
@@ -292,7 +292,7 @@ export default function LocalProvidersTab() {
         throw new Error(`Failed to delete ${modelName}`);
       }
 
-      setOllamaModels((current) => current.filter((m) => m.name !== modelName));
+      setOllamaModels(current => current.filter(m => m.name !== modelName));
       toast(`Deleted ${modelName}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -342,7 +342,7 @@ export default function LocalProvidersTab() {
           'bg-purple-500/10 text-purple-500',
           'hover:bg-purple-500/20',
           'transition-all duration-200',
-          { 'opacity-50 cursor-not-allowed': model.status === 'updating' },
+          { 'opacity-50 cursor-not-allowed': model.status === 'updating' }
         )}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
@@ -365,7 +365,7 @@ export default function LocalProvidersTab() {
           'bg-red-500/10 text-red-500',
           'hover:bg-red-500/20',
           'transition-all duration-200',
-          { 'opacity-50 cursor-not-allowed': model.status === 'updating' },
+          { 'opacity-50 cursor-not-allowed': model.status === 'updating' }
         )}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
@@ -381,7 +381,7 @@ export default function LocalProvidersTab() {
       className={classNames(
         'rounded-lg bg-bolt-elements-background text-bolt-elements-textPrimary shadow-sm p-4',
         'hover:bg-bolt-elements-background-depth-2',
-        'transition-all duration-200',
+        'transition-all duration-200'
       )}
       role="region"
       aria-label="Local Providers Configuration"
@@ -398,7 +398,7 @@ export default function LocalProvidersTab() {
             <motion.div
               className={classNames(
                 'w-10 h-10 flex items-center justify-center rounded-xl',
-                'bg-purple-500/10 text-purple-500',
+                'bg-purple-500/10 text-purple-500'
               )}
               whileHover={{ scale: 1.05 }}
             >
@@ -424,15 +424,15 @@ export default function LocalProvidersTab() {
 
         {/* Ollama Section */}
         {filteredProviders
-          .filter((provider) => provider.name === 'Ollama')
-          .map((provider) => (
+          .filter(provider => provider.name === 'Ollama')
+          .map(provider => (
             <motion.div
               key={provider.name}
               className={classNames(
                 'bg-bolt-elements-background-depth-2 rounded-xl',
                 'hover:bg-bolt-elements-background-depth-3',
                 'transition-all duration-200 p-5',
-                'relative overflow-hidden group',
+                'relative overflow-hidden group'
               )}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -445,7 +445,7 @@ export default function LocalProvidersTab() {
                     className={classNames(
                       'w-12 h-12 flex items-center justify-center rounded-xl',
                       'bg-bolt-elements-background-depth-3',
-                      provider.settings.enabled ? 'text-purple-500' : 'text-bolt-elements-textSecondary',
+                      provider.settings.enabled ? 'text-purple-500' : 'text-bolt-elements-textSecondary'
                     )}
                     whileHover={{ scale: 1.1, rotate: 5 }}
                   >
@@ -466,7 +466,7 @@ export default function LocalProvidersTab() {
                 </div>
                 <Switch
                   checked={provider.settings.enabled}
-                  onCheckedChange={(checked) => handleToggleProvider(provider, checked)}
+                  onCheckedChange={checked => handleToggleProvider(provider, checked)}
                   aria-label={`Toggle ${provider.name} provider`}
                 />
               </div>
@@ -492,16 +492,16 @@ export default function LocalProvidersTab() {
                             'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
                             'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
                             'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
-                            'transition-all duration-200',
+                            'transition-all duration-200'
                           )}
-                          onKeyDown={(e) => {
+                          onKeyDown={e => {
                             if (e.key === 'Enter') {
                               handleUpdateBaseUrl(provider, e.currentTarget.value);
                             } else if (e.key === 'Escape') {
                               setEditingProvider(null);
                             }
                           }}
-                          onBlur={(e) => handleUpdateBaseUrl(provider, e.target.value)}
+                          onBlur={e => handleUpdateBaseUrl(provider, e.target.value)}
                           autoFocus
                         />
                       ) : (
@@ -511,7 +511,7 @@ export default function LocalProvidersTab() {
                             'w-full px-3 py-2 rounded-lg text-sm cursor-pointer',
                             'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
                             'hover:border-purple-500/30 hover:bg-bolt-elements-background-depth-4',
-                            'transition-all duration-200',
+                            'transition-all duration-200'
                           )}
                         >
                           <div className="flex items-center gap-2 text-bolt-elements-textSecondary">
@@ -574,14 +574,14 @@ export default function LocalProvidersTab() {
                         </p>
                       </div>
                     ) : (
-                      ollamaModels.map((model) => (
+                      ollamaModels.map(model => (
                         <motion.div
                           key={model.name}
                           className={classNames(
                             'p-4 rounded-xl',
                             'bg-bolt-elements-background-depth-3',
                             'hover:bg-bolt-elements-background-depth-4',
-                            'transition-all duration-200',
+                            'transition-all duration-200'
                           )}
                           whileHover={{ scale: 1.01 }}
                         >
@@ -632,7 +632,7 @@ export default function LocalProvidersTab() {
           <h3 className="text-lg font-semibold text-bolt-elements-textPrimary mb-4">Other Local Providers</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredProviders
-              .filter((provider) => provider.name !== 'Ollama')
+              .filter(provider => provider.name !== 'Ollama')
               .map((provider, index) => (
                 <motion.div
                   key={provider.name}
@@ -640,7 +640,7 @@ export default function LocalProvidersTab() {
                     'bg-bolt-elements-background-depth-2 rounded-xl',
                     'hover:bg-bolt-elements-background-depth-3',
                     'transition-all duration-200 p-5',
-                    'relative overflow-hidden group',
+                    'relative overflow-hidden group'
                   )}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -654,7 +654,7 @@ export default function LocalProvidersTab() {
                         className={classNames(
                           'w-12 h-12 flex items-center justify-center rounded-xl',
                           'bg-bolt-elements-background-depth-3',
-                          provider.settings.enabled ? 'text-purple-500' : 'text-bolt-elements-textSecondary',
+                          provider.settings.enabled ? 'text-purple-500' : 'text-bolt-elements-textSecondary'
                         )}
                         whileHover={{ scale: 1.1, rotate: 5 }}
                       >
@@ -684,7 +684,7 @@ export default function LocalProvidersTab() {
                     </div>
                     <Switch
                       checked={provider.settings.enabled}
-                      onCheckedChange={(checked) => handleToggleProvider(provider, checked)}
+                      onCheckedChange={checked => handleToggleProvider(provider, checked)}
                       aria-label={`Toggle ${provider.name} provider`}
                     />
                   </div>
@@ -710,16 +710,16 @@ export default function LocalProvidersTab() {
                                 'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
                                 'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
                                 'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
-                                'transition-all duration-200',
+                                'transition-all duration-200'
                               )}
-                              onKeyDown={(e) => {
+                              onKeyDown={e => {
                                 if (e.key === 'Enter') {
                                   handleUpdateBaseUrl(provider, e.currentTarget.value);
                                 } else if (e.key === 'Escape') {
                                   setEditingProvider(null);
                                 }
                               }}
-                              onBlur={(e) => handleUpdateBaseUrl(provider, e.target.value)}
+                              onBlur={e => handleUpdateBaseUrl(provider, e.target.value)}
                               autoFocus
                             />
                           ) : (
@@ -729,7 +729,7 @@ export default function LocalProvidersTab() {
                                 'w-full px-3 py-2 rounded-lg text-sm cursor-pointer',
                                 'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
                                 'hover:border-purple-500/30 hover:bg-bolt-elements-background-depth-4',
-                                'transition-all duration-200',
+                                'transition-all duration-200'
                               )}
                             >
                               <div className="flex items-center gap-2 text-bolt-elements-textSecondary">

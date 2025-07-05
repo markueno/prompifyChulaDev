@@ -18,7 +18,7 @@ export const ImportFolderButton: React.FC<ImportFolderButtonProps> = ({ classNam
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const allFiles = Array.from(e.target.files || []);
 
-    const filteredFiles = allFiles.filter((file) => {
+    const filteredFiles = allFiles.filter(file => {
       const path = file.webkitRelativePath.split('/').slice(1).join('/');
       const include = shouldIncludeFile(path);
 
@@ -40,7 +40,7 @@ export const ImportFolderButton: React.FC<ImportFolderButtonProps> = ({ classNam
         maxFiles: MAX_FILES,
       });
       toast.error(
-        `This folder contains ${filteredFiles.length.toLocaleString()} files. This product is not yet optimized for very large projects. Please select a folder with fewer than ${MAX_FILES.toLocaleString()} files.`,
+        `This folder contains ${filteredFiles.length.toLocaleString()} files. This product is not yet optimized for very large projects. Please select a folder with fewer than ${MAX_FILES.toLocaleString()} files.`
       );
 
       return;
@@ -53,16 +53,16 @@ export const ImportFolderButton: React.FC<ImportFolderButtonProps> = ({ classNam
 
     try {
       const fileChecks = await Promise.all(
-        filteredFiles.map(async (file) => ({
+        filteredFiles.map(async file => ({
           file,
           isBinary: await isBinaryFile(file),
-        })),
+        }))
       );
 
-      const textFiles = fileChecks.filter((f) => !f.isBinary).map((f) => f.file);
+      const textFiles = fileChecks.filter(f => !f.isBinary).map(f => f.file);
       const binaryFilePaths = fileChecks
-        .filter((f) => f.isBinary)
-        .map((f) => f.file.webkitRelativePath.split('/').slice(1).join('/'));
+        .filter(f => f.isBinary)
+        .map(f => f.file.webkitRelativePath.split('/').slice(1).join('/'));
 
       if (textFiles.length === 0) {
         const error = new Error('No text files found');
@@ -129,7 +129,7 @@ export const ImportFolderButton: React.FC<ImportFolderButtonProps> = ({ classNam
           'border-[#E5E5E5] dark:border-[#333333]',
           'h-10 px-4 py-2 min-w-[120px] justify-center',
           'transition-all duration-200 ease-in-out',
-          className,
+          className
         )}
         disabled={isLoading}
       >

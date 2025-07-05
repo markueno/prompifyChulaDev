@@ -15,7 +15,7 @@ export default function ProfileTab() {
       updateProfile({ [field]: value });
       toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
     }, 1000),
-    [],
+    []
   );
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,7 +75,7 @@ export default function ProfileTab() {
                 'relative group',
                 'transition-all duration-300 ease-out',
                 'hover:ring-purple-500/30 dark:hover:ring-purple-500/30',
-                'hover:shadow-lg hover:shadow-purple-500/10',
+                'hover:shadow-lg hover:shadow-purple-500/10'
               )}
             >
               {profile.avatar ? (
@@ -85,7 +85,7 @@ export default function ProfileTab() {
                   className={classNames(
                     'w-full h-full object-cover',
                     'transition-all duration-300 ease-out',
-                    'group-hover:scale-105 group-hover:brightness-90',
+                    'group-hover:scale-105 group-hover:brightness-90'
                   )}
                 />
               ) : (
@@ -98,7 +98,7 @@ export default function ProfileTab() {
                   'flex items-center justify-center',
                   'bg-black/0 group-hover:bg-black/40',
                   'cursor-pointer transition-all duration-300 ease-out',
-                  isUploading ? 'cursor-wait' : '',
+                  isUploading ? 'cursor-wait' : ''
                 )}
               >
                 <input
@@ -134,7 +134,7 @@ export default function ProfileTab() {
               <input
                 type="text"
                 value={profile.username}
-                onChange={(e) => handleProfileUpdate('username', e.target.value)}
+                onChange={e => handleProfileUpdate('username', e.target.value)}
                 className={classNames(
                   'w-full pl-11 pr-4 py-2.5 rounded-xl',
                   'bg-white dark:bg-gray-800/50',
@@ -142,7 +142,7 @@ export default function ProfileTab() {
                   'text-gray-900 dark:text-white',
                   'placeholder-gray-400 dark:placeholder-gray-500',
                   'focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50',
-                  'transition-all duration-300 ease-out',
+                  'transition-all duration-300 ease-out'
                 )}
                 placeholder="Enter your username"
               />
@@ -158,7 +158,7 @@ export default function ProfileTab() {
               </div>
               <textarea
                 value={profile.bio}
-                onChange={(e) => handleProfileUpdate('bio', e.target.value)}
+                onChange={e => handleProfileUpdate('bio', e.target.value)}
                 className={classNames(
                   'w-full pl-11 pr-4 py-2.5 rounded-xl',
                   'bg-white dark:bg-gray-800/50',
@@ -168,7 +168,7 @@ export default function ProfileTab() {
                   'focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50',
                   'transition-all duration-300 ease-out',
                   'resize-none',
-                  'h-32',
+                  'h-32'
                 )}
                 placeholder="Tell us about yourself"
               />

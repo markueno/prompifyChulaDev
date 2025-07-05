@@ -19,7 +19,7 @@ export async function createSummary(props: {
   const { messages, env: serverEnv, apiKeys, providerSettings, onFinish } = props;
   let currentModel = DEFAULT_MODEL;
   let currentProvider = DEFAULT_PROVIDER.name;
-  const processedMessages = messages.map((message) => {
+  const processedMessages = messages.map(message => {
     if (message.role === 'user') {
       const { model, provider, content } = extractPropertiesFromMessage(message);
       currentModel = model;
@@ -39,9 +39,9 @@ export async function createSummary(props: {
     return message;
   });
 
-  const provider = PROVIDER_LIST.find((p) => p.name === currentProvider) || DEFAULT_PROVIDER;
+  const provider = PROVIDER_LIST.find(p => p.name === currentProvider) || DEFAULT_PROVIDER;
   const staticModels = LLMManager.getInstance().getStaticModelListFromProvider(provider);
-  let modelDetails = staticModels.find((m) => m.name === currentModel);
+  let modelDetails = staticModels.find(m => m.name === currentModel);
 
   if (!modelDetails) {
     const modelsList = [
@@ -57,12 +57,12 @@ export async function createSummary(props: {
       throw new Error(`No models found for provider ${provider.name}`);
     }
 
-    modelDetails = modelsList.find((m) => m.name === currentModel);
+    modelDetails = modelsList.find(m => m.name === currentModel);
 
     if (!modelDetails) {
       // Fallback to first model
       logger.warn(
-        `MODEL [${currentModel}] not found in provider [${provider.name}]. Falling back to first model. ${modelsList[0].name}`,
+        `MODEL [${currentModel}] not found in provider [${provider.name}]. Falling back to first model. ${modelsList[0].name}`
       );
       modelDetails = modelsList[0];
     }
@@ -96,7 +96,7 @@ ${summary.summary}`;
 
   const extractTextContent = (message: Message) =>
     Array.isArray(message.content)
-      ? (message.content.find((item) => item.type === 'text')?.text as string) || ''
+      ? (message.content.find(item => item.type === 'text')?.text as string) || ''
       : message.content;
 
   // select files from the list of code file from the project that might be useful for the current request from the user
@@ -170,7 +170,7 @@ Below is the chat after that:
 ---
 <new_chats>
 ${slicedMessages
-  .map((x) => {
+  .map(x => {
     return `---\n[${x.role}] ${extractTextContent(x)}\n---`;
   })
   .join('\n')}

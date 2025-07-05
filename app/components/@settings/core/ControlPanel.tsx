@@ -106,7 +106,7 @@ const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchP
           'data-[state=checked]:bg-purple-500',
           'focus:outline-none focus:ring-2 focus:ring-purple-500/20',
           'cursor-pointer',
-          'group',
+          'group'
         )}
       >
         <motion.span
@@ -116,7 +116,7 @@ const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchP
             'bg-white shadow-lg',
             'transition-shadow duration-300',
             'group-hover:shadow-md group-active:shadow-sm',
-            'group-hover:scale-95 group-active:scale-90',
+            'group-hover:scale-95 group-active:scale-90'
           )}
           initial={false}
           transition={{
@@ -172,7 +172,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
 
   // Memoize the base tab configurations to avoid recalculation
   const baseTabConfig = useMemo(() => {
-    return new Map(DEFAULT_TAB_CONFIG.map((tab) => [tab.id, tab]));
+    return new Map(DEFAULT_TAB_CONFIG.map(tab => [tab.id, tab]));
   }, []);
 
   // Add visibleTabs logic using useMemo with optimized calculations
@@ -205,9 +205,9 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
       };
 
       // Process tabs in priority order
-      tabConfiguration.developerTabs?.forEach((tab) => processTab(tab as BaseTabConfig));
-      tabConfiguration.userTabs.forEach((tab) => processTab(tab as BaseTabConfig));
-      DEFAULT_TAB_CONFIG.forEach((tab) => processTab(tab as BaseTabConfig));
+      tabConfiguration.developerTabs?.forEach(tab => processTab(tab as BaseTabConfig));
+      tabConfiguration.userTabs.forEach(tab => processTab(tab as BaseTabConfig));
+      DEFAULT_TAB_CONFIG.forEach(tab => processTab(tab as BaseTabConfig));
 
       // Add Tab Management tile
       devTabs.push({
@@ -223,7 +223,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
 
     // Optimize user mode tab filtering
     return tabConfiguration.userTabs
-      .filter((tab) => {
+      .filter(tab => {
         if (!tab?.id) {
           return false;
         }
@@ -372,8 +372,8 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
             ? 'High latency detected'
             : 'Connection issues detected';
       case 'debug': {
-        const warnings = activeIssues.filter((i) => i.type === 'warning').length;
-        const errors = activeIssues.filter((i) => i.type === 'error').length;
+        const warnings = activeIssues.filter(i => i.type === 'warning').length;
+        const errors = activeIssues.filter(i => i.type === 'error').length;
 
         return `${warnings} warning${warnings === 1 ? '' : 's'}, ${errors} error${errors === 1 ? '' : 's'}`;
       }
@@ -437,7 +437,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                 'rounded-2xl shadow-2xl',
                 'border border-[#E5E5E5] dark:border-[#1A1A1A]',
                 'flex flex-col overflow-hidden',
-                'relative',
+                'relative'
               )}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -501,7 +501,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                     'scrollbar-thumb-[#E5E5E5] hover:scrollbar-thumb-[#CCCCCC]',
                     'dark:scrollbar-thumb-[#333333] dark:hover:scrollbar-thumb-[#444444]',
                     'will-change-scroll',
-                    'touch-auto',
+                    'touch-auto'
                   )}
                 >
                   <motion.div

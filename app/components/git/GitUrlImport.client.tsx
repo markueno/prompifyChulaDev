@@ -54,11 +54,11 @@ export function GitUrlImport() {
         const { workdir, data } = await gitClone(repoUrl);
 
         if (importChat) {
-          const filePaths = Object.keys(data).filter((filePath) => !ig.ignores(filePath));
+          const filePaths = Object.keys(data).filter(filePath => !ig.ignores(filePath));
           const textDecoder = new TextDecoder('utf-8');
 
           const fileContents = filePaths
-            .map((filePath) => {
+            .map(filePath => {
               const { data: content, encoding } = data[filePath];
               return {
                 path: filePath,
@@ -66,7 +66,7 @@ export function GitUrlImport() {
                   encoding === 'utf8' ? content : content instanceof Uint8Array ? textDecoder.decode(content) : '',
               };
             })
-            .filter((f) => f.content);
+            .filter(f => f.content);
 
           const commands = await detectProjectCommands(fileContents);
           const commandsMessage = createCommandsMessage(commands);
@@ -77,10 +77,10 @@ export function GitUrlImport() {
 <boltArtifact id="imported-files" title="Git Cloned Files"  type="bundled">
 ${fileContents
   .map(
-    (file) =>
+    file =>
       `<boltAction type="file" filePath="${file.path}">
 ${escapeBoltTags(file.content)}
-</boltAction>`,
+</boltAction>`
   )
   .join('\n')}
 </boltArtifact>`,
@@ -124,7 +124,7 @@ ${escapeBoltTags(file.content)}
       return;
     }
 
-    importRepo(url).catch((error) => {
+    importRepo(url).catch(error => {
       console.error('Error importing repo:', error);
       toast.error('Failed to import repository');
       setLoading(false);

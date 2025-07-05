@@ -86,7 +86,7 @@ const processChanges = (beforeCode: string, afterCode: string) => {
       return content
         .replace(/\r\n/g, '\n')
         .split('\n')
-        .map((line) => line.trimEnd());
+        .map(line => line.trimEnd());
     };
 
     const beforeLines = normalizeContent(beforeCode);
@@ -392,7 +392,7 @@ const NoChangesView = memo(
         </div>
       </div>
     </div>
-  ),
+  )
 );
 
 // Otimização do processamento de diferenças com memoização
@@ -466,7 +466,7 @@ const CodeLine = memo(
         </div>
       </div>
     );
-  },
+  }
 );
 
 // Componente para exibir informações sobre o arquivo
@@ -510,7 +510,7 @@ const FileInfo = memo(
 
           return acc;
         },
-        { additions: 0, deletions: 0 },
+        { additions: 0, deletions: 0 }
       );
     }, [hasChanges, beforeCode, afterCode]);
 
@@ -539,7 +539,7 @@ const FileInfo = memo(
         </span>
       </div>
     );
-  },
+  }
 );
 
 const InlineDiffComparison = memo(({ beforeCode, afterCode, filename, language }: CodeComparisonProps) => {
@@ -548,7 +548,7 @@ const InlineDiffComparison = memo(({ beforeCode, afterCode, filename, language }
   const theme = useStore(themeStore);
 
   const toggleFullscreen = useCallback(() => {
-    setIsFullscreen((prev) => !prev);
+    setIsFullscreen(prev => !prev);
   }, []);
 
   const { unifiedBlocks, hasChanges, isBinary, error } = useProcessChanges(beforeCode, afterCode);
@@ -633,7 +633,7 @@ export const DiffView = memo(({ fileHistory, setFileHistory }: DiffViewProps) =>
       if (!existingHistory) {
         if (normalizedCurrentContent !== normalizedOriginalContent) {
           const newChanges = diffLines(file.content, currentContent);
-          setFileHistory((prev) => ({
+          setFileHistory(prev => ({
             ...prev,
             [selectedFile]: {
               originalContent: file.content,
@@ -670,7 +670,7 @@ export const DiffView = memo(({ fileHistory, setFileHistory }: DiffViewProps) =>
 
         // Verificar se as mudanças são significativas
         const hasSignificantChanges = newChanges.some(
-          (change) => (change.added || change.removed) && change.value.trim().length > 0,
+          change => (change.added || change.removed) && change.value.trim().length > 0
         );
 
         if (hasSignificantChanges) {
@@ -688,7 +688,7 @@ export const DiffView = memo(({ fileHistory, setFileHistory }: DiffViewProps) =>
             changeSource: 'auto-save',
           };
 
-          setFileHistory((prev) => ({ ...prev, [selectedFile]: newHistory }));
+          setFileHistory(prev => ({ ...prev, [selectedFile]: newHistory }));
         }
       }
     }

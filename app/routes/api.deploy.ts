@@ -163,7 +163,7 @@ export async function action({ request }: ActionFunctionArgs) {
                     'Content-Type': 'application/octet-stream',
                   },
                   body: content,
-                },
+                }
               );
 
               uploadSuccess = uploadResponse.ok;
@@ -171,12 +171,12 @@ export async function action({ request }: ActionFunctionArgs) {
               if (!uploadSuccess) {
                 console.error('Upload failed:', await uploadResponse.text());
                 uploadRetries++;
-                await new Promise((resolve) => setTimeout(resolve, 2000));
+                await new Promise(resolve => setTimeout(resolve, 2000));
               }
             } catch (error) {
               console.error('Upload error:', error);
               uploadRetries++;
-              await new Promise((resolve) => setTimeout(resolve, 2000));
+              await new Promise(resolve => setTimeout(resolve, 2000));
             }
           }
 
@@ -206,7 +206,7 @@ export async function action({ request }: ActionFunctionArgs) {
       }
 
       retryCount++;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     if (retryCount >= maxRetries) {

@@ -39,7 +39,7 @@ const DraggableTabItem = ({
   const [{ isDragging }, dragRef] = useDrag({
     type: 'tab',
     item: { type: 'tab', index, id: tab.id },
-    collect: (monitor) => ({
+    collect: monitor => ({
       isDragging: monitor.isDragging(),
     }),
   });
@@ -81,7 +81,7 @@ const DraggableTabItem = ({
         'flex items-center justify-between p-4 rounded-lg',
         'bg-[#F5F5F5] dark:bg-[#1A1A1A]',
         'border border-[#E5E5E5] dark:border-[#333333]',
-        isDragging ? 'z-50' : '',
+        isDragging ? 'z-50' : ''
       )}
     >
       <div className="flex items-center gap-4">

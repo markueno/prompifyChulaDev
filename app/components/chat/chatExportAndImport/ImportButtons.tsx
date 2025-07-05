@@ -17,14 +17,14 @@ export function ImportButtons(importChat: ((description: string, messages: Messa
         id="chat-import"
         className="hidden"
         accept=".json"
-        onChange={async (e) => {
+        onChange={async e => {
           const file = e.target.files?.[0];
 
           if (file && importChat) {
             try {
               const reader = new FileReader();
 
-              reader.onload = async (e) => {
+              reader.onload = async e => {
                 try {
                   const content = e.target?.result as string;
                   const data = JSON.parse(content) as ChatData;
@@ -72,7 +72,7 @@ export function ImportButtons(importChat: ((description: string, messages: Messa
               'hover:bg-[#E5E5E5] dark:hover:bg-[#333333]',
               'border-[#E5E5E5] dark:border-[#333333]',
               'h-10 px-4 py-2 min-w-[120px] justify-center',
-              'transition-all duration-200 ease-in-out',
+              'transition-all duration-200 ease-in-out'
             )}
           >
             <span className="i-ph:upload-simple w-4 h-4" />
@@ -86,7 +86,7 @@ export function ImportButtons(importChat: ((description: string, messages: Messa
               'hover:bg-[#E5E5E5] dark:hover:bg-[#333333]',
               'border border-[#E5E5E5] dark:border-[#333333]',
               'h-10 px-4 py-2 min-w-[120px] justify-center',
-              'transition-all duration-200 ease-in-out rounded-lg',
+              'transition-all duration-200 ease-in-out rounded-lg'
             )}
           />
         </div>

@@ -21,8 +21,8 @@ export class AnthropicStatusChecker extends BaseProviderChecker {
       if (incidentSection) {
         const incidentLines = incidentSection[1]
           .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line && line.includes('202')); // Only get dated incidents
+          .map(line => line.trim())
+          .filter(line => line && line.includes('202')); // Only get dated incidents
 
         incidents.push(...incidentLines.slice(0, 5));
       }

@@ -71,7 +71,7 @@ export const action: ActionFunction = async ({ request }) => {
             });
           } catch {
             throw new Error(
-              'No upstream repository found. Please set up the upstream repository first by running:\ngit remote add upstream https://github.com/stackblitz-labs/bolt.diy.git',
+              'No upstream repository found. Please set up the upstream repository first by running:\ngit remote add upstream https://github.com/stackblitz-labs/bolt.diy.git'
             );
           }
 
@@ -126,7 +126,7 @@ export const action: ActionFunction = async ({ request }) => {
             });
           } catch {
             throw new Error(
-              `Remote branch 'upstream/${defaultBranch}' not found. Please ensure the upstream repository is properly configured.`,
+              `Remote branch 'upstream/${defaultBranch}' not found. Please ensure the upstream repository is properly configured.`
             );
           }
 
@@ -182,7 +182,7 @@ export const action: ActionFunction = async ({ request }) => {
           // Get list of changed files and their sizes
           try {
             const { stdout: diffOutput } = await execAsync(
-              `git diff --name-status ${currentCommit.trim()}..${remoteCommit.trim()}`,
+              `git diff --name-status ${currentCommit.trim()}..${remoteCommit.trim()}`
             );
             const files = diffOutput.split('\n').filter(Boolean);
 
@@ -221,7 +221,7 @@ export const action: ActionFunction = async ({ request }) => {
               }
             }
 
-            changedFiles = files.map((line) => {
+            changedFiles = files.map(line => {
               const [status, file] = line.split('\t');
               return `${status === 'M' ? 'Modified' : status === 'A' ? 'Added' : 'Deleted'}: ${file}`;
             });
@@ -233,14 +233,14 @@ export const action: ActionFunction = async ({ request }) => {
           // Get commit messages between current and remote
           try {
             const { stdout: logOutput } = await execAsync(
-              `git log --pretty=format:"%h|%s|%aI" ${currentCommit.trim()}..${remoteCommit.trim()}`,
+              `git log --pretty=format:"%h|%s|%aI" ${currentCommit.trim()}..${remoteCommit.trim()}`
             );
 
             // Parse and group commits by type
             const commits = logOutput
               .split('\n')
               .filter(Boolean)
-              .map((line) => {
+              .map(line => {
                 const [hash, subject, timestamp] = line.split('|');
                 let type = 'other';
                 let message = subject;
@@ -293,7 +293,7 @@ export const action: ActionFunction = async ({ request }) => {
 
                 return acc;
               },
-              {} as Record<string, typeof commits>,
+              {} as Record<string, typeof commits>
             );
 
             // Format commit messages with emojis and timestamps
@@ -325,7 +325,7 @@ export const action: ActionFunction = async ({ request }) => {
               }[type];
 
               return `### ${emoji} ${title}\n\n${commits
-                .map((c) => `* ${c.message} (${c.hash.substring(0, 7)}) - ${c.timestamp.toLocaleString()}`)
+                .map(c => `* ${c.message} (${c.hash.substring(0, 7)}) - ${c.timestamp.toLocaleString()}`)
                 .join('\n')}`;
             });
 
@@ -337,10 +337,10 @@ export const action: ActionFunction = async ({ request }) => {
           // Get diff stats using the specific commits
           try {
             const { stdout: diffStats } = await execAsync(
-              `git diff --shortstat ${currentCommit.trim()}..${remoteCommit.trim()}`,
+              `git diff --shortstat ${currentCommit.trim()}..${remoteCommit.trim()}`
             );
             stats = diffStats.match(
-              /(\d+) files? changed(?:, (\d+) insertions?\\(\\+\\))?(?:, (\d+) deletions?\\(-\\))?/,
+              /(\d+) files? changed(?:, (\d+) insertions?\\(\\+\\))?(?:, (\d+) deletions?\\(-\\))?/
             );
           } catch {
             // Handle silently - null stats will be used
@@ -483,7 +483,7 @@ export const action: ActionFunction = async ({ request }) => {
         success: false,
         error: err instanceof Error ? err.message : 'Unknown error occurred while preparing update',
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 };
@@ -504,7 +504,7 @@ async function fetchChangelog(currentCommit: string, remoteCommit: string): Prom
 
     // Get commit messages grouped by type
     const { stdout: commitLog } = await execAsync(
-      `git log --pretty=format:"%h|%s|%b" ${currentCommit.trim()}..${remoteCommit.trim()}`,
+      `git log --pretty=format:"%h|%s|%b" ${currentCommit.trim()}..${remoteCommit.trim()}`
     );
 
     const commits = commitLog.split('\n').filter(Boolean);

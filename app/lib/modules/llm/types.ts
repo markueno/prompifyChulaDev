@@ -14,7 +14,7 @@ export interface ProviderInfo {
   getDynamicModels?: (
     apiKeys?: Record<string, string>,
     settings?: IProviderSetting,
-    serverEnv?: Record<string, string>,
+    serverEnv?: Record<string, string>
   ) => Promise<ModelInfo[]>;
   getModelInstance: (options: {
     model: string;

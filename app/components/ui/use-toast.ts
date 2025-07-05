@@ -26,14 +26,14 @@ export function useToast() {
     (message: string, options: Omit<ToastOptions, 'type'> = {}) => {
       toast(message, { ...options, type: 'success' });
     },
-    [toast],
+    [toast]
   );
 
   const error = useCallback(
     (message: string, options: Omit<ToastOptions, 'type'> = {}) => {
       toast(message, { ...options, type: 'error' });
     },
-    [toast],
+    [toast]
   );
 
   return { toast, success, error };

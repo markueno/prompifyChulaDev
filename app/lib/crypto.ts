@@ -12,7 +12,7 @@ export async function encrypt(key: string, data: string) {
       iv,
     },
     cryptoKey,
-    encoder.encode(data),
+    encoder.encode(data)
   );
 
   const bundle = new Uint8Array(IV_LENGTH + ciphertext.byteLength);
@@ -37,7 +37,7 @@ export async function decrypt(key: string, payload: string) {
       iv,
     },
     cryptoKey,
-    ciphertext,
+    ciphertext
   );
 
   return decoder.decode(plaintext);
@@ -48,11 +48,11 @@ async function getKey(key: string) {
 }
 
 function decodeBase64(encoded: Uint8Array) {
-  const byteChars = Array.from(encoded, (byte) => String.fromCodePoint(byte));
+  const byteChars = Array.from(encoded, byte => String.fromCodePoint(byte));
 
   return btoa(byteChars.join(''));
 }
 
 function encodeBase64(data: string) {
-  return Uint8Array.from(atob(data), (ch) => ch.codePointAt(0)!);
+  return Uint8Array.from(atob(data), ch => ch.codePointAt(0)!);
 }

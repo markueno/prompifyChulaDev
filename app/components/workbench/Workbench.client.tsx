@@ -114,7 +114,7 @@ const FileModifiedDropdown = memo(
                         type="text"
                         placeholder="Search files..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={e => setSearchQuery(e.target.value)}
                         className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                       />
                       <div className="absolute left-2 top-1/2 -translate-y-1/2 text-bolt-elements-textTertiary">
@@ -188,7 +188,7 @@ const FileModifiedDropdown = memo(
                                         const normalizedCurrent =
                                           history.versions[history.versions.length - 1]?.content.replace(
                                             /\r\n/g,
-                                            '\n',
+                                            '\n'
                                           ) || '';
 
                                         if (normalizedOriginal === normalizedCurrent) {
@@ -213,7 +213,7 @@ const FileModifiedDropdown = memo(
 
                                             return acc;
                                           },
-                                          { additions: 0, deletions: 0 },
+                                          { additions: 0, deletions: 0 }
                                         );
                                       })();
 
@@ -272,7 +272,7 @@ const FileModifiedDropdown = memo(
         </Popover>
       </div>
     );
-  },
+  }
 );
 
 export const Workbench = memo(
@@ -285,7 +285,7 @@ export const Workbench = memo(
 
     // const modifiedFiles = Array.from(useStore(workbenchStore.unsavedFiles).keys());
 
-    const hasPreview = useStore(computed(workbenchStore.previews, (previews) => previews.length > 0));
+    const hasPreview = useStore(computed(workbenchStore.previews, previews => previews.length > 0));
     const showWorkbench = useStore(workbenchStore.showWorkbench);
     const selectedFile = useStore(workbenchStore.selectedFile);
     const currentDocument = useStore(workbenchStore.currentDocument);
@@ -309,11 +309,11 @@ export const Workbench = memo(
       workbenchStore.setDocuments(files);
     }, [files]);
 
-    const onEditorChange = useCallback<OnEditorChange>((update) => {
+    const onEditorChange = useCallback<OnEditorChange>(update => {
       workbenchStore.setCurrentDocumentContent(update.content);
     }, []);
 
-    const onEditorScroll = useCallback<OnEditorScroll>((position) => {
+    const onEditorScroll = useCallback<OnEditorScroll>(position => {
       workbenchStore.setCurrentDocumentScrollPosition(position);
     }, []);
 
@@ -367,7 +367,7 @@ export const Workbench = memo(
                 'left-0': showWorkbench && isSmallViewport,
                 'left-[var(--workbench-left)]': showWorkbench,
                 'left-[100%]': !showWorkbench,
-              },
+              }
             )}
           >
             <div className="absolute inset-0 px-2 lg:px-6">
@@ -474,7 +474,7 @@ export const Workbench = memo(
         </motion.div>
       )
     );
-  },
+  }
 );
 
 // View component for rendering content with motion transitions

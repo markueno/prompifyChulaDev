@@ -20,8 +20,8 @@ export class MistralStatusChecker extends BaseProviderChecker {
       if (incidentSection) {
         const incidentLines = incidentSection[1]
           .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line && !line.includes('No incidents'));
+          .map(line => line.trim())
+          .filter(line => line && !line.includes('No incidents'));
 
         incidents.push(...incidentLines.slice(0, 5));
       }

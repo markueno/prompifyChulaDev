@@ -17,10 +17,10 @@ export const Switch = memo(({ className, onCheckedChange, checked }: SwitchProps
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
         'disabled:cursor-not-allowed disabled:opacity-50',
         'data-[state=checked]:bg-bolt-elements-item-contentAccent',
-        className,
+        className
       )}
       checked={checked}
-      onCheckedChange={(e) => onCheckedChange?.(e)}
+      onCheckedChange={e => onCheckedChange?.(e)}
     >
       <SwitchPrimitive.Thumb
         className={classNames(
@@ -29,7 +29,7 @@ export const Switch = memo(({ className, onCheckedChange, checked }: SwitchProps
           'transition-transform duration-200 ease-in-out',
           'translate-x-0.5',
           'data-[state=checked]:translate-x-[1.375rem]',
-          'will-change-transform',
+          'will-change-transform'
         )}
       />
     </SwitchPrimitive.Root>

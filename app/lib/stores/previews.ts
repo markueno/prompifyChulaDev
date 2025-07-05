@@ -35,7 +35,7 @@ export class PreviewsStore {
     this.#storageChannel = new BroadcastChannel('storage-sync-channel');
 
     // Listen for preview updates from other tabs
-    this.#broadcastChannel.onmessage = (event) => {
+    this.#broadcastChannel.onmessage = event => {
       const { type, previewId } = event.data;
 
       if (type === 'file-change') {
@@ -50,7 +50,7 @@ export class PreviewsStore {
     };
 
     // Listen for storage sync messages
-    this.#storageChannel.onmessage = (event) => {
+    this.#storageChannel.onmessage = event => {
       const { storage, source } = event.data;
 
       if (storage && source !== this._getTabId()) {
@@ -98,7 +98,7 @@ export class PreviewsStore {
 
       // Force a refresh after syncing storage
       const previews = this.previews.get();
-      previews.forEach((preview) => {
+      previews.forEach(preview => {
         const previewId = this.getPreviewId(preview.baseUrl);
 
         if (previewId) {
@@ -170,7 +170,7 @@ export class PreviewsStore {
 
       // Watch for DOM changes that might affect storage
       if (typeof window !== 'undefined') {
-        const observer = new MutationObserver((_mutations) => {
+        const observer = new MutationObserver(_mutations => {
           // Broadcast storage changes when DOM changes
           this._broadcastStorageSync();
         });
@@ -192,7 +192,7 @@ export class PreviewsStore {
 
       if (type === 'close' && previewInfo) {
         this.#availablePreviews.delete(port);
-        this.previews.set(this.previews.get().filter((preview) => preview.port !== port));
+        this.previews.set(this.previews.get().filter(preview => preview.port !== port));
 
         return;
       }
@@ -274,7 +274,7 @@ export class PreviewsStore {
     // Set a new timeout for this refresh
     const timeout = setTimeout(() => {
       const previews = this.previews.get();
-      const preview = previews.find((p) => this.getPreviewId(p.baseUrl) === previewId);
+      const preview = previews.find(p => this.getPreviewId(p.baseUrl) === previewId);
 
       if (preview) {
         preview.ready = false;

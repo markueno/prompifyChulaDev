@@ -218,7 +218,7 @@ const LogEntryItem = ({ log, isExpanded: forceExpanded, use24Hour, showTimestamp
         'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
         'border border-[#E5E5E5] dark:border-[#1A1A1A]',
         style.bg,
-        'transition-all duration-200',
+        'transition-all duration-200'
       )}
     >
       <div className="flex items-start justify-between gap-4">
@@ -277,12 +277,12 @@ export function EventLogsTab() {
     const allLogs = Object.values(logs);
 
     if (selectedLevel === 'all') {
-      return allLogs.filter((log) =>
-        searchQuery ? log.message.toLowerCase().includes(searchQuery.toLowerCase()) : true,
+      return allLogs.filter(log =>
+        searchQuery ? log.message.toLowerCase().includes(searchQuery.toLowerCase()) : true
       );
     }
 
-    return allLogs.filter((log) => {
+    return allLogs.filter(log => {
       const matchesType = log.category === selectedLevel || log.level === selectedLevel;
       const matchesSearch = searchQuery ? log.message.toLowerCase().includes(searchQuery.toLowerCase()) : true;
 
@@ -319,7 +319,7 @@ export function EventLogsTab() {
       setSelectedLevel(newLevel as string);
       setShowLevelFilter(false);
     },
-    [selectedLevel],
+    [selectedLevel]
   );
 
   // Log search changes with debounce
@@ -405,7 +405,7 @@ export function EventLogsTab() {
     };
   }, []);
 
-  const selectedLevelOption = logLevelOptions.find((opt) => opt.value === selectedLevel);
+  const selectedLevelOption = logLevelOptions.find(opt => opt.value === selectedLevel);
 
   // Export functions
   const exportAsJSON = () => {
@@ -446,7 +446,7 @@ export function EventLogsTab() {
       const headers = ['Timestamp', 'Level', 'Category', 'Message', 'Details'];
       const csvData = [
         headers,
-        ...filteredLogs.map((log) => [
+        ...filteredLogs.map(log => [
           new Date(log.timestamp).toISOString(),
           log.level,
           log.category || '',
@@ -456,7 +456,7 @@ export function EventLogsTab() {
       ];
 
       const csvContent = csvData
-        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
         .join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = window.URL.createObjectURL(blob);
@@ -530,7 +530,7 @@ export function EventLogsTab() {
         { label: 'Time Format', value: use24Hour ? '24-hour' : '12-hour' },
       ];
 
-      summaryItems.forEach((item) => {
+      summaryItems.forEach(item => {
         doc.setFont('helvetica', 'bold');
         doc.text(`${item.label}:`, margin, yPos);
         doc.setFont('helvetica', 'normal');
@@ -545,12 +545,12 @@ export function EventLogsTab() {
 
       // Calculate statistics
       const stats = {
-        error: filteredLogs.filter((log) => log.level === 'error').length,
-        warning: filteredLogs.filter((log) => log.level === 'warning').length,
-        info: filteredLogs.filter((log) => log.level === 'info').length,
-        debug: filteredLogs.filter((log) => log.level === 'debug').length,
-        provider: filteredLogs.filter((log) => log.category === 'provider').length,
-        api: filteredLogs.filter((log) => log.category === 'api').length,
+        error: filteredLogs.filter(log => log.level === 'error').length,
+        warning: filteredLogs.filter(log => log.level === 'warning').length,
+        info: filteredLogs.filter(log => log.level === 'info').length,
+        debug: filteredLogs.filter(log => log.level === 'debug').length,
+        provider: filteredLogs.filter(log => log.category === 'provider').length,
+        api: filteredLogs.filter(log => log.category === 'api').length,
       };
 
       // Create two columns for statistics
@@ -691,7 +691,7 @@ export function EventLogsTab() {
       };
 
       // Add all logs
-      filteredLogs.forEach((log) => {
+      filteredLogs.forEach(log => {
         addLogEntry(log);
       });
 
@@ -727,7 +727,7 @@ export function EventLogsTab() {
   const exportAsText = () => {
     try {
       const textContent = filteredLogs
-        .map((log) => {
+        .map(log => {
           const timestamp = new Date(log.timestamp).toLocaleString();
           let content = `[${timestamp}] ${log.level.toUpperCase()}: ${log.message}\n`;
 
@@ -809,7 +809,7 @@ export function EventLogsTab() {
             'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
             'border border-[#E5E5E5] dark:border-[#1A1A1A]',
             'hover:bg-purple-500/10 dark:hover:bg-purple-500/20',
-            'transition-all duration-200',
+            'transition-all duration-200'
           )}
         >
           <span className="i-ph:download text-lg text-gray-500 dark:text-gray-400 group-hover:text-purple-500 transition-colors" />
@@ -824,7 +824,7 @@ export function EventLogsTab() {
             </DialogTitle>
 
             <div className="mt-4 flex flex-col gap-2">
-              {exportFormats.map((format) => (
+              {exportFormats.map(format => (
                 <button
                   key={format.id}
                   onClick={() => handleFormatClick(format.handler)}
@@ -834,7 +834,7 @@ export function EventLogsTab() {
                     'border border-[#E5E5E5] dark:border-[#1A1A1A]',
                     'hover:bg-purple-50 dark:hover:bg-[#1a1a1a]',
                     'hover:border-purple-200 dark:hover:border-purple-900/30',
-                    'text-bolt-elements-textPrimary',
+                    'text-bolt-elements-textPrimary'
                   )}
                 >
                   <div className={classNames(format.icon, 'w-5 h-5')} />
@@ -869,7 +869,7 @@ export function EventLogsTab() {
                 'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
                 'border border-[#E5E5E5] dark:border-[#1A1A1A]',
                 'hover:bg-purple-500/10 dark:hover:bg-purple-500/20',
-                'transition-all duration-200',
+                'transition-all duration-200'
               )}
             >
               <span
@@ -888,7 +888,7 @@ export function EventLogsTab() {
               align="start"
               side="bottom"
             >
-              {logLevelOptions.map((option) => (
+              {logLevelOptions.map(option => (
                 <DropdownMenu.Item
                   key={option.value}
                   className="group flex items-center px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-purple-500/10 dark:hover:bg-purple-500/20 cursor-pointer transition-colors"
@@ -911,7 +911,7 @@ export function EventLogsTab() {
           <div className="flex items-center gap-2">
             <Switch
               checked={showTimestamps}
-              onCheckedChange={(value) => handlePreferenceChange('timestamps', value)}
+              onCheckedChange={value => handlePreferenceChange('timestamps', value)}
               className="data-[state=checked]:bg-purple-500"
             />
             <span className="text-sm text-gray-500 dark:text-gray-400">Show Timestamps</span>
@@ -920,7 +920,7 @@ export function EventLogsTab() {
           <div className="flex items-center gap-2">
             <Switch
               checked={use24Hour}
-              onCheckedChange={(value) => handlePreferenceChange('24hour', value)}
+              onCheckedChange={value => handlePreferenceChange('24hour', value)}
               className="data-[state=checked]:bg-purple-500"
             />
             <span className="text-sm text-gray-500 dark:text-gray-400">24h Time</span>
@@ -929,7 +929,7 @@ export function EventLogsTab() {
           <div className="flex items-center gap-2">
             <Switch
               checked={autoExpand}
-              onCheckedChange={(value) => handlePreferenceChange('autoExpand', value)}
+              onCheckedChange={value => handlePreferenceChange('autoExpand', value)}
               className="data-[state=checked]:bg-purple-500"
             />
             <span className="text-sm text-gray-500 dark:text-gray-400">Auto Expand</span>
@@ -947,7 +947,7 @@ export function EventLogsTab() {
               'border border-[#E5E5E5] dark:border-[#1A1A1A]',
               'hover:bg-purple-500/10 dark:hover:bg-purple-500/20',
               'transition-all duration-200',
-              { 'animate-spin': isRefreshing },
+              { 'animate-spin': isRefreshing }
             )}
           >
             <span className="i-ph:arrows-clockwise text-lg text-gray-500 dark:text-gray-400 group-hover:text-purple-500 transition-colors" />
@@ -964,14 +964,14 @@ export function EventLogsTab() {
             type="text"
             placeholder="Search logs..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={e => setSearchQuery(e.target.value)}
             className={classNames(
               'w-full px-4 py-2 pl-10 rounded-lg',
               'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
               'border border-[#E5E5E5] dark:border-[#1A1A1A]',
               'text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400',
               'focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500',
-              'transition-all duration-200',
+              'transition-all duration-200'
             )}
           />
           <div className="absolute left-3 top-1/2 -translate-y-1/2">
@@ -987,7 +987,7 @@ export function EventLogsTab() {
               'flex flex-col items-center justify-center gap-4',
               'rounded-lg p-8 text-center',
               'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
-              'border border-[#E5E5E5] dark:border-[#1A1A1A]',
+              'border border-[#E5E5E5] dark:border-[#1A1A1A]'
             )}
           >
             <span className="i-ph:clipboard-text text-4xl text-gray-400 dark:text-gray-600" />
@@ -997,7 +997,7 @@ export function EventLogsTab() {
             </div>
           </motion.div>
         ) : (
-          filteredLogs.map((log) => (
+          filteredLogs.map(log => (
             <LogEntryItem
               key={log.id}
               log={log}

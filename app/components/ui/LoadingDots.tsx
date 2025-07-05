@@ -9,7 +9,7 @@ export const LoadingDots = memo(({ text }: LoadingDotsProps) => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setDotCount((prevDotCount) => (prevDotCount + 1) % 4);
+      setDotCount(prevDotCount => (prevDotCount + 1) % 4);
     }, 500);
 
     return () => clearInterval(interval);

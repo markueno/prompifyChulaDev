@@ -39,7 +39,7 @@ export default class AnthropicProvider extends BaseProvider {
   async getDynamicModels(
     apiKeys?: Record<string, string>,
     settings?: IProviderSetting,
-    serverEnv?: Record<string, string>,
+    serverEnv?: Record<string, string>
   ): Promise<ModelInfo[]> {
     const { apiKey } = this.getProviderBaseUrlAndKey({
       apiKeys,
@@ -61,7 +61,7 @@ export default class AnthropicProvider extends BaseProvider {
     });
 
     const res = (await response.json()) as any;
-    const staticModelIds = this.staticModels.map((m) => m.name);
+    const staticModelIds = this.staticModels.map(m => m.name);
 
     const data = res.data.filter((model: any) => model.type === 'model' && !staticModelIds.includes(model.id));
 
@@ -78,7 +78,7 @@ export default class AnthropicProvider extends BaseProvider {
     serverEnv: Env;
     apiKeys?: Record<string, string>;
     providerSettings?: Record<string, IProviderSetting>;
-  }) => LanguageModelV1 = (options) => {
+  }) => LanguageModelV1 = options => {
     const { apiKeys, providerSettings, serverEnv, model } = options;
     const { apiKey } = this.getProviderBaseUrlAndKey({
       apiKeys,

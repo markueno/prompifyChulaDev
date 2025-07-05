@@ -118,7 +118,7 @@ class LogStore {
 
     if (currentLogs.length > MAX_LOGS) {
       const sortedLogs = currentLogs.sort(
-        ([, a], [, b]) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+        ([, a], [, b]) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
       const newLogs = Object.fromEntries(sortedLogs.slice(0, MAX_LOGS));
       this._logs.set(newLogs);
@@ -131,7 +131,7 @@ class LogStore {
     level: LogEntry['level'],
     category: LogEntry['category'],
     details?: Record<string, any>,
-    metadata?: LogEntry['metadata'],
+    metadata?: LogEntry['metadata']
   ) {
     const id = this._generateId();
     const entry: LogEntry = {
@@ -163,7 +163,7 @@ class LogStore {
       duration: number;
       request: any;
       response: any;
-    },
+    }
   ) {
     const statusCode = details.statusCode;
     return this._addLog(message, statusCode >= 400 ? 'error' : 'info', 'api', details, {
@@ -206,7 +206,7 @@ class LogStore {
   logAuth(
     action: 'login' | 'logout' | 'token_refresh' | 'key_validation',
     success: boolean,
-    details?: Record<string, any>,
+    details?: Record<string, any>
   ) {
     const message = `Auth ${action} - ${success ? 'Success' : 'Failed'}`;
     const level = success ? 'info' : 'error';
@@ -277,12 +277,12 @@ class LogStore {
 
   getLogs() {
     return Object.values(this._logs.get()).sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
   }
 
   getFilteredLogs(level?: LogEntry['level'], category?: LogEntry['category'], searchQuery?: string) {
-    return this.getLogs().filter((log) => {
+    return this.getLogs().filter(log => {
       const matchesLevel = !level || level === 'debug' || log.level === level;
       const matchesCategory = !category || log.category === category;
       const matchesSearch =
@@ -315,7 +315,7 @@ class LogStore {
     statusCode: number,
     duration: number,
     requestData?: any,
-    responseData?: any,
+    responseData?: any
   ) {
     return this._addLog(
       `API ${method} ${endpoint}`,
@@ -332,7 +332,7 @@ class LogStore {
       {
         component: 'api',
         action: method,
-      },
+      }
     );
   }
 
@@ -343,7 +343,7 @@ class LogStore {
     statusCode: number,
     duration: number,
     requestData?: any,
-    responseData?: any,
+    responseData?: any
   ) {
     return this._addLog(
       `${method} ${url}`,
@@ -360,7 +360,7 @@ class LogStore {
       {
         component: 'network',
         action: method,
-      },
+      }
     );
   }
 
@@ -374,7 +374,7 @@ class LogStore {
       {
         component: 'auth',
         action: event,
-      },
+      }
     );
   }
 
@@ -392,7 +392,7 @@ class LogStore {
       {
         component: 'performance',
         action: 'metric',
-      },
+      }
     );
   }
 
@@ -410,7 +410,7 @@ class LogStore {
       {
         component: category,
         action: 'error',
-      },
+      }
     );
   }
 
@@ -439,7 +439,7 @@ class LogStore {
       duration: number;
       request: any;
       response: any;
-    },
+    }
   ) {
     return this._addApiLog(`API ${method} ${url}`, method, url, details);
   }
@@ -459,7 +459,7 @@ class LogStore {
         action: 'settings_change',
         previousValue: oldValue,
         newValue,
-      },
+      }
     );
   }
 
@@ -472,7 +472,7 @@ class LogStore {
       {
         component: 'features',
         action: 'feature_toggle',
-      },
+      }
     );
   }
 
@@ -485,7 +485,7 @@ class LogStore {
       {
         component: 'task-manager',
         action: 'task_operation',
-      },
+      }
     );
   }
 
@@ -498,7 +498,7 @@ class LogStore {
       {
         component: 'providers',
         action: 'provider_action',
-      },
+      }
     );
   }
 
@@ -511,7 +511,7 @@ class LogStore {
       {
         component,
         action: 'performance_metric',
-      },
+      }
     );
   }
 }

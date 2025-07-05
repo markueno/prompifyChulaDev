@@ -101,7 +101,7 @@ export default function ServiceStatusTab() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4">
-        {serviceStatuses.map((service) => (
+        {serviceStatuses.map(service => (
           <div
             key={service.provider}
             className="p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"

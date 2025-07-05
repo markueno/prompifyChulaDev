@@ -71,7 +71,7 @@ export default class AmazonBedrockProvider extends BaseProvider {
       parsedConfig = JSON.parse(apiKey);
     } catch {
       throw new Error(
-        'Invalid AWS Bedrock configuration format. Please provide a valid JSON string containing region, accessKeyId, and secretAccessKey.',
+        'Invalid AWS Bedrock configuration format. Please provide a valid JSON string containing region, accessKeyId, and secretAccessKey.'
       );
     }
 
@@ -79,7 +79,7 @@ export default class AmazonBedrockProvider extends BaseProvider {
 
     if (!region || !accessKeyId || !secretAccessKey) {
       throw new Error(
-        'Missing required AWS credentials. Configuration must include region, accessKeyId, and secretAccessKey.',
+        'Missing required AWS credentials. Configuration must include region, accessKeyId, and secretAccessKey.'
       );
     }
 

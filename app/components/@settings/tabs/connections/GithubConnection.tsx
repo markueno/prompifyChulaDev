@@ -86,7 +86,7 @@ export function GithubConnection() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        },
+        }
       );
 
       if (!reposResponse.ok) {
@@ -119,18 +119,18 @@ export function GithubConnection() {
 
       const recentActivity = ((await eventsResponse.json()) as GitHubEvent[]).slice(0, 5);
 
-      const languagePromises = repos.map((repo) =>
+      const languagePromises = repos.map(repo =>
         fetch(repo.languages_url, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }).then((res) => res.json() as Promise<Record<string, number>>),
+        }).then(res => res.json() as Promise<Record<string, number>>)
       );
 
       const repoLanguages = await Promise.all(languagePromises);
       const languages: GitHubLanguageStats = {};
 
-      repoLanguages.forEach((repoLang) => {
+      repoLanguages.forEach(repoLang => {
         Object.entries(repoLang).forEach(([lang, bytes]) => {
           languages[lang] = (languages[lang] || 0) + bytes;
         });
@@ -140,7 +140,7 @@ export function GithubConnection() {
       const totalForks = repos.reduce((acc, repo) => acc + repo.forks_count, 0);
       const totalGists = connection.user?.public_gists || 0;
 
-      setConnection((prev) => ({
+      setConnection(prev => ({
         ...prev,
         stats: {
           repos,
@@ -249,8 +249,8 @@ export function GithubConnection() {
             <label className="block text-sm text-bolt-elements-textSecondary mb-2">Token Type</label>
             <select
               value={connection.tokenType}
-              onChange={(e) =>
-                setConnection((prev) => ({ ...prev, tokenType: e.target.value as 'classic' | 'fine-grained' }))
+              onChange={e =>
+                setConnection(prev => ({ ...prev, tokenType: e.target.value as 'classic' | 'fine-grained' }))
               }
               disabled={isConnecting || !!connection.user}
               className={classNames(
@@ -259,7 +259,7 @@ export function GithubConnection() {
                 'border border-[#E5E5E5] dark:border-[#333333]',
                 'text-bolt-elements-textPrimary',
                 'focus:outline-none focus:ring-1 focus:ring-purple-500',
-                'disabled:opacity-50',
+                'disabled:opacity-50'
               )}
             >
               <option value="classic">Personal Access Token (Classic)</option>
@@ -274,7 +274,7 @@ export function GithubConnection() {
             <input
               type="password"
               value={connection.token}
-              onChange={(e) => setConnection((prev) => ({ ...prev, token: e.target.value }))}
+              onChange={e => setConnection(prev => ({ ...prev, token: e.target.value }))}
               disabled={isConnecting || !!connection.user}
               placeholder={`Enter your GitHub ${
                 connection.tokenType === 'classic' ? 'personal access token' : 'fine-grained token'
@@ -285,7 +285,7 @@ export function GithubConnection() {
                 'border border-[#E5E5E5] dark:border-[#333333]',
                 'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
                 'focus:outline-none focus:ring-1 focus:ring-purple-500',
-                'disabled:opacity-50',
+                'disabled:opacity-50'
               )}
             />
             <div className="mt-2 text-sm text-bolt-elements-textSecondary">
@@ -318,7 +318,7 @@ export function GithubConnection() {
                 'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
                 'bg-purple-500 text-white',
                 'hover:bg-purple-600',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
             >
               {isConnecting ? (
@@ -339,7 +339,7 @@ export function GithubConnection() {
               className={classNames(
                 'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
                 'bg-red-500 text-white',
-                'hover:bg-red-600',
+                'hover:bg-red-600'
               )}
             >
               <div className="i-ph:plug-x w-4 h-4" />
@@ -368,7 +368,7 @@ export function GithubConnection() {
                     <div
                       className={classNames(
                         'i-ph:caret-down w-4 h-4 text-bolt-elements-textSecondary transition-transform',
-                        isStatsExpanded ? 'rotate-180' : '',
+                        isStatsExpanded ? 'rotate-180' : ''
                       )}
                     />
                   </div>
@@ -403,7 +403,7 @@ export function GithubConnection() {
                   <div className="mb-6">
                     <h4 className="text-sm font-medium text-bolt-elements-textPrimary mb-3">Organizations</h4>
                     <div className="flex flex-wrap gap-3">
-                      {connection.stats.organizations.map((org) => (
+                      {connection.stats.organizations.map(org => (
                         <a
                           key={org.login}
                           href={org.html_url}
@@ -441,7 +441,7 @@ export function GithubConnection() {
                 <div className="mb-6">
                   <h4 className="text-sm font-medium text-bolt-elements-textPrimary mb-3">Recent Activity</h4>
                   <div className="space-y-3">
-                    {connection.stats.recentActivity.map((event) => (
+                    {connection.stats.recentActivity.map(event => (
                       <div key={event.id} className="p-3 rounded-lg bg-[#F8F8F8] dark:bg-[#1A1A1A] text-sm">
                         <div className="flex items-center gap-2 text-bolt-elements-textPrimary">
                           <div className="i-ph:git-commit w-4 h-4 text-bolt-elements-textSecondary" />
@@ -496,7 +496,7 @@ export function GithubConnection() {
                 {/* Repositories Section */}
                 <h4 className="text-sm font-medium text-bolt-elements-textPrimary mb-3">Recent Repositories</h4>
                 <div className="space-y-3">
-                  {connection.stats.repos.map((repo) => (
+                  {connection.stats.repos.map(repo => (
                     <a
                       key={repo.full_name}
                       href={repo.html_url}

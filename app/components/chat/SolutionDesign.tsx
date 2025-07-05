@@ -307,7 +307,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
 
         {/* Navigation Tabs */}
         <div className="flex flex-wrap justify-center gap-2 mb-8">
-          {sections.map((section) => (
+          {sections.map(section => (
             <button
               key={section.id}
               onClick={() => setActiveSection(section.id)}
@@ -315,7 +315,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
                 activeSection === section.id
                   ? 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
-                  : 'bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-4',
+                  : 'bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-4'
               )}
             >
               <div className={section.icon}></div>
@@ -326,7 +326,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       </div>
 
       {/* Content */}
-      <div className="mb-8">{sections.find((section) => section.id === activeSection)?.content}</div>
+      <div className="mb-8">{sections.find(section => section.id === activeSection)?.content}</div>
 
       {/* Action Buttons */}
       <div className="flex justify-between items-center pt-6 border-t border-bolt-elements-borderColor">

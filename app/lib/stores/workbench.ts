@@ -273,13 +273,13 @@ export class WorkbenchStore {
       runner: new ActionRunner(
         webcontainer,
         () => this.boltTerminal,
-        (alert) => {
+        alert => {
           if (this.#reloadedMessages.has(messageId)) {
             return;
           }
 
           this.actionAlert.set(alert);
-        },
+        }
       ),
     });
   }
@@ -494,7 +494,7 @@ export class WorkbenchStore {
           }
 
           return null;
-        }),
+        })
       );
 
       const validBlobs = blobs.filter(Boolean); // Filter out any undefined blobs
@@ -516,7 +516,7 @@ export class WorkbenchStore {
         owner: repo.owner.login,
         repo: repo.name,
         base_tree: latestCommitSha,
-        tree: validBlobs.map((blob) => ({
+        tree: validBlobs.map(blob => ({
           path: blob!.path,
           mode: '100644',
           type: 'blob',

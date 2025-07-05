@@ -34,7 +34,7 @@ export function useGit() {
   const [fs, setFs] = useState<PromiseFsClient>();
   const fileData = useRef<Record<string, { data: any; encoding?: string }>>({});
   useEffect(() => {
-    webcontainerPromise.then((container) => {
+    webcontainerPromise.then(container => {
       fileData.current = {};
       setWebcontainer(container);
       setFs(getFs(container, fileData));
@@ -73,7 +73,7 @@ export function useGit() {
           corsProxy: '/api/git-proxy',
           headers,
 
-          onAuth: (url) => {
+          onAuth: url => {
             let auth = lookupSavedPassword(url);
 
             if (auth) {
@@ -113,7 +113,7 @@ export function useGit() {
         throw error;
       }
     },
-    [webcontainer, fs, ready],
+    [webcontainer, fs, ready]
   );
 
   return { ready, gitClone };
@@ -121,7 +121,7 @@ export function useGit() {
 
 const getFs = (
   webcontainer: WebContainer,
-  record: MutableRefObject<Record<string, { data: any; encoding?: string }>>,
+  record: MutableRefObject<Record<string, { data: any; encoding?: string }>>
 ) => ({
   promises: {
     readFile: async (path: string, options: any) => {
@@ -210,7 +210,7 @@ const getFs = (
         const relativePath = pathUtils.relative(webcontainer.workdir, path);
         const resp = await webcontainer.fs.readdir(pathUtils.dirname(relativePath), { withFileTypes: true });
         const name = pathUtils.basename(relativePath);
-        const fileInfo = resp.find((x) => x.name == name);
+        const fileInfo = resp.find(x => x.name == name);
 
         if (!fileInfo) {
           throw new Error(`ENOENT: no such file or directory, stat '${path}'`);

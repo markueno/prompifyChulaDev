@@ -80,21 +80,21 @@ const CloudProvidersTab = () => {
     setFilteredProviders(sorted);
 
     // Update category enabled state
-    const allEnabled = newFilteredProviders.every((p) => p.settings.enabled);
+    const allEnabled = newFilteredProviders.every(p => p.settings.enabled);
     setCategoryEnabled(allEnabled);
   }, [settings.providers]);
 
   const handleToggleCategory = useCallback(
     (enabled: boolean) => {
       // Update all providers
-      filteredProviders.forEach((provider) => {
+      filteredProviders.forEach(provider => {
         settings.updateProviderSettings(provider.name, { ...provider.settings, enabled });
       });
 
       setCategoryEnabled(enabled);
       toast.success(enabled ? 'All cloud providers enabled' : 'All cloud providers disabled');
     },
-    [filteredProviders, settings],
+    [filteredProviders, settings]
   );
 
   const handleToggleProvider = useCallback(
@@ -110,7 +110,7 @@ const CloudProvidersTab = () => {
         toast.success(`${provider.name} disabled`);
       }
     },
-    [settings],
+    [settings]
   );
 
   const handleUpdateBaseUrl = useCallback(
@@ -127,7 +127,7 @@ const CloudProvidersTab = () => {
       toast.success(`${provider.name} base URL updated`);
       setEditingProvider(null);
     },
-    [settings],
+    [settings]
   );
 
   return (
@@ -144,7 +144,7 @@ const CloudProvidersTab = () => {
               className={classNames(
                 'w-8 h-8 flex items-center justify-center rounded-lg',
                 'bg-bolt-elements-background-depth-3',
-                'text-purple-500',
+                'text-purple-500'
               )}
             >
               <TbCloudComputing className="w-5 h-5" />
@@ -171,7 +171,7 @@ const CloudProvidersTab = () => {
                 'hover:bg-bolt-elements-background-depth-3',
                 'transition-all duration-200',
                 'relative overflow-hidden group',
-                'flex flex-col',
+                'flex flex-col'
               )}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -196,7 +196,7 @@ const CloudProvidersTab = () => {
                     'w-10 h-10 flex items-center justify-center rounded-xl',
                     'bg-bolt-elements-background-depth-3 group-hover:bg-bolt-elements-background-depth-4',
                     'transition-all duration-200',
-                    provider.settings.enabled ? 'text-purple-500' : 'text-bolt-elements-textSecondary',
+                    provider.settings.enabled ? 'text-purple-500' : 'text-bolt-elements-textSecondary'
                   )}
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
@@ -224,7 +224,7 @@ const CloudProvidersTab = () => {
                     </div>
                     <Switch
                       checked={provider.settings.enabled}
-                      onCheckedChange={(checked) => handleToggleProvider(provider, checked)}
+                      onCheckedChange={checked => handleToggleProvider(provider, checked)}
                     />
                   </div>
 
@@ -246,16 +246,16 @@ const CloudProvidersTab = () => {
                               'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
                               'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
                               'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
-                              'transition-all duration-200',
+                              'transition-all duration-200'
                             )}
-                            onKeyDown={(e) => {
+                            onKeyDown={e => {
                               if (e.key === 'Enter') {
                                 handleUpdateBaseUrl(provider, e.currentTarget.value);
                               } else if (e.key === 'Escape') {
                                 setEditingProvider(null);
                               }
                             }}
-                            onBlur={(e) => handleUpdateBaseUrl(provider, e.target.value)}
+                            onBlur={e => handleUpdateBaseUrl(provider, e.target.value)}
                             autoFocus
                           />
                         ) : (

@@ -4,7 +4,7 @@ import { MODIFICATIONS_TAG_NAME, WORK_DIR } from './constants';
 
 export const modificationsRegex = new RegExp(
   `^<${MODIFICATIONS_TAG_NAME}>[\\s\\S]*?<\\/${MODIFICATIONS_TAG_NAME}>\\s+`,
-  'g',
+  'g'
 );
 
 interface ModifiedFile {

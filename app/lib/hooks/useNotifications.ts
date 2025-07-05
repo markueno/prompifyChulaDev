@@ -11,7 +11,7 @@ export const useNotifications = () => {
   const checkNotifications = async () => {
     try {
       const notifications = await getNotifications();
-      const unread = notifications.filter((n) => !logStore.isRead(n.id));
+      const unread = notifications.filter(n => !logStore.isRead(n.id));
       setUnreadNotifications(unread);
       setHasUnreadNotifications(unread.length > 0);
     } catch (error) {
@@ -40,7 +40,7 @@ export const useNotifications = () => {
   const markAllAsRead = async () => {
     try {
       const notifications = await getNotifications();
-      await Promise.all(notifications.map((n) => markNotificationRead(n.id)));
+      await Promise.all(notifications.map(n => markNotificationRead(n.id)));
       await checkNotifications();
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);

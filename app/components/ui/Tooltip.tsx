@@ -26,7 +26,7 @@ const WithTooltip = forwardRef(
       maxWidth = 250,
       delay = 0,
     }: TooltipProps,
-    _ref: ForwardedRef<HTMLElement>,
+    _ref: ForwardedRef<HTMLElement>
   ) => {
     return (
       <Tooltip.Root delayDuration={delay}>
@@ -73,7 +73,7 @@ const WithTooltip = forwardRef(
         </Tooltip.Portal>
       </Tooltip.Root>
     );
-  },
+  }
 );
 
 export default WithTooltip;

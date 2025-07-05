@@ -21,7 +21,7 @@ export default class LMStudioProvider extends BaseProvider {
   async getDynamicModels(
     apiKeys?: Record<string, string>,
     settings?: IProviderSetting,
-    serverEnv: Record<string, string> = {},
+    serverEnv: Record<string, string> = {}
   ): Promise<ModelInfo[]> {
     let { baseUrl } = this.getProviderBaseUrlAndKey({
       apiKeys,
@@ -49,7 +49,7 @@ export default class LMStudioProvider extends BaseProvider {
     const response = await fetch(`${baseUrl}/v1/models`);
     const data = (await response.json()) as { data: Array<{ id: string }> };
 
-    return data.data.map((model) => ({
+    return data.data.map(model => ({
       name: model.id,
       label: model.id,
       provider: this.name,
@@ -61,7 +61,7 @@ export default class LMStudioProvider extends BaseProvider {
     serverEnv?: Env;
     apiKeys?: Record<string, string>;
     providerSettings?: Record<string, IProviderSetting>;
-  }) => LanguageModelV1 = (options) => {
+  }) => LanguageModelV1 = options => {
     const { apiKeys, providerSettings, serverEnv, model } = options;
     let { baseUrl } = this.getProviderBaseUrlAndKey({
       apiKeys,

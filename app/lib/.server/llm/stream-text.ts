@@ -43,7 +43,7 @@ export async function streamText(props: {
   } = props;
   let currentModel = DEFAULT_MODEL;
   let currentProvider = DEFAULT_PROVIDER.name;
-  let processedMessages = messages.map((message) => {
+  let processedMessages = messages.map(message => {
     if (message.role === 'user') {
       const { model, provider, content } = extractPropertiesFromMessage(message);
       currentModel = model;
@@ -61,9 +61,9 @@ export async function streamText(props: {
     return message;
   });
 
-  const provider = PROVIDER_LIST.find((p) => p.name === currentProvider) || DEFAULT_PROVIDER;
+  const provider = PROVIDER_LIST.find(p => p.name === currentProvider) || DEFAULT_PROVIDER;
   const staticModels = LLMManager.getInstance().getStaticModelListFromProvider(provider);
-  let modelDetails = staticModels.find((m) => m.name === currentModel);
+  let modelDetails = staticModels.find(m => m.name === currentModel);
 
   if (!modelDetails) {
     const modelsList = [
@@ -79,12 +79,12 @@ export async function streamText(props: {
       throw new Error(`No models found for provider ${provider.name}`);
     }
 
-    modelDetails = modelsList.find((m) => m.name === currentModel);
+    modelDetails = modelsList.find(m => m.name === currentModel);
 
     if (!modelDetails) {
       // Fallback to first model
       logger.warn(
-        `MODEL [${currentModel}] not found in provider [${provider.name}]. Falling back to first model. ${modelsList[0].name}`,
+        `MODEL [${currentModel}] not found in provider [${provider.name}]. Falling back to first model. ${modelsList[0].name}`
       );
       modelDetails = modelsList[0];
     }

@@ -36,26 +36,26 @@ function normalizedFilePath(path: string) {
 
 export const AssistantMessage = memo(({ content, annotations }: AssistantMessageProps) => {
   const filteredAnnotations = (annotations?.filter(
-    (annotation: JSONValue) => annotation && typeof annotation === 'object' && Object.keys(annotation).includes('type'),
+    (annotation: JSONValue) => annotation && typeof annotation === 'object' && Object.keys(annotation).includes('type')
   ) || []) as { type: string; value: any } & { [key: string]: any }[];
 
   let chatSummary: string | undefined = undefined;
 
-  if (filteredAnnotations.find((annotation) => annotation.type === 'chatSummary')) {
-    chatSummary = filteredAnnotations.find((annotation) => annotation.type === 'chatSummary')?.summary;
+  if (filteredAnnotations.find(annotation => annotation.type === 'chatSummary')) {
+    chatSummary = filteredAnnotations.find(annotation => annotation.type === 'chatSummary')?.summary;
   }
 
   let codeContext: string[] | undefined = undefined;
 
-  if (filteredAnnotations.find((annotation) => annotation.type === 'codeContext')) {
-    codeContext = filteredAnnotations.find((annotation) => annotation.type === 'codeContext')?.files;
+  if (filteredAnnotations.find(annotation => annotation.type === 'codeContext')) {
+    codeContext = filteredAnnotations.find(annotation => annotation.type === 'codeContext')?.files;
   }
 
   const usage: {
     completionTokens: number;
     promptTokens: number;
     totalTokens: number;
-  } = filteredAnnotations.find((annotation) => annotation.type === 'usage')?.value;
+  } = filteredAnnotations.find(annotation => annotation.type === 'usage')?.value;
 
   return (
     <div className="overflow-hidden w-full">
@@ -75,13 +75,13 @@ export const AssistantMessage = memo(({ content, annotations }: AssistantMessage
                     <div className="code-context flex flex-col p4 border border-bolt-elements-borderColor rounded-md">
                       <h2>Context</h2>
                       <div className="flex gap-4 mt-4 bolt" style={{ zoom: 0.6 }}>
-                        {codeContext.map((x) => {
+                        {codeContext.map(x => {
                           const normalized = normalizedFilePath(x);
                           return (
                             <>
                               <code
                                 className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
-                                onClick={(e) => {
+                                onClick={e => {
                                   e.preventDefault();
                                   e.stopPropagation();
                                   openArtifactInWorkbench(normalized);

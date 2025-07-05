@@ -43,7 +43,7 @@ export const TabTile: React.FC<TabTileProps> = ({
               'hover:border-purple-200 dark:hover:border-purple-900/30',
               isActive ? 'border-purple-500 dark:border-purple-500/50 bg-purple-500/5 dark:bg-purple-500/10' : '',
               isLoading ? 'cursor-wait opacity-70' : '',
-              className || '',
+              className || ''
             )}
           >
             {/* Main Content */}
@@ -59,7 +59,7 @@ export const TabTile: React.FC<TabTileProps> = ({
                   'ring-1 ring-gray-200 dark:ring-gray-700',
                   'group-hover:bg-purple-100 dark:group-hover:bg-gray-700/80',
                   'group-hover:ring-purple-200 dark:group-hover:ring-purple-800/30',
-                  isActive ? 'bg-purple-500/10 dark:bg-purple-500/10 ring-purple-500/30 dark:ring-purple-500/20' : '',
+                  isActive ? 'bg-purple-500/10 dark:bg-purple-500/10 ring-purple-500/30 dark:ring-purple-500/20' : ''
                 )}
               >
                 <motion.div
@@ -68,7 +68,7 @@ export const TabTile: React.FC<TabTileProps> = ({
                     'w-8 h-8',
                     'text-gray-600 dark:text-gray-300',
                     'group-hover:text-purple-500 dark:group-hover:text-purple-400/80',
-                    isActive ? 'text-purple-500 dark:text-purple-400/90' : '',
+                    isActive ? 'text-purple-500 dark:text-purple-400/90' : ''
                   )}
                 />
               </motion.div>
@@ -80,7 +80,7 @@ export const TabTile: React.FC<TabTileProps> = ({
                     'text-[15px] font-medium leading-snug mb-2',
                     'text-gray-700 dark:text-gray-200',
                     'group-hover:text-purple-600 dark:group-hover:text-purple-300/90',
-                    isActive ? 'text-purple-500 dark:text-purple-400/90' : '',
+                    isActive ? 'text-purple-500 dark:text-purple-400/90' : ''
                   )}
                 >
                   {TAB_LABELS[tab.id]}
@@ -93,7 +93,7 @@ export const TabTile: React.FC<TabTileProps> = ({
                       'max-w-[85%]',
                       'text-center',
                       'group-hover:text-purple-500 dark:group-hover:text-purple-400/70',
-                      isActive ? 'text-purple-400 dark:text-purple-400/80' : '',
+                      isActive ? 'text-purple-400 dark:text-purple-400/80' : ''
                     )}
                   >
                     {description}
@@ -113,7 +113,7 @@ export const TabTile: React.FC<TabTileProps> = ({
                       'bg-[#18181B] text-white',
                       'text-sm font-medium',
                       'select-none',
-                      'z-[100]',
+                      'z-[100]'
                     )}
                     side="top"
                     sideOffset={5}

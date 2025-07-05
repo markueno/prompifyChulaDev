@@ -71,7 +71,7 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
                 <button
                   onClick={() =>
                     postMessage(
-                      `*Fix this ${isPreview ? 'preview' : 'terminal'} error* \n\`\`\`${isPreview ? 'js' : 'sh'}\n${content}\n\`\`\`\n`,
+                      `*Fix this ${isPreview ? 'preview' : 'terminal'} error* \n\`\`\`${isPreview ? 'js' : 'sh'}\n${content}\n\`\`\`\n`
                     )
                   }
                   className={classNames(
@@ -80,7 +80,7 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
                     'hover:bg-bolt-elements-button-primary-backgroundHover',
                     'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bolt-elements-button-danger-background',
                     'text-bolt-elements-button-primary-text',
-                    'flex items-center gap-1.5',
+                    'flex items-center gap-1.5'
                   )}
                 >
                   <div className="i-ph:chat-circle-duotone"></div>
@@ -93,7 +93,7 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
                     'bg-bolt-elements-button-secondary-background',
                     'hover:bg-bolt-elements-button-secondary-backgroundHover',
                     'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bolt-elements-button-secondary-background',
-                    'text-bolt-elements-button-secondary-text',
+                    'text-bolt-elements-button-secondary-text'
                   )}
                 >
                   Dismiss

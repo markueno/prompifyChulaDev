@@ -29,8 +29,8 @@ export class OpenAIStatusChecker extends BaseProviderChecker {
       if (incidentMatches) {
         const recentIncidents = incidentMatches[1]
           .split('\n')
-          .map((line) => line.trim())
-          .filter((line) => line && line.includes('202')); // Get only dated incidents
+          .map(line => line.trim())
+          .filter(line => line && line.includes('202')); // Get only dated incidents
 
         incidents.push(...recentIncidents.slice(0, 5));
       }

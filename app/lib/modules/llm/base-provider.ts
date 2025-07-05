@@ -91,7 +91,7 @@ export abstract class BaseProvider implements ProviderInfo {
       providerSettings?: Record<string, IProviderSetting>;
       serverEnv?: Record<string, string>;
     },
-    models: ModelInfo[],
+    models: ModelInfo[]
   ) {
     const cacheId = this.getDynamicModelsCacheKey(options);
 
@@ -106,7 +106,7 @@ export abstract class BaseProvider implements ProviderInfo {
   getDynamicModels?(
     apiKeys?: Record<string, string>,
     settings?: IProviderSetting,
-    serverEnv?: Record<string, string>,
+    serverEnv?: Record<string, string>
   ): Promise<ModelInfo[]>;
 
   abstract getModelInstance(options: {

@@ -38,7 +38,7 @@ interface StatsDialogProps {
 
 function StatsDialog({ isOpen, onClose, onConfirm, stats, isLargeRepo }: StatsDialogProps) {
   return (
-    <Dialog.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog.Root open={isOpen} onOpenChange={open => !open && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999]" />
         <div className="fixed inset-0 flex items-center justify-center z-[9999]">
@@ -170,10 +170,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
       const data = await response.json();
 
       // Add type assertion and validation
-      if (
-        Array.isArray(data) &&
-        data.every((item) => typeof item === 'object' && item !== null && 'full_name' in item)
-      ) {
+      if (Array.isArray(data) && data.every(item => typeof item === 'object' && item !== null && 'full_name' in item)) {
         setRepositories(data as GitHubRepoInfo[]);
       } else {
         throw new Error('Invalid repository data format');
@@ -211,7 +208,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
           headers: {
             Accept: 'application/vnd.github.v3+json',
           },
-        },
+        }
       );
 
       if (!response.ok) {
@@ -251,12 +248,12 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
       const data = await response.json();
 
       // Add type assertion and validation
-      if (Array.isArray(data) && data.every((item) => typeof item === 'object' && item !== null && 'name' in item)) {
+      if (Array.isArray(data) && data.every(item => typeof item === 'object' && item !== null && 'name' in item)) {
         setBranches(
-          data.map((branch) => ({
+          data.map(branch => ({
             name: branch.name,
             default: branch.name === repo.default_branch,
-          })),
+          }))
         );
       } else {
         throw new Error('Invalid branch data format');
@@ -415,7 +412,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
       parsedValue = value ? parseInt(value, 10) : undefined;
     }
 
-    setFilters((prev) => ({ ...prev, [key]: parsedValue }));
+    setFilters(prev => ({ ...prev, [key]: parsedValue }));
     handleSearch(searchQuery);
   };
 
@@ -430,7 +427,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
   return (
     <Dialog.Root
       open={isOpen}
-      onOpenChange={(open) => {
+      onOpenChange={open => {
         if (!open) {
           handleClose();
         }
@@ -450,7 +447,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
                 'text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary',
                 'dark:text-bolt-elements-textTertiary-dark dark:hover:text-bolt-elements-textPrimary-dark',
                 'hover:bg-bolt-elements-background-depth-2 dark:hover:bg-bolt-elements-background-depth-3',
-                'focus:outline-none focus:ring-2 focus:ring-bolt-elements-borderColor dark:focus:ring-bolt-elements-borderColor-dark',
+                'focus:outline-none focus:ring-2 focus:ring-bolt-elements-borderColor dark:focus:ring-bolt-elements-borderColor-dark'
               )}
             >
               <span className="i-ph:x block w-5 h-5" aria-hidden="true" />
@@ -479,7 +476,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
                 <Input
                   placeholder="Enter repository URL"
                   value={customUrl}
-                  onChange={(e) => setCustomUrl(e.target.value)}
+                  onChange={e => setCustomUrl(e.target.value)}
                   className={classNames('w-full', {
                     'border-red-500': false,
                   })}
@@ -501,7 +498,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
                         type="text"
                         placeholder="Search repositories..."
                         value={searchQuery}
-                        onChange={(e) => {
+                        onChange={e => {
                           setSearchQuery(e.target.value);
                           handleSearch(e.target.value);
                         }}
@@ -519,7 +516,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
                         type="text"
                         placeholder="Filter by language..."
                         value={filters.language || ''}
-                        onChange={(e) => {
+                        onChange={e => {
                           setFilters({ ...filters, language: e.target.value });
                           handleSearch(searchQuery);
                         }}
@@ -529,7 +526,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
                         type="number"
                         placeholder="Min stars..."
                         value={filters.stars || ''}
-                        onChange={(e) => handleFilterChange('stars', e.target.value)}
+                        onChange={e => handleFilterChange('stars', e.target.value)}
                         className="px-3 py-1.5 text-sm rounded-lg bg-[#F5F5F5] dark:bg-[#252525] border border-[#E5E5E5] dark:border-[#333333]"
                       />
                     </div>
@@ -537,7 +534,7 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
                       type="number"
                       placeholder="Min forks..."
                       value={filters.forks || ''}
-                      onChange={(e) => handleFilterChange('forks', e.target.value)}
+                      onChange={e => handleFilterChange('forks', e.target.value)}
                       className="px-3 py-1.5 text-sm rounded-lg bg-[#F5F5F5] dark:bg-[#252525] border border-[#E5E5E5] dark:border-[#333333]"
                     />
                   </div>
@@ -559,10 +556,10 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
                         <label className="text-sm text-bolt-elements-textSecondary">Select Branch</label>
                         <select
                           value={selectedBranch}
-                          onChange={(e) => setSelectedBranch(e.target.value)}
+                          onChange={e => setSelectedBranch(e.target.value)}
                           className="w-full px-3 py-2 rounded-lg bg-bolt-elements-background-depth-2 dark:bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor dark:border-bolt-elements-borderColor-dark text-bolt-elements-textPrimary dark:text-bolt-elements-textPrimary-dark focus:outline-none focus:ring-2 focus:ring-bolt-elements-borderColor dark:focus:ring-bolt-elements-borderColor-dark"
                         >
-                          {branches.map((branch) => (
+                          {branches.map(branch => (
                             <option
                               key={branch.name}
                               value={branch.name}
@@ -615,7 +612,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
         'px-4 py-2 h-10 rounded-lg transition-all duration-200 flex items-center gap-2 min-w-[120px] justify-center',
         active
           ? 'bg-purple-500 text-white hover:bg-purple-600'
-          : 'bg-[#F5F5F5] dark:bg-[#252525] text-bolt-elements-textPrimary dark:text-white hover:bg-[#E5E5E5] dark:hover:bg-[#333333] border border-[#E5E5E5] dark:border-[#333333]',
+          : 'bg-[#F5F5F5] dark:bg-[#252525] text-bolt-elements-textPrimary dark:text-white hover:bg-[#E5E5E5] dark:hover:bg-[#333333] border border-[#E5E5E5] dark:border-[#333333]'
       )}
     >
       {children}
@@ -652,7 +649,7 @@ function RepositoryList({
     );
   }
 
-  return repos.map((repo) => <RepositoryCard key={repo.full_name} repo={repo} onSelect={() => onSelect(repo)} />);
+  return repos.map(repo => <RepositoryCard key={repo.full_name} repo={repo} onSelect={() => onSelect(repo)} />);
 }
 
 function RepositoryCard({ repo, onSelect }: { repo: GitHubRepoInfo; onSelect: () => void }) {

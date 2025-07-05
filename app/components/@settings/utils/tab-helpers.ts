@@ -4,7 +4,7 @@ import { DEFAULT_TAB_CONFIG } from '~/components/@settings/core/constants';
 export const getVisibleTabs = (
   tabConfiguration: { userTabs: TabVisibilityConfig[]; developerTabs?: TabVisibilityConfig[] },
   isDeveloperMode: boolean,
-  notificationsEnabled: boolean,
+  notificationsEnabled: boolean
 ): TabVisibilityConfig[] => {
   if (!tabConfiguration?.userTabs || !Array.isArray(tabConfiguration.userTabs)) {
     console.warn('Invalid tab configuration, using defaults');
@@ -15,25 +15,25 @@ export const getVisibleTabs = (
   if (isDeveloperMode) {
     // Combine all unique tabs from both user and developer configurations
     const allTabs = new Set([
-      ...DEFAULT_TAB_CONFIG.map((tab) => tab.id),
-      ...tabConfiguration.userTabs.map((tab) => tab.id),
-      ...(tabConfiguration.developerTabs || []).map((tab) => tab.id),
+      ...DEFAULT_TAB_CONFIG.map(tab => tab.id),
+      ...tabConfiguration.userTabs.map(tab => tab.id),
+      ...(tabConfiguration.developerTabs || []).map(tab => tab.id),
       'task-manager' as TabType, // Always include task-manager in developer mode
     ]);
 
     // Create a complete tab list with all tabs visible
-    const devTabs = Array.from(allTabs).map((tabId) => {
+    const devTabs = Array.from(allTabs).map(tabId => {
       // Try to find existing configuration for this tab
       const existingTab =
-        tabConfiguration.developerTabs?.find((t) => t.id === tabId) ||
-        tabConfiguration.userTabs?.find((t) => t.id === tabId) ||
-        DEFAULT_TAB_CONFIG.find((t) => t.id === tabId);
+        tabConfiguration.developerTabs?.find(t => t.id === tabId) ||
+        tabConfiguration.userTabs?.find(t => t.id === tabId) ||
+        DEFAULT_TAB_CONFIG.find(t => t.id === tabId);
 
       return {
         id: tabId as TabType,
         visible: true,
         window: 'developer' as const,
-        order: existingTab?.order || DEFAULT_TAB_CONFIG.findIndex((t) => t.id === tabId),
+        order: existingTab?.order || DEFAULT_TAB_CONFIG.findIndex(t => t.id === tabId),
       } as TabVisibilityConfig;
     });
 
@@ -42,7 +42,7 @@ export const getVisibleTabs = (
 
   // In user mode, only show visible user tabs
   return tabConfiguration.userTabs
-    .filter((tab) => {
+    .filter(tab => {
       if (!tab || typeof tab.id !== 'string') {
         console.warn('Invalid tab entry:', tab);
         return false;
@@ -67,7 +67,7 @@ export const getVisibleTabs = (
 export const reorderTabs = (
   tabs: TabVisibilityConfig[],
   startIndex: number,
-  endIndex: number,
+  endIndex: number
 ): TabVisibilityConfig[] => {
   const result = Array.from(tabs);
   const [removed] = result.splice(startIndex, 1);
@@ -81,7 +81,7 @@ export const reorderTabs = (
 };
 
 export const resetToDefaultConfig = (isDeveloperMode: boolean): TabVisibilityConfig[] => {
-  return DEFAULT_TAB_CONFIG.map((tab) => ({
+  return DEFAULT_TAB_CONFIG.map(tab => ({
     ...tab,
     visible: isDeveloperMode ? true : tab.window === 'user',
     window: isDeveloperMode ? 'developer' : tab.window,

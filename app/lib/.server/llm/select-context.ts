@@ -26,7 +26,7 @@ export async function selectContext(props: {
   const { messages, env: serverEnv, apiKeys, files, providerSettings, summary, onFinish } = props;
   let currentModel = DEFAULT_MODEL;
   let currentProvider = DEFAULT_PROVIDER.name;
-  const processedMessages = messages.map((message) => {
+  const processedMessages = messages.map(message => {
     if (message.role === 'user') {
       const { model, provider, content } = extractPropertiesFromMessage(message);
       currentModel = model;
@@ -47,9 +47,9 @@ export async function selectContext(props: {
     return message;
   });
 
-  const provider = PROVIDER_LIST.find((p) => p.name === currentProvider) || DEFAULT_PROVIDER;
+  const provider = PROVIDER_LIST.find(p => p.name === currentProvider) || DEFAULT_PROVIDER;
   const staticModels = LLMManager.getInstance().getStaticModelListFromProvider(provider);
-  let modelDetails = staticModels.find((m) => m.name === currentModel);
+  let modelDetails = staticModels.find(m => m.name === currentModel);
 
   if (!modelDetails) {
     const modelsList = [
@@ -65,12 +65,12 @@ export async function selectContext(props: {
       throw new Error(`No models found for provider ${provider.name}`);
     }
 
-    modelDetails = modelsList.find((m) => m.name === currentModel);
+    modelDetails = modelsList.find(m => m.name === currentModel);
 
     if (!modelDetails) {
       // Fallback to first model
       logger.warn(
-        `MODEL [${currentModel}] not found in provider [${provider.name}]. Falling back to first model. ${modelsList[0].name}`,
+        `MODEL [${currentModel}] not found in provider [${provider.name}]. Falling back to first model. ${modelsList[0].name}`
       );
       modelDetails = modelsList[0];
     }
@@ -79,7 +79,7 @@ export async function selectContext(props: {
   const { codeContext } = extractCurrentContext(processedMessages);
 
   let filePaths = getFilePaths(files || {});
-  filePaths = filePaths.filter((x) => {
+  filePaths = filePaths.filter(x => {
     const relPath = x.replace('/home/project/', '');
     return !ig.ignores(relPath);
   });
@@ -90,7 +90,7 @@ export async function selectContext(props: {
 
   if (codeContext?.type === 'codeContext') {
     const codeContextFiles: string[] = codeContext.files;
-    Object.keys(files || {}).forEach((path) => {
+    Object.keys(files || {}).forEach(path => {
       let relativePath = path;
 
       if (path.startsWith('/home/project/')) {
@@ -109,10 +109,10 @@ export async function selectContext(props: {
 
   const extractTextContent = (message: Message) =>
     Array.isArray(message.content)
-      ? (message.content.find((item) => item.type === 'text')?.text as string) || ''
+      ? (message.content.find(item => item.type === 'text')?.text as string) || ''
       : message.content;
 
-  const lastUserMessage = processedMessages.filter((x) => x.role == 'user').pop();
+  const lastUserMessage = processedMessages.filter(x => x.role == 'user').pop();
 
   if (!lastUserMessage) {
     throw new Error('No user message found');
@@ -125,7 +125,7 @@ export async function selectContext(props: {
 
         AVAILABLE FILES PATHS
         ---
-        ${filePaths.map((path) => `- ${path}`).join('\n')}
+        ${filePaths.map(path => `- ${path}`).join('\n')}
         ---
 
         You have following code loaded in the context buffer that you can refer to:
@@ -186,17 +186,17 @@ export async function selectContext(props: {
   const includeFiles =
     updateContextBuffer[1]
       .match(/<includeFile path="(.*?)"/gm)
-      ?.map((x) => x.replace('<includeFile path="', '').replace('"', '')) || [];
+      ?.map(x => x.replace('<includeFile path="', '').replace('"', '')) || [];
   const excludeFiles =
     updateContextBuffer[1]
       .match(/<excludeFile path="(.*?)"/gm)
-      ?.map((x) => x.replace('<excludeFile path="', '').replace('"', '')) || [];
+      ?.map(x => x.replace('<excludeFile path="', '').replace('"', '')) || [];
 
   const filteredFiles: FileMap = {};
-  excludeFiles.forEach((path) => {
+  excludeFiles.forEach(path => {
     delete contextFiles[path];
   });
-  includeFiles.forEach((path) => {
+  includeFiles.forEach(path => {
     let fullPath = path;
 
     if (!path.startsWith('/home/project/')) {
@@ -235,7 +235,7 @@ export async function selectContext(props: {
 
 export function getFilePaths(files: FileMap) {
   let filePaths = Object.keys(files);
-  filePaths = filePaths.filter((x) => {
+  filePaths = filePaths.filter(x => {
     const relPath = x.replace('/home/project/', '');
     return !ig.ignores(relPath);
   });

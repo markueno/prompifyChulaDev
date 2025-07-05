@@ -53,7 +53,7 @@ export function ChatDescription() {
                 <button
                   type="button"
                   className="i-ph:pencil-fill scale-110 hover:text-bolt-elements-item-contentAccent"
-                  onClick={(event) => {
+                  onClick={event => {
                     event.preventDefault();
                     toggleEditMode();
                   }}

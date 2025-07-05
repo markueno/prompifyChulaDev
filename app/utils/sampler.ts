@@ -32,7 +32,7 @@ export function createSampler<T extends (...args: any[]) => any>(fn: T, sampleIn
               lastArgs = null;
             }
           },
-          sampleInterval - (now - lastTime),
+          sampleInterval - (now - lastTime)
         );
       }
 

@@ -54,7 +54,7 @@ export const PortDropdown = memo(
             <div className="px-4 py-2 border-b border-bolt-elements-borderColor text-sm font-semibold text-bolt-elements-textPrimary">
               Ports
             </div>
-            {sortedPreviews.map((preview) => (
+            {sortedPreviews.map(preview => (
               <div
                 key={preview.port}
                 className="flex items-center px-4 py-2 cursor-pointer hover:bg-bolt-elements-item-backgroundActive"
@@ -79,5 +79,5 @@ export const PortDropdown = memo(
         )}
       </div>
     );
-  },
+  }
 );

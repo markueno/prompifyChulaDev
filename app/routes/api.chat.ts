@@ -21,9 +21,9 @@ const logger = createScopedLogger('api.chat');
 function parseCookies(cookieHeader: string): Record<string, string> {
   const cookies: Record<string, string> = {};
 
-  const items = cookieHeader.split(';').map((cookie) => cookie.trim());
+  const items = cookieHeader.split(';').map(cookie => cookie.trim());
 
-  items.forEach((item) => {
+  items.forEach(item => {
     const [name, ...rest] = item.split('=');
 
     if (name && rest) {
@@ -47,7 +47,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   const cookieHeader = request.headers.get('Cookie');
   const apiKeys = JSON.parse(parseCookies(cookieHeader || '').apiKeys || '{}');
   const providerSettings: Record<string, IProviderSetting> = JSON.parse(
-    parseCookies(cookieHeader || '').providers || '{}',
+    parseCookies(cookieHeader || '').providers || '{}'
   );
 
   const stream = new SwitchableStream();
@@ -157,7 +157,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
           dataStream.writeMessageAnnotation({
             type: 'codeContext',
-            files: Object.keys(filteredFiles).map((key) => {
+            files: Object.keys(filteredFiles).map(key => {
               let path = key;
 
               if (path.startsWith(WORK_DIR)) {
@@ -207,7 +207,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
                 order: progressCounter++,
                 message: 'Response Generated',
               } satisfies ProgressAnnotation);
-              await new Promise((resolve) => setTimeout(resolve, 0));
+              await new Promise(resolve => setTimeout(resolve, 0));
 
               // stream.close();
               return;
@@ -221,7 +221,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
             logger.info(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
 
-            const lastUserMessage = messages.filter((x) => x.role == 'user').slice(-1)[0];
+            const lastUserMessage = messages.filter(x => x.role == 'user').slice(-1)[0];
             const { model, provider } = extractPropertiesFromMessage(lastUserMessage);
             messages.push({ id: generateId(), role: 'assistant', content });
             messages.push({
@@ -331,7 +331,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           const str = typeof transformedChunk === 'string' ? transformedChunk : JSON.stringify(transformedChunk);
           controller.enqueue(encoder.encode(str));
         },
-      }),
+      })
     );
 
     return new Response(dataStream, {

@@ -43,7 +43,7 @@ export const shouldIncludeFile = (path: string): boolean => {
 };
 
 const readPackageJson = async (files: File[]): Promise<{ scripts?: Record<string, string> } | null> => {
-  const packageJsonFile = files.find((f) => f.webkitRelativePath.endsWith('package.json'));
+  const packageJsonFile = files.find(f => f.webkitRelativePath.endsWith('package.json'));
 
   if (!packageJsonFile) {
     return null;
@@ -65,9 +65,9 @@ const readPackageJson = async (files: File[]): Promise<{ scripts?: Record<string
 };
 
 export const detectProjectType = async (
-  files: File[],
+  files: File[]
 ): Promise<{ type: string; setupCommand: string; followupMessage: string }> => {
-  const hasFile = (name: string) => files.some((f) => f.webkitRelativePath.endsWith(name));
+  const hasFile = (name: string) => files.some(f => f.webkitRelativePath.endsWith(name));
 
   if (hasFile('package.json')) {
     const packageJson = await readPackageJson(files);
@@ -75,7 +75,7 @@ export const detectProjectType = async (
 
     // Check for preferred commands in priority order
     const preferredCommands = ['dev', 'start', 'preview'];
-    const availableCommand = preferredCommands.find((cmd) => scripts[cmd]);
+    const availableCommand = preferredCommands.find(cmd => scripts[cmd]);
 
     if (availableCommand) {
       return {
@@ -109,11 +109,11 @@ export const filesToArtifacts = (files: { [path: string]: { content: string } },
 <boltArtifact id="${id}" title="User Updated Files">
 ${Object.keys(files)
   .map(
-    (filePath) => `
+    filePath => `
 <boltAction type="file" filePath="${filePath}">
 ${files[filePath].content}
 </boltAction>
-`,
+`
   )
   .join('\n')}
 </boltArtifact>

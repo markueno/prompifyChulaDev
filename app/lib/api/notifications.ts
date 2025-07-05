@@ -20,8 +20,8 @@ export const getNotifications = async (): Promise<Notification[]> => {
   const logs = Object.values(logStore.logs.get());
 
   return logs
-    .filter((log) => log.category !== 'system') // Filter out system logs
-    .map((log) => ({
+    .filter(log => log.category !== 'system') // Filter out system logs
+    .map(log => ({
       id: log.id,
       title: (log.details?.title as string) || log.message.split('\n')[0],
       message: log.message,
@@ -44,7 +44,7 @@ export const clearNotifications = async (): Promise<void> => {
 export const getUnreadCount = (): number => {
   const logs = Object.values(logStore.logs.get()) as LogEntryWithRead[];
 
-  return logs.filter((log) => {
+  return logs.filter(log => {
     if (!logStore.isRead(log.id)) {
       if (log.details?.type === 'update') {
         return true;

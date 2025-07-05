@@ -14,10 +14,10 @@ interface FileContent {
 }
 
 export async function detectProjectCommands(files: FileContent[]): Promise<ProjectCommands> {
-  const hasFile = (name: string) => files.some((f) => f.path.endsWith(name));
+  const hasFile = (name: string) => files.some(f => f.path.endsWith(name));
 
   if (hasFile('package.json')) {
-    const packageJsonFile = files.find((f) => f.path.endsWith('package.json'));
+    const packageJsonFile = files.find(f => f.path.endsWith('package.json'));
 
     if (!packageJsonFile) {
       return { type: '', setupCommand: '', followupMessage: '' };
@@ -29,7 +29,7 @@ export async function detectProjectCommands(files: FileContent[]): Promise<Proje
 
       // Check for preferred commands in priority order
       const preferredCommands = ['dev', 'start', 'preview'];
-      const availableCommand = preferredCommands.find((cmd) => scripts[cmd]);
+      const availableCommand = preferredCommands.find(cmd => scripts[cmd]);
 
       if (availableCommand) {
         return {

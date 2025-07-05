@@ -29,9 +29,9 @@ export const useDebugStatus = () => {
     try {
       const status = await getDebugStatus();
       const issues: DebugIssue[] = [
-        ...status.warnings.map((w) => ({ ...w, type: 'warning' as const })),
-        ...status.errors.map((e) => ({ ...e, type: 'error' as const })),
-      ].filter((issue) => !acknowledgedIssueIds.includes(issue.id));
+        ...status.warnings.map(w => ({ ...w, type: 'warning' as const })),
+        ...status.errors.map(e => ({ ...e, type: 'error' as const })),
+      ].filter(issue => !acknowledgedIssueIds.includes(issue.id));
 
       setActiveIssues(issues);
       setHasActiveWarnings(issues.length > 0);
@@ -60,7 +60,7 @@ export const useDebugStatus = () => {
       const newAcknowledgedIds = [...acknowledgedIssueIds, issue.id];
       setAcknowledgedIssueIds(newAcknowledgedIds);
       setAcknowledgedIssues(newAcknowledgedIds);
-      setActiveIssues((prev) => prev.filter((i) => i.id !== issue.id));
+      setActiveIssues(prev => prev.filter(i => i.id !== issue.id));
       setHasActiveWarnings(activeIssues.length > 1);
     } catch (error) {
       console.error('Failed to acknowledge issue:', error);
@@ -70,12 +70,12 @@ export const useDebugStatus = () => {
   const acknowledgeAllIssues = async () => {
     try {
       await Promise.all(
-        activeIssues.map((issue) =>
-          issue.type === 'warning' ? acknowledgeWarning(issue.id) : acknowledgeError(issue.id),
-        ),
+        activeIssues.map(issue =>
+          issue.type === 'warning' ? acknowledgeWarning(issue.id) : acknowledgeError(issue.id)
+        )
       );
 
-      const newAcknowledgedIds = [...acknowledgedIssueIds, ...activeIssues.map((i) => i.id)];
+      const newAcknowledgedIds = [...acknowledgedIssueIds, ...activeIssues.map(i => i.id)];
       setAcknowledgedIssueIds(newAcknowledgedIds);
       setAcknowledgedIssues(newAcknowledgedIds);
       setActiveIssues([]);

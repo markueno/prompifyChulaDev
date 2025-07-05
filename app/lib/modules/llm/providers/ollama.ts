@@ -44,7 +44,7 @@ export default class OllamaProvider extends BaseProvider {
   async getDynamicModels(
     apiKeys?: Record<string, string>,
     settings?: IProviderSetting,
-    serverEnv: Record<string, string> = {},
+    serverEnv: Record<string, string> = {}
   ): Promise<ModelInfo[]> {
     let { baseUrl } = this.getProviderBaseUrlAndKey({
       apiKeys,
@@ -86,7 +86,7 @@ export default class OllamaProvider extends BaseProvider {
     serverEnv?: Env;
     apiKeys?: Record<string, string>;
     providerSettings?: Record<string, IProviderSetting>;
-  }) => LanguageModelV1 = (options) => {
+  }) => LanguageModelV1 = options => {
     const { apiKeys, providerSettings, serverEnv, model } = options;
     let { baseUrl } = this.getProviderBaseUrlAndKey({
       apiKeys,

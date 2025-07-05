@@ -15,7 +15,7 @@ let cachedDefaultProvider: ProviderInfo | null = null;
 
 function getProviderInfo(llmManager: LLMManager) {
   if (!cachedProviders) {
-    cachedProviders = llmManager.getAllProviders().map((provider) => ({
+    cachedProviders = llmManager.getAllProviders().map(provider => ({
       name: provider.name,
       staticModels: provider.staticModels,
       getApiKeyLink: provider.getApiKeyLink,

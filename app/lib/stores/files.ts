@@ -141,7 +141,7 @@ export class FilesStore {
 
     webcontainer.internal.watchPaths(
       { include: [`${WORK_DIR}/**`], exclude: ['**/node_modules', '.git'], includeContent: true },
-      bufferWatchEvents(100, this.#processEventBuffer.bind(this)),
+      bufferWatchEvents(100, this.#processEventBuffer.bind(this))
     );
   }
 

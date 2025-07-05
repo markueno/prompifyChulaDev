@@ -36,7 +36,7 @@ export default class TogetherProvider extends BaseProvider {
   async getDynamicModels(
     apiKeys?: Record<string, string>,
     settings?: IProviderSetting,
-    serverEnv: Record<string, string> = {},
+    serverEnv: Record<string, string> = {}
   ): Promise<ModelInfo[]> {
     const { baseUrl: fetchBaseUrl, apiKey } = this.getProviderBaseUrlAndKey({
       apiKeys,

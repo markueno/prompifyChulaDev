@@ -63,7 +63,7 @@ const NotificationsTab = () => {
   };
 
   const filteredLogs = Object.values(logs)
-    .filter((log) => {
+    .filter(log => {
       if (filter === 'all') {
         return true;
       }
@@ -145,7 +145,7 @@ const NotificationsTab = () => {
               'border border-[#E5E5E5] dark:border-[#1A1A1A]',
               'text-gray-900 dark:text-white',
               'hover:bg-purple-500/10 dark:hover:bg-purple-500/20',
-              'transition-all duration-200',
+              'transition-all duration-200'
             )}
           >
             <span className="i-ph:git-branch text-lg" />
@@ -182,14 +182,14 @@ const NotificationsTab = () => {
                 'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
                 'border border-[#E5E5E5] dark:border-[#1A1A1A]',
                 'hover:bg-purple-500/10 dark:hover:bg-purple-500/20',
-                'transition-all duration-200',
+                'transition-all duration-200'
               )}
             >
               <span
-                className={classNames('text-lg', filterOptions.find((opt) => opt.id === filter)?.icon || 'i-ph:funnel')}
-                style={{ color: filterOptions.find((opt) => opt.id === filter)?.color }}
+                className={classNames('text-lg', filterOptions.find(opt => opt.id === filter)?.icon || 'i-ph:funnel')}
+                style={{ color: filterOptions.find(opt => opt.id === filter)?.color }}
               />
-              {filterOptions.find((opt) => opt.id === filter)?.label || 'Filter Notifications'}
+              {filterOptions.find(opt => opt.id === filter)?.label || 'Filter Notifications'}
               <span className="i-ph:caret-down text-lg text-gray-500 dark:text-gray-400" />
             </button>
           </DropdownMenu.Trigger>
@@ -201,7 +201,7 @@ const NotificationsTab = () => {
               align="start"
               side="bottom"
             >
-              {filterOptions.map((option) => (
+              {filterOptions.map(option => (
                 <DropdownMenu.Item
                   key={option.id}
                   className="group flex items-center px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-purple-500/10 dark:hover:bg-purple-500/20 cursor-pointer transition-colors"
@@ -229,7 +229,7 @@ const NotificationsTab = () => {
             'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
             'border border-[#E5E5E5] dark:border-[#1A1A1A]',
             'hover:bg-purple-500/10 dark:hover:bg-purple-500/20',
-            'transition-all duration-200',
+            'transition-all duration-200'
           )}
         >
           <span className="i-ph:trash text-lg text-gray-500 dark:text-gray-400 group-hover:text-purple-500 transition-colors" />
@@ -246,7 +246,7 @@ const NotificationsTab = () => {
               'flex flex-col items-center justify-center gap-4',
               'rounded-lg p-8 text-center',
               'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
-              'border border-[#E5E5E5] dark:border-[#1A1A1A]',
+              'border border-[#E5E5E5] dark:border-[#1A1A1A]'
             )}
           >
             <span className="i-ph:bell-slash text-4xl text-gray-400 dark:text-gray-600" />
@@ -256,7 +256,7 @@ const NotificationsTab = () => {
             </div>
           </motion.div>
         ) : (
-          filteredLogs.map((log) => {
+          filteredLogs.map(log => {
             const style = getNotificationStyle(log.level, log.details?.type);
             return (
               <motion.div
@@ -269,7 +269,7 @@ const NotificationsTab = () => {
                   'bg-[#FAFAFA] dark:bg-[#0A0A0A]',
                   'border border-[#E5E5E5] dark:border-[#1A1A1A]',
                   style.bg,
-                  'transition-all duration-200',
+                  'transition-all duration-200'
                 )}
               >
                 <div className="flex items-start justify-between gap-4">

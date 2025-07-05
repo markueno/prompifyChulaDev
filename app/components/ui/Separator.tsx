@@ -12,7 +12,7 @@ export const Separator = ({ className, orientation = 'horizontal' }: SeparatorPr
       className={classNames(
         'bg-bolt-elements-borderColor',
         orientation === 'horizontal' ? 'h-px w-full' : 'h-full w-px',
-        className,
+        className
       )}
       orientation={orientation}
     />

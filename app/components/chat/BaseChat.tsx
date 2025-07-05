@@ -147,7 +147,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       data,
       actionRunner,
     },
-    ref,
+    ref
   ) => {
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
     const [apiKeys, setApiKeys] = useState<Record<string, string>>(getApiKeysFromCookies());
@@ -192,7 +192,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     useEffect(() => {
       if (data) {
         const progressList = data.filter(
-          (x) => typeof x === 'object' && (x as any).type === 'progress',
+          x => typeof x === 'object' && (x as any).type === 'progress'
         ) as ProgressAnnotation[];
         setProgressAnnotations(progressList);
       }
@@ -213,10 +213,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        recognition.onresult = (event) => {
+        recognition.onresult = event => {
           const transcript = Array.from(event.results)
-            .map((result) => result[0])
-            .map((result) => result.transcript)
+            .map(result => result[0])
+            .map(result => result.transcript)
             .join('');
 
           setTranscript(transcript);
@@ -229,7 +229,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           }
         };
 
-        recognition.onerror = (event) => {
+        recognition.onerror = event => {
           console.error('Speech recognition error:', event.error);
           setIsListening(false);
         };
@@ -252,12 +252,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
         setIsModelLoading('all');
         fetch('/api/models')
-          .then((response) => response.json())
-          .then((data) => {
+          .then(response => response.json())
+          .then(data => {
             const typedData = data as { modelList: ModelInfo[] };
             setModelList(typedData.modelList);
           })
-          .catch((error) => {
+          .catch(error => {
             console.error('Error fetching model list:', error);
           })
           .finally(() => {
@@ -284,8 +284,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
 
       // Only update models for the specific provider
-      setModelList((prevModels) => {
-        const otherModels = prevModels.filter((model) => model.provider !== providerName);
+      setModelList(prevModels => {
+        const otherModels = prevModels.filter(model => model.provider !== providerName);
         return [...otherModels, ...providerModels];
       });
       setIsModelLoading(undefined);
@@ -330,13 +330,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       input.type = 'file';
       input.accept = 'image/*';
 
-      input.onchange = async (e) => {
+      input.onchange = async e => {
         const file = (e.target as HTMLInputElement).files?.[0];
 
         if (file) {
           const reader = new FileReader();
 
-          reader.onload = (e) => {
+          reader.onload = e => {
             const base64Image = e.target?.result as string;
             setUploadedFiles?.([...uploadedFiles, file]);
             setImageDataList?.([...imageDataList, base64Image]);
@@ -364,7 +364,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           if (file) {
             const reader = new FileReader();
 
-            reader.onload = (e) => {
+            reader.onload = e => {
               const base64Image = e.target?.result as string;
               setUploadedFiles?.([...uploadedFiles, file]);
               setImageDataList?.([...imageDataList, base64Image]);
@@ -458,7 +458,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       <ChatAlert
                         alert={actionAlert}
                         clearAlert={() => clearAlert?.()}
-                        postMessage={(message) => {
+                        postMessage={message => {
                           sendMessage?.({} as any, message);
                           clearAlert?.();
                         }}
@@ -468,7 +468,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
                   <div
                     className={classNames(
-                      'bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full max-w-chat mx-auto z-prompt',
+                      'bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full max-w-chat mx-auto z-prompt'
 
                       /*
                        * {
@@ -527,7 +527,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                                 <APIKeyManager
                                   provider={provider}
                                   apiKey={apiKeys[provider.name] || ''}
-                                  setApiKey={(key) => {
+                                  setApiKey={key => {
                                     onApiKeysChange(provider.name, key);
                                   }}
                                 />
@@ -539,7 +539,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <FilePreview
                       files={uploadedFiles}
                       imageDataList={imageDataList}
-                      onRemove={(index) => {
+                      onRemove={index => {
                         setUploadedFiles?.(uploadedFiles.filter((_, i) => i !== index));
                         setImageDataList?.(imageDataList.filter((_, i) => i !== index));
                       }}
@@ -556,7 +556,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     </ClientOnly>
                     <div
                       className={classNames(
-                        'relative shadow-xs border border-bolt-elements-borderColor backdrop-blur rounded-lg',
+                        'relative shadow-xs border border-bolt-elements-borderColor backdrop-blur rounded-lg'
                       )}
                     >
                       {!chatStarted ? (
@@ -579,17 +579,17 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               </label>
                               <select
                                 value={selectedApplicationType}
-                                onChange={(e) => setSelectedApplicationType(e.target.value)}
+                                onChange={e => setSelectedApplicationType(e.target.value)}
                                 className={classNames(
                                   'w-full p-4 rounded-lg border border-bolt-elements-borderColor',
                                   'bg-bolt-elements-background-depth-2 text-bolt-elements-textPrimary',
                                   'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
                                   'transition-all duration-200 text-base',
-                                  'hover:border-bolt-elements-focus',
+                                  'hover:border-bolt-elements-focus'
                                 )}
                               >
                                 <option value="">Select an application type...</option>
-                                {APPLICATION_TYPES.map((type) => (
+                                {APPLICATION_TYPES.map(type => (
                                   <option key={type.value} value={type.value}>
                                     {type.label}
                                   </option>
@@ -604,17 +604,17 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               </label>
                               <select
                                 value={selectedBusinessType}
-                                onChange={(e) => setSelectedBusinessType(e.target.value)}
+                                onChange={e => setSelectedBusinessType(e.target.value)}
                                 className={classNames(
                                   'w-full p-4 rounded-lg border border-bolt-elements-borderColor',
                                   'bg-bolt-elements-background-depth-2 text-bolt-elements-textPrimary',
                                   'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
                                   'transition-all duration-200 text-base',
-                                  'hover:border-bolt-elements-focus',
+                                  'hover:border-bolt-elements-focus'
                                 )}
                               >
                                 <option value="">Select a business type...</option>
-                                {BUSINESS_TYPES.map((type) => (
+                                {BUSINESS_TYPES.map(type => (
                                   <option key={type.value} value={type.value}>
                                     {type.label}
                                   </option>
@@ -629,7 +629,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               </label>
                               <textarea
                                 value={customInput}
-                                onChange={(e) => setCustomInput(e.target.value)}
+                                onChange={e => setCustomInput(e.target.value)}
                                 placeholder="Add any specific requirements or features you'd like..."
                                 className={classNames(
                                   'w-full p-4 rounded-lg border border-bolt-elements-borderColor',
@@ -637,7 +637,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                                   'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
                                   'transition-all duration-200 resize-none text-base',
                                   'min-h-[100px] max-h-[150px]',
-                                  'hover:border-bolt-elements-focus',
+                                  'hover:border-bolt-elements-focus'
                                 )}
                               />
                             </div>
@@ -662,30 +662,30 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           className={classNames(
                             'w-full pl-4 pt-4 pr-16 outline-none resize-none text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent text-sm',
                             'transition-all duration-200',
-                            'hover:border-bolt-elements-focus',
+                            'hover:border-bolt-elements-focus'
                           )}
-                          onDragEnter={(e) => {
+                          onDragEnter={e => {
                             e.preventDefault();
                             e.currentTarget.style.border = '2px solid #1488fc';
                           }}
-                          onDragOver={(e) => {
+                          onDragOver={e => {
                             e.preventDefault();
                             e.currentTarget.style.border = '2px solid #1488fc';
                           }}
-                          onDragLeave={(e) => {
+                          onDragLeave={e => {
                             e.preventDefault();
                             e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
                           }}
-                          onDrop={(e) => {
+                          onDrop={e => {
                             e.preventDefault();
                             e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
 
                             const files = Array.from(e.dataTransfer.files);
-                            files.forEach((file) => {
+                            files.forEach(file => {
                               if (file.type.startsWith('image/')) {
                                 const reader = new FileReader();
 
-                                reader.onload = (e) => {
+                                reader.onload = e => {
                                   const base64Image = e.target?.result as string;
                                   setUploadedFiles?.([...uploadedFiles, file]);
                                   setImageDataList?.([...imageDataList, base64Image]);
@@ -694,7 +694,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               }
                             });
                           }}
-                          onKeyDown={(event) => {
+                          onKeyDown={event => {
                             if (event.key === 'Enter') {
                               if (event.shiftKey) {
                                 return;
@@ -716,7 +716,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                             }
                           }}
                           value={input}
-                          onChange={(event) => {
+                          onChange={event => {
                             handleInputChange?.(event);
                           }}
                           onPaste={handlePaste}
@@ -724,7 +724,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                             minHeight: TEXTAREA_MIN_HEIGHT,
                             maxHeight: TEXTAREA_MAX_HEIGHT,
                           }}
-                          placeholder="How can Bolt help you today?"
+                          placeholder="Tell me your dream app idea"
                           translate="no"
                         />
                       )}
@@ -741,7 +741,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           }
                           isStreaming={isStreaming}
                           disabled={!providerList || providerList.length === 0}
-                          onClick={(event) => {
+                          onClick={event => {
                             if (isStreaming) {
                               handleStop?.();
                               return;
@@ -852,5 +852,5 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     );
 
     return <Tooltip.Provider delayDuration={200}>{baseChat}</Tooltip.Provider>;
-  },
+  }
 );

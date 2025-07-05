@@ -14,7 +14,7 @@ export default function ProgressCompilation({ data }: { data?: ProgressAnnotatio
     }
 
     const progressMap = new Map<string, ProgressAnnotation>();
-    data.forEach((x) => {
+    data.forEach(x => {
       const existingProgress = progressMap.get(x.label);
 
       if (existingProgress && existingProgress.status === 'complete') {
@@ -40,14 +40,14 @@ export default function ProgressCompilation({ data }: { data?: ProgressAnnotatio
           'bg-bolt-elements-background-depth-2',
           'border border-bolt-elements-borderColor',
           'shadow-lg rounded-lg  relative w-full max-w-chat mx-auto z-prompt',
-          'p-1',
+          'p-1'
         )}
       >
         <div
           className={classNames(
             'bg-bolt-elements-item-backgroundAccent',
             'p-1 rounded-lg text-bolt-elements-item-contentAccent',
-            'flex ',
+            'flex '
           )}
         >
           <div className="flex-1">
@@ -75,7 +75,7 @@ export default function ProgressCompilation({ data }: { data?: ProgressAnnotatio
             exit={{ width: 0 }}
             transition={{ duration: 0.15, ease: cubicEasingFn }}
             className=" p-1 rounded-lg bg-bolt-elements-item-backgroundAccent hover:bg-bolt-elements-artifacts-backgroundHover"
-            onClick={() => setExpanded((v) => !v)}
+            onClick={() => setExpanded(v => !v)}
           >
             <div className={expanded ? 'i-ph:caret-up-bold' : 'i-ph:caret-down-bold'}></div>
           </motion.button>

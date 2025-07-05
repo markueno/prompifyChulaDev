@@ -93,8 +93,8 @@ const editableTooltipField = StateField.define<readonly Tooltip[]>({
 
     return [];
   },
-  provide: (field) => {
-    return showTooltip.computeN([field], (state) => state.field(field));
+  provide: field => {
+    return showTooltip.computeN([field], state => state.field(field));
   },
 });
 
@@ -173,7 +173,7 @@ export const CodeMirrorEditor = memo(
             newSelection !== previousSelection &&
             (newSelection === undefined || previousSelection === undefined || !newSelection.eq(previousSelection));
 
-          if (docRef.current && (transactions.some((transaction) => transaction.docChanged) || selectionChanged)) {
+          if (docRef.current && (transactions.some(transaction => transaction.docChanged) || selectionChanged)) {
             onUpdate({
               selection: view.state.selection,
               content: view.state.doc.toString(),
@@ -249,7 +249,7 @@ export const CodeMirrorEditor = memo(
         editable,
         languageCompartment,
         autoFocusOnDocumentChange,
-        doc as TextEditorDocument,
+        doc as TextEditorDocument
       );
     }, [doc?.value, editable, doc?.filePath, autoFocusOnDocumentChange]);
 
@@ -259,7 +259,7 @@ export const CodeMirrorEditor = memo(
         <div className="h-full overflow-hidden" ref={containerRef} />
       </div>
     );
-  },
+  }
 );
 
 export default CodeMirrorEditor;
@@ -273,7 +273,7 @@ function newEditorState(
   onScrollRef: MutableRefObject<OnScrollCallback | undefined>,
   debounceScroll: number,
   onFileSaveRef: MutableRefObject<OnSaveCallback | undefined>,
-  extensions: Extension[],
+  extensions: Extension[]
 ) {
   return EditorState.create({
     doc: content,
@@ -322,7 +322,7 @@ function newEditorState(
       tooltips({
         position: 'absolute',
         parent: document.body,
-        tooltipSpace: (view) => {
+        tooltipSpace: view => {
           const rect = view.dom.getBoundingClientRect();
 
           return {
@@ -343,11 +343,11 @@ function newEditorState(
       indentOnInput(),
       editableTooltipField,
       editableStateField,
-      EditorState.readOnly.from(editableStateField, (editable) => !editable),
+      EditorState.readOnly.from(editableStateField, editable => !editable),
       highlightActiveLineGutter(),
       highlightActiveLine(),
       foldGutter({
-        markerDOM: (open) => {
+        markerDOM: open => {
           const icon = document.createElement('div');
 
           icon.className = `fold-icon ${open ? 'i-ph-caret-down-bold' : 'i-ph-caret-right-bold'}`;
@@ -379,7 +379,7 @@ function setEditorDocument(
   editable: boolean,
   languageCompartment: Compartment,
   autoFocus: boolean,
-  doc: TextEditorDocument,
+  doc: TextEditorDocument
 ) {
   if (doc.value !== view.state.doc.toString()) {
     view.dispatch({
@@ -396,7 +396,7 @@ function setEditorDocument(
     effects: [editableStateEffect.of(editable && !doc.isBinary)],
   });
 
-  getLanguage(doc.filePath).then((languageSupport) => {
+  getLanguage(doc.filePath).then(languageSupport => {
     if (!languageSupport) {
       return;
     }
@@ -421,7 +421,7 @@ function setEditorDocument(
             () => {
               view.focus();
             },
-            { once: true },
+            { once: true }
           );
         } else {
           // if the scroll position is still the same we can focus immediately
@@ -440,10 +440,10 @@ function getReadOnlyTooltip(state: EditorState) {
   }
 
   return state.selection.ranges
-    .filter((range) => {
+    .filter(range => {
       return range.empty;
     })
-    .map((range) => {
+    .map(range => {
       return {
         pos: range.head,
         above: true,

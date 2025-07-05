@@ -5,10 +5,10 @@ import { detectProjectCommands, createCommandsMessage, escapeBoltTags } from './
 export const createChatFromFolder = async (
   files: File[],
   binaryFiles: string[],
-  folderName: string,
+  folderName: string
 ): Promise<Message[]> => {
   const fileArtifacts = await Promise.all(
-    files.map(async (file) => {
+    files.map(async file => {
       return new Promise<{ content: string; path: string }>((resolve, reject) => {
         const reader = new FileReader();
 
@@ -23,7 +23,7 @@ export const createChatFromFolder = async (
         reader.onerror = reject;
         reader.readAsText(file);
       });
-    }),
+    })
   );
 
   const commands = await detectProjectCommands(fileArtifacts);
@@ -31,7 +31,7 @@ export const createChatFromFolder = async (
 
   const binaryFilesMessage =
     binaryFiles.length > 0
-      ? `\n\nSkipped ${binaryFiles.length} binary files:\n${binaryFiles.map((f) => `- ${f}`).join('\n')}`
+      ? `\n\nSkipped ${binaryFiles.length} binary files:\n${binaryFiles.map(f => `- ${f}`).join('\n')}`
       : '';
 
   const filesMessage: Message = {
@@ -41,9 +41,9 @@ export const createChatFromFolder = async (
 <boltArtifact id="imported-files" title="Imported Files" type="bundled" >
 ${fileArtifacts
   .map(
-    (file) => `<boltAction type="file" filePath="${file.path}">
+    file => `<boltAction type="file" filePath="${file.path}">
 ${escapeBoltTags(file.content)}
-</boltAction>`,
+</boltAction>`
   )
   .join('\n\n')}
 </boltArtifact>`,

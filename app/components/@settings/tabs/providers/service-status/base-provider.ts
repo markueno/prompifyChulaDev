@@ -10,7 +10,7 @@ export abstract class BaseProviderChecker {
   protected async checkApiEndpoint(
     url: string,
     headers?: Record<string, string>,
-    testModel?: string,
+    testModel?: string
   ): Promise<{ ok: boolean; status: number | string; message?: string; responseTime: number }> {
     try {
       const controller = new AbortController();
@@ -60,9 +60,9 @@ export abstract class BaseProviderChecker {
       if (Array.isArray(data)) {
         models = data.map((model: { id?: string; name?: string }) => model.id || model.name || '');
       } else if (data.data && Array.isArray(data.data)) {
-        models = data.data.map((model) => model.id || model.name || '');
+        models = data.data.map(model => model.id || model.name || '');
       } else if (data.models && Array.isArray(data.models)) {
-        models = data.models.map((model) => model.id || model.name || '');
+        models = data.models.map(model => model.id || model.name || '');
       } else if (data.model) {
         models = [data.model];
       }

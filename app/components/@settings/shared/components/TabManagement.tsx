@@ -60,7 +60,7 @@ export const TabManagement = () => {
 
   const handleTabVisibilityChange = (tabId: TabType, checked: boolean) => {
     // Get current tab configuration
-    const currentTab = tabConfiguration.userTabs.find((tab) => tab.id === tabId);
+    const currentTab = tabConfiguration.userTabs.find(tab => tab.id === tabId);
 
     // If tab doesn't exist in configuration, create it
     if (!currentTab) {
@@ -92,7 +92,7 @@ export const TabManagement = () => {
     }
 
     // Update tab visibility
-    const updatedTabs = tabConfiguration.userTabs.map((tab) => {
+    const updatedTabs = tabConfiguration.userTabs.map(tab => {
       if (tab.id === tabId) {
         return { ...tab, visible: checked };
       }
@@ -111,10 +111,10 @@ export const TabManagement = () => {
   };
 
   // Create a map of existing tab configurations
-  const tabConfigMap = new Map(tabConfiguration.userTabs.map((tab) => [tab.id, tab]));
+  const tabConfigMap = new Map(tabConfiguration.userTabs.map(tab => [tab.id, tab]));
 
   // Generate the complete list of tabs, including those not in the configuration
-  const allTabs = ALL_USER_TABS.map((tabId) => {
+  const allTabs = ALL_USER_TABS.map(tabId => {
     return (
       tabConfigMap.get(tabId) || {
         id: tabId,
@@ -126,7 +126,7 @@ export const TabManagement = () => {
   });
 
   // Filter tabs based on search query
-  const filteredTabs = allTabs.filter((tab) => TAB_LABELS[tab.id].toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredTabs = allTabs.filter(tab => TAB_LABELS[tab.id].toLowerCase().includes(searchQuery.toLowerCase()));
 
   useEffect(() => {
     // Reset to first tab when component unmounts
@@ -150,7 +150,7 @@ export const TabManagement = () => {
               className={classNames(
                 'w-8 h-8 flex items-center justify-center rounded-lg',
                 'bg-bolt-elements-background-depth-3',
-                'text-purple-500',
+                'text-purple-500'
               )}
             >
               <TbLayoutGrid className="w-5 h-5" />
@@ -169,7 +169,7 @@ export const TabManagement = () => {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search tabs..."
               className={classNames(
                 'w-full pl-10 pr-4 py-2 rounded-lg',
@@ -178,7 +178,7 @@ export const TabManagement = () => {
                 'text-bolt-elements-textPrimary',
                 'placeholder-bolt-elements-textTertiary',
                 'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
-                'transition-all duration-200',
+                'transition-all duration-200'
               )}
             />
           </div>
@@ -187,7 +187,7 @@ export const TabManagement = () => {
         {/* Tab Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Default Section Header */}
-          {filteredTabs.some((tab) => DEFAULT_USER_TABS.includes(tab.id)) && (
+          {filteredTabs.some(tab => DEFAULT_USER_TABS.includes(tab.id)) && (
             <div className="col-span-full flex items-center gap-2 mt-4 mb-2">
               <div className="i-ph:star-fill w-4 h-4 text-purple-500" />
               <span className="text-sm font-medium text-bolt-elements-textPrimary">Default Tabs</span>
@@ -196,7 +196,7 @@ export const TabManagement = () => {
 
           {/* Default Tabs */}
           {filteredTabs
-            .filter((tab) => DEFAULT_USER_TABS.includes(tab.id))
+            .filter(tab => DEFAULT_USER_TABS.includes(tab.id))
             .map((tab, index) => (
               <motion.div
                 key={tab.id}
@@ -205,7 +205,7 @@ export const TabManagement = () => {
                   'bg-bolt-elements-background-depth-2',
                   'hover:bg-bolt-elements-background-depth-3',
                   'transition-all duration-200',
-                  'relative overflow-hidden group',
+                  'relative overflow-hidden group'
                 )}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -225,7 +225,7 @@ export const TabManagement = () => {
                       'w-10 h-10 flex items-center justify-center rounded-xl',
                       'bg-bolt-elements-background-depth-3 group-hover:bg-bolt-elements-background-depth-4',
                       'transition-all duration-200',
-                      tab.visible ? 'text-purple-500' : 'text-bolt-elements-textSecondary',
+                      tab.visible ? 'text-purple-500' : 'text-bolt-elements-textSecondary'
                     )}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
@@ -252,7 +252,7 @@ export const TabManagement = () => {
                       </div>
                       <Switch
                         checked={tab.visible}
-                        onCheckedChange={(checked) => {
+                        onCheckedChange={checked => {
                           const isDisabled =
                             !DEFAULT_USER_TABS.includes(tab.id) && !OPTIONAL_USER_TABS.includes(tab.id);
 
@@ -281,7 +281,7 @@ export const TabManagement = () => {
             ))}
 
           {/* Optional Section Header */}
-          {filteredTabs.some((tab) => OPTIONAL_USER_TABS.includes(tab.id)) && (
+          {filteredTabs.some(tab => OPTIONAL_USER_TABS.includes(tab.id)) && (
             <div className="col-span-full flex items-center gap-2 mt-8 mb-2">
               <div className="i-ph:plus-circle-fill w-4 h-4 text-blue-500" />
               <span className="text-sm font-medium text-bolt-elements-textPrimary">Optional Tabs</span>
@@ -290,7 +290,7 @@ export const TabManagement = () => {
 
           {/* Optional Tabs */}
           {filteredTabs
-            .filter((tab) => OPTIONAL_USER_TABS.includes(tab.id))
+            .filter(tab => OPTIONAL_USER_TABS.includes(tab.id))
             .map((tab, index) => (
               <motion.div
                 key={tab.id}
@@ -299,7 +299,7 @@ export const TabManagement = () => {
                   'bg-bolt-elements-background-depth-2',
                   'hover:bg-bolt-elements-background-depth-3',
                   'transition-all duration-200',
-                  'relative overflow-hidden group',
+                  'relative overflow-hidden group'
                 )}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -319,7 +319,7 @@ export const TabManagement = () => {
                       'w-10 h-10 flex items-center justify-center rounded-xl',
                       'bg-bolt-elements-background-depth-3 group-hover:bg-bolt-elements-background-depth-4',
                       'transition-all duration-200',
-                      tab.visible ? 'text-purple-500' : 'text-bolt-elements-textSecondary',
+                      tab.visible ? 'text-purple-500' : 'text-bolt-elements-textSecondary'
                     )}
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
@@ -346,7 +346,7 @@ export const TabManagement = () => {
                       </div>
                       <Switch
                         checked={tab.visible}
-                        onCheckedChange={(checked) => {
+                        onCheckedChange={checked => {
                           const isDisabled =
                             !DEFAULT_USER_TABS.includes(tab.id) && !OPTIONAL_USER_TABS.includes(tab.id);
 

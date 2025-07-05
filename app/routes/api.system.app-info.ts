@@ -43,7 +43,7 @@ const getGitInfo = () => {
 
 const formatDependencies = (
   deps: Record<string, string>,
-  type: 'production' | 'development' | 'peer' | 'optional',
+  type: 'production' | 'development' | 'peer' | 'optional'
 ): Array<{ name: string; version: string; type: string }> => {
   return Object.entries(deps || {}).map(([name, version]) => ({
     name,
@@ -105,7 +105,7 @@ export const loader: LoaderFunction = async ({ request: _request }) => {
           optional: [],
         },
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 };
@@ -140,7 +140,7 @@ export const action = async ({ request: _request }: ActionFunctionArgs) => {
           optional: [],
         },
       },
-      { status: 500 },
+      { status: 500 }
     );
   }
 };

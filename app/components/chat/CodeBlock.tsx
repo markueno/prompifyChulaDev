@@ -56,7 +56,7 @@ export const CodeBlock = memo(
             'bg-transparant absolute top-[10px] right-[10px] rounded-md z-10 text-lg flex items-center justify-center opacity-0 group-hover:opacity-100',
             {
               'rounded-l-0 opacity-100': copied,
-            },
+            }
           )}
         >
           {!disableCopy && (
@@ -66,7 +66,7 @@ export const CodeBlock = memo(
                 {
                   'before:opacity-0': !copied,
                   'before:opacity-100': copied,
-                },
+                }
               )}
               title="Copy Code"
               onClick={() => copyToClipboard()}
@@ -78,5 +78,5 @@ export const CodeBlock = memo(
         <div dangerouslySetInnerHTML={{ __html: html ?? '' }}></div>
       </div>
     );
-  },
+  }
 );

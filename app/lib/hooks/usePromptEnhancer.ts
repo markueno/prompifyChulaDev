@@ -18,7 +18,7 @@ export function usePromptEnhancer() {
     setInput: (value: string) => void,
     model: string,
     provider: ProviderInfo,
-    apiKeys?: Record<string, string>,
+    apiKeys?: Record<string, string>
   ) => {
     setEnhancingPrompt(true);
     setPromptEnhanced(false);

@@ -13,6 +13,6 @@ export const loader = async ({ request: _request }: LoaderFunctionArgs) => {
       headers: {
         'Content-Type': 'application/json',
       },
-    },
+    }
   );
 };

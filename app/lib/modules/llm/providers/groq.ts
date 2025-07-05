@@ -30,7 +30,7 @@ export default class GroqProvider extends BaseProvider {
   async getDynamicModels(
     apiKeys?: Record<string, string>,
     settings?: IProviderSetting,
-    serverEnv?: Record<string, string>,
+    serverEnv?: Record<string, string>
   ): Promise<ModelInfo[]> {
     const { apiKey } = this.getProviderBaseUrlAndKey({
       apiKeys,
@@ -53,7 +53,7 @@ export default class GroqProvider extends BaseProvider {
     const res = (await response.json()) as any;
 
     const data = res.data.filter(
-      (model: any) => model.object === 'model' && model.active && model.context_window > 8000,
+      (model: any) => model.object === 'model' && model.active && model.context_window > 8000
     );
 
     return data.map((m: any) => ({

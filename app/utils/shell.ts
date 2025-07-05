@@ -36,10 +36,10 @@ export async function newShellProcess(webcontainer: WebContainer, terminal: ITer
 
         terminal.write(data);
       },
-    }),
+    })
   );
 
-  terminal.onData((data) => {
+  terminal.onData(data => {
     // console.log('terminal onData', { data, isInteractive });
 
     if (isInteractive) {
@@ -67,7 +67,7 @@ export class BoltShell {
   #shellInputStream: WritableStreamDefaultWriter<string> | undefined;
 
   constructor() {
-    this.#readyPromise = new Promise((resolve) => {
+    this.#readyPromise = new Promise(resolve => {
       this.#initialized = resolve;
     });
   }
@@ -173,10 +173,10 @@ export class BoltShell {
 
           terminal.write(data);
         },
-      }),
+      })
     );
 
-    terminal.onData((data) => {
+    terminal.onData(data => {
       // console.log('terminal onData', { data, isInteractive });
 
       if (isInteractive) {
@@ -276,8 +276,8 @@ export function cleanTerminalOutput(input: string): string {
   // Step 5: Clean up whitespace while preserving intentional spacing
   const cleanSpaces = formatOutput
     .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
     .join('\n');
 
   // Step 6: Final cleanup

@@ -11,9 +11,9 @@ interface UserMessageProps {
 
 export function UserMessage({ content }: UserMessageProps) {
   if (Array.isArray(content)) {
-    const textItem = content.find((item) => item.type === 'text');
+    const textItem = content.find(item => item.type === 'text');
     const textContent = stripMetadata(textItem?.text || '');
-    const images = content.filter((item) => item.type === 'image' && item.image);
+    const images = content.filter(item => item.type === 'image' && item.image);
 
     return (
       <div className="overflow-hidden pt-[4px]">

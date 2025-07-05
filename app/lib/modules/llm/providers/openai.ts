@@ -23,7 +23,7 @@ export default class OpenAIProvider extends BaseProvider {
   async getDynamicModels(
     apiKeys?: Record<string, string>,
     settings?: IProviderSetting,
-    serverEnv?: Record<string, string>,
+    serverEnv?: Record<string, string>
   ): Promise<ModelInfo[]> {
     const { apiKey } = this.getProviderBaseUrlAndKey({
       apiKeys,
@@ -44,13 +44,13 @@ export default class OpenAIProvider extends BaseProvider {
     });
 
     const res = (await response.json()) as any;
-    const staticModelIds = this.staticModels.map((m) => m.name);
+    const staticModelIds = this.staticModels.map(m => m.name);
 
     const data = res.data.filter(
       (model: any) =>
         model.object === 'model' &&
         (model.id.startsWith('gpt-') || model.id.startsWith('o') || model.id.startsWith('chatgpt-')) &&
-        !staticModelIds.includes(model.id),
+        !staticModelIds.includes(model.id)
     );
 
     return data.map((m: any) => ({

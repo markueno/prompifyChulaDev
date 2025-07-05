@@ -34,9 +34,9 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
   const artifact = artifacts[messageId];
 
   const actions = useStore(
-    computed(artifact.runner.actions, (actions) => {
+    computed(artifact.runner.actions, actions => {
       return Object.values(actions);
-    }),
+    })
   );
 
   const toggleActions = () => {
@@ -50,7 +50,7 @@ export const Artifact = memo(({ messageId }: ArtifactProps) => {
     }
 
     if (actions.length !== 0 && artifact.type === 'bundled') {
-      const finished = !actions.find((action) => action.status !== 'complete');
+      const finished = !actions.find(action => action.status !== 'complete');
 
       if (allActionFinished !== finished) {
         setAllActionFinished(finished);
@@ -213,7 +213,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                   </div>
                 ) : type === 'start' ? (
                   <a
-                    onClick={(e) => {
+                    onClick={e => {
                       e.preventDefault();
                       workbenchStore.currentView.set('preview');
                     }}

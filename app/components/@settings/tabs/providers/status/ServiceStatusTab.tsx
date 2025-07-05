@@ -242,7 +242,7 @@ const ServiceStatusTab = () => {
 
       return apiKey;
     },
-    [settings.providers],
+    [settings.providers]
   );
 
   // Update provider configurations based on available API keys
@@ -272,7 +272,7 @@ const ServiceStatusTab = () => {
     async (
       url: string,
       headers?: Record<string, string>,
-      testModel?: string,
+      testModel?: string
     ): Promise<{ ok: boolean; status: number | string; message?: string; responseTime: number }> => {
       try {
         const controller = new AbortController();
@@ -326,9 +326,9 @@ const ServiceStatusTab = () => {
         if (Array.isArray(data)) {
           models = data.map((model: { id?: string; name?: string }) => model.id || model.name || '');
         } else if (data.data && Array.isArray(data.data)) {
-          models = data.data.map((model) => model.id || model.name || '');
+          models = data.data.map(model => model.id || model.name || '');
         } else if (data.models && Array.isArray(data.models)) {
-          models = data.models.map((model) => model.id || model.name || '');
+          models = data.models.map(model => model.id || model.name || '');
         } else if (data.model) {
           // Some providers return single model info
           models = [data.model];
@@ -370,13 +370,13 @@ const ServiceStatusTab = () => {
         };
       }
     },
-    [getApiKey],
+    [getApiKey]
   );
 
   // Function to fetch real status from provider status pages
   const fetchPublicStatus = useCallback(
     async (
-      provider: ProviderName,
+      provider: ProviderName
     ): Promise<{
       status: ServiceStatus['status'];
       message?: string;
@@ -457,7 +457,7 @@ const ServiceStatusTab = () => {
         };
       }
     },
-    [],
+    []
   );
 
   // Function to fetch status for a provider with retries
@@ -516,11 +516,11 @@ const ServiceStatusTab = () => {
           const { ok, status, message, responseTime } = await checkApiEndpoint(
             providerConfig.apiUrl,
             providerConfig.headers,
-            providerConfig.testModel,
+            providerConfig.testModel
           );
 
           if (!ok && attempt < MAX_RETRIES) {
-            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
             return attemptCheck(attempt + 1);
           }
 
@@ -538,7 +538,7 @@ const ServiceStatusTab = () => {
           console.error(`Error fetching status for ${provider} (attempt ${attempt}):`, error);
 
           if (attempt < MAX_RETRIES) {
-            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
             return attemptCheck(attempt + 1);
           }
 
@@ -557,7 +557,7 @@ const ServiceStatusTab = () => {
 
       return attemptCheck(1);
     },
-    [checkApiEndpoint, getApiKey, getProviderConfig, fetchPublicStatus],
+    [checkApiEndpoint, getApiKey, getProviderConfig, fetchPublicStatus]
   );
 
   // Memoize the fetchAllStatuses function
@@ -567,8 +567,8 @@ const ServiceStatusTab = () => {
 
       const statuses = await Promise.all(
         Object.entries(PROVIDER_STATUS_URLS).map(([provider, config]) =>
-          fetchProviderStatus(provider as ProviderName, config),
-        ),
+          fetchProviderStatus(provider as ProviderName, config)
+        )
       );
 
       setServiceStatuses(statuses.sort((a, b) => a.provider.localeCompare(b.provider)));
@@ -606,7 +606,7 @@ const ServiceStatusTab = () => {
         const headers = { ...config.headers };
 
         // Replace the placeholder API key with the test key
-        Object.keys(headers).forEach((key) => {
+        Object.keys(headers).forEach(key => {
           if (headers[key].startsWith('$')) {
             headers[key] = headers[key].replace(/\$.*/, apiKey);
           }
@@ -657,7 +657,7 @@ const ServiceStatusTab = () => {
         setTimeout(() => setTestingStatus('idle'), 3000);
       }
     },
-    [checkApiEndpoint, success, error],
+    [checkApiEndpoint, success, error]
   );
 
   const getStatusColor = (status: ServiceStatus['status']) => {
@@ -700,7 +700,7 @@ const ServiceStatusTab = () => {
               className={classNames(
                 'w-8 h-8 flex items-center justify-center rounded-lg',
                 'bg-bolt-elements-background-depth-3',
-                'text-purple-500',
+                'text-purple-500'
               )}
             >
               <TbActivityHeartbeat className="w-5 h-5" />
@@ -724,7 +724,7 @@ const ServiceStatusTab = () => {
                 'text-bolt-elements-textPrimary',
                 'transition-all duration-200',
                 'flex items-center gap-2',
-                loading ? 'opacity-50 cursor-not-allowed' : '',
+                loading ? 'opacity-50 cursor-not-allowed' : ''
               )}
               disabled={loading}
             >
@@ -740,16 +740,16 @@ const ServiceStatusTab = () => {
           <div className="flex gap-2">
             <select
               value={testProvider}
-              onChange={(e) => setTestProvider(e.target.value as ProviderName)}
+              onChange={e => setTestProvider(e.target.value as ProviderName)}
               className={classNames(
                 'flex-1 px-3 py-1.5 rounded-lg text-sm max-w-[200px]',
                 'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
                 'text-bolt-elements-textPrimary',
-                'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
+                'focus:outline-none focus:ring-2 focus:ring-purple-500/30'
               )}
             >
               <option value="">Select Provider</option>
-              {Object.keys(PROVIDER_STATUS_URLS).map((provider) => (
+              {Object.keys(PROVIDER_STATUS_URLS).map(provider => (
                 <option key={provider} value={provider}>
                   {provider}
                 </option>
@@ -758,13 +758,13 @@ const ServiceStatusTab = () => {
             <input
               type="password"
               value={testApiKey}
-              onChange={(e) => setTestApiKey(e.target.value)}
+              onChange={e => setTestApiKey(e.target.value)}
               placeholder="Enter API key to test"
               className={classNames(
                 'flex-1 px-3 py-1.5 rounded-lg text-sm',
                 'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
                 'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
-                'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
+                'focus:outline-none focus:ring-2 focus:ring-purple-500/30'
               )}
             />
             <button
@@ -778,7 +778,7 @@ const ServiceStatusTab = () => {
                 'text-white',
                 'transition-all duration-200',
                 'flex items-center gap-2',
-                !testProvider || !testApiKey || testingStatus === 'testing' ? 'opacity-50 cursor-not-allowed' : '',
+                !testProvider || !testApiKey || testingStatus === 'testing' ? 'opacity-50 cursor-not-allowed' : ''
               )}
             >
               {testingStatus === 'testing' ? (
@@ -808,7 +808,7 @@ const ServiceStatusTab = () => {
                   'bg-bolt-elements-background-depth-2',
                   'hover:bg-bolt-elements-background-depth-3',
                   'transition-all duration-200',
-                  'relative overflow-hidden rounded-lg',
+                  'relative overflow-hidden rounded-lg'
                 )}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -826,7 +826,7 @@ const ServiceStatusTab = () => {
                           className={classNames(
                             'w-8 h-8 flex items-center justify-center rounded-lg',
                             'bg-bolt-elements-background-depth-3',
-                            getStatusColor(service.status),
+                            getStatusColor(service.status)
                           )}
                         >
                           {React.createElement(service.icon, {

@@ -9,7 +9,7 @@ export function binDates(_list: ChatHistoryItem[]) {
   const binLookup: Record<string, Bin> = {};
   const bins: Array<Bin> = [];
 
-  list.forEach((item) => {
+  list.forEach(item => {
     const category = dateCategory(new Date(item.timestamp));
 
     if (!(category in binLookup)) {

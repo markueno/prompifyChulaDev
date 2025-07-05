@@ -10,7 +10,7 @@ export function extractPropertiesFromMessage(message: Omit<Message, 'id'>): {
   content: string;
 } {
   const textContent = Array.isArray(message.content)
-    ? message.content.find((item) => item.type === 'text')?.text || ''
+    ? message.content.find(item => item.type === 'text')?.text || ''
     : message.content;
 
   const modelMatch = textContent.match(MODEL_REGEX);
@@ -29,7 +29,7 @@ export function extractPropertiesFromMessage(message: Omit<Message, 'id'>): {
   const provider = providerMatch ? providerMatch[1] : DEFAULT_PROVIDER.name;
 
   const cleanedContent = Array.isArray(message.content)
-    ? message.content.map((item) => {
+    ? message.content.map(item => {
         if (item.type === 'text') {
           return {
             type: 'text',
@@ -57,14 +57,14 @@ export function simplifyBoltActions(input: string): string {
 export function createFilesContext(files: FileMap, useRelativePath?: boolean) {
   const ig = ignore().add(IGNORE_PATTERNS);
   let filePaths = Object.keys(files);
-  filePaths = filePaths.filter((x) => {
+  filePaths = filePaths.filter(x => {
     const relPath = x.replace('/home/project/', '');
     return !ig.ignores(relPath);
   });
 
   const fileContexts = filePaths
-    .filter((x) => files[x] && files[x].type == 'file')
-    .map((path) => {
+    .filter(x => files[x] && files[x].type == 'file')
+    .map(path => {
       const dirent = files[path];
 
       if (!dirent || dirent.type == 'folder') {
@@ -89,7 +89,7 @@ export function createFilesContext(files: FileMap, useRelativePath?: boolean) {
 }
 
 export function extractCurrentContext(messages: Message[]) {
-  const lastAssistantMessage = messages.filter((x) => x.role == 'assistant').slice(-1)[0];
+  const lastAssistantMessage = messages.filter(x => x.role == 'assistant').slice(-1)[0];
 
   if (!lastAssistantMessage) {
     return { summary: undefined, codeContext: undefined };

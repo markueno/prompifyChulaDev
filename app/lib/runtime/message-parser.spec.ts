@@ -168,16 +168,16 @@ function runTest(input: string | string[], outputOrExpectedResult: string | Expe
   }
 
   const callbacks = {
-    onArtifactOpen: vi.fn<ArtifactCallback>((data) => {
+    onArtifactOpen: vi.fn<ArtifactCallback>(data => {
       expect(data).toMatchSnapshot('onArtifactOpen');
     }),
-    onArtifactClose: vi.fn<ArtifactCallback>((data) => {
+    onArtifactClose: vi.fn<ArtifactCallback>(data => {
       expect(data).toMatchSnapshot('onArtifactClose');
     }),
-    onActionOpen: vi.fn<ActionCallback>((data) => {
+    onActionOpen: vi.fn<ActionCallback>(data => {
       expect(data).toMatchSnapshot('onActionOpen');
     }),
-    onActionClose: vi.fn<ActionCallback>((data) => {
+    onActionClose: vi.fn<ActionCallback>(data => {
       expect(data).toMatchSnapshot('onActionClose');
     }),
   };
@@ -203,7 +203,7 @@ function runTest(input: string | string[], outputOrExpectedResult: string | Expe
     const callbackName = name;
 
     expect(callbacks[callbackName as keyof typeof callbacks]).toHaveBeenCalledTimes(
-      expected.callbacks[callbackName as keyof typeof expected.callbacks] ?? 0,
+      expected.callbacks[callbackName as keyof typeof expected.callbacks] ?? 0
     );
   }
 

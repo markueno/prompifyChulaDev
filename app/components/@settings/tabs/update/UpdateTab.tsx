@@ -57,8 +57,8 @@ const UpdateProgressDisplay = ({ progress }: { progress: UpdateProgress }) => (
             <div className="font-medium mb-2">Changed Files:</div>
             <div className="space-y-2">
               {/* Group files by type */}
-              {['Modified', 'Added', 'Deleted'].map((type) => {
-                const filesOfType = progress.details?.changedFiles?.filter((file) => file.startsWith(type)) || [];
+              {['Modified', 'Added', 'Deleted'].map(type => {
+                const filesOfType = progress.details?.changedFiles?.filter(file => file.startsWith(type)) || [];
 
                 if (filesOfType.length === 0) {
                   return null;
@@ -320,16 +320,16 @@ const UpdateTab = () => {
               </p>
             </div>
             <button
-              onClick={() => setUpdateSettings((prev) => ({ ...prev, autoUpdate: !prev.autoUpdate }))}
+              onClick={() => setUpdateSettings(prev => ({ ...prev, autoUpdate: !prev.autoUpdate }))}
               className={classNames(
                 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                updateSettings.autoUpdate ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-700',
+                updateSettings.autoUpdate ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-700'
               )}
             >
               <span
                 className={classNames(
                   'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                  updateSettings.autoUpdate ? 'translate-x-6' : 'translate-x-1',
+                  updateSettings.autoUpdate ? 'translate-x-6' : 'translate-x-1'
                 )}
               />
             </button>
@@ -341,16 +341,16 @@ const UpdateTab = () => {
               <p className="text-xs text-bolt-elements-textSecondary">Show notifications when updates are available</p>
             </div>
             <button
-              onClick={() => setUpdateSettings((prev) => ({ ...prev, notifyInApp: !prev.notifyInApp }))}
+              onClick={() => setUpdateSettings(prev => ({ ...prev, notifyInApp: !prev.notifyInApp }))}
               className={classNames(
                 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                updateSettings.notifyInApp ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-700',
+                updateSettings.notifyInApp ? 'bg-purple-500' : 'bg-gray-200 dark:bg-gray-700'
               )}
             >
               <span
                 className={classNames(
                   'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                  updateSettings.notifyInApp ? 'translate-x-6' : 'translate-x-1',
+                  updateSettings.notifyInApp ? 'translate-x-6' : 'translate-x-1'
                 )}
               />
             </button>
@@ -363,14 +363,14 @@ const UpdateTab = () => {
             </div>
             <select
               value={updateSettings.checkInterval}
-              onChange={(e) => setUpdateSettings((prev) => ({ ...prev, checkInterval: Number(e.target.value) }))}
+              onChange={e => setUpdateSettings(prev => ({ ...prev, checkInterval: Number(e.target.value) }))}
               className={classNames(
                 'px-3 py-2 rounded-lg text-sm',
                 'bg-[#F5F5F5] dark:bg-[#1A1A1A]',
                 'border border-[#E5E5E5] dark:border-[#1A1A1A]',
                 'text-bolt-elements-textPrimary',
                 'hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A]',
-                'transition-colors duration-200',
+                'transition-colors duration-200'
               )}
             >
               <option value="6">6 hours</option>
@@ -402,7 +402,7 @@ const UpdateTab = () => {
                   'flex items-center gap-2 px-4 py-2 rounded-lg text-sm',
                   'bg-purple-500 text-white',
                   'hover:bg-purple-600',
-                  'transition-colors duration-200',
+                  'transition-colors duration-200'
                 )}
               >
                 <div className="i-ph:arrow-circle-up w-4 h-4" />
@@ -421,7 +421,7 @@ const UpdateTab = () => {
                 'dark:hover:bg-purple-500/20 dark:hover:text-purple-500',
                 'text-bolt-elements-textPrimary',
                 'transition-colors duration-200',
-                'disabled:opacity-50 disabled:cursor-not-allowed',
+                'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
               disabled={isChecking}
             >
@@ -476,7 +476,7 @@ const UpdateTab = () => {
                     'dark:hover:bg-purple-500/20 dark:hover:text-purple-500',
                     'text-bolt-elements-textPrimary',
                     'transition-colors duration-200',
-                    'w-fit',
+                    'w-fit'
                   )}
                 >
                   <div className="i-ph:github-logo w-4 h-4" />
@@ -523,7 +523,7 @@ const UpdateTab = () => {
                 'dark:hover:bg-purple-500/20 dark:hover:text-purple-500',
                 'text-bolt-elements-textPrimary',
                 'transition-colors duration-200',
-                'w-fit',
+                'w-fit'
               )}
             >
               <div className="i-ph:github-logo w-4 h-4" />
@@ -570,7 +570,7 @@ const UpdateTab = () => {
                       'dark:hover:bg-purple-500/20 dark:hover:text-purple-500',
                       'text-bolt-elements-textPrimary',
                       'transition-colors duration-200',
-                      'w-fit',
+                      'w-fit'
                     )}
                   >
                     <div className="i-ph:github-logo w-4 h-4" />

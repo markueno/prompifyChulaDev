@@ -17,7 +17,7 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
     return undefined;
   }
 
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     const request = indexedDB.open('boltHistory', 1);
 
     request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
@@ -59,7 +59,7 @@ export async function setMessages(
   urlId?: string,
   description?: string,
   timestamp?: string,
-  metadata?: IChatMetadata,
+  metadata?: IChatMetadata
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction('chats', 'readwrite');
@@ -186,7 +186,7 @@ export async function forkChat(db: IDBDatabase, chatId: string, messageId: strin
   }
 
   // Find the index of the message to fork at
-  const messageIndex = chat.messages.findIndex((msg) => msg.id === messageId);
+  const messageIndex = chat.messages.findIndex(msg => msg.id === messageId);
 
   if (messageIndex === -1) {
     throw new Error('Message not found');
@@ -212,7 +212,7 @@ export async function createChatFromMessages(
   db: IDBDatabase,
   description: string,
   messages: Message[],
-  metadata?: IChatMetadata,
+  metadata?: IChatMetadata
 ): Promise<string> {
   const newId = await getNextId(db);
   const newUrlId = await getUrlId(db, newId); // Get a new urlId for the duplicated chat
@@ -224,7 +224,7 @@ export async function createChatFromMessages(
     newUrlId, // Use the new urlId
     description,
     undefined, // Use the current timestamp
-    metadata,
+    metadata
   );
 
   return newUrlId; // Return the urlId instead of id for navigation
@@ -247,7 +247,7 @@ export async function updateChatDescription(db: IDBDatabase, id: string, descrip
 export async function updateChatMetadata(
   db: IDBDatabase,
   id: string,
-  metadata: IChatMetadata | undefined,
+  metadata: IChatMetadata | undefined
 ): Promise<void> {
   const chat = await getMessages(db, id);
 

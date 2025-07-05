@@ -57,7 +57,7 @@ export default function GitCloneButton({ importChat, className }: GitCloneButton
       const { workdir, data } = await gitClone(repoUrl);
 
       if (importChat) {
-        const filePaths = Object.keys(data).filter((filePath) => !ig.ignores(filePath));
+        const filePaths = Object.keys(data).filter(filePath => !ig.ignores(filePath));
         const textDecoder = new TextDecoder('utf-8');
 
         let totalSize = 0;
@@ -117,17 +117,17 @@ export default function GitCloneButton({ importChat, className }: GitCloneButton
 ${
   skippedFiles.length > 0
     ? `\nSkipped files (${skippedFiles.length}):
-${skippedFiles.map((f) => `- ${f}`).join('\n')}`
+${skippedFiles.map(f => `- ${f}`).join('\n')}`
     : ''
 }
 
 <boltArtifact id="imported-files" title="Git Cloned Files" type="bundled">
 ${fileContents
   .map(
-    (file) =>
+    file =>
       `<boltAction type="file" filePath="${file.path}">
 ${escapeBoltTags(file.content)}
-</boltAction>`,
+</boltAction>`
   )
   .join('\n')}
 </boltArtifact>`,
@@ -165,7 +165,7 @@ ${escapeBoltTags(file.content)}
           'border-[#E5E5E5] dark:border-[#333333]',
           'h-10 px-4 py-2 min-w-[120px] justify-center',
           'transition-all duration-200 ease-in-out',
-          className,
+          className
         )}
         disabled={!ready || loading}
       >

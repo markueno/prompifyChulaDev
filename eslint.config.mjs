@@ -22,7 +22,7 @@ export default [
       semi: ['error', 'always'],
       curly: ['error'],
       'no-eval': ['error'],
-      'linebreak-style': ['error', 'unix'],
+      'linebreak-style': 'off',
       'arrow-spacing': ['error', { before: true, after: true }],
     },
   },

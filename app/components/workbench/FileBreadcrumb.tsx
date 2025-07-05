@@ -44,7 +44,7 @@ export const FileBreadcrumb = memo<FileBreadcrumbProps>(({ files, pathSegments =
   const segmentRefs = useRef<(HTMLSpanElement | null)[]>([]);
 
   const handleSegmentClick = (index: number) => {
-    setActiveIndex((prevIndex) => (prevIndex === index ? null : index));
+    setActiveIndex(prevIndex => (prevIndex === index ? null : index));
   };
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export const FileBreadcrumb = memo<FileBreadcrumbProps>(({ files, pathSegments =
       if (
         activeIndex !== null &&
         !contextMenuRef.current?.contains(event.target as Node) &&
-        !segmentRefs.current.some((ref) => ref?.contains(event.target as Node))
+        !segmentRefs.current.some(ref => ref?.contains(event.target as Node))
       ) {
         setActiveIndex(null);
       }
@@ -87,7 +87,7 @@ export const FileBreadcrumb = memo<FileBreadcrumbProps>(({ files, pathSegments =
             <DropdownMenu.Root open={isActive} modal={false}>
               <DropdownMenu.Trigger asChild>
                 <span
-                  ref={(ref) => {
+                  ref={ref => {
                     segmentRefs.current[index] = ref;
                   }}
                   className={classNames('flex items-center gap-1.5 cursor-pointer shrink-0', {
@@ -128,7 +128,7 @@ export const FileBreadcrumb = memo<FileBreadcrumbProps>(({ files, pathSegments =
                               collapsed
                               allowFolderSelection
                               selectedFile={`${path}/${segment}`}
-                              onFileSelect={(filePath) => {
+                              onFileSelect={filePath => {
                                 setActiveIndex(null);
                                 onFileSelect?.(filePath);
                               }}

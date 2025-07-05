@@ -28,7 +28,7 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
     <div
       className={classNames(
         'group rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50/80 dark:hover:bg-gray-800/30 overflow-hidden flex justify-between items-center px-3 py-2 transition-colors',
-        { 'text-gray-900 dark:text-white bg-gray-50/80 dark:bg-gray-800/30': isActiveChat },
+        { 'text-gray-900 dark:text-white bg-gray-50/80 dark:bg-gray-800/30': isActiveChat }
       )}
     >
       {editing ? (
@@ -56,14 +56,14 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
           <div
             className={classNames(
               'absolute right-0 top-0 bottom-0 flex items-center bg-white dark:bg-gray-950 group-hover:bg-gray-50/80 dark:group-hover:bg-gray-800/30 px-2',
-              { 'bg-gray-50/80 dark:bg-gray-800/30': isActiveChat },
+              { 'bg-gray-50/80 dark:bg-gray-800/30': isActiveChat }
             )}
           >
             <div className="flex items-center gap-2.5 text-gray-400 dark:text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">
               <ChatActionButton
                 toolTipContent="Export"
                 icon="i-ph:download-simple h-4 w-4"
-                onClick={(event) => {
+                onClick={event => {
                   event.preventDefault();
                   exportChat(item.id);
                 }}
@@ -78,7 +78,7 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
               <ChatActionButton
                 toolTipContent="Rename"
                 icon="i-ph:pencil-fill h-4 w-4"
-                onClick={(event) => {
+                onClick={event => {
                   event.preventDefault();
                   toggleEditMode();
                 }}
@@ -88,7 +88,7 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
                   toolTipContent="Delete"
                   icon="i-ph:trash h-4 w-4"
                   className="hover:text-red-500"
-                  onClick={(event) => {
+                  onClick={event => {
                     event.preventDefault();
                     onDelete?.(event);
                   }}
@@ -116,7 +116,7 @@ const ChatActionButton = forwardRef(
       onClick: (event: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
       btnTitle?: string;
     },
-    ref: ForwardedRef<HTMLButtonElement>,
+    ref: ForwardedRef<HTMLButtonElement>
   ) => {
     return (
       <WithTooltip tooltip={toolTipContent} position="bottom" sideOffset={4}>
@@ -128,5 +128,5 @@ const ChatActionButton = forwardRef(
         />
       </WithTooltip>
     );
-  },
+  }
 );

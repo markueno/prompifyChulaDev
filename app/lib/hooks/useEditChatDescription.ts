@@ -57,7 +57,7 @@ export function useEditChatDescription({
     setCurrentDescription(initialDescription);
   }, [initialDescription]);
 
-  const toggleEditMode = useCallback(() => setEditing((prev) => !prev), []);
+  const toggleEditMode = useCallback(() => setEditing(prev => !prev), []);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setCurrentDescription(e.target.value);
@@ -141,7 +141,7 @@ export function useEditChatDescription({
 
       toggleEditMode();
     },
-    [currentDescription, db, chatId, initialDescription, customChatId],
+    [currentDescription, db, chatId, initialDescription, customChatId]
   );
 
   const handleKeyDown = useCallback(
@@ -150,7 +150,7 @@ export function useEditChatDescription({
         await handleBlur();
       }
     },
-    [handleBlur],
+    [handleBlur]
   );
 
   return {

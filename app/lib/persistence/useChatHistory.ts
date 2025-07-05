@@ -56,11 +56,11 @@ export function useChatHistory() {
 
     if (mixedId) {
       getMessages(db, mixedId)
-        .then((storedMessages) => {
+        .then(storedMessages => {
           if (storedMessages && storedMessages.messages.length > 0) {
             const rewindId = searchParams.get('rewindTo');
             const filteredMessages = rewindId
-              ? storedMessages.messages.slice(0, storedMessages.messages.findIndex((m) => m.id === rewindId) + 1)
+              ? storedMessages.messages.slice(0, storedMessages.messages.findIndex(m => m.id === rewindId) + 1)
               : storedMessages.messages;
 
             setInitialMessages(filteredMessages);
@@ -74,7 +74,7 @@ export function useChatHistory() {
 
           setReady(true);
         })
-        .catch((error) => {
+        .catch(error => {
           logStore.logError('Failed to load chat messages', error);
           toast.error(error.message);
         });

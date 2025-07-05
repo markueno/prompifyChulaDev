@@ -314,7 +314,7 @@ export class StreamingMessageParser {
   }
 }
 
-const createArtifactElement: ElementFactory = (props) => {
+const createArtifactElement: ElementFactory = props => {
   const elementProps = [
     'class="__boltArtifact__"',
     ...Object.entries(props).map(([key, value]) => {

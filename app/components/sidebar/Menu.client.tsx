@@ -77,9 +77,9 @@ export const Menu = () => {
   const loadEntries = useCallback(() => {
     if (db) {
       getAll(db)
-        .then((list) => list.filter((item) => item.urlId && item.description))
+        .then(list => list.filter(item => item.urlId && item.description))
         .then(setList)
-        .catch((error) => toast.error(error.message));
+        .catch(error => toast.error(error.message));
     }
   }, []);
 
@@ -96,7 +96,7 @@ export const Menu = () => {
             window.location.pathname = '/';
           }
         })
-        .catch((error) => {
+        .catch(error => {
           toast.error('Failed to delete conversation');
           logger.error(error);
         });
@@ -169,7 +169,7 @@ export const Menu = () => {
           'flex selection-accent flex-col side-menu fixed top-0 h-full',
           'bg-white dark:bg-gray-950 border-r border-gray-100 dark:border-gray-800/50',
           'shadow-sm text-sm',
-          isSettingsOpen ? 'z-40' : 'z-sidebar',
+          isSettingsOpen ? 'z-40' : 'z-sidebar'
         )}
       >
         <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-900/50">
@@ -230,12 +230,12 @@ export const Menu = () => {
                     {category}
                   </div>
                   <div className="space-y-0.5 pr-1">
-                    {items.map((item) => (
+                    {items.map(item => (
                       <HistoryItem
                         key={item.id}
                         item={item}
                         exportChat={exportChat}
-                        onDelete={(event) => handleDeleteClick(event, item)}
+                        onDelete={event => handleDeleteClick(event, item)}
                         onDuplicate={() => handleDuplicate(item.id)}
                       />
                     ))}
@@ -263,7 +263,7 @@ export const Menu = () => {
                       </DialogButton>
                       <DialogButton
                         type="danger"
-                        onClick={(event) => {
+                        onClick={event => {
                           deleteItem(event, dialogContent.item);
                           closeDialog();
                         }}

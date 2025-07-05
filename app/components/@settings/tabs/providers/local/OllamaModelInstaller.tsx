@@ -162,9 +162,9 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
       const installedModels = data.models || [];
 
       // Update models with installed versions
-      setModels((prevModels) =>
-        prevModels.map((model) => {
-          const installed = installedModels.find((m) => m.name.toLowerCase() === model.name.toLowerCase());
+      setModels(prevModels =>
+        prevModels.map(model => {
+          const installed = installedModels.find(m => m.name.toLowerCase() === model.name.toLowerCase());
 
           if (installed) {
             return {
@@ -176,7 +176,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
           }
 
           return model;
-        }),
+        })
       );
     } catch (error) {
       console.error('Error checking installed models:', error);
@@ -202,12 +202,12 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
     }
   };
 
-  const filteredModels = models.filter((model) => {
+  const filteredModels = models.filter(model => {
     const matchesSearch =
       searchQuery === '' ||
       model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       model.desc.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTags = selectedTags.length === 0 || selectedTags.some((tag) => model.tags.includes(tag));
+    const matchesTags = selectedTags.length === 0 || selectedTags.some(tag => model.tags.includes(tag));
 
     return matchesSearch && matchesTags;
   });
@@ -305,7 +305,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
 
   const handleUpdateModel = async (modelToUpdate: string) => {
     try {
-      setModels((prev) => prev.map((m) => (m.name === modelToUpdate ? { ...m, status: 'updating' } : m)));
+      setModels(prev => prev.map(m => (m.name === modelToUpdate ? { ...m, status: 'updating' } : m)));
 
       const response = await fetch(`${baseUrl}/api/pull`, {
         method: 'POST',
@@ -373,13 +373,13 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       console.error(`Error updating ${modelToUpdate}:`, errorMessage);
       toast(`Failed to update ${modelToUpdate}. ${errorMessage}`);
-      setModels((prev) => prev.map((m) => (m.name === modelToUpdate ? { ...m, status: 'error' } : m)));
+      setModels(prev => prev.map(m => (m.name === modelToUpdate ? { ...m, status: 'error' } : m)));
     } finally {
       setInstallProgress(null);
     }
   };
 
-  const allTags = Array.from(new Set(POPULAR_MODELS.flatMap((model) => model.tags)));
+  const allTags = Array.from(new Set(POPULAR_MODELS.flatMap(model => model.tags)));
 
   return (
     <div className="space-y-6">
@@ -399,7 +399,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
             'bg-purple-500/10 text-purple-500',
             'hover:bg-purple-500/20',
             'transition-all duration-200',
-            'flex items-center gap-2',
+            'flex items-center gap-2'
           )}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
@@ -423,11 +423,11 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
                 'bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor',
                 'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
                 'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
-                'transition-all duration-200',
+                'transition-all duration-200'
               )}
               placeholder="Search models or enter custom model name..."
               value={searchQuery || modelString}
-              onChange={(e) => {
+              onChange={e => {
                 const value = e.target.value;
                 setSearchQuery(value);
                 setModelString(value);
@@ -458,7 +458,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
             'hover:bg-purple-600',
             'transition-all duration-200',
             'flex items-center gap-2',
-            { 'opacity-50 cursor-not-allowed': !modelString || isInstalling },
+            { 'opacity-50 cursor-not-allowed': !modelString || isInstalling }
           )}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
@@ -478,17 +478,17 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {allTags.map((tag) => (
+        {allTags.map(tag => (
           <button
             key={tag}
             onClick={() => {
-              setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+              setSelectedTags(prev => (prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]));
             }}
             className={classNames(
               'px-3 py-1 rounded-full text-xs font-medium transition-all duration-200',
               selectedTags.includes(tag)
                 ? 'bg-purple-500 text-white'
-                : 'bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-4',
+                : 'bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-4'
             )}
           >
             {tag}
@@ -497,7 +497,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
       </div>
 
       <div className="grid grid-cols-1 gap-2">
-        {filteredModels.map((model) => (
+        {filteredModels.map(model => (
           <motion.div
             key={model.name}
             className={classNames(
@@ -505,7 +505,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
               'bg-bolt-elements-background-depth-3',
               'hover:bg-bolt-elements-background-depth-4',
               'transition-all duration-200',
-              'relative group',
+              'relative group'
             )}
           >
             <OllamaIcon className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
@@ -529,7 +529,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap gap-1">
-                  {model.tags.map((tag) => (
+                  {model.tags.map(tag => (
                     <span
                       key={tag}
                       className="px-1.5 py-0.5 rounded-full text-[10px] bg-bolt-elements-background-depth-4 text-bolt-elements-textTertiary"
@@ -548,7 +548,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
                           'bg-purple-500 text-white',
                           'hover:bg-purple-600',
                           'transition-all duration-200',
-                          'flex items-center gap-1',
+                          'flex items-center gap-1'
                         )}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
@@ -567,7 +567,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
                         'bg-purple-500 text-white',
                         'hover:bg-purple-600',
                         'transition-all duration-200',
-                        'flex items-center gap-1',
+                        'flex items-center gap-1'
                       )}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}

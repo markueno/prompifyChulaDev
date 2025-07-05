@@ -102,7 +102,7 @@ export function useSettings(): UseSettingsReturn {
   }, [providers]);
 
   const saveSettings = useCallback((newSettings: Partial<Settings>) => {
-    setSettings((prev) => {
+    setSettings(prev => {
       const updated = { ...prev, ...newSettings };
       setLocalStorage('settings', updated);
 
@@ -149,34 +149,34 @@ export function useSettings(): UseSettingsReturn {
     (theme: Settings['theme']) => {
       saveSettings({ theme });
     },
-    [saveSettings],
+    [saveSettings]
   );
 
   const setLanguage = useCallback(
     (language: string) => {
       saveSettings({ language });
     },
-    [saveSettings],
+    [saveSettings]
   );
 
   const setNotifications = useCallback(
     (enabled: boolean) => {
       saveSettings({ notifications: enabled });
     },
-    [saveSettings],
+    [saveSettings]
   );
 
   const setTimezone = useCallback(
     (timezone: string) => {
       saveSettings({ timezone });
     },
-    [saveSettings],
+    [saveSettings]
   );
 
   useEffect(() => {
     const providers = providersStore.get();
     const providerSetting: Record<string, IProviderSetting> = {}; // preserve the entire settings object for each provider
-    Object.keys(providers).forEach((provider) => {
+    Object.keys(providers).forEach(provider => {
       providerSetting[provider] = providers[provider].settings;
     });
     Cookies.set('providers', JSON.stringify(providerSetting));

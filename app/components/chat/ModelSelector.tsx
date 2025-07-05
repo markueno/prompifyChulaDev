@@ -47,11 +47,11 @@ export const ModelSelector = ({
 
   // Filter models based on search query
   const filteredModels = [...modelList]
-    .filter((e) => e.provider === provider?.name && e.name)
+    .filter(e => e.provider === provider?.name && e.name)
     .filter(
-      (model) =>
+      model =>
         model.label.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
-        model.name.toLowerCase().includes(modelSearchQuery.toLowerCase()),
+        model.name.toLowerCase().includes(modelSearchQuery.toLowerCase())
     );
 
   // Reset focused index when search query changes or dropdown opens/closes
@@ -75,7 +75,7 @@ export const ModelSelector = ({
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setFocusedIndex((prev) => {
+        setFocusedIndex(prev => {
           const next = prev + 1;
 
           if (next >= filteredModels.length) {
@@ -88,7 +88,7 @@ export const ModelSelector = ({
 
       case 'ArrowUp':
         e.preventDefault();
-        setFocusedIndex((prev) => {
+        setFocusedIndex(prev => {
           const next = prev - 1;
 
           if (next < 0) {
@@ -140,12 +140,12 @@ export const ModelSelector = ({
       return;
     }
 
-    if (provider && !providerList.map((p) => p.name).includes(provider.name)) {
+    if (provider && !providerList.map(p => p.name).includes(provider.name)) {
       const firstEnabledProvider = providerList[0];
       setProvider?.(firstEnabledProvider);
 
       // Also update the model to the first available one for the new provider
-      const firstModel = modelList.find((m) => m.provider === firstEnabledProvider.name);
+      const firstModel = modelList.find(m => m.provider === firstEnabledProvider.name);
 
       if (firstModel) {
         setModel?.(firstModel.name);
@@ -168,14 +168,14 @@ export const ModelSelector = ({
     <div className="mb-2 flex gap-2 flex-col sm:flex-row">
       <select
         value={provider?.name ?? ''}
-        onChange={(e) => {
+        onChange={e => {
           const newProvider = providerList.find((p: ProviderInfo) => p.name === e.target.value);
 
           if (newProvider && setProvider) {
             setProvider(newProvider);
           }
 
-          const firstModel = [...modelList].find((m) => m.provider === e.target.value);
+          const firstModel = [...modelList].find(m => m.provider === e.target.value);
 
           if (firstModel && setModel) {
             setModel(firstModel.name);
@@ -197,10 +197,10 @@ export const ModelSelector = ({
             'bg-bolt-elements-prompt-background text-bolt-elements-textPrimary',
             'focus-within:outline-none focus-within:ring-2 focus-within:ring-bolt-elements-focus',
             'transition-all cursor-pointer',
-            isModelDropdownOpen ? 'ring-2 ring-bolt-elements-focus' : undefined,
+            isModelDropdownOpen ? 'ring-2 ring-bolt-elements-focus' : undefined
           )}
           onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-          onKeyDown={(e) => {
+          onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               setIsModelDropdownOpen(!isModelDropdownOpen);
@@ -213,11 +213,11 @@ export const ModelSelector = ({
           tabIndex={0}
         >
           <div className="flex items-center justify-between">
-            <div className="truncate">{modelList.find((m) => m.name === model)?.label || 'Select model'}</div>
+            <div className="truncate">{modelList.find(m => m.name === model)?.label || 'Select model'}</div>
             <div
               className={classNames(
                 'i-ph:caret-down w-4 h-4 text-bolt-elements-textSecondary opacity-75',
-                isModelDropdownOpen ? 'rotate-180' : undefined,
+                isModelDropdownOpen ? 'rotate-180' : undefined
               )}
             />
           </div>
@@ -235,16 +235,16 @@ export const ModelSelector = ({
                   ref={searchInputRef}
                   type="text"
                   value={modelSearchQuery}
-                  onChange={(e) => setModelSearchQuery(e.target.value)}
+                  onChange={e => setModelSearchQuery(e.target.value)}
                   placeholder="Search models..."
                   className={classNames(
                     'w-full pl-8 pr-3 py-1.5 rounded-md text-sm',
                     'bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor',
                     'text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary',
                     'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
-                    'transition-all',
+                    'transition-all'
                   )}
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={e => e.stopPropagation()}
                   role="searchbox"
                   aria-label="Search models"
                 />
@@ -267,7 +267,7 @@ export const ModelSelector = ({
                 'sm:[&::-webkit-scrollbar]:w-1.5 sm:[&::-webkit-scrollbar]:h-1.5',
                 'sm:hover:[&::-webkit-scrollbar-thumb]:bg-bolt-elements-borderColor/50',
                 'sm:hover:[&::-webkit-scrollbar-thumb:hover]:bg-bolt-elements-borderColor',
-                'sm:[&::-webkit-scrollbar-track]:bg-transparent',
+                'sm:[&::-webkit-scrollbar-track]:bg-transparent'
               )}
             >
               {modelLoading === 'all' || modelLoading === provider?.name ? (
@@ -277,7 +277,7 @@ export const ModelSelector = ({
               ) : (
                 filteredModels.map((modelOption, index) => (
                   <div
-                    ref={(el) => (optionsRef.current[index] = el)}
+                    ref={el => (optionsRef.current[index] = el)}
                     key={index}
                     role="option"
                     aria-selected={model === modelOption.name}
@@ -289,9 +289,9 @@ export const ModelSelector = ({
                       model === modelOption.name || focusedIndex === index
                         ? 'bg-bolt-elements-background-depth-2'
                         : undefined,
-                      focusedIndex === index ? 'ring-1 ring-inset ring-bolt-elements-focus' : undefined,
+                      focusedIndex === index ? 'ring-1 ring-inset ring-bolt-elements-focus' : undefined
                     )}
-                    onClick={(e) => {
+                    onClick={e => {
                       e.stopPropagation();
                       setModel?.(modelOption.name);
                       setIsModelDropdownOpen(false);
