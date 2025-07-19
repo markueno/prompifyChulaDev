@@ -1,9 +1,10 @@
-import { json, type MetaFunction } from '@remix-run/cloudflare';
+import { json, type MetaFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { ClientOnly } from 'remix-utils/client-only';
 import { BaseChat } from '~/components/chat/BaseChat';
 import { Chat } from '~/components/chat/Chat.client';
 import { Header } from '~/components/header/Header';
 import BackgroundRays from '~/components/ui/BackgroundRays';
+import { requireAuth } from '~/lib/auth';
 
 export const meta: MetaFunction = () => {
   return [
@@ -12,7 +13,11 @@ export const meta: MetaFunction = () => {
   ];
 };
 
-export const loader = () => json({});
+export const loader = async ({ request, context }: LoaderFunctionArgs) => {
+  // Require authentication for all pages
+  const user = await requireAuth(request, context);
+  return json({ user });
+};
 
 /**
  * Landing page component for Prompify
