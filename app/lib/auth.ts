@@ -1,5 +1,7 @@
+import { json, redirect } from '@remix-run/cloudflare';
 import jwt from 'jsonwebtoken';
-import { redirect } from '@remix-run/cloudflare';
+import crypto from 'crypto';
+import { validateSession, updateSessionActivity } from './database';
 
 export interface User {
   id: string;
@@ -7,79 +9,74 @@ export interface User {
   verified: boolean;
 }
 
-export interface JWTPayload {
-  userId: string;
-  email: string;
-  verified: boolean;
-  iat: number;
-  exp: number;
-}
+export async function requireAuth(request: Request, context: any): Promise<User> {
+  const token = getAuthToken(request);
+  
+  if (!token) {
+    throw redirect('/auth/login');
+  }
 
-export async function verifyToken(token: string, secret: string): Promise<User | null> {
   try {
-    const decoded = jwt.verify(token, secret) as JWTPayload;
+    // Verify JWT token
+    const secret = (context.cloudflare?.env as any)?.JWT_SECRET || 'your-secret-key';
+    const decoded = jwt.verify(token, secret) as any;
+    
+    // Validate session in database
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const session = await validateSession(tokenHash);
+    
+    if (!session) {
+      // Session not found or expired - user logged in elsewhere
+      throw redirect('/auth/login?message=session_expired');
+    }
+    
+    // Update session activity
+    await updateSessionActivity(tokenHash);
+    
     return {
       id: decoded.userId,
       email: decoded.email,
       verified: decoded.verified
     };
   } catch (error) {
-    console.error('Token verification failed:', error);
-    return null;
+    console.error('Auth error:', error);
+    throw redirect('/auth/login');
   }
 }
 
-export async function getAuthToken(request: Request): Promise<string | null> {
+export function getAuthToken(request: Request): string | null {
+  // Check Authorization header first
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.substring(7);
+  }
+  
+  // Check cookies
   const cookieHeader = request.headers.get('Cookie');
-  if (!cookieHeader) return null;
-
-  const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
-    const [key, value] = cookie.trim().split('=');
-    acc[key] = value;
-    return acc;
-  }, {} as Record<string, string>);
-
-  return cookies.auth_token || null;
-}
-
-export async function requireAuth(request: Request, context: any): Promise<User> {
-  const token = await getAuthToken(request);
+  if (cookieHeader) {
+    const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+    
+    return cookies.auth_token || null;
+  }
   
-  if (!token) {
-    throw redirect('/auth/login');
-  }
-
-  const secret = context.cloudflare?.env?.JWT_SECRET || 'your-secret-key';
-  const user = await verifyToken(token, secret);
-  
-  if (!user) {
-    throw redirect('/auth/login');
-  }
-
-  if (!user.verified) {
-    throw redirect('/auth/verify-pending');
-  }
-
-  return user;
+  return null;
 }
 
 export async function optionalAuth(request: Request, context: any): Promise<User | null> {
-  const token = await getAuthToken(request);
-  
-  if (!token) {
+  try {
+    return await requireAuth(request, context);
+  } catch (error) {
     return null;
   }
-
-  const secret = context.cloudflare?.env?.JWT_SECRET || 'your-secret-key';
-  const user = await verifyToken(token, secret);
-  
-  return user;
 }
 
-export function createAuthCookie(token: string): string {
-  return `auth_token=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`;
-}
-
-export function clearAuthCookie(): string {
-  return 'auth_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0';
+// Session conflict detection
+export async function checkSessionConflict(userId: string): Promise<boolean> {
+  // This can be used to show a warning if user tries to login from multiple places
+  // For now, we just invalidate old sessions automatically
+  return false;
 } 

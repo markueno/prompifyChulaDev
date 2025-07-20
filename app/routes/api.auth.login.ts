@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 interface User {
   id: string;
@@ -128,12 +129,25 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const secret = (context.cloudflare?.env as any)?.JWT_SECRET || 'your-secret-key';
     const token = jwt.sign(
       { 
-                userId: user.id || '',
+        userId: user.id || '',
         email: user.email || '',
         verified: (user.verified || 0) === 1 
       },
       secret,
       { expiresIn: '24h' }
+    );
+
+    // Create session in database (this will invalidate any existing sessions)
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+    const userAgent = request.headers.get('User-Agent') || '';
+    
+    await createUserSession(
+      user.id || '',
+      tokenHash,
+      expiresAt,
+      clientIP,
+      userAgent
     );
 
     // Clear rate limiting on successful login
@@ -158,4 +172,4 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 }
 
-import { getUserByEmail, updateLoginAttempts, resetLoginAttempts } from '~/lib/database'; 
+import { getUserByEmail, updateLoginAttempts, resetLoginAttempts, createUserSession } from '~/lib/database'; 

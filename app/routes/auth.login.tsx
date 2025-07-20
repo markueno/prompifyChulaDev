@@ -1,5 +1,5 @@
 import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { Form, useActionData, useNavigation } from '@remix-run/react';
+import { Form, useActionData, useNavigation, useSearchParams } from '@remix-run/react';
 import { useState } from 'react';
 import { Button } from '~/components/ui/Button';
 import { Input } from '~/components/ui/Input';
@@ -72,6 +72,10 @@ export default function LoginPage() {
   const navigation = useNavigation();
   const [showPassword, setShowPassword] = useState(false);
   const isSubmitting = navigation.state === 'submitting';
+  
+  // Check for session conflict message using Remix's useSearchParams
+  const [searchParams] = useSearchParams();
+  const sessionMessage = searchParams.get('message');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-bolt-elements-background-depth-1">
@@ -134,6 +138,12 @@ export default function LoginPage() {
           {actionData?.error && (
             <div className="p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
               {actionData.error}
+            </div>
+          )}
+
+          {sessionMessage === 'session_expired' && (
+            <div className="p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm">
+              Your session has expired because you logged in from another device. Please sign in again.
             </div>
           )}
 

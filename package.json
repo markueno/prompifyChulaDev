@@ -25,7 +25,8 @@
     "typegen": "wrangler types",
     "preview": "pnpm run build && pnpm run start",
     "prepare": "husky",
-    "clean": "node scripts/clean.js"
+    "clean": "node scripts/clean.js",
+    "test:db": "node scripts/test-database.js"
   },
   "engines": {
     "node": ">=18.18.0"
@@ -90,6 +91,7 @@
     "ai": "^4.1.2",
     "bcryptjs": "^3.0.2",
     "better-sqlite3": "^12.2.0",
+    "pg": "^8.11.3",
     "chalk": "^5.4.1",
     "chart.js": "^4.4.7",
     "class-variance-authority": "^0.7.0",
@@ -136,6 +138,7 @@
     "@blitz/eslint-plugin": "0.1.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.8",
+    "@types/pg": "^8.10.9",
     "@types/jsonwebtoken": "^9.0.5",
     "@cloudflare/workers-types": "^4.20241127.0",
     "@iconify-json/ph": "^1.2.1",
