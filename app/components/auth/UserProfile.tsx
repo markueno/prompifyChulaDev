@@ -4,10 +4,15 @@ import { Dropdown, DropdownItem, DropdownSeparator } from '~/components/ui/Dropd
 import type { User } from '~/lib/auth';
 
 interface UserProfileProps {
-  user: User;
+  user: User | null;
 }
 
 export function UserProfile({ user }: UserProfileProps) {
+  // Safety check for undefined user
+  if (!user || !user.email) {
+    return null;
+  }
+
   const trigger = (
     <Button variant="ghost" className="flex items-center gap-2">
       <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">

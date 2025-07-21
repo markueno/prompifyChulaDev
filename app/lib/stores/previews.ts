@@ -145,6 +145,10 @@ export class PreviewsStore {
     // Listen for server ready events
     webcontainer.on('server-ready', (port, url) => {
       console.log('[Preview] Server ready on port:', port, url);
+      console.log('[Preview] WebContainer workdir:', webcontainer.workdir);
+      console.log('[Preview] Session ID:', typeof window !== 'undefined' && window.sessionStorage 
+        ? window.sessionStorage.getItem('bolt-session-id') 
+        : 'N/A');
       this.broadcastUpdate(url);
 
       // Initial storage sync when preview is ready

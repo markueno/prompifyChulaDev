@@ -19,10 +19,32 @@ export let webcontainer: Promise<WebContainer> = new Promise(() => {
 });
 
 if (!import.meta.env.SSR) {
+  // Check if we need to clear the cached WebContainer instance
+  // This happens when the session ID changes (different browser session)
+  const currentSessionId = typeof window !== 'undefined' && window.sessionStorage 
+    ? window.sessionStorage.getItem('bolt-session-id') 
+    : null;
+  
+  const cachedSessionId = import.meta.hot?.data.cachedSessionId;
+  
+  if (cachedSessionId && cachedSessionId !== currentSessionId) {
+    console.log('[WebContainer] Session changed, clearing cached instance');
+    if (import.meta.hot?.data) {
+      import.meta.hot.data.webcontainer = undefined;
+      import.meta.hot.data.webcontainerContext = undefined;
+    }
+  }
+  
+  // Store the current session ID
+  if (import.meta.hot?.data) {
+    import.meta.hot.data.cachedSessionId = currentSessionId;
+  }
+
   webcontainer =
     import.meta.hot?.data.webcontainer ??
     Promise.resolve()
       .then(() => {
+        console.log('[WebContainer] Booting with workdir:', WORK_DIR_NAME);
         return WebContainer.boot({
           coep: 'credentialless',
           workdirName: WORK_DIR_NAME,
@@ -31,6 +53,7 @@ if (!import.meta.env.SSR) {
       })
       .then(async webcontainer => {
         webcontainerContext.loaded = true;
+        console.log('[WebContainer] Booted successfully with workdir:', webcontainer.workdir);
 
         const { workbenchStore } = await import('~/lib/stores/workbench');
 

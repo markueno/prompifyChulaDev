@@ -1,7 +1,22 @@
 import { LLMManager } from '~/lib/modules/llm/manager';
 import type { Template } from '~/types/template';
 
-export const WORK_DIR_NAME = 'project';
+// Generate a unique workdir name for each browser session
+const generateUniqueWorkdirName = () => {
+  // Use sessionStorage to maintain the same ID within a browser session
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    let sessionId = window.sessionStorage.getItem('bolt-session-id');
+    if (!sessionId) {
+      sessionId = Math.random().toString(36).substring(2, 15);
+      window.sessionStorage.setItem('bolt-session-id', sessionId);
+    }
+    return `project-${sessionId}`;
+  }
+  // Fallback for SSR or when sessionStorage is not available
+  return `project-${Math.random().toString(36).substring(2, 15)}`;
+};
+
+export const WORK_DIR_NAME = generateUniqueWorkdirName();
 export const WORK_DIR = `/home/${WORK_DIR_NAME}`;
 export const MODIFICATIONS_TAG_NAME = 'bolt_file_modifications';
 export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;

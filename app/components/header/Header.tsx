@@ -35,7 +35,7 @@ export function Header() {
             {() => (
               <div className="mr-1 flex items-center gap-2">
                 <HeaderActionButtons />
-                <UserProfile user={user} />
+                {user && <UserProfile user={user} />}
               </div>
             )}
           </ClientOnly>

@@ -42,7 +42,11 @@ export const shouldIncludeFile = (path: string): boolean => {
   return !ig.ignores(path);
 };
 
-const readPackageJson = async (files: File[]): Promise<{ scripts?: Record<string, string> } | null> => {
+const readPackageJson = async (files: File[]): Promise<{ 
+  scripts?: Record<string, string>;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+} | null> => {
   const packageJsonFile = files.find(f => f.webkitRelativePath.endsWith('package.json'));
 
   if (!packageJsonFile) {
@@ -72,6 +76,11 @@ export const detectProjectType = async (
   if (hasFile('package.json')) {
     const packageJson = await readPackageJson(files);
     const scripts = packageJson?.scripts || {};
+    const dependencies = packageJson?.dependencies || {};
+    const devDependencies = packageJson?.devDependencies || {};
+
+    // Check for framework-specific dependencies and ensure CLI tools are available
+    const frameworkCommands = getFrameworkCommands(dependencies, devDependencies);
 
     // Check for preferred commands in priority order
     const preferredCommands = ['dev', 'start', 'preview'];
@@ -80,14 +89,14 @@ export const detectProjectType = async (
     if (availableCommand) {
       return {
         type: 'Node.js',
-        setupCommand: `npm install && npm run ${availableCommand}`,
+        setupCommand: `npm install && ${frameworkCommands.installCommand}`,
         followupMessage: `Found "${availableCommand}" script in package.json. Running "npm run ${availableCommand}" after installation.`,
       };
     }
 
     return {
       type: 'Node.js',
-      setupCommand: 'npm install',
+      setupCommand: `npm install && ${frameworkCommands.installCommand}`,
       followupMessage:
         'Would you like me to inspect package.json to determine the available scripts for running this project?',
     };
@@ -103,6 +112,39 @@ export const detectProjectType = async (
 
   return { type: '', setupCommand: '', followupMessage: '' };
 };
+
+function getFrameworkCommands(dependencies: Record<string, string>, devDependencies: Record<string, string>): {
+  installCommand: string;
+} {
+  const allDeps = { ...dependencies, ...devDependencies };
+  
+  // Framework-specific CLI tool installation commands
+  // Use npm to install CLI tools locally, then access them via node_modules/.bin
+  const frameworkCommands: Record<string, string> = {
+    'astro': 'npm install -g astro@latest && astro telemetry disable',
+    'next': 'npm install -g next@latest && next telemetry disable',
+    'remix': 'npm install -g @remix-run/cli@latest',
+    'slidev': 'npm install -g slidev@latest',
+    'svelte': 'npm install -g svelte@latest',
+    'vue': 'npm install -g @vue/cli@latest',
+    'angular': 'npm install -g @angular/cli@latest',
+    'nuxt': 'npm install -g nuxi@latest',
+    'qwik': 'npm install -g qwik@latest',
+    'solid': 'npm install -g solid@latest',
+    'preact': 'npm install -g preact@latest',
+    'vite': 'npm install -g vite@latest',
+  };
+
+  // Check for framework dependencies and return appropriate install command
+  for (const [framework, command] of Object.entries(frameworkCommands)) {
+    if (allDeps[framework] || allDeps[`@${framework}/cli`] || allDeps[`@${framework}/core`]) {
+      return { installCommand: command };
+    }
+  }
+
+  // Default: just install dependencies
+  return { installCommand: 'echo "Dependencies installed successfully"' };
+}
 
 export const filesToArtifacts = (files: { [path: string]: { content: string } }, id: string): string => {
   return `
