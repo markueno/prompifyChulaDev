@@ -9,7 +9,51 @@ export interface User {
   verified: boolean;
 }
 
+// Check if authentication is temporarily disabled
+export function isAuthDisabled(context: any): boolean {
+  // Check multiple sources for the environment variable
+  const cloudflareEnv = context?.cloudflare?.env || {};
+  const processEnv = process.env || {};
+  
+  // Try to get AUTH_DISABLED from multiple sources
+  const authDisabled = 
+    cloudflareEnv.AUTH_DISABLED || 
+    processEnv.AUTH_DISABLED || 
+    processEnv.VITE_AUTH_DISABLED;
+  
+  const isDisabled = authDisabled === 'true' || authDisabled === '1';
+  
+  // Debug logging
+  console.log('🔍 Auth bypass check:', {
+    contextKeys: context ? Object.keys(context) : 'no context',
+    cloudflareEnvKeys: Object.keys(cloudflareEnv).filter(k => k.includes('AUTH')),
+    processEnvKeys: Object.keys(processEnv).filter(k => k.includes('AUTH')),
+    cloudflareEnv_AUTH_DISABLED: cloudflareEnv.AUTH_DISABLED,
+    processEnv_AUTH_DISABLED: processEnv.AUTH_DISABLED,
+    processEnv_VITE_AUTH_DISABLED: processEnv.VITE_AUTH_DISABLED,
+    finalValue: authDisabled,
+    isDisabled
+  });
+  
+  return isDisabled;
+}
+
+// Get a mock admin user when authentication is disabled
+export function getMockAdminUser(): User {
+  return {
+    id: 'admin-bypass',
+    email: 'admin@bypass.local',
+    verified: true,
+  };
+}
+
 export async function requireAuth(request: Request, context: any): Promise<User> {
+  // Check if authentication is disabled
+  if (isAuthDisabled(context)) {
+    console.warn('⚠️ AUTHENTICATION BYPASSED: AUTH_DISABLED is set to true');
+    return getMockAdminUser();
+  }
+
   const token = getAuthToken(request);
   
   if (!token) {
@@ -79,4 +123,8 @@ export async function checkSessionConflict(userId: string): Promise<boolean> {
   // This can be used to show a warning if user tries to login from multiple places
   // For now, we just invalidate old sessions automatically
   return false;
+}
+
+export function clearAuthCookie(): string {
+  return 'auth_token=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0';
 } 

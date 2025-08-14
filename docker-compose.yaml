@@ -60,6 +60,7 @@ services:
       - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
       - RUNNING_IN_DOCKER=true
+      - AUTH_DISABLED=${AUTH_DISABLED:-false}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:

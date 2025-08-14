@@ -159,7 +159,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       user: {
         id: user.id || '',
         email: user.email || '',
-        verified: user.verified || 0
+        verified: Boolean(user.verified)
       }
     });
 

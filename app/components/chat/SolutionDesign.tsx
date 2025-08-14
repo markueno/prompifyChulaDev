@@ -1,5 +1,47 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { classNames } from '~/utils/classNames';
+import { generateSystemFlow } from '~/utils/systemFlows';
+
+// Draggable System Flow Step Component
+interface DraggableStepProps {
+  step: string;
+  index: number;
+  onDragStart: (e: React.DragEvent, index: number) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent, index: number) => void;
+  isDragging: boolean;
+}
+
+const DraggableStep: React.FC<DraggableStepProps> = ({
+  step,
+  index,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  isDragging
+}) => {
+  return (
+    <div
+      draggable
+      onDragStart={(e) => onDragStart(e, index)}
+      onDragOver={onDragOver}
+      onDrop={(e) => onDrop(e, index)}
+      className={classNames(
+        'flex items-center gap-3 p-3 bg-white border border-gray-300 rounded-lg cursor-move transition-all duration-200',
+        isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md',
+        'hover:border-blue-300'
+      )}
+    >
+      <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
+        {index + 1}
+      </div>
+      <span className="flex-1 text-sm text-gray-900">{step}</span>
+      <div className="flex-shrink-0 text-gray-400">
+        <div className="i-ph:dots-six-vertical text-sm"></div>
+      </div>
+    </div>
+  );
+};
 
 interface SolutionDesignProps {
   applicationType: string;
@@ -25,8 +67,94 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
 }) => {
   const [activeSection, setActiveSection] = useState<string>('summary');
 
+  // State for editable fields in Section A
+  const [projectOverview, setProjectOverview] = useState(
+    `We'll be building a ${applicationType} specifically designed for ${businessType}.${additionalDetails ? ` Additional requirements: ${additionalDetails}` : ''}`
+  );
+  const [keyFeatures, setKeyFeatures] = useState([
+    'Modern, responsive design',
+    'User-friendly interface',
+    'Industry-specific functionality',
+    'Scalable architecture'
+  ]);
+  const [targetUsers, setTargetUsers] = useState([
+    `${businessType} staff and administrators`,
+    'End users and customers',
+    'Mobile and desktop users',
+    'Various technical skill levels'
+  ]);
+
+
+
+  // State for editable fields in Section B
+  const [systemFlowSteps, setSystemFlowSteps] = useState<string[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  // Initialize system flow steps when application type changes
+  useEffect(() => {
+    const flowText = generateSystemFlow(applicationType, businessType);
+    const steps = flowText.split('\n').map(line => line.replace(/^\d+\.\s*/, ''));
+    setSystemFlowSteps(steps);
+  }, [applicationType, businessType]);
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      return;
+    }
+
+    const newSteps = [...systemFlowSteps];
+    const draggedStep = newSteps[draggedIndex];
+    
+    // Remove the dragged item
+    newSteps.splice(draggedIndex, 1);
+    
+    // Insert at the new position
+    newSteps.splice(dropIndex, 0, draggedStep);
+    
+    setSystemFlowSteps(newSteps);
+    setDraggedIndex(null);
+  };
+
+  // State for editable fields in Section C
+  const [developmentProcess, setDevelopmentProcess] = useState('Agile');
+  const [framework, setFramework] = useState('React');
+  const [useTypeScript, setUseTypeScript] = useState(true);
+  const [cssFramework, setCssFramework] = useState('Tailwind CSS');
+  const [database, setDatabase] = useState('SQLite');
+
   const constructPrompt = () => {
     return `Build me a ${applicationType} for ${businessType}${additionalDetails ? ` - ${additionalDetails}` : ''}`;
+  };
+
+  // Helper function to add new item to array
+  const addItem = (array: string[], setArray: (items: string[]) => void, defaultValue: string = '') => {
+    setArray([...array, defaultValue]);
+  };
+
+  // Helper function to remove item from array
+  const removeItem = (array: string[], setArray: (items: string[]) => void, index: number) => {
+    setArray(array.filter((_, i) => i !== index));
+  };
+
+  // Helper function to update item in array
+  const updateItem = (array: string[], setArray: (items: string[]) => void, index: number, value: string) => {
+    const newArray = [...array];
+    newArray[index] = value;
+    setArray(newArray);
   };
 
   const sections: SolutionSection[] = [
@@ -36,40 +164,78 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       icon: 'i-ph:file-text',
       content: (
         <div className="space-y-4">
-          <div className="bg-bolt-elements-background-depth-3 p-4 rounded-lg border border-bolt-elements-borderColor">
+          <div className="bg-white p-4 rounded-lg border border-gray-300">
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-2">Project Overview</h4>
-            <p className="text-sm text-bolt-elements-textSecondary leading-relaxed">
-              We'll be building a <span className="font-medium text-bolt-elements-textPrimary">{applicationType}</span>{' '}
-              specifically designed for{' '}
-              <span className="font-medium text-bolt-elements-textPrimary">{businessType}</span>.
-              {additionalDetails && (
-                <>
-                  <br />
-                  <span className="text-bolt-elements-textSecondary">Additional requirements: {additionalDetails}</span>
-                </>
-              )}
-            </p>
+            <textarea
+              value={projectOverview}
+              onChange={(e) => setProjectOverview(e.target.value)}
+              className="w-full p-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              rows={4}
+              placeholder="Enter project overview..."
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-bolt-elements-background-depth-3 p-4 rounded-lg border border-bolt-elements-borderColor">
+            <div className="bg-white p-4 rounded-lg border border-gray-300">
               <h4 className="font-semibold text-bolt-elements-textPrimary mb-2">Key Features</h4>
-              <ul className="text-sm text-bolt-elements-textSecondary space-y-1">
-                <li>• Modern, responsive design</li>
-                <li>• User-friendly interface</li>
-                <li>• Industry-specific functionality</li>
-                <li>• Scalable architecture</li>
-              </ul>
+              <div className="space-y-2">
+                {keyFeatures.map((feature, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={feature}
+                      onChange={(e) => updateItem(keyFeatures, setKeyFeatures, index, e.target.value)}
+                      className="flex-1 p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter feature..."
+                    />
+                    <button
+                      onClick={() => removeItem(keyFeatures, setKeyFeatures, index)}
+                      className="p-1 text-red-500 hover:text-red-700"
+                      title="Remove feature"
+                    >
+                      <div className="i-ph:x text-sm"></div>
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addItem(keyFeatures, setKeyFeatures, 'New feature')}
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+                >
+                  <div className="i-ph:plus text-sm"></div>
+                  Add Feature
+                </button>
+              </div>
             </div>
 
-            <div className="bg-bolt-elements-background-depth-3 p-4 rounded-lg border border-bolt-elements-borderColor">
+            <div className="bg-white p-4 rounded-lg border border-gray-300">
               <h4 className="font-semibold text-bolt-elements-textPrimary mb-2">Target Users</h4>
-              <ul className="text-sm text-bolt-elements-textSecondary space-y-1">
-                <li>• {businessType} staff and administrators</li>
-                <li>• End users and customers</li>
-                <li>• Mobile and desktop users</li>
-                <li>• Various technical skill levels</li>
-              </ul>
+              <div className="space-y-2">
+                {targetUsers.map((user, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={user}
+                      onChange={(e) => updateItem(targetUsers, setTargetUsers, index, e.target.value)}
+                      className="flex-1 p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter target user..."
+                    />
+                    <button
+                      onClick={() => removeItem(targetUsers, setTargetUsers, index)}
+                      className="p-1 text-red-500 hover:text-red-700"
+                      title="Remove user"
+                    >
+                      <div className="i-ph:x text-sm"></div>
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addItem(targetUsers, setTargetUsers, 'New user')}
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800"
+                >
+                  <div className="i-ph:plus text-sm"></div>
+                  Add User
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -81,29 +247,23 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       icon: 'i-ph:lightbulb',
       content: (
         <div className="space-y-6">
-          <div className="bg-bolt-elements-background-depth-3 p-4 rounded-lg border border-bolt-elements-borderColor">
-            <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">Simple Explanation</h4>
-            <p className="text-sm text-bolt-elements-textSecondary leading-relaxed mb-4">
-              Think of this {applicationType} like building a digital storefront or workspace for your {businessType}.
-              It's like creating a website that helps your business serve its customers better.
+          <div className="bg-white p-4 rounded-lg border border-gray-300">
+            <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">System Flow</h4>
+            <p className="text-xs text-gray-500 mb-3">
+              Drag and drop the steps to reorder the system flow. The numbered index will automatically update.
             </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-3 bg-bolt-elements-background-depth-4 rounded-lg">
-                <div className="i-ph:users text-2xl text-bolt-elements-textSecondary mb-2"></div>
-                <h5 className="font-medium text-bolt-elements-textPrimary text-sm">Users</h5>
-                <p className="text-xs text-bolt-elements-textTertiary">Who will use it</p>
-              </div>
-              <div className="text-center p-3 bg-bolt-elements-background-depth-4 rounded-lg">
-                <div className="i-ph:gear text-2xl text-bolt-elements-textSecondary mb-2"></div>
-                <h5 className="font-medium text-bolt-elements-textPrimary text-sm">Features</h5>
-                <p className="text-xs text-bolt-elements-textTertiary">What it will do</p>
-              </div>
-              <div className="text-center p-3 bg-bolt-elements-background-depth-4 rounded-lg">
-                <div className="i-ph:paint-brush text-2xl text-bolt-elements-textSecondary mb-2"></div>
-                <h5 className="font-medium text-bolt-elements-textPrimary text-sm">Design</h5>
-                <p className="text-xs text-bolt-elements-textTertiary">How it will look</p>
-              </div>
+            <div className="space-y-2">
+              {systemFlowSteps.map((step, index) => (
+                <DraggableStep
+                  key={index}
+                  step={step}
+                  index={index}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  isDragging={draggedIndex === index}
+                />
+              ))}
             </div>
           </div>
 
@@ -142,72 +302,96 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       icon: 'i-ph:map-trifold',
       content: (
         <div className="space-y-6">
-          <div className="bg-bolt-elements-background-depth-3 p-4 rounded-lg border border-bolt-elements-borderColor">
+          <div className="bg-white p-4 rounded-lg border border-gray-300">
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">Development Process</h4>
-            <div className="space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-8 h-8 bg-bolt-elements-background-depth-4 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-bolt-elements-textPrimary">1</span>
-                </div>
-                <div>
-                  <h5 className="font-medium text-bolt-elements-textPrimary text-sm">Planning & Design</h5>
-                  <p className="text-xs text-bolt-elements-textTertiary">
-                    Define features, user interface, and technical requirements
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-8 h-8 bg-bolt-elements-background-depth-4 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-bolt-elements-textPrimary">2</span>
-                </div>
-                <div>
-                  <h5 className="font-medium text-bolt-elements-textPrimary text-sm">Frontend Development</h5>
-                  <p className="text-xs text-bolt-elements-textTertiary">
-                    Create the user interface and user experience
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-8 h-8 bg-bolt-elements-background-depth-4 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-bolt-elements-textPrimary">3</span>
-                </div>
-                <div>
-                  <h5 className="font-medium text-bolt-elements-textPrimary text-sm">Backend Integration</h5>
-                  <p className="text-xs text-bolt-elements-textTertiary">Connect to databases and external services</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-8 h-8 bg-bolt-elements-background-depth-4 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-bolt-elements-textPrimary">4</span>
-                </div>
-                <div>
-                  <h5 className="font-medium text-bolt-elements-textPrimary text-sm">Testing & Deployment</h5>
-                  <p className="text-xs text-bolt-elements-textTertiary">
-                    Ensure everything works and deploy to production
-                  </p>
-                </div>
-              </div>
-            </div>
+            <select
+              value={developmentProcess}
+              onChange={(e) => setDevelopmentProcess(e.target.value)}
+              className="w-full p-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="Agile">Agile</option>
+              <option value="Waterfall">Waterfall</option>
+              <option value="Scrum">Scrum</option>
+              <option value="Kanban">Kanban</option>
+              <option value="Lean">Lean</option>
+            </select>
           </div>
 
-          <div className="bg-bolt-elements-background-depth-3 p-4 rounded-lg border border-bolt-elements-borderColor">
+          <div className="bg-white p-4 rounded-lg border border-gray-300">
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">Technology Stack</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="text-center p-3 bg-bolt-elements-background-depth-4 rounded-lg">
-                <div className="i-logos:react text-2xl mb-1"></div>
-                <p className="text-xs text-bolt-elements-textSecondary">React</p>
+              <div className="text-center p-3 bg-white border border-gray-300 rounded-lg">
+                <div className="text-2xl mb-1">
+                  {framework === 'React' && <div className="i-logos:react"></div>}
+                  {framework === 'Vue' && <div className="i-logos:vue"></div>}
+                  {framework === 'Angular' && <div className="i-logos:angular-icon"></div>}
+                  {framework === 'Svelte' && <div className="i-logos:svelte-icon"></div>}
+                  {framework === 'Next.js' && <div className="i-logos:nextjs-icon"></div>}
+                  {framework === 'Nuxt.js' && <div className="i-logos:nuxt-icon"></div>}
+                  {framework === 'Vanilla JavaScript' && <div className="i-logos:javascript"></div>}
+                </div>
+                <select
+                  value={framework}
+                  onChange={(e) => setFramework(e.target.value)}
+                  className="w-full text-xs text-gray-900 bg-white border-0 focus:ring-0 focus:outline-none text-center"
+                >
+                  <option value="React">React</option>
+                  <option value="Vue">Vue</option>
+                  <option value="Angular">Angular</option>
+                  <option value="Svelte">Svelte</option>
+                  <option value="Next.js">Next.js</option>
+                  <option value="Nuxt.js">Nuxt.js</option>
+                  <option value="Vanilla JavaScript">Vanilla JavaScript</option>
+                </select>
               </div>
-              <div className="text-center p-3 bg-bolt-elements-background-depth-4 rounded-lg">
-                <div className="i-logos:typescript-icon text-2xl mb-1"></div>
-                <p className="text-xs text-bolt-elements-textSecondary">TypeScript</p>
+              <div className="text-center p-3 bg-white border border-gray-300 rounded-lg">
+                <div className="text-2xl mb-1">
+                  {useTypeScript ? <div className="i-logos:typescript-icon"></div> : <div className="i-logos:javascript"></div>}
+                </div>
+                <select
+                  value={useTypeScript ? 'TypeScript' : 'JavaScript'}
+                  onChange={(e) => setUseTypeScript(e.target.value === 'TypeScript')}
+                  className="w-full text-xs text-gray-900 bg-white border-0 focus:ring-0 focus:outline-none text-center"
+                >
+                  <option value="TypeScript">TypeScript</option>
+                  <option value="JavaScript">JavaScript</option>
+                </select>
               </div>
-              <div className="text-center p-3 bg-bolt-elements-background-depth-4 rounded-lg">
-                <div className="i-logos:tailwindcss-icon text-2xl mb-1"></div>
-                <p className="text-xs text-bolt-elements-textSecondary">Tailwind CSS</p>
+              <div className="text-center p-3 bg-white border border-gray-300 rounded-lg">
+                <div className="text-2xl mb-1">
+                  {cssFramework === 'Tailwind CSS' && <div className="i-logos:tailwindcss-icon"></div>}
+                  {cssFramework === 'Chakra UI' && <div className="i-logos:chakra-ui-icon"></div>}
+                </div>
+                <select
+                  value={cssFramework}
+                  onChange={(e) => setCssFramework(e.target.value)}
+                  className="w-full text-xs text-gray-900 bg-white border-0 focus:ring-0 focus:outline-none text-center"
+                >
+                  <option value="Tailwind CSS">Tailwind CSS</option>
+                  <option value="Chakra UI">Chakra UI</option>
+                </select>
               </div>
-              <div className="text-center p-3 bg-bolt-elements-background-depth-4 rounded-lg">
-                <div className="i-ph:database text-2xl mb-1 text-bolt-elements-textSecondary"></div>
-                <p className="text-xs text-bolt-elements-textSecondary">Database</p>
+              <div className="text-center p-3 bg-white border border-gray-300 rounded-lg">
+                <div className="text-2xl mb-1">
+                  {database === 'SQLite' && <div className="i-logos:sqlite"></div>}
+                  {database === 'PostgreSQL' && <div className="i-logos:postgresql"></div>}
+                  {database === 'MySQL' && <div className="i-logos:mysql"></div>}
+                  {database === 'MongoDB' && <div className="i-logos:mongodb"></div>}
+                  {database === 'Firebase' && <div className="i-logos:firebase"></div>}
+                  {database === 'Supabase' && <div className="i-logos:supabase-icon"></div>}
+                </div>
+                <select
+                  value={database}
+                  onChange={(e) => setDatabase(e.target.value)}
+                  className="w-full text-xs text-gray-900 bg-white border-0 focus:ring-0 focus:outline-none text-center"
+                >
+                  <option value="SQLite">SQLite</option>
+                  <option value="PostgreSQL">PostgreSQL</option>
+                  <option value="MySQL">MySQL</option>
+                  <option value="MongoDB">MongoDB</option>
+                  <option value="Firebase">Firebase</option>
+                  <option value="Supabase">Supabase</option>
+                </select>
               </div>
             </div>
           </div>

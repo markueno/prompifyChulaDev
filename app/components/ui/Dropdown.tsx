@@ -13,9 +13,10 @@ interface DropdownItemProps {
   children: ReactNode;
   onSelect?: () => void;
   className?: string;
+  asChild?: boolean;
 }
 
-export const DropdownItem = ({ children, onSelect, className }: DropdownItemProps) => (
+export const DropdownItem = ({ children, onSelect, className, asChild }: DropdownItemProps) => (
   <DropdownMenu.Item
     className={classNames(
       'relative flex items-center gap-2 px-3 py-2 rounded-lg text-sm',
@@ -26,6 +27,7 @@ export const DropdownItem = ({ children, onSelect, className }: DropdownItemProp
       className
     )}
     onSelect={onSelect}
+    asChild={asChild}
   >
     {children}
   </DropdownMenu.Item>

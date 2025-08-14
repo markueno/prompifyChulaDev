@@ -53,6 +53,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
       - APP_URL=${APP_URL:-http://localhost:3000}
       - REDIS_URL=redis://redis:6379
+      - AUTH_DISABLED=${AUTH_DISABLED:-false}
     ports:
       - "3000:3000"
     depends_on:

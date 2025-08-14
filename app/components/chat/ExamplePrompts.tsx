@@ -1,6 +1,10 @@
 import React from 'react';
 
-const EXAMPLE_PROMPTS = [
+interface ExamplePrompt {
+  text: string;
+}
+
+const EXAMPLE_PROMPTS: ExamplePrompt[] = [
   // { text: 'Build a todo app in React using Tailwind' },
   // { text: 'Build a simple blog using Astro' },
   // { text: 'Create a cookie consent form using Material UI' },

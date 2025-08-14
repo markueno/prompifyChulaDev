@@ -1,12 +1,13 @@
 import pg from 'pg';
 import crypto from 'crypto';
 
-const { Pool, PoolClient } = pg;
+const { Pool } = pg;
+type PoolClient = pg.PoolClient;
 
 // PostgreSQL connection pool
-let pool: Pool;
+let pool: InstanceType<typeof Pool>;
 
-export function getPostgresPool(): Pool {
+export function getPostgresPool(): InstanceType<typeof Pool> {
   if (!pool) {
     const databaseUrl = process.env.DATABASE_URL;
     if (!databaseUrl) {
@@ -21,7 +22,7 @@ export function getPostgresPool(): Pool {
     });
 
     // Test the connection
-    pool.on('error', (err) => {
+    pool.on('error', (err: Error) => {
       console.error('Unexpected error on idle client', err);
     });
   }
