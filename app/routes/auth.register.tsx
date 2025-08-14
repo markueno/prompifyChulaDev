@@ -1,17 +1,25 @@
 import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { Form, useActionData, useNavigation } from '@remix-run/react';
+import { Form, useActionData, useNavigation, useSearchParams } from '@remix-run/react';
 import { useState } from 'react';
 import { Button } from '~/components/ui/Button';
-import { Input } from '~/components/ui/Input';
 import { Card } from '~/components/ui/Card';
+import { Input } from '~/components/ui/Input';
+import { Label } from '~/components/ui/Label';
 import BackgroundRays from '~/components/ui/BackgroundRays';
+import { isAuthDisabled } from '~/lib/auth';
 
 interface ActionData {
   error?: string;
   success?: string;
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  // If authentication is disabled, redirect to main page
+  if (isAuthDisabled(context)) {
+    console.log('🚫 Authentication disabled - redirecting from register to main page');
+    return redirect('/');
+  }
+
   // Check if user is already authenticated
   const url = new URL(request.url);
   const token = url.searchParams.get('token');

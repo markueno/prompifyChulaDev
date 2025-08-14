@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '~/components/ui/Button';
 import { Card } from '~/components/ui/Card';
 import BackgroundRays from '~/components/ui/BackgroundRays';
+import { isAuthDisabled } from '~/lib/auth';
 
 interface LoaderData {
   success: boolean;
@@ -11,7 +12,13 @@ interface LoaderData {
   token?: string;
 }
 
-export async function loader({ request }: LoaderFunctionArgs) {
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  // If authentication is disabled, redirect to main page
+  if (isAuthDisabled(context)) {
+    console.log('🚫 Authentication disabled - redirecting from verify to main page');
+    return redirect('/');
+  }
+
   const url = new URL(request.url);
   const token = url.searchParams.get('token');
 

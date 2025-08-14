@@ -4,7 +4,7 @@ import { BaseChat } from '~/components/chat/BaseChat';
 import { Chat } from '~/components/chat/Chat.client';
 import { Header } from '~/components/header/Header';
 import BackgroundRays from '~/components/ui/BackgroundRays';
-import { requireAuth } from '~/lib/auth';
+import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 
 export const meta: MetaFunction = () => {
   return [
@@ -14,8 +14,26 @@ export const meta: MetaFunction = () => {
 };
 
 export const loader = async ({ request, context }: LoaderFunctionArgs) => {
-  // Require authentication for all pages
+  console.log('🏠 Index route loader called with:', {
+    url: request.url,
+    method: request.method,
+    contextKeys: context ? Object.keys(context) : 'no context'
+  });
+
+  // Check if authentication is disabled first
+  if (isAuthDisabled(context)) {
+    console.log('🚫 Authentication disabled - bypassing auth check entirely');
+    const mockUser = getMockAdminUser();
+    console.log('✅ Returning mock admin user for bypass:', mockUser);
+    return json({ user: mockUser });
+  }
+
+  // Only check authentication if it's enabled
+  console.log('🔒 Authentication enabled - checking user auth...');
   const user = await requireAuth(request, context);
+  
+  console.log('👤 User loaded in index route:', user);
+  
   return json({ user });
 };
 

@@ -21,6 +21,8 @@ export function isAuthDisabled(context: any): boolean {
     processEnv.AUTH_DISABLED || 
     processEnv.VITE_AUTH_DISABLED;
   
+  // For development, also check if we're in development mode and allow bypass
+  const isDevelopment = processEnv.NODE_ENV === 'development';
   const isDisabled = authDisabled === 'true' || authDisabled === '1';
   
   // Debug logging
@@ -31,7 +33,9 @@ export function isAuthDisabled(context: any): boolean {
     cloudflareEnv_AUTH_DISABLED: cloudflareEnv.AUTH_DISABLED,
     processEnv_AUTH_DISABLED: processEnv.AUTH_DISABLED,
     processEnv_VITE_AUTH_DISABLED: processEnv.VITE_AUTH_DISABLED,
-    finalValue: authDisabled,
+    NODE_ENV: processEnv.NODE_ENV,
+    isDevelopment,
+    finalAuthDisabled: authDisabled,
     isDisabled
   });
   
@@ -48,42 +52,64 @@ export function getMockAdminUser(): User {
 }
 
 export async function requireAuth(request: Request, context: any): Promise<User> {
+  console.log('🔐 requireAuth called with:', {
+    url: request.url,
+    method: request.method,
+    hasAuthHeader: !!request.headers.get('Authorization'),
+    hasCookie: !!request.headers.get('Cookie'),
+    contextKeys: context ? Object.keys(context) : 'no context'
+  });
+
   // Check if authentication is disabled
   if (isAuthDisabled(context)) {
-    console.warn('⚠️ AUTHENTICATION BYPASSED: AUTH_DISABLED is set to true');
-    return getMockAdminUser();
+    console.warn('⚠️ AUTHENTICATION COMPLETELY BYPASSED: AUTH_DISABLED is set to true');
+    const mockUser = getMockAdminUser();
+    console.log('✅ Returning mock admin user:', mockUser);
+    return mockUser;
   }
 
+  // If authentication is enabled, proceed with normal auth flow
+  console.log('🔒 Authentication required - checking token...');
   const token = getAuthToken(request);
   
   if (!token) {
+    console.log('❌ No auth token found - redirecting to login');
     throw redirect('/auth/login');
   }
 
+  console.log('🔑 Token found, verifying...');
   try {
     // Verify JWT token
     const secret = (context.cloudflare?.env as any)?.JWT_SECRET || 'your-secret-key';
     const decoded = jwt.verify(token, secret) as any;
+    
+    console.log('✅ JWT verified, checking session...');
     
     // Validate session in database
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const session = await validateSession(tokenHash);
     
     if (!session) {
+      console.log('❌ Session not found or expired - redirecting to login');
       // Session not found or expired - user logged in elsewhere
       throw redirect('/auth/login?message=session_expired');
     }
     
+    console.log('✅ Session valid, updating activity...');
+    
     // Update session activity
     await updateSessionActivity(tokenHash);
     
-    return {
+    const user = {
       id: decoded.userId,
       email: decoded.email,
       verified: decoded.verified
     };
+    
+    console.log('✅ Authentication successful, returning user:', user);
+    return user;
   } catch (error) {
-    console.error('Auth error:', error);
+    console.error('❌ Auth error:', error);
     throw redirect('/auth/login');
   }
 }

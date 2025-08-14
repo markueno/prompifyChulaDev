@@ -6,18 +6,19 @@ import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { UserProfile } from '~/components/auth/UserProfile';
-import { isAuthDisabled } from '~/lib/auth';
 
 export function Header() {
   const chat = useStore(chatStore);
   const { user } = useLoaderData<{ user: any }>();
-  const isBypassed = isAuthDisabled({ cloudflare: { env: {} } });
+  
+  // Check if user is the bypass admin user
+  const isBypassed = user?.id === 'admin-bypass';
 
   return (
     <>
       {isBypassed && (
         <div className="bg-yellow-500 text-black px-4 py-2 text-center font-semibold">
-          ⚠️ ADMIN MODE: Authentication is temporarily disabled
+          ⚠️ ADMIN MODE: Authentication is completely disabled - Direct access enabled
         </div>
       )}
       <header
