@@ -74,20 +74,20 @@ function getFrameworkCommands(dependencies: Record<string, string>, devDependenc
   const allDeps = { ...dependencies, ...devDependencies };
   
   // Framework-specific CLI tool installation commands
-  // Use npm to install CLI tools locally, then access them via node_modules/.bin
+  // Install CLI tools locally and update package.json scripts to use npx
   const frameworkCommands: Record<string, string> = {
-    'astro': 'npm install -g astro@latest && astro telemetry disable',
-    'next': 'npm install -g next@latest && next telemetry disable',
-    'remix': 'npm install -g @remix-run/cli@latest',
-    'slidev': 'npm install -g slidev@latest',
-    'svelte': 'npm install -g svelte@latest',
-    'vue': 'npm install -g @vue/cli@latest',
-    'angular': 'npm install -g @angular/cli@latest',
-    'nuxt': 'npm install -g nuxi@latest',
-    'qwik': 'npm install -g qwik@latest',
-    'solid': 'npm install -g solid@latest',
-    'preact': 'npm install -g preact@latest',
-    'vite': 'npm install -g vite@latest',
+    'astro': 'npm install astro@latest && npm pkg set scripts.dev="npx astro dev" && npm pkg set scripts.build="npx astro build"',
+    'next': 'npm install next@latest && npm pkg set scripts.dev="npx next dev" && npm pkg set scripts.build="npx next build"',
+    'remix': 'npm install @remix-run/dev@latest && npm pkg set scripts.dev="npx remix vite:dev" && npm pkg set scripts.build="npx remix vite:build"',
+    'slidev': 'npm install slidev@latest && npm pkg set scripts.dev="npx slidev"',
+    'svelte': 'npm install svelte@latest && npm pkg set scripts.dev="npx svelte dev"',
+    'vue': 'npm install @vue/cli@latest && npm pkg set scripts.dev="npx vue-cli-service serve"',
+    'angular': 'npm install @angular/cli@latest && npm pkg set scripts.start="npx ng serve"',
+    'nuxt': 'npm install nuxi@latest && npm pkg set scripts.dev="npx nuxi dev"',
+    'qwik': 'npm install qwik@latest && npm pkg set scripts.dev="npx qwik dev"',
+    'solid': 'npm install solid@latest && npm pkg set scripts.dev="npx solid dev"',
+    'preact': 'npm install preact@latest && npm pkg set scripts.dev="npx preact dev"',
+    'vite': 'npm install vite@latest && npm pkg set scripts.dev="npx vite"',
   };
 
   // Check for framework dependencies and return appropriate install command

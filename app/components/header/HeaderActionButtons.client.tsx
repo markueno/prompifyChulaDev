@@ -86,27 +86,78 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
       // Get the build files
       const container = await webcontainer;
 
-      // Remove /home/project from buildPath if it exists
-      const buildPath = artifact.runner.buildOutput.path.replace('/home/project', '');
+      // Get the build output directory path - it should be /home/project/build/client
+      let buildPath = artifact.runner.buildOutput.path;
+      
+      console.log('Build output path:', buildPath);
+      console.log('WebContainer workdir:', container.workdir);
+
+      // Verify the build directory exists and is accessible
+      let buildDirContents;
+      try {
+        buildDirContents = await container.fs.readdir(buildPath, { withFileTypes: true });
+        console.log('Build directory contents:', buildDirContents.map(entry => ({ name: entry.name, isDirectory: entry.isDirectory() })));
+      } catch (error) {
+        console.error('Build directory not accessible:', error);
+        
+        // Try alternative build directories
+        const alternativePaths = [
+          path.join(container.workdir, 'dist'),
+          path.join(container.workdir, 'build'),
+          path.join(container.workdir, 'out'),
+          path.join(container.workdir, 'public')
+        ];
+        
+        let foundPath = null;
+        for (const altPath of alternativePaths) {
+          try {
+            const contents = await container.fs.readdir(altPath, { withFileTypes: true });
+            if (contents.length > 0) {
+              foundPath = altPath;
+              buildDirContents = contents;
+              console.log('Found alternative build directory:', altPath, 'with contents:', contents.map(entry => ({ name: entry.name, isDirectory: entry.isDirectory() })));
+              break;
+            }
+          } catch (e) {
+            // Continue to next alternative
+          }
+        }
+        
+        if (!foundPath) {
+          throw new Error(`Build directory not accessible and no alternative directories found. Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        
+        // Update the build path to the found alternative
+        buildPath = foundPath;
+      }
 
       // Get all files recursively
       async function getAllFiles(dirPath: string): Promise<Record<string, string>> {
         const files: Record<string, string> = {};
-        const entries = await container.fs.readdir(dirPath, { withFileTypes: true });
+        
+        try {
+          console.log('Scanning directory:', dirPath);
+          const entries = await container.fs.readdir(dirPath, { withFileTypes: true });
 
-        for (const entry of entries) {
-          const fullPath = path.join(dirPath, entry.name);
+          for (const entry of entries) {
+            const fullPath = path.join(dirPath, entry.name);
+            console.log('Processing entry:', entry.name, 'at path:', fullPath);
 
-          if (entry.isFile()) {
-            const content = await container.fs.readFile(fullPath, 'utf-8');
+            if (entry.isFile()) {
+              const content = await container.fs.readFile(fullPath, 'utf-8');
 
-            // Remove /dist prefix from the path
-            const deployPath = fullPath.replace(buildPath, '');
-            files[deployPath] = content;
-          } else if (entry.isDirectory()) {
-            const subFiles = await getAllFiles(fullPath);
-            Object.assign(files, subFiles);
+              // Create deployment path by removing /home/project prefix
+              const deployPath = fullPath.replace('/home/project', '');
+              console.log('Deploy path:', deployPath);
+              files[deployPath] = content;
+            } else if (entry.isDirectory()) {
+              const subFiles = await getAllFiles(fullPath);
+              Object.assign(files, subFiles);
+            }
           }
+        } catch (error) {
+          console.error(`Error reading directory ${dirPath}:`, error);
+          throw new Error(`Failed to read build directory: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
 
         return files;

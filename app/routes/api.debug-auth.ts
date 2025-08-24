@@ -20,3 +20,4 @@ export async function loader({ context }: LoaderFunctionArgs) {
     timestamp: new Date().toISOString()
   });
 }
+

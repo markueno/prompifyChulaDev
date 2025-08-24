@@ -369,7 +369,40 @@ export class ActionRunner {
     }
 
     // Get the build output directory path
-    const buildDir = nodePath.join(webcontainer.workdir, 'dist');
+    let buildDir = nodePath.join(webcontainer.workdir, 'build', 'client');
+
+    // Verify the build directory actually exists
+    try {
+      await webcontainer.fs.readdir(buildDir, { withFileTypes: true });
+    } catch (error) {
+      // Try alternative build directories
+      const alternativePaths = [
+        nodePath.join(webcontainer.workdir, 'dist'),
+        nodePath.join(webcontainer.workdir, 'build'),
+        nodePath.join(webcontainer.workdir, 'out'),
+        nodePath.join(webcontainer.workdir, 'public')
+      ];
+      
+      let foundPath = null;
+      for (const altPath of alternativePaths) {
+        try {
+          const contents = await webcontainer.fs.readdir(altPath, { withFileTypes: true });
+          if (contents.length > 0) {
+            foundPath = altPath;
+            break;
+          }
+        } catch (e) {
+          // Continue to next alternative
+        }
+      }
+      
+      if (!foundPath) {
+        throw new ActionCommandError('Build Failed', `Build completed but no output directory found. Expected: ${buildDir}. Build output: ${output}`);
+      }
+      
+      // Use the found alternative path
+      buildDir = foundPath;
+    }
 
     return {
       path: buildDir,
