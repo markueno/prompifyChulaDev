@@ -58,7 +58,8 @@ export function createFilesContext(files: FileMap, useRelativePath?: boolean) {
   const ig = ignore().add(IGNORE_PATTERNS);
   let filePaths = Object.keys(files);
   filePaths = filePaths.filter(x => {
-    const relPath = x.replace('/home/project/', '');
+    // Handle dynamic workdir paths (e.g., /home/project-abc123/)
+    const relPath = x.replace(/^\/home\/project-[^\/]+\//, '');
     return !ig.ignores(relPath);
   });
 
@@ -79,7 +80,8 @@ export function createFilesContext(files: FileMap, useRelativePath?: boolean) {
       let filePath = path;
 
       if (useRelativePath) {
-        filePath = path.replace('/home/project/', '');
+        // Handle dynamic workdir paths (e.g., /home/project-abc123/)
+        filePath = path.replace(/^\/home\/project-[^\/]+\//, '');
       }
 
       return `<boltAction type="file" filePath="${filePath}">${codeWithLinesNumbers}</boltAction>`;

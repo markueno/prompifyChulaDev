@@ -146,8 +146,8 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
             if (entry.isFile()) {
               const content = await container.fs.readFile(fullPath, 'utf-8');
 
-              // Create deployment path by removing /home/project prefix
-              const deployPath = fullPath.replace('/home/project', '');
+              // Create deployment path by removing the dynamic workdir prefix
+              const deployPath = fullPath.replace(/^\/home\/project-[^\/]+\//, '');
               console.log('Deploy path:', deployPath);
               files[deployPath] = content;
             } else if (entry.isDirectory()) {

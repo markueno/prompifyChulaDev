@@ -284,7 +284,17 @@ export class ActionRunner {
     }
 
     const webcontainer = await this.#webcontainer;
-    const relativePath = nodePath.relative(webcontainer.workdir, action.filePath);
+    
+    // Handle both absolute and relative paths
+    let relativePath: string;
+    
+    if (nodePath.isAbsolute(action.filePath)) {
+      // If it's an absolute path, convert it to relative using the workdir
+      relativePath = nodePath.relative(webcontainer.workdir, action.filePath);
+    } else {
+      // If it's already a relative path, use it as is
+      relativePath = action.filePath;
+    }
 
     let folder = nodePath.dirname(relativePath);
 

@@ -80,7 +80,8 @@ export async function selectContext(props: {
 
   let filePaths = getFilePaths(files || {});
   filePaths = filePaths.filter(x => {
-    const relPath = x.replace('/home/project/', '');
+    // Handle dynamic workdir paths (e.g., /home/project-abc123/)
+    const relPath = x.replace(/^\/home\/project-[^\/]+\//, '');
     return !ig.ignores(relPath);
   });
 
@@ -93,8 +94,9 @@ export async function selectContext(props: {
     Object.keys(files || {}).forEach(path => {
       let relativePath = path;
 
-      if (path.startsWith('/home/project/')) {
-        relativePath = path.replace('/home/project/', '');
+      if (path.match(/^\/home\/project-[^\/]+\//)) {
+        // Handle dynamic workdir paths (e.g., /home/project-abc123/)
+        relativePath = path.replace(/^\/home\/project-[^\/]+\//, '');
       }
 
       if (codeContextFiles.includes(relativePath)) {
@@ -199,8 +201,17 @@ export async function selectContext(props: {
   includeFiles.forEach(path => {
     let fullPath = path;
 
-    if (!path.startsWith('/home/project/')) {
-      fullPath = `/home/project/${path}`;
+    if (!path.match(/^\/home\/project-[^\/]+\//)) {
+      // Handle dynamic workdir paths - we need to construct the full path
+      // Since we don't know the exact workdir here, we'll use a pattern that matches
+      const workdirPattern = /^\/home\/project-[^\/]+\//;
+      const existingPath = Object.keys(files).find(p => workdirPattern.test(p));
+      if (existingPath) {
+        const workdir = existingPath.match(workdirPattern)?.[0];
+        fullPath = workdir ? `${workdir}${path}` : path;
+      } else {
+        fullPath = path;
+      }
     }
 
     if (!filePaths.includes(fullPath)) {
@@ -236,7 +247,8 @@ export async function selectContext(props: {
 export function getFilePaths(files: FileMap) {
   let filePaths = Object.keys(files);
   filePaths = filePaths.filter(x => {
-    const relPath = x.replace('/home/project/', '');
+    // Handle dynamic workdir paths (e.g., /home/project-abc123/)
+    const relPath = x.replace(/^\/home\/project-[^\/]+\//, '');
     return !ig.ignores(relPath);
   });
 

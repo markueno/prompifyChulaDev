@@ -107,7 +107,16 @@ export class FilesStore {
     const webcontainer = await this.#webcontainer;
 
     try {
-      const relativePath = path.relative(webcontainer.workdir, filePath);
+      // Handle both absolute and relative paths
+      let relativePath: string;
+      
+      if (path.isAbsolute(filePath)) {
+        // If it's an absolute path, convert it to relative using the workdir
+        relativePath = path.relative(webcontainer.workdir, filePath);
+      } else {
+        // If it's already a relative path, use it as is
+        relativePath = filePath;
+      }
 
       if (!relativePath) {
         throw new Error(`EINVAL: invalid file path, write '${relativePath}'`);
