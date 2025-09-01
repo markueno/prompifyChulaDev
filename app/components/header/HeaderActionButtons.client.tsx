@@ -86,49 +86,24 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
       // Get the build files
       const container = await webcontainer;
 
-      // Get the build output directory path - it should be /home/project/build/client
-      let buildPath = artifact.runner.buildOutput.path;
+      // Get the build path and ensure it's properly formatted
+      const buildPath = artifact.runner.buildOutput.path;
       
-      console.log('Build output path:', buildPath);
-      console.log('WebContainer workdir:', container.workdir);
-
-      // Verify the build directory exists and is accessible
-      let buildDirContents;
+      console.log('[Deploy] Build path:', buildPath);
+      console.log('[Deploy] Build output:', artifact.runner.buildOutput);
+      
+      // Check if the build path exists and is accessible
       try {
-        buildDirContents = await container.fs.readdir(buildPath, { withFileTypes: true });
-        console.log('Build directory contents:', buildDirContents.map(entry => ({ name: entry.name, isDirectory: entry.isDirectory() })));
+        // Extract the relative path from the build path for webcontainer access
+        const relativeBuildPath = buildPath.replace(container.workdir, '').replace(/^\/+/, '') || '.';
+        console.log('[Deploy] Relative build path for webcontainer:', relativeBuildPath);
+        
+        const buildDirContents = await container.fs.readdir(relativeBuildPath, { withFileTypes: true });
+        console.log('[Deploy] Build directory contents:', buildDirContents.map(entry => entry.name));
       } catch (error) {
-        console.error('Build directory not accessible:', error);
-        
-        // Try alternative build directories
-        const alternativePaths = [
-          path.join(container.workdir, 'dist'),
-          path.join(container.workdir, 'build'),
-          path.join(container.workdir, 'out'),
-          path.join(container.workdir, 'public')
-        ];
-        
-        let foundPath = null;
-        for (const altPath of alternativePaths) {
-          try {
-            const contents = await container.fs.readdir(altPath, { withFileTypes: true });
-            if (contents.length > 0) {
-              foundPath = altPath;
-              buildDirContents = contents;
-              console.log('Found alternative build directory:', altPath, 'with contents:', contents.map(entry => ({ name: entry.name, isDirectory: entry.isDirectory() })));
-              break;
-            }
-          } catch (e) {
-            // Continue to next alternative
-          }
-        }
-        
-        if (!foundPath) {
-          throw new Error(`Build directory not accessible and no alternative directories found. Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-        
-        // Update the build path to the found alternative
-        buildPath = foundPath;
+        console.error('[Deploy] Build path not accessible:', buildPath, error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Build directory not found: ${buildPath}. Error: ${errorMessage}`);
       }
 
       // Get all files recursively
@@ -136,34 +111,50 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
         const files: Record<string, string> = {};
         
         try {
-          console.log('Scanning directory:', dirPath);
-          const entries = await container.fs.readdir(dirPath, { withFileTypes: true });
+          // Convert absolute path to relative path for webcontainer
+          const relativeDirPath = dirPath.replace(container.workdir, '').replace(/^\/+/, '') || '.';
+          console.log('[Deploy] Reading directory (relative):', relativeDirPath);
+          
+          const entries = await container.fs.readdir(relativeDirPath, { withFileTypes: true });
 
           for (const entry of entries) {
             const fullPath = path.join(dirPath, entry.name);
-            console.log('Processing entry:', entry.name, 'at path:', fullPath);
 
             if (entry.isFile()) {
-              const content = await container.fs.readFile(fullPath, 'utf-8');
-
-              // Create deployment path by removing the dynamic workdir prefix
-              const deployPath = fullPath.replace(/^\/home\/project-[^\/]+\//, '');
-              console.log('Deploy path:', deployPath);
-              files[deployPath] = content;
+              try {
+                // Use relative path for webcontainer file reading
+                const relativeFilePath = path.join(relativeDirPath, entry.name);
+                const content = await container.fs.readFile(relativeFilePath, 'utf-8');
+                
+                // Create a clean deployment path by removing the build directory prefix
+                // and ensuring it starts with a forward slash for Netlify
+                let deployPath = fullPath.replace(buildPath, '');
+                if (!deployPath.startsWith('/')) {
+                  deployPath = '/' + deployPath;
+                }
+                
+                console.log('[Deploy] File path mapping:', fullPath, '->', deployPath);
+                files[deployPath] = content;
+              } catch (error) {
+                console.error('[Deploy] Failed to read file:', fullPath, error);
+                // Continue with other files instead of failing completely
+              }
             } else if (entry.isDirectory()) {
               const subFiles = await getAllFiles(fullPath);
               Object.assign(files, subFiles);
             }
           }
         } catch (error) {
-          console.error(`Error reading directory ${dirPath}:`, error);
-          throw new Error(`Failed to read build directory: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          console.error('[Deploy] Failed to read directory:', dirPath, error);
         }
 
         return files;
       }
 
       const fileContents = await getAllFiles(buildPath);
+      
+      console.log('[Deploy] Total files to deploy:', Object.keys(fileContents).length);
+      console.log('[Deploy] File paths:', Object.keys(fileContents).slice(0, 10)); // Log first 10 file paths
 
       // Use chatId instead of artifact.id
       const existingSiteId = localStorage.getItem(`netlify-site-${currentChatId}`);

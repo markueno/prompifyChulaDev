@@ -16,6 +16,11 @@ export async function action({ request }: ActionFunctionArgs) {
       return json({ error: 'Not connected to Netlify' }, { status: 401 });
     }
 
+    // Add debugging information
+    console.log('[Deploy] Starting deployment for chatId:', chatId);
+    console.log('[Deploy] Number of files to deploy:', Object.keys(files).length);
+    console.log('[Deploy] File paths:', Object.keys(files).slice(0, 5)); // Log first 5 file paths
+
     let targetSiteId = siteId;
     let siteInfo: NetlifySiteInfo | undefined;
 
@@ -145,9 +150,13 @@ export async function action({ request }: ActionFunctionArgs) {
       const status = (await statusResponse.json()) as any;
 
       if (status.state === 'prepared' || status.state === 'uploaded') {
+        console.log('[Deploy] Starting file uploads for deploy:', deploy.id);
+        
         // Upload all files regardless of required array
         for (const [filePath, content] of Object.entries(files)) {
           const normalizedPath = filePath.startsWith('/') ? filePath : '/' + filePath;
+          
+          console.log('[Deploy] Uploading file:', normalizedPath, 'Size:', content.length);
 
           let uploadSuccess = false;
           let uploadRetries = 0;
@@ -169,26 +178,32 @@ export async function action({ request }: ActionFunctionArgs) {
               uploadSuccess = uploadResponse.ok;
 
               if (!uploadSuccess) {
-                console.error('Upload failed:', await uploadResponse.text());
+                const errorText = await uploadResponse.text();
+                console.error('[Deploy] Upload failed for:', normalizedPath, 'Status:', uploadResponse.status, 'Error:', errorText);
                 uploadRetries++;
                 await new Promise(resolve => setTimeout(resolve, 2000));
+              } else {
+                console.log('[Deploy] Successfully uploaded:', normalizedPath);
               }
             } catch (error) {
-              console.error('Upload error:', error);
+              console.error('[Deploy] Upload error for:', normalizedPath, error);
               uploadRetries++;
               await new Promise(resolve => setTimeout(resolve, 2000));
             }
           }
 
           if (!uploadSuccess) {
-            return json({ error: `Failed to upload file ${filePath}` }, { status: 500 });
+            return json({ error: `Failed to upload file ${filePath} after ${uploadRetries} retries` }, { status: 500 });
           }
         }
+        
+        console.log('[Deploy] All files uploaded successfully');
       }
 
       if (status.state === 'ready') {
         // Only return after files are uploaded
         if (Object.keys(files).length === 0 || status.summary?.status === 'ready') {
+          console.log('[Deploy] Deployment completed successfully');
           return json({
             success: true,
             deploy: {
@@ -202,6 +217,7 @@ export async function action({ request }: ActionFunctionArgs) {
       }
 
       if (status.state === 'error') {
+        console.error('[Deploy] Deployment failed with state:', status.state, 'Error:', status.error_message);
         return json({ error: status.error_message || 'Deploy preparation failed' }, { status: 500 });
       }
 
@@ -210,20 +226,16 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     if (retryCount >= maxRetries) {
+      console.error('[Deploy] Deployment timed out after', maxRetries, 'attempts');
       return json({ error: 'Deploy preparation timed out' }, { status: 500 });
     }
 
-    // Make sure we're returning the deploy ID and site info
-    return json({
-      success: true,
-      deploy: {
-        id: deploy.id,
-        state: deploy.state,
-      },
-      site: siteInfo,
-    });
+    // If we reach here, something went wrong
+    console.error('[Deploy] Deployment loop ended unexpectedly');
+    return json({ error: 'Deployment failed - unexpected state' }, { status: 500 });
   } catch (error) {
-    console.error('Deploy error:', error);
-    return json({ error: 'Deployment failed' }, { status: 500 });
+    console.error('[Deploy] Deployment error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return json({ error: `Deployment failed: ${errorMessage}` }, { status: 500 });
   }
 }
