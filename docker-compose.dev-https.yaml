@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  app-dev-https:
+    image: bolt-ai:development
+    build:
+      target: bolt-ai-development
+    env_file: '.env'
+    environment:
+      - NODE_ENV=development
+      - VITE_HMR_PROTOCOL=wss
+      - VITE_HMR_HOST=localhost
+      - VITE_HMR_PORT=5173
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+      - PORT=5173
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - HuggingFace_API_KEY=${HuggingFace_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+      - XAI_API_KEY=${XAI_API_KEY}
+      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
+      - OLLAMA_API_BASE_URL=${OLLAMA_API_BASE_URL}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+      - TOGETHER_API_BASE_URL=${TOGETHER_API_BASE_URL}
+      - AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG}
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
+      - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
+      - RUNNING_IN_DOCKER=true
+      - AUTH_DISABLED=${AUTH_DISABLED:-false}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - type: bind
+        source: .
+        target: /app
+        consistency: cached
+      - /app/node_modules
+      - ./ssl:/app/ssl:ro  # Mount SSL certificates
+    ports:
+      - '5173:5173'
+      - '5174:5174'  # HTTPS port
+    command: pnpm run dev --host 0.0.0.0 --https
+    profiles: ['development-https']
+
+  # Nginx reverse proxy for HTTPS
+  nginx-dev:
+    image: nginx:alpine
+    container_name: prompify-nginx-dev
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-dev.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app-dev-https
+    profiles: ['development-https']
+

@@ -22,6 +22,8 @@
     "dockerrun": "docker run -it -d --name bolt-ai-live -p 5173:5173 --env-file .env bolt-ai",
     "dockerbuild:prod": "docker build -t bolt-ai:production -t bolt-ai:latest --target bolt-ai-production .",
     "dockerbuild": "docker build -t bolt-ai:development -t bolt-ai:latest --target bolt-ai-development .",
+    "docker:dev": "docker-compose --profile development up --build",
+    "docker:dev-https": "chmod +x generate-ssl.sh && ./generate-ssl.sh && docker-compose -f docker-compose.dev-https.yaml --profile development-https up --build",
     "typecheck": "tsc",
     "typegen": "wrangler types",
     "preview": "pnpm run build && pnpm run start",

@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: prompify-postgres
+    environment:
+      POSTGRES_DB: prompify
+      POSTGRES_USER: prompify_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your-secure-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - prompify-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prompify_user -d prompify"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for session storage
+  redis:
+    image: redis:7-alpine
+    container_name: prompify-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - prompify-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Prompify Application
+  app:
+    build:
+      context: .
+      target: bolt-ai-production
+    container_name: prompify-app
+    environment:
+      - NODE_ENV=production
+      - DATABASE_TYPE=postgresql
+      - DATABASE_URL=postgresql://prompify_user:${POSTGRES_PASSWORD:-your-secure-password}@postgres:5432/prompify
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
+      - APP_URL=${APP_URL:-https://your-domain.com}
+      - REDIS_URL=redis://redis:6379
+      - AUTH_DISABLED=${AUTH_DISABLED:-false}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - HuggingFace_API_KEY=${HuggingFace_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
+      - OLLAMA_API_BASE_URL=${OLLAMA_API_BASE_URL}
+      - XAI_API_KEY=${XAI_API_KEY}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+      - TOGETHER_API_BASE_URL=${TOGETHER_API_BASE_URL}
+      - AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG}
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
+      - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
+      - RUNNING_IN_DOCKER=true
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - prompify-network
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: prompify-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-ecs.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app
+    networks:
+      - prompify-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  prompify-network:
+    driver: bridge
+
