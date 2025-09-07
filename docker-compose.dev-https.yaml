@@ -4,6 +4,7 @@ services:
   app-dev-https:
     image: bolt-ai:development
     build:
+      context: .
       target: bolt-ai-development
     env_file: '.env'
     environment:
