@@ -98,6 +98,32 @@ If you are getting this, you are probably on Windows. The fix is generally to up
 
 You will need to make sure you have the latest version of Visual Studio C++ installed (14.40.33816), more information here https://github.com/stackblitz-labs/Prompify/issues/19.
 
+### **"Blocked request. This host is not allowed" when using custom domain with Docker**
+
+When running Prompify in Docker and accessing it via a custom domain (e.g., `http://www.yourdomain.com:5173/`), you may encounter this error:
+
+```
+Blocked request. This host ("www.yourdomain.com") is not allowed.
+To allow this host, add "www.yourdomain.com" to `server.allowedHosts` in vite.config.js.
+```
+
+**Solution**: Add your domain to the `allowedHosts` configuration in `vite.config.ts`:
+
+```typescript
+server: {
+  host: '0.0.0.0',
+  port: 5173,
+  allowedHosts: [
+    'www.yourdomain.com',
+    'yourdomain.com',
+    'localhost',
+    '127.0.0.1'
+  ]
+}
+```
+
+This allows Vite's development server to accept requests from your custom domain while maintaining security for other hosts.
+
 </details>
 
 ---

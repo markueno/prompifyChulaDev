@@ -90,6 +90,16 @@ export default defineConfig(config => {
       __PKG_PEER_DEPENDENCIES: JSON.stringify(pkg.peerDependencies),
       __PKG_OPTIONAL_DEPENDENCIES: JSON.stringify(pkg.optionalDependencies),
     },
+    server: {
+      host: '0.0.0.0',
+      port: 5173,
+      allowedHosts: [
+        'www.zenohk.com',
+        'zenohk.com',
+        'localhost',
+        '127.0.0.1'
+      ]
+    },
     build: {
       target: 'esnext',
     },
