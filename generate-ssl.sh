@@ -12,4 +12,3 @@ openssl req -new -x509 -key ssl/key.pem -out ssl/cert.pem -days 365 -subj "/C=US
 echo "SSL certificates generated in ssl/ directory"
 echo "You can now access the application at https://localhost"
 
-
