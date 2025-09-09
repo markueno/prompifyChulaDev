@@ -92,7 +92,11 @@ export default defineConfig(config => {
     },
     server: {
       host: '0.0.0.0',
-      port: 5173,waii
+      port: 5173,
+      https: {
+        key: './ssl/key.pem',
+        cert: './ssl/cert.pem'
+      },
       allowedHosts: [
         'www.zenohk.com',
         'zenohk.com',
