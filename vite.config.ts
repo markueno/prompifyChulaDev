@@ -112,7 +112,8 @@ export default defineConfig(config => {
       nodePolyfills({
         include: ['path', 'buffer', 'process'],
       }),
-      config.mode !== 'test' && remixCloudflareDevProxy(),
+      // Disabled for development mode to prevent HTTP/2 header conflicts with nginx
+      // config.mode !== 'test' && remixCloudflareDevProxy(),
       remixVitePlugin({
         future: {
           v3_fetcherPersist: true,
