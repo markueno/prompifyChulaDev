@@ -91,20 +91,6 @@ export default defineConfig(config => {
       __PKG_OPTIONAL_DEPENDENCIES: JSON.stringify(pkg.optionalDependencies),
     },
 
-    server: {
-      host: '0.0.0.0',
-      port: 5173,
-      https: {
-        key: '/app/ssl/key.pem',
-        cert: '/app/ssl/cert.pem'
-      },
-      allowedHosts: [
-        'www.zenohk.com',
-        'zenohk.com',
-        'localhost',
-        '127.0.0.1'
-      ]
-    },
     build: {
       target: 'esnext',
     },
@@ -112,8 +98,7 @@ export default defineConfig(config => {
       nodePolyfills({
         include: ['path', 'buffer', 'process'],
       }),
-      // Disabled for development mode to prevent HTTP/2 header conflicts with nginx
-      // config.mode !== 'test' && remixCloudflareDevProxy(),
+      config.mode !== 'test' && remixCloudflareDevProxy(),
       remixVitePlugin({
         future: {
           v3_fetcherPersist: true,
