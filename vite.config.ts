@@ -92,7 +92,7 @@ export default defineConfig(config => {
     },
     server: {
       host: '0.0.0.0',
-      port: 5173,
+      port: 5173,waii
       allowedHosts: [
         'www.zenohk.com',
         'zenohk.com',
