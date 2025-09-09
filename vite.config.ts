@@ -90,12 +90,13 @@ export default defineConfig(config => {
       __PKG_PEER_DEPENDENCIES: JSON.stringify(pkg.peerDependencies),
       __PKG_OPTIONAL_DEPENDENCIES: JSON.stringify(pkg.optionalDependencies),
     },
+
     server: {
       host: '0.0.0.0',
       port: 5173,
       https: {
-        key: './ssl/key.pem',
-        cert: './ssl/cert.pem'
+        key: '/app/ssl/key.pem',
+        cert: '/app/ssl/cert.pem'
       },
       allowedHosts: [
         'www.zenohk.com',
