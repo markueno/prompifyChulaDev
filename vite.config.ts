@@ -93,7 +93,7 @@ export default defineConfig(config => {
     server: {
       host: '0.0.0.0',
       port: 5173,
-      allowedHosts: 'all',
+      allowedHosts: true,
       hmr: {
         clientPort: 443
       },
