@@ -98,7 +98,7 @@ export default defineConfig(config => {
         clientPort: 443
       },
       strictPort: false,
-      cors: true
+      cors: false
     },
     build: {
       target: 'esnext',
