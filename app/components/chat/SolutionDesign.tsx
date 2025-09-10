@@ -135,11 +135,11 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
   const [cssFramework, setCssFramework] = useState('Tailwind CSS');
   const [database, setDatabase] = useState('SQLite');
 
-  const constructDisplayPrompt = () => {
+  const displayPrompt = () => {
     return `Build me a ${applicationType} for ${businessType}${additionalDetails ? ` - ${additionalDetails}` : ''}`;
   };
 
-  const constructFullPrompt = () => {
+  const constructPrompt = () => {
     const basePrompt = `Build me a ${applicationType} for ${businessType}${additionalDetails ? ` - ${additionalDetails}` : ''}`;
     
     // Append technology stack selections
@@ -485,7 +485,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-4">Solution Design</h1>
-        <p className="text-lg text-bolt-elements-textSecondary mb-6">{constructDisplayPrompt()}</p>
+        <p className="text-lg text-bolt-elements-textSecondary mb-6">{displayPrompt()}</p>
 
         {/* Navigation Tabs */}
         <div className="flex flex-wrap justify-center gap-2 mb-8">
@@ -521,7 +521,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
         </button>
 
         <button
-          onClick={() => onProceedToCode(constructFullPrompt())}
+          onClick={() => onProceedToCode(constructPrompt())}
           className="flex items-center gap-2 px-6 py-3 rounded-lg bg-accent-500 text-white hover:bg-accent-600 transition-all duration-200 font-medium"
         >
           Proceed to Code Generation
