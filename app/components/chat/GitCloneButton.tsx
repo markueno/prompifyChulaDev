@@ -39,9 +39,10 @@ const MAX_TOTAL_SIZE = 500 * 1024; // 500KB total limit
 interface GitCloneButtonProps {
   className?: string;
   importChat?: (description: string, messages: Message[], metadata?: IChatMetadata) => Promise<void>;
+  show?: boolean;
 }
 
-export default function GitCloneButton({ importChat, className }: GitCloneButtonProps) {
+export default function GitCloneButton({ importChat, className, show = true }: GitCloneButtonProps) {
   const { ready, gitClone } = useGit();
   const [loading, setLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -150,6 +151,10 @@ ${escapeBoltTags(file.content)}
       setLoading(false);
     }
   };
+
+  if (!show) {
+    return null;
+  }
 
   return (
     <>

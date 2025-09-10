@@ -24,6 +24,29 @@ export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
 export const DEFAULT_MODEL = 'claude-3-5-sonnet-latest';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
 
+// Environment variable utilities for individual button controls
+export const isImportChatHidden = (): boolean => {
+  const hideButton = import.meta.env.VITE_HIDE_IMPORT_CHAT;
+  return hideButton === 'true' || hideButton === '1';
+};
+
+export const isImportFolderHidden = (): boolean => {
+  const hideButton = import.meta.env.VITE_HIDE_IMPORT_FOLDER;
+  return hideButton === 'true' || hideButton === '1';
+};
+
+export const isGitCloneHidden = (): boolean => {
+  const hideButton = import.meta.env.VITE_HIDE_GIT_CLONE;
+  return hideButton === 'true' || hideButton === '1';
+};
+
+// Legacy function for backward compatibility
+export const isImportButtonsHidden = (): boolean => {
+  // Check for the VITE_HIDE_IMPORT_BUTTONS environment variable
+  const hideButtons = import.meta.env.VITE_HIDE_IMPORT_BUTTONS;
+  return hideButtons === 'true' || hideButtons === '1';
+};
+
 const llmManager = LLMManager.getInstance(import.meta.env);
 
 export const PROVIDER_LIST = llmManager.getAllProviders();

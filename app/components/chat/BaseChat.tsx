@@ -9,7 +9,7 @@ import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
 import { Workbench } from '~/components/workbench/Workbench.client';
 import { classNames } from '~/utils/classNames';
-import { PROVIDER_LIST } from '~/utils/constants';
+import { PROVIDER_LIST, isImportChatHidden, isImportFolderHidden, isGitCloneHidden } from '~/utils/constants';
 import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
 import { APIKeyManager, getApiKeysFromCookies } from './APIKeyManager';
@@ -822,8 +822,15 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             <div className="flex flex-col justify-center gap-5">
               {!chatStarted && (
                 <div className="flex justify-center gap-2">
-                  {ImportButtons(importChat)}
-                  <GitCloneButton importChat={importChat} />
+                  <ImportButtons 
+                    importChat={importChat}
+                    showImportChat={!isImportChatHidden()}
+                    showImportFolder={!isImportFolderHidden()}
+                  />
+                  <GitCloneButton 
+                    importChat={importChat} 
+                    show={!isGitCloneHidden()}
+                  />
                 </div>
               )}
               {!chatStarted &&
