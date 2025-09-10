@@ -388,12 +388,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     };
 
     // Handle proceeding to code generation
-    const handleProceedToCode = () => {
+    const handleProceedToCode = (prompt: string) => {
       setShowSolutionDesign(false);
 
-      // Send the constructed prompt to start the chat
-      const prompt = constructPrompt();
-
+      // Send the provided prompt to start the chat
       if (prompt && sendMessage) {
         sendMessage({} as React.UIEvent, prompt);
       }

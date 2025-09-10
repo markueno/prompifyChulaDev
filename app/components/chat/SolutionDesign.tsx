@@ -47,7 +47,7 @@ interface SolutionDesignProps {
   applicationType: string;
   businessType: string;
   additionalDetails: string;
-  onProceedToCode: () => void;
+  onProceedToCode: (prompt: string) => void;
   onBackToForm: () => void;
 }
 
@@ -130,14 +130,27 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
   };
 
   // State for editable fields in Section C
-  const [developmentProcess, setDevelopmentProcess] = useState('Agile');
   const [framework, setFramework] = useState('React');
   const [useTypeScript, setUseTypeScript] = useState(true);
   const [cssFramework, setCssFramework] = useState('Tailwind CSS');
   const [database, setDatabase] = useState('SQLite');
 
-  const constructPrompt = () => {
+  const constructDisplayPrompt = () => {
     return `Build me a ${applicationType} for ${businessType}${additionalDetails ? ` - ${additionalDetails}` : ''}`;
+  };
+
+  const constructFullPrompt = () => {
+    const basePrompt = `Build me a ${applicationType} for ${businessType}${additionalDetails ? ` - ${additionalDetails}` : ''}`;
+    
+    // Append technology stack selections
+    const techStack = [
+      `Framework: ${framework}`,
+      `Language: ${useTypeScript ? 'TypeScript' : 'JavaScript'}`,
+      `Style: ${cssFramework}`,
+      `DB: ${database}`
+    ].join('\n');
+    
+    return `${basePrompt}\n\n${techStack}`;
   };
 
   // Helper function to add new item to array
@@ -302,21 +315,6 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       icon: 'i-ph:map-trifold',
       content: (
         <div className="space-y-6">
-          <div className="bg-white p-4 rounded-lg border border-gray-300">
-            <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">Development Process</h4>
-            <select
-              value={developmentProcess}
-              onChange={(e) => setDevelopmentProcess(e.target.value)}
-              className="w-full p-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="Agile">Agile</option>
-              <option value="Waterfall">Waterfall</option>
-              <option value="Scrum">Scrum</option>
-              <option value="Kanban">Kanban</option>
-              <option value="Lean">Lean</option>
-            </select>
-          </div>
-
           <div className="bg-white p-4 rounded-lg border border-gray-300">
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">Technology Stack</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -487,7 +485,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-4">Solution Design</h1>
-        <p className="text-lg text-bolt-elements-textSecondary mb-6">{constructPrompt()}</p>
+        <p className="text-lg text-bolt-elements-textSecondary mb-6">{constructDisplayPrompt()}</p>
 
         {/* Navigation Tabs */}
         <div className="flex flex-wrap justify-center gap-2 mb-8">
@@ -523,7 +521,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
         </button>
 
         <button
-          onClick={onProceedToCode}
+          onClick={() => onProceedToCode(constructFullPrompt())}
           className="flex items-center gap-2 px-6 py-3 rounded-lg bg-accent-500 text-white hover:bg-accent-600 transition-all duration-200 font-medium"
         >
           Proceed to Code Generation
