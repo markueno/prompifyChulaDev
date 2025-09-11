@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { classNames } from '~/utils/classNames';
+import { ComboBox } from '../ui/ComboBox';
 
 interface GuidedFormProps {
   onProceedToSolutionDesign: (applicationType: string, businessType: string, additionalDetails: string) => void;
@@ -78,56 +79,26 @@ export const GuidedForm: React.FC<GuidedFormProps> = ({ onProceedToSolutionDesig
       <div className="bg-bolt-elements-background-depth-2 p-6 rounded-lg border border-bolt-elements-borderColor mb-8">
         <div className="space-y-6">
           {/* Application Type */}
-          <div>
-            <label htmlFor="applicationType" className="block text-sm font-medium text-bolt-elements-textPrimary mb-3">
-              What type of application do you want to build?
-            </label>
-            <select
-              id="applicationType"
-              value={selectedApplicationType}
-              onChange={e => setSelectedApplicationType(e.target.value)}
-              className={classNames(
-                'w-full px-4 py-3 rounded-lg border transition-all duration-200',
-                'bg-bolt-elements-background-depth-3 border-bolt-elements-borderColor',
-                'text-bolt-elements-textPrimary',
-                'focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500',
-                'hover:border-bolt-elements-borderColorAccent'
-              )}
-            >
-              <option value="">Select an application type...</option>
-              {APPLICATION_TYPES.map(type => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ComboBox
+            options={APPLICATION_TYPES}
+            value={selectedApplicationType}
+            onChange={setSelectedApplicationType}
+            placeholder="Select or type an application type..."
+            label="What type of application do you want to build?"
+            allowCustomInput={true}
+            id="applicationType"
+          />
 
           {/* Business Type */}
-          <div>
-            <label htmlFor="businessType" className="block text-sm font-medium text-bolt-elements-textPrimary mb-3">
-              What type of business or organization is this for?
-            </label>
-            <select
-              id="businessType"
-              value={selectedBusinessType}
-              onChange={e => setSelectedBusinessType(e.target.value)}
-              className={classNames(
-                'w-full px-4 py-3 rounded-lg border transition-all duration-200',
-                'bg-bolt-elements-background-depth-3 border-bolt-elements-borderColor',
-                'text-bolt-elements-textPrimary',
-                'focus:ring-2 focus:ring-accent-500/50 focus:border-accent-500',
-                'hover:border-bolt-elements-borderColorAccent'
-              )}
-            >
-              <option value="">Select a business type...</option>
-              {BUSINESS_TYPES.map(type => (
-                <option key={type.value} value={type.value}>
-                  {type.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <ComboBox
+            options={BUSINESS_TYPES}
+            value={selectedBusinessType}
+            onChange={setSelectedBusinessType}
+            placeholder="Select or type a business type..."
+            label="What type of business or organization is this for?"
+            allowCustomInput={true}
+            id="businessType"
+          />
 
           {/* Additional Details */}
           <div>

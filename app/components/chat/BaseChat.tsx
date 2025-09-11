@@ -37,6 +37,7 @@ import type { ProgressAnnotation } from '~/types/context';
 import type { ActionRunner } from '~/lib/runtime/action-runner';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
 import { SolutionDesign } from './SolutionDesign';
+import { ComboBox } from '../ui/ComboBox';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -570,55 +571,25 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           </div>
 
                           <div className="space-y-6">
-                            {/* Application Type Dropdown */}
-                            <div>
-                              <label className="block text-sm font-medium text-bolt-elements-textPrimary mb-3">
-                                Application Type
-                              </label>
-                              <select
-                                value={selectedApplicationType}
-                                onChange={e => setSelectedApplicationType(e.target.value)}
-                                className={classNames(
-                                  'w-full p-4 rounded-lg border border-bolt-elements-borderColor',
-                                  'bg-bolt-elements-background-depth-2 text-bolt-elements-textPrimary',
-                                  'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
-                                  'transition-all duration-200 text-base',
-                                  'hover:border-bolt-elements-focus'
-                                )}
-                              >
-                                <option value="">Select an application type...</option>
-                                {APPLICATION_TYPES.map(type => (
-                                  <option key={type.value} value={type.value}>
-                                    {type.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                            {/* Application Type ComboBox */}
+                            <ComboBox
+                              options={APPLICATION_TYPES}
+                              value={selectedApplicationType}
+                              onChange={setSelectedApplicationType}
+                              placeholder="Select or type an application type..."
+                              label="Application Type"
+                              allowCustomInput={true}
+                            />
 
-                            {/* Business Type Dropdown */}
-                            <div>
-                              <label className="block text-sm font-medium text-bolt-elements-textPrimary mb-3">
-                                Business Type
-                              </label>
-                              <select
-                                value={selectedBusinessType}
-                                onChange={e => setSelectedBusinessType(e.target.value)}
-                                className={classNames(
-                                  'w-full p-4 rounded-lg border border-bolt-elements-borderColor',
-                                  'bg-bolt-elements-background-depth-2 text-bolt-elements-textPrimary',
-                                  'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
-                                  'transition-all duration-200 text-base',
-                                  'hover:border-bolt-elements-focus'
-                                )}
-                              >
-                                <option value="">Select a business type...</option>
-                                {BUSINESS_TYPES.map(type => (
-                                  <option key={type.value} value={type.value}>
-                                    {type.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                            {/* Business Type ComboBox */}
+                            <ComboBox
+                              options={BUSINESS_TYPES}
+                              value={selectedBusinessType}
+                              onChange={setSelectedBusinessType}
+                              placeholder="Select or type a business type..."
+                              label="Business Type"
+                              allowCustomInput={true}
+                            />
 
                             {/* Additional Details Input */}
                             <div>
