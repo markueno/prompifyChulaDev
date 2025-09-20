@@ -87,8 +87,15 @@ export class LLMManager {
       enabledProviders = enabledProviders.filter(p => providerSettings[p].enabled);
     }
 
-    // Get dynamic models from all providers that support them
-    const dynamicModels = await Promise.all(
+    // Check if dynamic models are disabled globally
+    const disableDynamicModels = 
+      serverEnv?.['DISABLE_DYNAMIC_MODELS'] === 'true' ||
+      serverEnv?.['DISABLE_DYNAMIC_MODELS'] === '1' ||
+      process?.env?.['DISABLE_DYNAMIC_MODELS'] === 'true' ||
+      process?.env?.['DISABLE_DYNAMIC_MODELS'] === '1';
+
+    // Get dynamic models from all providers that support them (only if not disabled)
+    const dynamicModels = disableDynamicModels ? Promise.resolve([]) : Promise.all(
       Array.from(this._providers.values())
         .filter(provider => enabledProviders.includes(provider.name))
         .filter(
@@ -119,7 +126,7 @@ export class LLMManager {
         })
     );
     const staticModels = Array.from(this._providers.values()).flatMap(p => p.staticModels || []);
-    const dynamicModelsFlat = dynamicModels.flat();
+    const dynamicModelsFlat = (await dynamicModels).flat();
     const dynamicModelKeys = dynamicModelsFlat.map(d => `${d.name}-${d.provider}`);
     const filteredStaticModesl = staticModels.filter(m => !dynamicModelKeys.includes(`${m.name}-${m.provider}`));
 

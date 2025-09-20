@@ -17,7 +17,7 @@ import type { IconType } from 'react-icons';
 
 // Add type for provider names to ensure type safety
 type ProviderName =
-  | 'AmazonBedrock'
+  // | 'AmazonBedrock'
   | 'Anthropic'
   | 'Cohere'
   | 'Deepseek'
@@ -34,7 +34,7 @@ type ProviderName =
 
 // Update the PROVIDER_ICONS type to use the ProviderName type
 const PROVIDER_ICONS: Record<ProviderName, IconType> = {
-  AmazonBedrock: SiAmazon,
+  // AmazonBedrock: SiAmazon,
   Anthropic: FaBrain,
   Cohere: BiChip,
   Deepseek: BiCodeBlock,

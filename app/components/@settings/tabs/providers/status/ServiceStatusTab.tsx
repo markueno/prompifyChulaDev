@@ -14,7 +14,7 @@ import { useToast } from '~/components/ui/use-toast';
 
 // Types
 type ProviderName =
-  | 'AmazonBedrock'
+  // | 'AmazonBedrock'
   | 'Anthropic'
   | 'Cohere'
   | 'Deepseek'
@@ -130,14 +130,14 @@ const PROVIDER_STATUS_URLS: Record<ProviderName, ProviderConfig> = {
     },
     testModel: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
   },
-  AmazonBedrock: {
-    statusUrl: 'https://health.aws.amazon.com/health/status',
-    apiUrl: 'https://bedrock.us-east-1.amazonaws.com/models',
-    headers: {
-      Authorization: 'Bearer $AWS_BEDROCK_CONFIG',
-    },
-    testModel: 'anthropic.claude-3-sonnet-20240229-v1:0',
-  },
+  // AmazonBedrock: {
+  //   statusUrl: 'https://health.aws.amazon.com/health/status',
+  //   apiUrl: 'https://bedrock.us-east-1.amazonaws.com/models',
+  //   headers: {
+  //     Authorization: 'Bearer $AWS_BEDROCK_CONFIG',
+  //   },
+  //   testModel: 'anthropic.claude-3-sonnet-20240229-v1:0',
+  // },
   Groq: {
     statusUrl: 'https://groqstatus.com/',
     apiUrl: 'https://api.groq.com/v1/models',
@@ -173,7 +173,7 @@ const PROVIDER_STATUS_URLS: Record<ProviderName, ProviderConfig> = {
 };
 
 const PROVIDER_ICONS: Record<ProviderName, IconType> = {
-  AmazonBedrock: SiAmazon,
+  // AmazonBedrock: SiAmazon,
   Anthropic: FaBrain,
   Cohere: BiChip,
   Google: SiGoogle,
@@ -215,7 +215,7 @@ const ServiceStatusTab = () => {
         Mistral: 'MISTRAL_API_KEY',
         Perplexity: 'PERPLEXITY_API_KEY',
         Together: 'TOGETHER_API_KEY',
-        AmazonBedrock: 'AWS_BEDROCK_CONFIG',
+        // AmazonBedrock: 'AWS_BEDROCK_CONFIG',
         Groq: 'GROQ_API_KEY',
         OpenRouter: 'OPEN_ROUTER_API_KEY',
         XAI: 'XAI_API_KEY',

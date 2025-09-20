@@ -135,6 +135,12 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
   const [cssFramework, setCssFramework] = useState('Tailwind CSS');
   const [database, setDatabase] = useState('SQLite');
 
+  // Check environment variables for disabled components
+  const disableFramework = import.meta.env.VITE_DISABLE_FRAMEWORK === 'true' || import.meta.env.VITE_DISABLE_FRAMEWORK === '1';
+  const disableLanguage = import.meta.env.VITE_DISABLE_LANGUAGE === 'true' || import.meta.env.VITE_DISABLE_LANGUAGE === '1';
+  const disableCssFramework = import.meta.env.VITE_DISABLE_CSS_FRAMEWORK === 'true' || import.meta.env.VITE_DISABLE_CSS_FRAMEWORK === '1';
+  const disableDatabase = import.meta.env.VITE_DISABLE_DATABASE === 'true' || import.meta.env.VITE_DISABLE_DATABASE === '1';
+
   const displayPrompt = () => {
     return `Build me a ${applicationType} for ${businessType}${additionalDetails ? ` - ${additionalDetails}` : ''}`;
   };
@@ -142,15 +148,31 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
   const constructPrompt = () => {
     const basePrompt = `Build me a ${applicationType} for ${businessType}${additionalDetails ? ` - ${additionalDetails}` : ''}`;
     
-    // Append technology stack selections
-    const techStack = [
-      `Framework: ${framework}`,
-      `Language: ${useTypeScript ? 'TypeScript' : 'JavaScript'}`,
-      `Style: ${cssFramework}`,
-      `DB: ${database}`
-    ].join('\n');
+    // Build technology stack array based on environment variables
+    const techStackItems = [];
     
-    return `${basePrompt}\n\n${techStack}`;
+    if (!disableFramework) {
+      techStackItems.push(`Framework: ${framework}`);
+    }
+    
+    if (!disableLanguage) {
+      techStackItems.push(`Language: ${useTypeScript ? 'TypeScript' : 'JavaScript'}`);
+    }
+    
+    if (!disableCssFramework) {
+      techStackItems.push(`Style: ${cssFramework}`);
+    }
+    
+    if (!disableDatabase) {
+      techStackItems.push(`DB: ${database}`);
+    }
+    
+    // Only append tech stack if there are items to include
+    if (techStackItems.length > 0) {
+      return `${basePrompt}\n\n${techStackItems.join('\n')}`;
+    }
+    
+    return basePrompt;
   };
 
   // Helper function to add new item to array
@@ -318,7 +340,12 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
           <div className="bg-white p-4 rounded-lg border border-gray-300">
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">Technology Stack</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="text-center p-3 bg-white border border-gray-300 rounded-lg">
+              <div className={classNames(
+                "text-center p-3 border rounded-lg transition-all duration-200",
+                disableFramework 
+                  ? "bg-gray-100 border-gray-200 opacity-60" 
+                  : "bg-white border-gray-300"
+              )}>
                 <div className="text-2xl mb-1">
                   {framework === 'React' && <div className="i-logos:react"></div>}
                   {framework === 'Vue' && <div className="i-logos:vue"></div>}
@@ -331,7 +358,13 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                 <select
                   value={framework}
                   onChange={(e) => setFramework(e.target.value)}
-                  className="w-full text-xs text-gray-900 bg-white border-0 focus:ring-0 focus:outline-none text-center"
+                  disabled={disableFramework}
+                  className={classNames(
+                    "w-full text-xs border-0 focus:ring-0 focus:outline-none text-center",
+                    disableFramework 
+                      ? "text-gray-500 bg-gray-100 cursor-not-allowed" 
+                      : "text-gray-900 bg-white"
+                  )}
                 >
                   <option value="React">React</option>
                   <option value="Vue">Vue</option>
@@ -341,21 +374,43 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   <option value="Nuxt.js">Nuxt.js</option>
                   <option value="Vanilla JavaScript">Vanilla JavaScript</option>
                 </select>
+                {disableFramework && (
+                  <div className="text-xs text-gray-500 mt-1">Disabled</div>
+                )}
               </div>
-              <div className="text-center p-3 bg-white border border-gray-300 rounded-lg">
+              <div className={classNames(
+                "text-center p-3 border rounded-lg transition-all duration-200",
+                disableLanguage 
+                  ? "bg-gray-100 border-gray-200 opacity-60" 
+                  : "bg-white border-gray-300"
+              )}>
                 <div className="text-2xl mb-1">
                   {useTypeScript ? <div className="i-logos:typescript-icon"></div> : <div className="i-logos:javascript"></div>}
                 </div>
                 <select
                   value={useTypeScript ? 'TypeScript' : 'JavaScript'}
                   onChange={(e) => setUseTypeScript(e.target.value === 'TypeScript')}
-                  className="w-full text-xs text-gray-900 bg-white border-0 focus:ring-0 focus:outline-none text-center"
+                  disabled={disableLanguage}
+                  className={classNames(
+                    "w-full text-xs border-0 focus:ring-0 focus:outline-none text-center",
+                    disableLanguage 
+                      ? "text-gray-500 bg-gray-100 cursor-not-allowed" 
+                      : "text-gray-900 bg-white"
+                  )}
                 >
                   <option value="TypeScript">TypeScript</option>
                   <option value="JavaScript">JavaScript</option>
                 </select>
+                {disableLanguage && (
+                  <div className="text-xs text-gray-500 mt-1">Disabled</div>
+                )}
               </div>
-              <div className="text-center p-3 bg-white border border-gray-300 rounded-lg">
+              <div className={classNames(
+                "text-center p-3 border rounded-lg transition-all duration-200",
+                disableCssFramework 
+                  ? "bg-gray-100 border-gray-200 opacity-60" 
+                  : "bg-white border-gray-300"
+              )}>
                 <div className="text-2xl mb-1">
                   {cssFramework === 'Tailwind CSS' && <div className="i-logos:tailwindcss-icon"></div>}
                   {cssFramework === 'Chakra UI' && <div className="i-logos:chakra-ui-icon"></div>}
@@ -363,13 +418,27 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                 <select
                   value={cssFramework}
                   onChange={(e) => setCssFramework(e.target.value)}
-                  className="w-full text-xs text-gray-900 bg-white border-0 focus:ring-0 focus:outline-none text-center"
+                  disabled={disableCssFramework}
+                  className={classNames(
+                    "w-full text-xs border-0 focus:ring-0 focus:outline-none text-center",
+                    disableCssFramework 
+                      ? "text-gray-500 bg-gray-100 cursor-not-allowed" 
+                      : "text-gray-900 bg-white"
+                  )}
                 >
                   <option value="Tailwind CSS">Tailwind CSS</option>
                   <option value="Chakra UI">Chakra UI</option>
                 </select>
+                {disableCssFramework && (
+                  <div className="text-xs text-gray-500 mt-1">Disabled</div>
+                )}
               </div>
-              <div className="text-center p-3 bg-white border border-gray-300 rounded-lg">
+              <div className={classNames(
+                "text-center p-3 border rounded-lg transition-all duration-200",
+                disableDatabase 
+                  ? "bg-gray-100 border-gray-200 opacity-60" 
+                  : "bg-white border-gray-300"
+              )}>
                 <div className="text-2xl mb-1">
                   {database === 'SQLite' && <div className="i-logos:sqlite"></div>}
                   {database === 'PostgreSQL' && <div className="i-logos:postgresql"></div>}
@@ -381,7 +450,13 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                 <select
                   value={database}
                   onChange={(e) => setDatabase(e.target.value)}
-                  className="w-full text-xs text-gray-900 bg-white border-0 focus:ring-0 focus:outline-none text-center"
+                  disabled={disableDatabase}
+                  className={classNames(
+                    "w-full text-xs border-0 focus:ring-0 focus:outline-none text-center",
+                    disableDatabase 
+                      ? "text-gray-500 bg-gray-100 cursor-not-allowed" 
+                      : "text-gray-900 bg-white"
+                  )}
                 >
                   <option value="SQLite">SQLite</option>
                   <option value="PostgreSQL">PostgreSQL</option>
@@ -390,6 +465,9 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   <option value="Firebase">Firebase</option>
                   <option value="Supabase">Supabase</option>
                 </select>
+                {disableDatabase && (
+                  <div className="text-xs text-gray-500 mt-1">Disabled</div>
+                )}
               </div>
             </div>
           </div>
