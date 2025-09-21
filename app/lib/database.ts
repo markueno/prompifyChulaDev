@@ -17,7 +17,13 @@ import {
   validateSessionPostgres,
   updateSessionActivityPostgres,
   logoutUserPostgres,
-  getActiveSessionCountPostgres
+  getActiveSessionCountPostgres,
+  saveChatPostgres,
+  getChatsByUserPostgres,
+  getChatByIdPostgres,
+  deleteChatPostgres,
+  logUserActivityPostgres,
+  getUserActivityPostgres
 } from './database-postgresql';
 
 // Database configuration
@@ -349,6 +355,104 @@ export async function updateSessionActivity(tokenHash: string) {
   } catch (error) {
     console.error('Error updating session activity:', error);
     return false;
+  }
+}
+
+// Chat management functions
+export async function saveChat(userId: string, chatData: {
+  id: string;
+  urlId?: string;
+  description?: string;
+  messages: any[];
+  metadata?: any;
+}) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return saveChatPostgres(userId, chatData);
+    } else {
+      // SQLite implementation would go here if needed
+      console.warn('Chat saving not implemented for SQLite');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error saving chat:', error);
+    return null;
+  }
+}
+
+export async function getChatsByUser(userId: string) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return getChatsByUserPostgres(userId);
+    } else {
+      // SQLite implementation would go here if needed
+      console.warn('Chat retrieval not implemented for SQLite');
+      return [];
+    }
+  } catch (error) {
+    console.error('Error getting chats by user:', error);
+    return [];
+  }
+}
+
+export async function getChatById(chatId: string, userId: string) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return getChatByIdPostgres(chatId, userId);
+    } else {
+      // SQLite implementation would go here if needed
+      console.warn('Chat retrieval not implemented for SQLite');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error getting chat by ID:', error);
+    return null;
+  }
+}
+
+export async function deleteChat(chatId: string, userId: string) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return deleteChatPostgres(chatId, userId);
+    } else {
+      // SQLite implementation would go here if needed
+      console.warn('Chat deletion not implemented for SQLite');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    return false;
+  }
+}
+
+// User activity tracking functions
+export async function logUserActivity(userId: string, actionType: string, actionDetails: any = {}, ipAddress?: string, userAgent?: string) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return logUserActivityPostgres(userId, actionType, actionDetails, ipAddress, userAgent);
+    } else {
+      // SQLite implementation would go here if needed
+      console.warn('User activity logging not implemented for SQLite');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error logging user activity:', error);
+    return false;
+  }
+}
+
+export async function getUserActivity(userId: string, limit: number = 100) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return getUserActivityPostgres(userId, limit);
+    } else {
+      // SQLite implementation would go here if needed
+      console.warn('User activity retrieval not implemented for SQLite');
+      return [];
+    }
+  } catch (error) {
+    console.error('Error getting user activity:', error);
+    return [];
   }
 }
 

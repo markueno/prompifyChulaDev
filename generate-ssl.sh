@@ -13,3 +13,4 @@ echo "SSL certificates generated in ssl/ directory"
 echo "You can now access the application at https://localhost"
 
 
+
