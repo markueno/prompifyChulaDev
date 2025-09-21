@@ -11,7 +11,7 @@ sourceMapSupport.install();
 // Import the built app
 import * as build from './build/server/index.js';
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5173;
 
 const requestHandler = createRequestHandler(build, process.env.NODE_ENV);
 

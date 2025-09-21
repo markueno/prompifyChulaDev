@@ -51,9 +51,9 @@ services:
       - DATABASE_TYPE=postgresql
       - DATABASE_URL=postgresql://prompify_user:${POSTGRES_PASSWORD:-your-secure-password}@postgres:5432/prompify
       - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
-      - APP_URL=${APP_URL:-http://localhost:3000}
+      - APP_URL=${APP_URL:-http://localhost:5173}
       - REDIS_URL=redis://redis:6379
-      - AUTH_DISABLED=${AUTH_DISABLED:-false}
+      - AUTH_DISABLED=${AUTH_DISABLED:-true}
     ports:
       - "3000:3000"
     depends_on:
