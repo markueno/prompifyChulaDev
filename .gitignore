@@ -22,16 +22,16 @@ dist-ssr
 *.sln
 *.sw?
 
- /.history
- /.cache
- /build
- .env.local
- .env
- .env.production
- .dev.vars
- *.vars
- .wrangler
- _worker.bundle
+/.history
+/.cache
+/build
+.env.local
+.env
+.env.production
+.dev.vars
+*.vars
+.wrangler
+_worker.bundle
 
 Modelfile
 modelfiles
