@@ -25,3 +25,4 @@ cd /opt/prompify && node scripts/daily-sync.js
 
 echo "🎉 Setup complete!"
 
+

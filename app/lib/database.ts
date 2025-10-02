@@ -28,7 +28,7 @@ import {
 
 // Database configuration
 const DATABASE_URL = process.env.DATABASE_URL;
-const DATABASE_TYPE = process.env.DATABASE_TYPE || 'sqlite'; // 'sqlite' or 'postgresql'
+const DATABASE_TYPE = process.env.DATABASE_TYPE || 'postgresql'; // 'sqlite' or 'postgresql'
 
 // For SQLite (development)
 let sqliteDb: Database.Database;
