@@ -167,6 +167,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       techStackItems.push(`DB: ${database}`);
     }
     
+    
     // Only append tech stack if there are items to include
     if (techStackItems.length > 0) {
       return `${basePrompt}\n\n${techStackItems.join('\n')}`;
