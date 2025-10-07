@@ -11,7 +11,7 @@ LICENSE
 README.md
 
 # Ignore environment examples and sensitive info
-.env
+#.env
 *.local
 *.example
 

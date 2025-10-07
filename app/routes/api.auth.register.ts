@@ -131,7 +131,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       id: userId,
       email: email.toLowerCase(),
       passwordHash,
-      verified: false,
+      isVerified: false,
       verificationToken,
       verificationExpires: verificationExpires.toISOString(),
       createdAt: new Date().toISOString()

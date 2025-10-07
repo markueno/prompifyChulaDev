@@ -7,7 +7,7 @@ interface User {
   id: string;
   email: string;
   passwordHash: string;
-  verified: boolean;
+  isVerified: boolean;
   createdAt: Date;
 }
 
@@ -22,7 +22,7 @@ interface LoginResponse {
   user?: {
     id: string;
     email: string;
-    verified: boolean;
+    isVerified: boolean;
   };
   message?: string;
 }
@@ -89,7 +89,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       id: string;
       email: string;
       password_hash: string;
-      verified: number;
+      is_verified: number;
       login_attempts: number;
     } | undefined;
     
@@ -103,7 +103,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     // Check if user is verified
-    if (!user.verified || user.verified === 0) {
+    if (!user.is_verified || user.is_verified === 0) {
       return json<LoginResponse>({
         success: false,
         message: 'Please verify your email address before logging in'
@@ -131,7 +131,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       { 
         userId: user.id || '',
         email: user.email || '',
-        verified: (user.verified || 0) === 1 
+        isVerified: (user.is_verified || 0) === 1 
       },
       secret,
       { expiresIn: '24h' }
@@ -159,7 +159,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       user: {
         id: user.id || '',
         email: user.email || '',
-        verified: Boolean(user.verified)
+        isVerified: Boolean(user.is_verified)
       }
     });
 

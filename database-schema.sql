@@ -142,4 +142,49 @@ DELIMITER ;
 
 -- 9. Log email sending
 -- INSERT INTO email_logs (id, user_id, email_type, delivered)
--- VALUES (UUID(), 'user_id', 'verification', TRUE); 
+-- VALUES (UUID(), 'user_id', 'verification', TRUE);
+
+-- KooGallery SaaS 2.0 Integration Tables
+
+-- KooGallery instances table
+CREATE TABLE IF NOT EXISTS koogallery_instances (
+    id VARCHAR(36) PRIMARY KEY,
+    instance_id VARCHAR(64) UNIQUE NOT NULL,
+    order_id VARCHAR(64) NOT NULL,
+    order_line_id VARCHAR(64) NOT NULL,
+    business_id VARCHAR(64) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'creating',
+    test_flag BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    metadata TEXT
+);
+
+-- Create indexes for koogallery_instances
+CREATE INDEX IF NOT EXISTS idx_koogallery_instances_order_id ON koogallery_instances(order_id);
+CREATE INDEX IF NOT EXISTS idx_koogallery_instances_instance_id ON koogallery_instances(instance_id);
+CREATE INDEX IF NOT EXISTS idx_koogallery_instances_business_id ON koogallery_instances(business_id);
+CREATE INDEX IF NOT EXISTS idx_koogallery_instances_status ON koogallery_instances(status);
+
+-- KooGallery API logs table
+CREATE TABLE IF NOT EXISTS koogallery_logs (
+    id VARCHAR(36) PRIMARY KEY,
+    endpoint VARCHAR(100) NOT NULL,
+    method VARCHAR(10) NOT NULL,
+    order_id VARCHAR(64),
+    instance_id VARCHAR(64),
+    status VARCHAR(10) NOT NULL,
+    message TEXT,
+    request_data TEXT,
+    response_data TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ip_address VARCHAR(45),
+    user_agent TEXT
+);
+
+-- Create indexes for koogallery_logs
+CREATE INDEX IF NOT EXISTS idx_koogallery_logs_endpoint ON koogallery_logs(endpoint);
+CREATE INDEX IF NOT EXISTS idx_koogallery_logs_order_id ON koogallery_logs(order_id);
+CREATE INDEX IF NOT EXISTS idx_koogallery_logs_instance_id ON koogallery_logs(instance_id);
+CREATE INDEX IF NOT EXISTS idx_koogallery_logs_timestamp ON koogallery_logs(timestamp); 

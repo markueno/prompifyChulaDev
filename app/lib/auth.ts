@@ -6,7 +6,7 @@ import { validateSession, updateSessionActivity } from './database';
 export interface User {
   id: string;
   email: string;
-  verified: boolean;
+  isVerified: boolean;
 }
 
 // Check if authentication is temporarily disabled
@@ -47,7 +47,7 @@ export function getMockAdminUser(): User {
   return {
     id: 'admin-bypass',
     email: 'admin@bypass.local',
-    verified: true,
+    isVerified: true,
   };
 }
 
@@ -103,7 +103,7 @@ export async function requireAuth(request: Request, context: any): Promise<User>
     const user = {
       id: decoded.userId,
       email: decoded.email,
-      verified: decoded.verified
+      isVerified: decoded.isVerified
     };
     
     console.log('✅ Authentication successful, returning user:', user);

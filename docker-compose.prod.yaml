@@ -22,15 +22,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    profiles: ['production']
 
   # Redis for session storage (optional)
   redis:
     image: redis:7-alpine
     container_name: prompify-redis
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
+    ports:
+      - "6379:6379"
     networks:
       - prompify-network
     restart: unless-stopped
@@ -39,6 +40,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    profiles: ['production']
 
   # Prompify Application
   app:
@@ -46,48 +48,79 @@ services:
       context: .
       target: bolt-ai-production
     container_name: prompify-app
+    env_file: '.env'
     environment:
+      # Core Application Settings
       - NODE_ENV=production
+      - RUNNING_IN_DOCKER=true
+      
+      # Database Configuration (Required for production)
       - DATABASE_TYPE=postgresql
       - DATABASE_URL=postgresql://prompify_user:${POSTGRES_PASSWORD:-your-secure-password}@postgres:5432/prompify
+      - REDIS_URL=redis://redis:6379
+      
+      # Authentication & Security
       - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
       - APP_URL=${APP_URL:-http://localhost:5173}
-      - REDIS_URL=redis://redis:6379
       - AUTH_DISABLED=${AUTH_DISABLED:-true}
+      
+      # AI Provider API Keys (Optional - only needed if using those services)
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - HuggingFace_API_KEY=${HuggingFace_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+      - XAI_API_KEY=${XAI_API_KEY}
+      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
+      - OLLAMA_API_BASE_URL=${OLLAMA_API_BASE_URL}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+      - TOGETHER_API_BASE_URL=${TOGETHER_API_BASE_URL}
+      - AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG}
+      
+      # Application Configuration (Optional with defaults)
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
+      - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
+      
+      # Koogallery Integration (Optional)
+      - KOOGALLERY_ACCESS_KEY=${KOOGALLERY_ACCESS_KEY}
+      - KOOGALLERY_API_BASE_URL=${KOOGALLERY_API_BASE_URL}
+      - KOOGALLERY_ENABLED=${KOOGALLERY_ENABLED:-true}
+    volumes:
+      - ./data:/app/data  # For any file uploads or logs
     ports:
       - "5173:5173"
       - "5174:5174"
+    networks:
+      - prompify-network
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    networks:
-      - prompify-network
     restart: unless-stopped
-    volumes:
-      - ./data:/app/data  # For any file uploads or logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5173/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+    profiles: ['production']
 
   # Nginx Reverse Proxy (optional)
   nginx:
     image: nginx:alpine
     container_name: prompify-nginx
-    ports:
-      - "80:80"
-      - "443:443"
     volumes:
       - ./nginx-dev.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - app
+    ports:
+      - "80:80"
+      - "443:443"
     networks:
       - prompify-network
+    depends_on:
+      - app
     restart: unless-stopped
+    profiles: ['production']
 
 volumes:
   postgres_data:

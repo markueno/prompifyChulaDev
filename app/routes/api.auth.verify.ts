@@ -50,7 +50,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     // Check if user is already verified
-    if (user.verified === 1) {
+    if ((user as any).is_verified === 1 || (user as any).is_verified === true) {
       return json<VerifyResponse>({
         success: false,
         message: 'Email is already verified'

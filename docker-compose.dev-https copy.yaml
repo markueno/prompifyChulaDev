@@ -1,47 +1,6 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: prompify-postgres
-    environment:
-      POSTGRES_DB: prompify
-      POSTGRES_USER: prompify_user
-      POSTGRES_PASSWORD: Mark@3156
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    ports:
-      - "5432:5432"
-    networks:
-      - prompify-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prompify_user} -d ${POSTGRES_DB:-prompify}"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    profiles: ['development-https']
-
-  # Redis for session storage (optional)
-  redis:
-    image: redis:7-alpine
-    container_name: prompify-redis
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - prompify-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    profiles: ['development-https']
-
   app-dev-https:
     image: bolt-ai:development
     build:
@@ -54,13 +13,8 @@ services:
       - PORT=5173
       - RUNNING_IN_DOCKER=true
       
-      # Database Configuration
-      - DATABASE_TYPE=postgresql
-      - DATABASE_URL=postgresql://prompify_user:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/prompify
-      - REDIS_URL=redis://redis:6379
-      
       # Development-specific Settings (Hot Module Replacement)
-      - VITE_HMR_PROTOCOL=ws
+      - VITE_HMR_PROTOCOL=wss
       - VITE_HMR_HOST=localhost
       - VITE_HMR_PORT=5173
       - CHOKIDAR_USEPOLLING=true
@@ -100,13 +54,6 @@ services:
     ports:
       - '5173:5173'
       - '5174:5174'  # HTTPS port
-    networks:
-      - prompify-network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     command: pnpm run dev --host 0.0.0.0
     profiles: ['development-https']
 
@@ -120,19 +67,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    networks:
-      - prompify-network
     depends_on:
       - app-dev-https
     profiles: ['development-https']
-
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-
-networks:
-  prompify-network:
-    driver: bridge
 

@@ -81,7 +81,7 @@ function createSQLiteTables(db: Database.Database) {
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
-      verified INTEGER DEFAULT 0,
+      is_verified INTEGER DEFAULT 0,
       verification_token TEXT,
       verification_expires TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -162,13 +162,13 @@ export async function createUser(user: any) {
     } else {
       const db = getDatabase();
       const result = db.prepare(`
-        INSERT INTO users (id, email, password_hash, verified, verification_token, verification_expires, created_at)
+        INSERT INTO users (id, email, password_hash, is_verified, verification_token, verification_expires, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `).run(
         user.id,
         user.email,
         user.passwordHash,
-        user.verified ? 1 : 0,
+        user.isVerified ? 1 : 0,
         user.verificationToken,
         user.verificationExpires,
         user.createdAt
@@ -198,7 +198,7 @@ export async function verifyUser(userId: string) {
       const db = getDatabase();
       const result = db.prepare(`
         UPDATE users 
-        SET verified = 1, verification_token = NULL, verification_expires = NULL 
+        SET is_verified = 1, verification_token = NULL, verification_expires = NULL 
         WHERE id = ?
       `).run(userId);
       return result.changes > 0;
@@ -325,7 +325,7 @@ export async function validateSession(tokenHash: string) {
     } else {
       const db = getDatabase();
       const session = db.prepare(`
-        SELECT us.*, u.email, u.verified 
+        SELECT us.*, u.email, u.is_verified 
         FROM user_sessions us
         JOIN users u ON us.user_id = u.id
         WHERE us.token_hash = ? AND us.expires_at > datetime('now')

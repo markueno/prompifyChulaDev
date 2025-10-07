@@ -34,7 +34,7 @@ export const description = atom<string | undefined>(undefined);
 export const chatMetadata = atom<IChatMetadata | undefined>(undefined);
 export function useChatHistory() {
   const navigate = useNavigate();
-  const { id: mixedId } = useLoaderData<{ id?: string }>();
+  const { id: mixedId, user } = useLoaderData<{ id?: string; user?: any }>();
   const [searchParams] = useSearchParams();
 
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
@@ -127,7 +127,37 @@ export function useChatHistory() {
         }
       }
 
+      // Save to IndexedDB (existing functionality)
       await setMessages(db, chatId.get() as string, messages, urlId, description.get(), undefined, chatMetadata.get());
+
+      // Also save to PostgreSQL if user is authenticated
+      try {
+        if (user?.id) {
+          const chatData = {
+            id: chatId.get() as string,
+            url_id: urlId,
+            description: description.get(),
+            messages: messages,
+            metadata: chatMetadata.get()
+          };
+
+          // Call the API to save to PostgreSQL
+          const response = await fetch('/api/chats', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(chatData),
+          });
+
+          if (!response.ok) {
+            console.warn('Failed to save chat to PostgreSQL:', response.statusText);
+          }
+        }
+      } catch (error) {
+        console.warn('Error saving chat to PostgreSQL:', error);
+        // Don't throw error - IndexedDB save was successful
+      }
     },
     duplicateCurrentChat: async (listItemId: string) => {
       if (!db || (!mixedId && !listItemId)) {

@@ -40,7 +40,7 @@ export async function createPostgresTables() {
         id TEXT PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
-        verified BOOLEAN DEFAULT FALSE,
+        is_verified BOOLEAN DEFAULT FALSE,
         verification_token TEXT,
         verification_expires TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -137,13 +137,13 @@ export async function createUserPostgres(user: any) {
   
   try {
     const result = await client.query(`
-      INSERT INTO users (id, email, password_hash, verified, verification_token, verification_expires, created_at)
+      INSERT INTO users (id, email, password_hash, is_verified, verification_token, verification_expires, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `, [
       user.id,
       user.email,
       user.passwordHash,
-      user.verified,
+      user.isVerified,
       user.verificationToken,
       user.verificationExpires,
       user.createdAt
@@ -182,7 +182,7 @@ export async function verifyUserPostgres(userId: string) {
   try {
     const result = await client.query(`
       UPDATE users 
-      SET verified = TRUE, verification_token = NULL, verification_expires = NULL 
+      SET is_verified = TRUE, verification_token = NULL, verification_expires = NULL 
       WHERE id = $1
     `, [userId]);
     return result.rowCount > 0;
@@ -309,7 +309,7 @@ export async function validateSessionPostgres(tokenHash: string) {
   
   try {
     const result = await client.query(`
-      SELECT us.*, u.email, u.verified 
+      SELECT us.*, u.email, u.is_verified 
       FROM user_sessions us
       JOIN users u ON us.user_id = u.id
       WHERE us.token_hash = $1 AND us.expires_at > NOW()
@@ -375,6 +375,165 @@ export async function getActiveSessionCountPostgres(userId: string) {
   } catch (error) {
     console.error('Error getting active session count:', error);
     return 0;
+  } finally {
+    client.release();
+  }
+}
+
+// Chat Management Functions
+export async function saveChatPostgres(userId: string, chatData: any): Promise<string | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  
+  try {
+    const { id, url_id, description, messages, metadata } = chatData;
+    const query = `
+      INSERT INTO chats (id, user_id, url_id, description, messages, metadata, updated_at, last_activity)
+      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT (id) DO UPDATE SET
+        description = EXCLUDED.description,
+        messages = EXCLUDED.messages,
+        metadata = EXCLUDED.metadata,
+        updated_at = CURRENT_TIMESTAMP,
+        last_activity = CURRENT_TIMESTAMP
+      RETURNING id
+    `;
+    const result = await client.query(query, [id, userId, url_id, description, JSON.stringify(messages), JSON.stringify(metadata)]);
+    return result.rows[0]?.id || null;
+  } catch (error) {
+    console.error('Error saving chat to PostgreSQL:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getChatsByUserPostgres(userId: string): Promise<any[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  
+  try {
+    const query = `
+      SELECT id, url_id, description, messages, metadata, created_at, updated_at, last_activity, is_archived
+      FROM chats 
+      WHERE user_id = $1 
+      ORDER BY updated_at DESC
+    `;
+    const result = await client.query(query, [userId]);
+    return result.rows.map(row => ({
+      ...row,
+      messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+    }));
+  } catch (error) {
+    console.error('Error fetching chats from PostgreSQL:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function getChatByIdPostgres(chatId: string, userId: string): Promise<any | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  
+  try {
+    const query = `
+      SELECT id, url_id, description, messages, metadata, created_at, updated_at, last_activity, is_archived
+      FROM chats 
+      WHERE id = $1 AND user_id = $2
+    `;
+    const result = await client.query(query, [chatId, userId]);
+    if (result.rows.length === 0) {
+      return null;
+    }
+    const row = result.rows[0];
+    return {
+      ...row,
+      messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+    };
+  } catch (error) {
+    console.error('Error fetching chat by ID from PostgreSQL:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function deleteChatPostgres(chatId: string, userId: string): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  
+  try {
+    const query = `
+      DELETE FROM chats 
+      WHERE id = $1 AND user_id = $2
+    `;
+    const result = await client.query(query, [chatId, userId]);
+    return result.rowCount > 0;
+  } catch (error) {
+    console.error('Error deleting chat from PostgreSQL:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+// User Activity Functions
+export async function logUserActivityPostgres(
+  userId: string, 
+  actionType: string, 
+  actionDetails: any = {}, 
+  ipAddress?: string, 
+  userAgent?: string
+): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  
+  try {
+    const query = `
+      INSERT INTO user_activity (id, user_id, action_type, action_details, ip_address, user_agent, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+    `;
+    const activityId = crypto.randomUUID();
+    const result = await client.query(query, [
+      activityId, 
+      userId, 
+      actionType, 
+      JSON.stringify(actionDetails), 
+      ipAddress, 
+      userAgent
+    ]);
+    return result.rowCount > 0;
+  } catch (error) {
+    console.error('Error logging user activity to PostgreSQL:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getUserActivityPostgres(userId: string, limit: number = 100): Promise<any[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  
+  try {
+    const query = `
+      SELECT id, action_type, action_details, ip_address, user_agent, created_at
+      FROM user_activity 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT $2
+    `;
+    const result = await client.query(query, [userId, limit]);
+    return result.rows.map(row => ({
+      ...row,
+      action_details: typeof row.action_details === 'string' ? JSON.parse(row.action_details) : row.action_details
+    }));
+  } catch (error) {
+    console.error('Error fetching user activity from PostgreSQL:', error);
+    return [];
   } finally {
     client.release();
   }

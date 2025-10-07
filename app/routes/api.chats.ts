@@ -22,18 +22,33 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 export async function action({ request, context }: ActionFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
-    const formData = await request.formData();
-    const action = formData.get('action') as string;
+    
+    // Check if request is JSON or form data
+    const contentType = request.headers.get('content-type') || '';
+    let chatData: any;
+    let action: string;
+    
+    if (contentType.includes('application/json')) {
+      // Handle JSON request (from frontend)
+      const body = await request.json();
+      chatData = body;
+      action = 'save'; // Default action for JSON requests
+    } else {
+      // Handle form data request
+      const formData = await request.formData();
+      action = formData.get('action') as string;
+      
+      chatData = {
+        id: formData.get('id') as string,
+        urlId: formData.get('urlId') as string,
+        description: formData.get('description') as string,
+        messages: JSON.parse(formData.get('messages') as string),
+        metadata: JSON.parse(formData.get('metadata') as string || '{}')
+      };
+    }
     
     switch (action) {
       case 'save': {
-        const chatData = {
-          id: formData.get('id') as string,
-          urlId: formData.get('urlId') as string,
-          description: formData.get('description') as string,
-          messages: JSON.parse(formData.get('messages') as string),
-          metadata: JSON.parse(formData.get('metadata') as string || '{}')
-        };
         
         const chatId = await saveChat(user.id, chatData);
         
