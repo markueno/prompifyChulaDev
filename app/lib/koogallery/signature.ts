@@ -20,10 +20,24 @@ export async function verifyKooGallerySignature(
     }
 
     // Check timestamp (must be within 60 seconds)
+    // KooGallery sends timestamps in milliseconds, so convert to seconds
     const currentTime = Math.floor(Date.now() / 1000);
-    const requestTime = parseInt(timestamp);
+    const requestTime = Math.floor(parseInt(timestamp) / 1000);
+    
+    console.log('Timestamp validation:', {
+      currentTime,
+      requestTime,
+      difference: Math.abs(currentTime - requestTime),
+      timestamp: timestamp
+    });
+    
     if (Math.abs(currentTime - requestTime) > 60) {
-      console.error('Request timestamp expired');
+      console.error('Request timestamp expired', {
+        currentTime,
+        requestTime,
+        difference: Math.abs(currentTime - requestTime),
+        timestamp: timestamp
+      });
       return false;
     }
 
