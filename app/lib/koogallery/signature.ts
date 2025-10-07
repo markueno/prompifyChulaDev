@@ -50,8 +50,10 @@ export async function verifyKooGallerySignature(
 
     // Generate canonical request string
     const requestPayload = JSON.stringify(requestBody);
+    
+    // According to KooGallery docs: Lowercase(HexEncode(HMAC_SHA256(RequestPayload)))
     const payloadHash = crypto
-      .createHash('sha256')
+      .createHmac('sha256', accessKey)
       .update(requestPayload)
       .digest('hex')
       .toLowerCase();
