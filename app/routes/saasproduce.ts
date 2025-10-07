@@ -10,9 +10,11 @@ import { action as updateInstanceStatusAction } from './api.koogallery.update-in
 import { action as releaseInstanceAction } from './api.koogallery.release-instance';
 import { action as upgradeInstanceAction } from './api.koogallery.upgrade-instance';
 
-export const action = async ({ request, context }: ActionFunctionArgs) => {
+export const action = async ({ request, context, params }: ActionFunctionArgs) => {
   try {
-    const body = await request.json();
+    // Clone the request to avoid body reading issues
+    const clonedRequest = request.clone();
+    const body = await clonedRequest.json() as any;
     const { activity } = body;
 
     console.log('KooGallery request received:', {
@@ -24,22 +26,22 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
     // Route to the appropriate handler based on activity
     switch (activity) {
       case 'newInstance':
-        return await createInstanceAction({ request, context });
+        return await createInstanceAction({ request, context, params });
       
       case 'queryInstance':
-        return await queryInstanceAction({ request, context });
+        return await queryInstanceAction({ request, context, params });
       
       case 'refreshInstance':
-        return await updateInstanceAction({ request, context });
+        return await updateInstanceAction({ request, context, params });
       
       case 'updateInstanceStatus':
-        return await updateInstanceStatusAction({ request, context });
+        return await updateInstanceStatusAction({ request, context, params });
       
       case 'releaseInstance':
-        return await releaseInstanceAction({ request, context });
+        return await releaseInstanceAction({ request, context, params });
       
       case 'upgradeInstance':
-        return await upgradeInstanceAction({ request, context });
+        return await upgradeInstanceAction({ request, context, params });
       
       case 'changeInstanceCheck':
         // Handle verification of changes upon renewal
@@ -58,10 +60,16 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
   } catch (error) {
     console.error('KooGallery saasproduce error:', error);
     
-    await logKooGalleryRequest('saasproduce-error', {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
+    // Don't try to log to database if there's already a database error
+    try {
+      await logKooGalleryRequest('saasproduce-error', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        status: 'error',
+        timestamp: new Date().toISOString()
+      });
+    } catch (logError) {
+      console.error('Failed to log error:', logError);
+    }
 
     return json({
       resultCode: '000999',
