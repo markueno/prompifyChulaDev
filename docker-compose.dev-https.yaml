@@ -97,7 +97,7 @@ services:
         target: /app
         consistency: cached
       - /app/node_modules
-      - /root/qa/ssl:/app/ssl:ro  # Mount SSL certificates
+      - ./ssl_prompifycom:/app/ssl_prompifycom:ro  # Mount SSL certificates for ECS
     ports:
       - '5173:5173'
       - '5174:5174'  # HTTPS port
@@ -117,7 +117,7 @@ services:
     container_name: prompify-nginx-dev
     volumes:
       - ./nginx-dev.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
+      - ./ssl_prompifycom:/etc/nginx/ssl_prompifycom:ro
     ports:
       - "80:80"
       - "443:443"

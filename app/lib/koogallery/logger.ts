@@ -37,7 +37,7 @@ export async function logKooGalleryRequest(
     
     if (DATABASE_TYPE === 'postgresql') {
       // Use PostgreSQL connection
-      const { getPostgresPool } = await import('./database-postgresql');
+      const { getPostgresPool } = await import('~/lib/database-postgresql');
       const pool = getPostgresPool();
       
       await pool.query(`
@@ -102,7 +102,7 @@ export async function getKooGalleryLogs(
     
     if (DATABASE_TYPE === 'postgresql') {
       // Use PostgreSQL connection
-      const { getPostgresPool } = await import('./database-postgresql');
+      const { getPostgresPool } = await import('~/lib/database-postgresql');
       const pool = getPostgresPool();
       
       let query = `

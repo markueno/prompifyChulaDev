@@ -111,7 +111,7 @@ services:
     container_name: prompify-nginx
     volumes:
       - ./nginx-dev.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
+      - ./ssl_prompifycom:/etc/nginx/ssl_prompifycom:ro
     ports:
       - "80:80"
       - "443:443"
