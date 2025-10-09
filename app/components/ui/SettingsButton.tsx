@@ -5,6 +5,14 @@ interface SettingsButtonProps {
 }
 
 export const SettingsButton = memo(({ onClick }: SettingsButtonProps) => {
+  // Check if settings button should be shown via environment variable
+  const showSettingsButton = process.env.SHOW_SETTINGS_BUTTON !== 'false';
+  
+  // Don't render if disabled via environment variable
+  if (!showSettingsButton) {
+    return null;
+  }
+
   return (
     <IconButton
       onClick={onClick}

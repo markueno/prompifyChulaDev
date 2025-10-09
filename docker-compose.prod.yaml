@@ -80,6 +80,7 @@ services:
       # Application Configuration (Optional with defaults)
       - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
+      - SHOW_SETTINGS_BUTTON=${SHOW_SETTINGS_BUTTON:-true}
       
       # Koogallery Integration (Optional)
       - KOOGALLERY_ACCESS_KEY=${KOOGALLERY_ACCESS_KEY}
