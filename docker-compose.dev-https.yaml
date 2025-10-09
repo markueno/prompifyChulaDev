@@ -89,7 +89,8 @@ services:
       - KOOGALLERY_API_BASE_URL=${KOOGALLERY_API_BASE_URL}
       - KOOGALLERY_ENABLED=${KOOGALLERY_ENABLED:-true}
     extra_hosts:
-      - 'host.docker.internal:host-gateway'
+      # - 'host.docker.internal:host-gateway'  # Old CentOS configuration
+      - 'host.docker.internal:192.168.0.33'    # Updated for ECS Euler Huawei OS
     volumes:
       - type: bind
         source: .
