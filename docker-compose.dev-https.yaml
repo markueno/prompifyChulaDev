@@ -83,7 +83,6 @@ services:
       - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
       - AUTH_DISABLED=${AUTH_DISABLED:-true}
-      - SHOW_SETTINGS_BUTTON=${SHOW_SETTINGS_BUTTON:-true}
       
       # Koogallery Integration (Optional)
       - KOOGALLERY_ACCESS_KEY=${KOOGALLERY_ACCESS_KEY}
