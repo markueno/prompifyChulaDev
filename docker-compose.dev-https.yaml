@@ -7,8 +7,8 @@ services:
     container_name: prompify-postgres
     environment:
       POSTGRES_DB: prompify
-      POSTGRES_USER: prompify_user
-      POSTGRES_PASSWORD: Mark@3156
+      POSTGRES_USER: novauser
+      POSTGRES_PASSWORD: blacknova123
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
