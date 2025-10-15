@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -56,7 +54,9 @@ services:
       
       # Database Configuration
       - DATABASE_TYPE=postgresql
-      - DATABASE_URL=postgresql://novauser:${POSTGRES_PASSWORD:-blacknova123}@postgres:5432/prompify
+      #- DATABASE_URL=postgresql://prompify_user:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/prompify
+    
+      - DATABASE_URL=postgresql://novauser:blacknova123@postgres:5432/prompify
       - REDIS_URL=redis://redis:6379
       
       # Development-specific Settings (Hot Module Replacement)
@@ -97,7 +97,8 @@ services:
         target: /app
         consistency: cached
       - /app/node_modules
-      - /root/qa/ssl:/app/ssl:ro  # Mount SSL certificates
+      #- /root/qa/ssl:/app/ssl:ro  # Mount SSL certificates
+      - ./ssl:/app/ssl:ro  # Mount SSL certificates
     ports:
       - '5173:5173'
       - '5174:5174'  # HTTPS port

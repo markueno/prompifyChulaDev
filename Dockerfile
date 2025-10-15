@@ -40,7 +40,7 @@ ARG AUTH_DISABLED
 
 ENV WRANGLER_SEND_METRICS=false \
     GROQ_API_KEY=${GROQ_API_KEY} \
-    HuggingFace_KEY=${HuggingFace_API_KEY} \
+    HuggingFace_API_KEY=${HuggingFace_API_KEY} \
     OPENAI_API_KEY=${OPENAI_API_KEY} \
     ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY} \
     OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY} \
@@ -68,7 +68,7 @@ FROM base AS bolt-ai-development
 
 # Define the same environment variables for development
 ARG GROQ_API_KEY
-ARG HuggingFace 
+ARG HuggingFace_API_KEY
 ARG OPENAI_API_KEY
 ARG ANTHROPIC_API_KEY
 ARG OPEN_ROUTER_API_KEY
