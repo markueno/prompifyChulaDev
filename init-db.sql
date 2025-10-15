@@ -1,6 +1,18 @@
 -- Initialize Prompify Database
 -- This file is automatically executed when PostgreSQL container starts
 
+-- Create the prompify_user if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'prompify_user') THEN
+        CREATE USER prompify_user WITH PASSWORD 'Mark@3156';
+        ALTER USER prompify_user CREATEDB;
+        ALTER USER prompify_user CREATEROLE;
+        GRANT ALL PRIVILEGES ON DATABASE prompify TO prompify_user;
+    END IF;
+END
+$$;
+
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -84,3 +96,8 @@ CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
 CREATE INDEX IF NOT EXISTS idx_chats_url_id ON chats(url_id);
 CREATE INDEX IF NOT EXISTS idx_user_activity_user_id ON user_activity(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_activity_action_type ON user_activity(action_type);
+
+-- Grant permissions to prompify_user on all tables
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO prompify_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO prompify_user;
+GRANT USAGE ON SCHEMA public TO prompify_user;
