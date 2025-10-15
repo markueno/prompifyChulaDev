@@ -5,8 +5,8 @@ services:
     container_name: prompify-postgres
     environment:
       POSTGRES_DB: prompify
-      POSTGRES_USER: novauser
-      POSTGRES_PASSWORD: blacknova123
+      POSTGRES_USER: prompify_user
+      POSTGRES_PASSWORD: Mark@3156
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -54,9 +54,9 @@ services:
       
       # Database Configuration
       - DATABASE_TYPE=postgresql
-      #- DATABASE_URL=postgresql://prompify_user:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/prompify
+      - DATABASE_URL=postgresql://prompify_user:Mark@3156@postgres:5432/prompify
     
-      - DATABASE_URL=postgresql://novauser:blacknova123@postgres:5432/prompify
+      #- DATABASE_URL=postgresql://prompify_user:blacknova123@postgres:5432/prompify
       - REDIS_URL=redis://redis:6379
       
       # Development-specific Settings (Hot Module Replacement)
