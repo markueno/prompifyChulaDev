@@ -61,7 +61,7 @@ services:
       - REDIS_URL=redis://redis:6379
       
       # Development-specific Settings (Hot Module Replacement)
-      - VITE_HMR_PROTOCOL=ws
+      - VITE_HMR_PROTOCOL=wss
       - VITE_HMR_HOST=localhost
       - VITE_HMR_PORT=5173
       - CHOKIDAR_USEPOLLING=true
