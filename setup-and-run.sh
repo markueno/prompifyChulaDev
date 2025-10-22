@@ -24,3 +24,4 @@ echo "✅ SSL certificates generated."
 # Run the application
 echo "Starting Docker Compose with HTTPS development profile..."
 docker-compose -f docker-compose.dev-https.yaml --profile development-https up --build --force-recreate
+

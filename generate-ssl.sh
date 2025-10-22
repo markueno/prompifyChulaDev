@@ -9,3 +9,4 @@ openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 3
 echo "SSL certificates generated successfully!"
 echo "Certificate: ssl/cert.pem"
 echo "Private Key: ssl/key.pem"
+
