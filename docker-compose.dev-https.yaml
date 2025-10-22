@@ -91,7 +91,7 @@ services:
       - KOOGALLERY_ENABLED=${KOOGALLERY_ENABLED:-true}
     extra_hosts:
       #- 'host.docker.internal:host-gateway'
-      - 'host.docker.internal:192.168.0.243
+      - 'host.docker.internal:192.168.0.243'
     volumes:
       - type: bind
         source: .
