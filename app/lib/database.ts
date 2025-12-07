@@ -1,6 +1,3 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import crypto from 'crypto';
 import {
   getPostgresPool,
@@ -28,44 +25,11 @@ import {
 
 // Database configuration
 const DATABASE_URL = process.env.DATABASE_URL;
-const DATABASE_TYPE = process.env.DATABASE_TYPE || 'postgresql'; // 'sqlite' or 'postgresql'
 
-// For SQLite (development)
-let sqliteDb: Database.Database;
-
-// For PostgreSQL (production)
+// For PostgreSQL
 let postgresDb: any;
 
 export function getDatabase() {
-  if (DATABASE_TYPE === 'postgresql') {
-    return getPostgresDatabase();
-  } else {
-    return getSQLiteDatabase();
-  }
-}
-
-export function getDrizzleDB() {
-  if (DATABASE_TYPE === 'postgresql') {
-    return drizzle(getPostgresDatabase());
-  } else {
-    return drizzle(getSQLiteDatabase());
-  }
-}
-
-function getSQLiteDatabase() {
-  if (!sqliteDb) {
-    sqliteDb = new Database('./data/prompify.db');
-    
-    // Enable foreign keys
-    sqliteDb.pragma('foreign_keys = ON');
-    
-    // Create tables if they don't exist
-    createSQLiteTables(sqliteDb);
-  }
-  return sqliteDb;
-}
-
-function getPostgresDatabase() {
   if (!postgresDb) {
     // Initialize PostgreSQL tables if they don't exist
     createPostgresTables().catch(console.error);
@@ -74,107 +38,14 @@ function getPostgresDatabase() {
   return postgresDb;
 }
 
-function createSQLiteTables(db: Database.Database) {
-  // Users table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      is_verified INTEGER DEFAULT 0,
-      verification_token TEXT,
-      verification_expires TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      last_login TEXT,
-      login_attempts INTEGER DEFAULT 0,
-      locked_until TEXT,
-      reset_token TEXT,
-      reset_expires TEXT
-    )
-  `);
-
-  // User sessions table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS user_sessions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      token_hash TEXT NOT NULL,
-      expires_at TEXT NOT NULL,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      last_used TEXT DEFAULT CURRENT_TIMESTAMP,
-      ip_address TEXT,
-      user_agent TEXT,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Rate limiting table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS rate_limits (
-      id TEXT PRIMARY KEY,
-      ip_address TEXT NOT NULL,
-      endpoint TEXT NOT NULL,
-      attempts INTEGER DEFAULT 1,
-      first_attempt TEXT DEFAULT CURRENT_TIMESTAMP,
-      last_attempt TEXT DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(ip_address, endpoint)
-    )
-  `);
-
-  // Email logs table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS email_logs (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      email_type TEXT NOT NULL,
-      sent_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      delivered INTEGER DEFAULT 0,
-      error_message TEXT,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  // Create indexes
-  db.exec('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON user_sessions(token_hash)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_rate_limits_ip_endpoint ON rate_limits(ip_address, endpoint)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_email_logs_user_id ON email_logs(user_id)');
-}
-
-// Database helper functions
+// Database helper functions - all use PostgreSQL
 export async function getUserByEmail(email: string) {
-  if (DATABASE_TYPE === 'postgresql') {
-    return getUserByEmailPostgres(email);
-  } else {
-    const db = getDatabase();
-    return db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-  }
+  return getUserByEmailPostgres(email);
 }
 
 export async function createUser(user: any) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return createUserPostgres(user);
-    } else {
-      const db = getDatabase();
-      const result = db.prepare(`
-        INSERT INTO users (id, email, password_hash, is_verified, verification_token, verification_expires, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        user.id,
-        user.email,
-        user.passwordHash,
-        user.isVerified ? 1 : 0,
-        user.verificationToken,
-        user.verificationExpires,
-        user.createdAt
-      );
-      return result.changes > 0;
-    }
+    return createUserPostgres(user);
   } catch (error) {
     console.error('Error creating user:', error);
     return false;
@@ -182,27 +53,12 @@ export async function createUser(user: any) {
 }
 
 export async function getUserByVerificationToken(token: string) {
-  if (DATABASE_TYPE === 'postgresql') {
-    return getUserByVerificationTokenPostgres(token);
-  } else {
-    const db = getDatabase();
-    return db.prepare('SELECT * FROM users WHERE verification_token = ?').get(token);
-  }
+  return getUserByVerificationTokenPostgres(token);
 }
 
 export async function verifyUser(userId: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return verifyUserPostgres(userId);
-    } else {
-      const db = getDatabase();
-      const result = db.prepare(`
-        UPDATE users 
-        SET is_verified = 1, verification_token = NULL, verification_expires = NULL 
-        WHERE id = ?
-      `).run(userId);
-      return result.changes > 0;
-    }
+    return verifyUserPostgres(userId);
   } catch (error) {
     console.error('Error verifying user:', error);
     return false;
@@ -211,17 +67,7 @@ export async function verifyUser(userId: string) {
 
 export async function updateLoginAttempts(email: string, attempts: number) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return updateLoginAttemptsPostgres(email, attempts);
-    } else {
-      const db = getDatabase();
-      db.prepare(`
-        UPDATE users 
-        SET login_attempts = ?, last_login = CURRENT_TIMESTAMP 
-        WHERE email = ?
-      `).run(attempts, email);
-      return true;
-    }
+    return updateLoginAttemptsPostgres(email, attempts);
   } catch (error) {
     console.error('Error updating login attempts:', error);
     return false;
@@ -230,17 +76,7 @@ export async function updateLoginAttempts(email: string, attempts: number) {
 
 export async function resetLoginAttempts(userId: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return resetLoginAttemptsPostgres(userId);
-    } else {
-      const db = getDatabase();
-      db.prepare(`
-        UPDATE users 
-        SET login_attempts = 0, last_login = CURRENT_TIMESTAMP 
-        WHERE id = ?
-      `).run(userId);
-      return true;
-    }
+    return resetLoginAttemptsPostgres(userId);
   } catch (error) {
     console.error('Error resetting login attempts:', error);
     return false;
@@ -249,22 +85,7 @@ export async function resetLoginAttempts(userId: string) {
 
 export async function logEmail(userId: string, emailType: string, delivered: boolean, errorMessage?: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return logEmailPostgres(userId, emailType, delivered, errorMessage);
-    } else {
-      const db = getDatabase();
-      db.prepare(`
-        INSERT INTO email_logs (id, user_id, email_type, delivered, error_message)
-        VALUES (?, ?, ?, ?, ?)
-      `).run(
-        crypto.randomUUID(),
-        userId,
-        emailType,
-        delivered ? 1 : 0,
-        errorMessage
-      );
-      return true;
-    }
+    return logEmailPostgres(userId, emailType, delivered, errorMessage);
   } catch (error) {
     console.error('Error logging email:', error);
     return false;
@@ -273,27 +94,7 @@ export async function logEmail(userId: string, emailType: string, delivered: boo
 
 export async function createUserSession(userId: string, tokenHash: string, expiresAt: string, ipAddress?: string, userAgent?: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return createUserSessionPostgres(userId, tokenHash, expiresAt, ipAddress, userAgent);
-    } else {
-      const db = getDatabase();
-      // First, invalidate any existing sessions for this user (single session enforcement)
-      await invalidateUserSessions(userId);
-      
-      // Create new session
-      const result = db.prepare(`
-        INSERT INTO user_sessions (id, user_id, token_hash, expires_at, ip_address, user_agent)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(
-        crypto.randomUUID(),
-        userId,
-        tokenHash,
-        expiresAt,
-        ipAddress || null,
-        userAgent || null
-      );
-      return result.changes > 0;
-    }
+    return createUserSessionPostgres(userId, tokenHash, expiresAt, ipAddress, userAgent);
   } catch (error) {
     console.error('Error creating user session:', error);
     return false;
@@ -302,16 +103,7 @@ export async function createUserSession(userId: string, tokenHash: string, expir
 
 export async function invalidateUserSessions(userId: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return invalidateUserSessionsPostgres(userId);
-    } else {
-      const db = getDatabase();
-      db.prepare(`
-        DELETE FROM user_sessions 
-        WHERE user_id = ?
-      `).run(userId);
-      return true;
-    }
+    return invalidateUserSessionsPostgres(userId);
   } catch (error) {
     console.error('Error invalidating user sessions:', error);
     return false;
@@ -320,19 +112,7 @@ export async function invalidateUserSessions(userId: string) {
 
 export async function validateSession(tokenHash: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return validateSessionPostgres(tokenHash);
-    } else {
-      const db = getDatabase();
-      const session = db.prepare(`
-        SELECT us.*, u.email, u.is_verified 
-        FROM user_sessions us
-        JOIN users u ON us.user_id = u.id
-        WHERE us.token_hash = ? AND us.expires_at > datetime('now')
-      `).get(tokenHash);
-      
-      return session;
-    }
+    return validateSessionPostgres(tokenHash);
   } catch (error) {
     console.error('Error validating session:', error);
     return null;
@@ -341,17 +121,7 @@ export async function validateSession(tokenHash: string) {
 
 export async function updateSessionActivity(tokenHash: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return updateSessionActivityPostgres(tokenHash);
-    } else {
-      const db = getDatabase();
-      db.prepare(`
-        UPDATE user_sessions 
-        SET last_used = datetime('now')
-        WHERE token_hash = ?
-      `).run(tokenHash);
-      return true;
-    }
+    return updateSessionActivityPostgres(tokenHash);
   } catch (error) {
     console.error('Error updating session activity:', error);
     return false;
@@ -367,13 +137,7 @@ export async function saveChat(userId: string, chatData: {
   metadata?: any;
 }) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return saveChatPostgres(userId, chatData);
-    } else {
-      // SQLite implementation would go here if needed
-      console.warn('Chat saving not implemented for SQLite');
-      return null;
-    }
+    return saveChatPostgres(userId, chatData);
   } catch (error) {
     console.error('Error saving chat:', error);
     return null;
@@ -382,13 +146,7 @@ export async function saveChat(userId: string, chatData: {
 
 export async function getChatsByUser(userId: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return getChatsByUserPostgres(userId);
-    } else {
-      // SQLite implementation would go here if needed
-      console.warn('Chat retrieval not implemented for SQLite');
-      return [];
-    }
+    return getChatsByUserPostgres(userId);
   } catch (error) {
     console.error('Error getting chats by user:', error);
     return [];
@@ -397,13 +155,7 @@ export async function getChatsByUser(userId: string) {
 
 export async function getChatById(chatId: string, userId: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return getChatByIdPostgres(chatId, userId);
-    } else {
-      // SQLite implementation would go here if needed
-      console.warn('Chat retrieval not implemented for SQLite');
-      return null;
-    }
+    return getChatByIdPostgres(chatId, userId);
   } catch (error) {
     console.error('Error getting chat by ID:', error);
     return null;
@@ -412,13 +164,7 @@ export async function getChatById(chatId: string, userId: string) {
 
 export async function deleteChat(chatId: string, userId: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return deleteChatPostgres(chatId, userId);
-    } else {
-      // SQLite implementation would go here if needed
-      console.warn('Chat deletion not implemented for SQLite');
-      return false;
-    }
+    return deleteChatPostgres(chatId, userId);
   } catch (error) {
     console.error('Error deleting chat:', error);
     return false;
@@ -428,13 +174,7 @@ export async function deleteChat(chatId: string, userId: string) {
 // User activity tracking functions
 export async function logUserActivity(userId: string, actionType: string, actionDetails: any = {}, ipAddress?: string, userAgent?: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return logUserActivityPostgres(userId, actionType, actionDetails, ipAddress, userAgent);
-    } else {
-      // SQLite implementation would go here if needed
-      console.warn('User activity logging not implemented for SQLite');
-      return false;
-    }
+    return logUserActivityPostgres(userId, actionType, actionDetails, ipAddress, userAgent);
   } catch (error) {
     console.error('Error logging user activity:', error);
     return false;
@@ -443,13 +183,7 @@ export async function logUserActivity(userId: string, actionType: string, action
 
 export async function getUserActivity(userId: string, limit: number = 100) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return getUserActivityPostgres(userId, limit);
-    } else {
-      // SQLite implementation would go here if needed
-      console.warn('User activity retrieval not implemented for SQLite');
-      return [];
-    }
+    return getUserActivityPostgres(userId, limit);
   } catch (error) {
     console.error('Error getting user activity:', error);
     return [];
@@ -458,16 +192,7 @@ export async function getUserActivity(userId: string, limit: number = 100) {
 
 export async function logoutUser(tokenHash: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return logoutUserPostgres(tokenHash);
-    } else {
-      const db = getDatabase();
-      db.prepare(`
-        DELETE FROM user_sessions 
-        WHERE token_hash = ?
-      `).run(tokenHash);
-      return true;
-    }
+    return logoutUserPostgres(tokenHash);
   } catch (error) {
     console.error('Error logging out user:', error);
     return false;
@@ -476,19 +201,9 @@ export async function logoutUser(tokenHash: string) {
 
 export async function getActiveSessionCount(userId: string) {
   try {
-    if (DATABASE_TYPE === 'postgresql') {
-      return getActiveSessionCountPostgres(userId);
-    } else {
-      const db = getDatabase();
-      const result = db.prepare(`
-        SELECT COUNT(*) as count 
-        FROM user_sessions 
-        WHERE user_id = ? AND expires_at > datetime('now')
-      `).get(userId);
-      return result.count;
-    }
+    return getActiveSessionCountPostgres(userId);
   } catch (error) {
     console.error('Error getting active session count:', error);
     return 0;
   }
-} 
+}

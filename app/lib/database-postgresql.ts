@@ -94,6 +94,72 @@ export async function createPostgresTables() {
       )
     `);
 
+    // Chats table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS chats (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        url_id TEXT UNIQUE,
+        description TEXT,
+        messages JSONB NOT NULL DEFAULT '[]',
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_archived BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // User activity table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_activity (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        action_details JSONB DEFAULT '{}',
+        ip_address TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // KooGallery instances table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS koogallery_instances (
+        id TEXT PRIMARY KEY,
+        instance_id TEXT UNIQUE NOT NULL,
+        order_id TEXT NOT NULL,
+        order_line_id TEXT NOT NULL,
+        business_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'creating',
+        test_flag BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP,
+        metadata TEXT
+      )
+    `);
+
+    // KooGallery logs table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS koogallery_logs (
+        id TEXT PRIMARY KEY,
+        endpoint TEXT NOT NULL,
+        method TEXT NOT NULL,
+        order_id TEXT,
+        instance_id TEXT,
+        status TEXT NOT NULL,
+        message TEXT,
+        request_data TEXT,
+        response_data TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address TEXT,
+        user_agent TEXT
+      )
+    `);
+
     // Create indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)');
@@ -102,6 +168,16 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON user_sessions(token_hash)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_rate_limits_ip_endpoint ON rate_limits(ip_address, endpoint)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_user_id ON email_logs(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_chats_url_id ON chats(url_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_user_activity_user_id ON user_activity(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_user_activity_action_type ON user_activity(action_type)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_order_id ON koogallery_instances(order_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_instance_id ON koogallery_instances(instance_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_logs_endpoint ON koogallery_logs(endpoint)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_logs_order_id ON koogallery_logs(order_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_logs_instance_id ON koogallery_logs(instance_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_logs_timestamp ON koogallery_logs(timestamp)');
 
     console.log('PostgreSQL tables created successfully');
   } catch (error) {
@@ -386,7 +462,7 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
   const client = await pool.connect();
   
   try {
-    const { id, url_id, description, messages, metadata } = chatData;
+    const { id, urlId, description, messages, metadata } = chatData;
     const query = `
       INSERT INTO chats (id, user_id, url_id, description, messages, metadata, updated_at, last_activity)
       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -398,7 +474,7 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
         last_activity = CURRENT_TIMESTAMP
       RETURNING id
     `;
-    const result = await client.query(query, [id, userId, url_id, description, JSON.stringify(messages), JSON.stringify(metadata)]);
+    const result = await client.query(query, [id, userId, urlId, description, JSON.stringify(messages), JSON.stringify(metadata)]);
     return result.rows[0]?.id || null;
   } catch (error) {
     console.error('Error saving chat to PostgreSQL:', error);

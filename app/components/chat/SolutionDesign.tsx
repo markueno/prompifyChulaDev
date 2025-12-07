@@ -133,7 +133,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
   const [framework, setFramework] = useState('React');
   const [useTypeScript, setUseTypeScript] = useState(true);
   const [cssFramework, setCssFramework] = useState('Tailwind CSS');
-  const [database, setDatabase] = useState('SQLite');
+  const [database, setDatabase] = useState('PostgreSQL');
 
   // Check environment variables for disabled components
   const disableFramework = import.meta.env.VITE_DISABLE_FRAMEWORK === 'true' || import.meta.env.VITE_DISABLE_FRAMEWORK === '1';
@@ -441,7 +441,6 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   : "bg-white border-gray-300"
               )}>
                 <div className="text-2xl mb-1">
-                  {database === 'SQLite' && <div className="i-logos:sqlite"></div>}
                   {database === 'PostgreSQL' && <div className="i-logos:postgresql"></div>}
                   {database === 'MySQL' && <div className="i-logos:mysql"></div>}
                   {database === 'MongoDB' && <div className="i-logos:mongodb"></div>}
@@ -459,7 +458,6 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                       : "text-gray-900 bg-white"
                   )}
                 >
-                  <option value="SQLite">SQLite</option>
                   <option value="PostgreSQL">PostgreSQL</option>
                   <option value="MySQL">MySQL</option>
                   <option value="MongoDB">MongoDB</option>

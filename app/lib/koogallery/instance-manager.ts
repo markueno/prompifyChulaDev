@@ -1,4 +1,4 @@
-import { getDatabase } from '~/lib/database';
+import { getPostgresPool } from '~/lib/database-postgresql';
 import crypto from 'crypto';
 
 export interface KooGalleryInstance {
@@ -32,23 +32,26 @@ export interface CreateInstanceParams {
  * Create a new KooGallery instance
  */
 export async function createInstance(params: CreateInstanceParams): Promise<KooGalleryInstance> {
-  const db = getDatabase();
+  const pool = getPostgresPool();
+  const client = await pool.connect();
   
   try {
+    const id = crypto.randomUUID();
+    
     // Insert instance record
-    const result = await db.run(`
+    await client.query(`
       INSERT INTO koogallery_instances (
         id, instance_id, order_id, order_line_id, business_id, 
         status, test_flag, created_at, updated_at, expires_at, metadata
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     `, [
-      crypto.randomUUID(),
+      id,
       params.instanceId,
       params.orderId,
       params.orderLineId,
       params.businessId,
       params.status,
-      params.testFlag ? 1 : 0,
+      params.testFlag,
       params.createdAt.toISOString(),
       params.updatedAt.toISOString(),
       params.expiresAt?.toISOString() || null,
@@ -57,7 +60,7 @@ export async function createInstance(params: CreateInstanceParams): Promise<KooG
 
     // Return the created instance
     return {
-      id: result.lastInsertRowid?.toString() || '',
+      id,
       instanceId: params.instanceId,
       orderId: params.orderId,
       orderLineId: params.orderLineId,
@@ -73,6 +76,8 @@ export async function createInstance(params: CreateInstanceParams): Promise<KooG
   } catch (error) {
     console.error('Error creating KooGallery instance:', error);
     throw new Error('Failed to create instance');
+  } finally {
+    client.release();
   }
 }
 
@@ -83,17 +88,20 @@ export async function getInstanceByOrderId(
   orderId: string, 
   orderLineId: string
 ): Promise<KooGalleryInstance | null> {
-  const db = getDatabase();
+  const pool = getPostgresPool();
+  const client = await pool.connect();
   
   try {
-    const row = await db.get(`
+    const result = await client.query(`
       SELECT * FROM koogallery_instances 
-      WHERE order_id = ? AND order_line_id = ?
+      WHERE order_id = $1 AND order_line_id = $2
       ORDER BY created_at DESC
       LIMIT 1
     `, [orderId, orderLineId]);
 
-    if (!row) return null;
+    if (result.rows.length === 0) return null;
+
+    const row = result.rows[0];
 
     return {
       id: row.id,
@@ -112,6 +120,8 @@ export async function getInstanceByOrderId(
   } catch (error) {
     console.error('Error getting instance by order ID:', error);
     return null;
+  } finally {
+    client.release();
   }
 }
 
@@ -119,17 +129,20 @@ export async function getInstanceByOrderId(
  * Get instance by instance ID
  */
 export async function getInstanceById(instanceId: string): Promise<KooGalleryInstance | null> {
-  const db = getDatabase();
+  const pool = getPostgresPool();
+  const client = await pool.connect();
   
   try {
-    const row = await db.get(`
+    const result = await client.query(`
       SELECT * FROM koogallery_instances 
-      WHERE instance_id = ?
+      WHERE instance_id = $1
       ORDER BY created_at DESC
       LIMIT 1
     `, [instanceId]);
 
-    if (!row) return null;
+    if (result.rows.length === 0) return null;
+
+    const row = result.rows[0];
 
     return {
       id: row.id,
@@ -148,6 +161,8 @@ export async function getInstanceById(instanceId: string): Promise<KooGalleryIns
   } catch (error) {
     console.error('Error getting instance by ID:', error);
     return null;
+  } finally {
+    client.release();
   }
 }
 
@@ -159,25 +174,27 @@ export async function updateInstanceStatus(
   status: string,
   metadata?: Record<string, any>
 ): Promise<boolean> {
-  const db = getDatabase();
+  const pool = getPostgresPool();
+  const client = await pool.connect();
   
   try {
-    await db.run(`
+    const result = await client.query(`
       UPDATE koogallery_instances 
-      SET status = ?, updated_at = ?, metadata = ?
-      WHERE instance_id = ?
+      SET status = $1, updated_at = CURRENT_TIMESTAMP, metadata = $2
+      WHERE instance_id = $3
     `, [
       status,
-      new Date().toISOString(),
       metadata ? JSON.stringify(metadata) : null,
       instanceId
     ]);
 
-    return true;
+    return result.rowCount > 0;
 
   } catch (error) {
     console.error('Error updating instance status:', error);
     return false;
+  } finally {
+    client.release();
   }
 }
 
@@ -185,19 +202,22 @@ export async function updateInstanceStatus(
  * Delete instance
  */
 export async function deleteInstance(instanceId: string): Promise<boolean> {
-  const db = getDatabase();
+  const pool = getPostgresPool();
+  const client = await pool.connect();
   
   try {
-    await db.run(`
+    const result = await client.query(`
       UPDATE koogallery_instances 
-      SET status = 'deleted', updated_at = ?
-      WHERE instance_id = ?
-    `, [new Date().toISOString(), instanceId]);
+      SET status = 'deleted', updated_at = CURRENT_TIMESTAMP
+      WHERE instance_id = $1
+    `, [instanceId]);
 
-    return true;
+    return result.rowCount > 0;
 
   } catch (error) {
     console.error('Error deleting instance:', error);
     return false;
+  } finally {
+    client.release();
   }
 }
