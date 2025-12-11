@@ -5,10 +5,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: prompify-postgres
-    # environment:
-    #   POSTGRES_DB: prompify
-    #   POSTGRES_USER: prompify_user
-    #   POSTGRES_PASSWORD: Mark@3156
+    environment:
       POSTGRES_DB: ${POSTGRES_DB:-prompify}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Mark@3156}
@@ -60,9 +57,7 @@ services:
       
       # Database Configuration (Required for production)
       - DATABASE_TYPE=postgresql
-    
-        # - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/${POSTGRES_DB:-prompify}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-blacknova123}@postgres:5432/${POSTGRES_DB:-prompify}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/${POSTGRES_DB:-prompify}
       - REDIS_URL=redis://redis:6379
       
       # Authentication & Security

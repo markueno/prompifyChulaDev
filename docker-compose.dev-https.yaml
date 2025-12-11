@@ -60,8 +60,7 @@ services:
       
       # Database Configuration
       - DATABASE_TYPE=postgresql
-      #- DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/${POSTGRES_DB:-prompify}
-        DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-blacknova123}@postgres:5432/${POSTGRES_DB:-prompify}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-blacknova123}@postgres:5432/${POSTGRES_DB:-prompify}
       - REDIS_URL=redis://redis:6379
       
       # Development-specific Settings (Hot Module Replacement)
