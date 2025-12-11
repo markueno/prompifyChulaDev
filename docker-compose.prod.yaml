@@ -5,10 +5,13 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: prompify-postgres
-    environment:
-      POSTGRES_DB: prompify
-      POSTGRES_USER: prompify_user
-      POSTGRES_PASSWORD: Mark@3156
+    # environment:
+    #   POSTGRES_DB: prompify
+    #   POSTGRES_USER: prompify_user
+    #   POSTGRES_PASSWORD: Mark@3156
+      POSTGRES_DB: ${POSTGRES_DB:-prompify}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Mark@3156}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -18,7 +21,8 @@ services:
       - prompify-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prompify_user} -d ${POSTGRES_DB:-prompify}"]
+      # test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prompify_user} -d ${POSTGRES_DB:-prompify}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-prompify}"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -56,7 +60,9 @@ services:
       
       # Database Configuration (Required for production)
       - DATABASE_TYPE=postgresql
-      - DATABASE_URL=postgresql://prompify_user:${POSTGRES_PASSWORD:-your-secure-password}@postgres:5432/prompify
+    
+        # - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/${POSTGRES_DB:-prompify}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-blacknova123}@postgres:5432/${POSTGRES_DB:-prompify}
       - REDIS_URL=redis://redis:6379
       
       # Authentication & Security

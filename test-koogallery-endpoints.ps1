@@ -133,7 +133,9 @@ catch {
 # Test 8: Check Database Tables
 Write-Host "`n🔍 Checking Database Tables" -ForegroundColor Cyan
 try {
-    $dbCheck = docker exec prompify-postgres psql -U prompify_user -d prompify -c "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'koogallery_%';"
+    $dbUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
+    $dbName = if ($env:POSTGRES_DB) { $env:POSTGRES_DB } else { "prompify" }
+    $dbCheck = docker exec prompify-postgres psql -U $dbUser -d $dbName -c "SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'koogallery_%';"
     Write-Host "✅ Database Check:" -ForegroundColor Green
     Write-Host $dbCheck
 }
@@ -144,7 +146,9 @@ catch {
 # Test 9: Check KooGallery Logs
 Write-Host "`n🔍 Checking KooGallery Logs" -ForegroundColor Cyan
 try {
-    $logsCheck = docker exec prompify-postgres psql -U prompify_user -d prompify -c "SELECT COUNT(*) as log_count FROM koogallery_logs;"
+    $dbUser = if ($env:POSTGRES_USER) { $env:POSTGRES_USER } else { "postgres" }
+    $dbName = if ($env:POSTGRES_DB) { $env:POSTGRES_DB } else { "prompify" }
+    $logsCheck = docker exec prompify-postgres psql -U $dbUser -d $dbName -c "SELECT COUNT(*) as log_count FROM koogallery_logs;"
     Write-Host "✅ KooGallery Logs Count:" -ForegroundColor Green
     Write-Host $logsCheck
 }
