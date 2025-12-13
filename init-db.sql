@@ -1,6 +1,22 @@
 -- Initialize Prompify Database
 -- This file is automatically executed when PostgreSQL container starts
 
+-- Create prompify_user role if it doesn't exist
+-- This handles cases where the volume was created with a different user
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'prompify_user') THEN
+    CREATE ROLE prompify_user WITH LOGIN PASSWORD 'Mark@3156';
+    ALTER ROLE prompify_user CREATEDB;
+  END IF;
+END
+$$;
+
+-- Grant necessary permissions to prompify_user
+GRANT ALL PRIVILEGES ON DATABASE prompify TO prompify_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO prompify_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO prompify_user;
+
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,

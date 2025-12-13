@@ -20,12 +20,12 @@ services:
     networks:
       - prompify-network
     restart: unless-stopped
-    healthcheck:
-      # test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-prompify}"]
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prompify_user} -d ${POSTGRES_DB:-prompify}"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # healthcheck:
+    #   # test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-prompify}"]
+    #   test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prompify_user} -d ${POSTGRES_DB:-prompify}"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
     profiles: ['development-https']
 
   # Redis for session storage (optional)
