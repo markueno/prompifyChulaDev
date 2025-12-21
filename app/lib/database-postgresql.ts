@@ -191,27 +191,38 @@ export async function createPostgresTables() {
 // Database helper functions for PostgreSQL
 export async function getUserByEmailPostgres(email: string) {
   const pool = getPostgresPool();
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const result = await client.query(
       'SELECT * FROM users WHERE email = $1',
       [email]
     );
     return result.rows[0] || null;
-  } catch (error) {
-    console.error('Error getting user by email:', error);
+  } catch (error: any) {
+    console.error('❌ Error getting user by email:', error);
+    // Re-throw connection errors so they can be handled upstream
+    if (error.message?.includes('timeout') || 
+        error.message?.includes('Connection terminated') || 
+        error.message?.includes('ECONNREFUSED') ||
+        error.message?.includes('ENOTFOUND')) {
+      throw error; // Let the caller handle connection errors
+    }
     return null;
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 }
 
 export async function createUserPostgres(user: any) {
   const pool = getPostgresPool();
-  const client = await pool.connect();
+  let client;
   
   try {
+    client = await pool.connect();
     const result = await client.query(`
       INSERT INTO users (id, email, password_hash, is_verified, verification_token, verification_expires, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -225,11 +236,24 @@ export async function createUserPostgres(user: any) {
       user.createdAt
     ]);
     return result.rowCount > 0;
-  } catch (error) {
-    console.error('Error creating user:', error);
+  } catch (error: any) {
+    console.error('❌ Error creating user:', error);
+    // Re-throw connection errors so they can be handled upstream
+    if (error.message?.includes('timeout') || 
+        error.message?.includes('Connection terminated') || 
+        error.message?.includes('ECONNREFUSED') ||
+        error.message?.includes('ENOTFOUND')) {
+      throw error; // Let the caller handle connection errors
+    }
+    // Re-throw duplicate key errors
+    if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+      throw error;
+    }
     return false;
   } finally {
-    client.release();
+    if (client) {
+      client.release();
+    }
   }
 }
 

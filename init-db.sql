@@ -22,12 +22,16 @@ CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    verification_token TEXT,
     is_verified BOOLEAN DEFAULT FALSE,
+    verification_token TEXT,
+    verification_expires TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP,
     login_attempts INTEGER DEFAULT 0,
-    locked_until TIMESTAMP
+    locked_until TIMESTAMP,
+    reset_token TEXT,
+    reset_expires TIMESTAMP
 );
 
 -- Create user_sessions table
@@ -91,7 +95,41 @@ CREATE TABLE IF NOT EXISTS user_activity (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Create KooGallery instances table
+CREATE TABLE IF NOT EXISTS koogallery_instances (
+    id TEXT PRIMARY KEY,
+    instance_id TEXT UNIQUE NOT NULL,
+    order_id TEXT NOT NULL,
+    order_line_id TEXT NOT NULL,
+    business_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'creating',
+    test_flag BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    metadata TEXT
+);
+
+-- Create KooGallery logs table
+CREATE TABLE IF NOT EXISTS koogallery_logs (
+    id TEXT PRIMARY KEY,
+    endpoint TEXT NOT NULL,
+    method TEXT NOT NULL,
+    order_id TEXT,
+    instance_id TEXT,
+    status TEXT NOT NULL,
+    message TEXT,
+    request_data TEXT,
+    response_data TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ip_address TEXT,
+    user_agent TEXT
+);
+
 -- Create indexes
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
+CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON user_sessions(token_hash);
 CREATE INDEX IF NOT EXISTS idx_rate_limits_ip_endpoint ON rate_limits(ip_address, endpoint);
@@ -100,3 +138,9 @@ CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id);
 CREATE INDEX IF NOT EXISTS idx_chats_url_id ON chats(url_id);
 CREATE INDEX IF NOT EXISTS idx_user_activity_user_id ON user_activity(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_activity_action_type ON user_activity(action_type);
+CREATE INDEX IF NOT EXISTS idx_koogallery_order_id ON koogallery_instances(order_id);
+CREATE INDEX IF NOT EXISTS idx_koogallery_instance_id ON koogallery_instances(instance_id);
+CREATE INDEX IF NOT EXISTS idx_koogallery_logs_endpoint ON koogallery_logs(endpoint);
+CREATE INDEX IF NOT EXISTS idx_koogallery_logs_order_id ON koogallery_logs(order_id);
+CREATE INDEX IF NOT EXISTS idx_koogallery_logs_instance_id ON koogallery_logs(instance_id);
+CREATE INDEX IF NOT EXISTS idx_koogallery_logs_timestamp ON koogallery_logs(timestamp);

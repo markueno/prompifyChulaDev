@@ -1,56 +1,60 @@
-// Email service for Prompify
-// This is a simple email service that can be extended with real email providers
+// Email service for Prompify using Twilio SendGrid
+import sgMail from '@sendgrid/mail';
 
 interface EmailOptions {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  from?: string;
+}
+
+// Initialize SendGrid with API key from environment
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+const FROM_EMAIL = process.env.FROM_EMAIL || process.env.SENDGRID_FROM_EMAIL || 'noreply@prompify.com';
+
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
 }
 
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
-    // For development, we'll just log the email
-    console.log('=== EMAIL SENT ===');
-    console.log('To:', options.to);
-    console.log('Subject:', options.subject);
-    console.log('HTML:', options.html);
-    console.log('==================');
+    // If SendGrid API key is not configured, log to console (development mode)
+    if (!SENDGRID_API_KEY) {
+      console.warn('⚠️  SENDGRID_API_KEY not configured - email will be logged to console only');
+      console.log('=== EMAIL SENT (NOT ACTUALLY SENT - NO API KEY) ===');
+      console.log('To:', options.to);
+      console.log('Subject:', options.subject);
+      console.log('HTML:', options.html);
+      console.log('===================================================');
+      return true; // Return true so registration doesn't fail
+    }
+
+    // Send email via Twilio SendGrid
+    const msg = {
+      to: options.to,
+      from: options.from || FROM_EMAIL,
+      subject: options.subject,
+      text: options.text || options.html.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+      html: options.html,
+    };
+
+    await sgMail.send(msg);
     
-    // In production, you would use a real email service here
-    // Examples:
-    
-    // SendGrid
-    // const sgMail = require('@sendgrid/mail');
-    // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-    // await sgMail.send(options);
-    
-    // AWS SES
-    // const AWS = require('aws-sdk');
-    // const ses = new AWS.SES();
-    // await ses.sendEmail({
-    //   Source: 'noreply@yourdomain.com',
-    //   Destination: { ToAddresses: [options.to] },
-    //   Message: {
-    //     Subject: { Data: options.subject },
-    //     Body: { Html: { Data: options.html } }
-    //   }
-    // }).promise();
-    
-    // Nodemailer (Gmail, Outlook, etc.)
-    // const nodemailer = require('nodemailer');
-    // const transporter = nodemailer.createTransporter({
-    //   service: 'gmail',
-    //   auth: {
-    //     user: process.env.EMAIL_USER,
-    //     pass: process.env.EMAIL_PASS
-    //   }
-    // });
-    // await transporter.sendMail(options);
-    
+    console.log(`✅ Email sent successfully to ${options.to}`);
     return true;
-  } catch (error) {
-    console.error('Email sending failed:', error);
+  } catch (error: any) {
+    console.error('❌ Email sending failed:', error);
+    
+    // Log detailed error information
+    if (error.response) {
+      console.error('SendGrid Error Response:', {
+        status: error.response.status,
+        body: error.response.body,
+        headers: error.response.headers,
+      });
+    }
+    
     return false;
   }
 }

@@ -109,7 +109,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
     registrationAttempts.set(clientIP, currentAttempts);
 
     // Check if user already exists
-    const existingUser = await getUserByEmail(email);
+    let existingUser;
+    try {
+      existingUser = await getUserByEmail(email);
+    } catch (error: any) {
+      console.error('❌ Database connection error during user lookup:', error);
+      // Check for connection errors
+      if (error.message?.includes('timeout') || error.message?.includes('Connection terminated') || error.message?.includes('ECONNREFUSED')) {
+        return json<RegisterResponse>({
+          success: false,
+          message: 'Database connection failed. Please check that PostgreSQL is running and DATABASE_URL is configured correctly.'
+        }, { status: 503 });
+      }
+      // Re-throw other errors
+      throw error;
+    }
+    
     if (existingUser) {
       return json<RegisterResponse>({
         success: false,
@@ -137,12 +152,38 @@ export async function action({ request, context }: ActionFunctionArgs) {
       createdAt: new Date().toISOString()
     };
 
-    const success = await createUser(user);
-    
-    if (!success) {
+    try {
+      const success = await createUser(user);
+      
+      if (!success) {
+        console.error('❌ createUser returned false');
+        return json<RegisterResponse>({
+          success: false,
+          message: 'Failed to create account. Please check database connection and try again.'
+        }, { status: 500 });
+      }
+    } catch (error: any) {
+      console.error('❌ Error during user creation:', error);
+      // Check for connection errors
+      if (error.message?.includes('timeout') || 
+          error.message?.includes('Connection terminated') || 
+          error.message?.includes('ECONNREFUSED') ||
+          error.message?.includes('ENOTFOUND')) {
+        return json<RegisterResponse>({
+          success: false,
+          message: 'Database connection failed. Please check that PostgreSQL is running and DATABASE_URL is configured correctly.'
+        }, { status: 503 });
+      }
+      // Check for duplicate key errors
+      if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+        return json<RegisterResponse>({
+          success: false,
+          message: 'An account with this email already exists'
+        }, { status: 409 });
+      }
       return json<RegisterResponse>({
         success: false,
-        message: 'Failed to create account. Please try again.'
+        message: `Failed to create account: ${error.message || 'Unknown error'}`
       }, { status: 500 });
     }
 
