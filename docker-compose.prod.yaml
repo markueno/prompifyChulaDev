@@ -6,9 +6,6 @@ services:
     image: postgres:15-alpine
     container_name: prompify-postgres
     environment:
-      # POSTGRES_DB: ${POSTGRES_DB:-prompify}
-      # POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      # POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Mark@3156}
       POSTGRES_DB: ${POSTGRES_DB:-prompify}
       POSTGRES_USER: ${POSTGRES_USER:-prompify_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Mark@3156}
@@ -21,7 +18,6 @@ services:
       - prompify-network
     restart: unless-stopped
     healthcheck:
-      # test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-prompify}"]
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prompify_user} -d ${POSTGRES_DB:-prompify}"]
       interval: 30s
       timeout: 10s
@@ -46,27 +42,31 @@ services:
       retries: 3
     profiles: ['production']
 
-  # Prompify Application
-  app:
+  app-dev-https:
+    image: bolt-ai:development
     build:
       context: .
-      target: bolt-ai-production
-    container_name: prompify-app
+      target: bolt-ai-development
     env_file: '.env'
     environment:
       # Core Application Settings
-      - NODE_ENV=production
+      - NODE_ENV=development
+      - PORT=5173
       - RUNNING_IN_DOCKER=true
       
-      # Database Configuration (Required for production)
+      # Database Configuration
       - DATABASE_TYPE=postgresql
       - DATABASE_URL=postgresql://${POSTGRES_USER:-prompify_user}:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/${POSTGRES_DB:-prompify}
       - REDIS_URL=redis://redis:6379
       
-      # Authentication & Security
-      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
-      - APP_URL=${APP_URL:-http://localhost:5173}
-      - AUTH_DISABLED=${AUTH_DISABLED:-true}
+      # Development-specific Settings (Hot Module Replacement)
+      #- VITE_HMR_PROTOCOL=ws
+      - VITE_HMR_PROTOCOL=wss
+      
+      - VITE_HMR_HOST=localhost
+      - VITE_HMR_PORT=5173
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
       
       # AI Provider API Keys (Optional - only needed if using those services)
       - GROQ_API_KEY=${GROQ_API_KEY}
@@ -84,16 +84,24 @@ services:
       # Application Configuration (Optional with defaults)
       - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
+      - AUTH_DISABLED=${AUTH_DISABLED:-true}
       
       # Koogallery Integration (Optional)
       - KOOGALLERY_ACCESS_KEY=${KOOGALLERY_ACCESS_KEY}
       - KOOGALLERY_API_BASE_URL=${KOOGALLERY_API_BASE_URL}
       - KOOGALLERY_ENABLED=${KOOGALLERY_ENABLED:-true}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     volumes:
-      - ./data:/app/data  # For any file uploads or logs
+      - type: bind
+        source: .
+        target: /app
+        consistency: cached
+      - /app/node_modules
+      - /root/qa/ssl:/app/ssl:ro  # Mount SSL certificates
     ports:
-      - "5173:5173"
-      - "5174:5174"
+      - '5173:5173'
+      - '5174:5174'  # HTTPS port
     networks:
       - prompify-network
     depends_on:
@@ -101,20 +109,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    command: pnpm run dev --host 0.0.0.0
     profiles: ['production']
 
-  # Nginx Reverse Proxy (optional)
-  nginx:
+  # Nginx reverse proxy for HTTPS
+  nginx-dev:
     image: nginx:alpine
-    container_name: prompify-nginx
+    container_name: prompify-nginx-dev
     volumes:
-      - ./nginx-dev.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-ecs.conf:/etc/nginx/nginx.conf:ro
+      - certbot-etc:/etc/letsencrypt:ro
+      - certbot-var:/var/lib/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
       - ./ssl_prompifycom:/etc/nginx/ssl_prompifycom:ro
     ports:
       - "80:80"
@@ -122,7 +128,22 @@ services:
     networks:
       - prompify-network
     depends_on:
-      - app
+      - app-dev-https
+    restart: unless-stopped
+    profiles: ['production']
+
+  # Certbot for SSL certificate management
+  certbot:
+    image: certbot/certbot:latest
+    container_name: prompify-certbot-dev
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+      - certbot-log:/var/log/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    networks:
+      - prompify-network
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot; sleep 12h & wait $${!}; done;'"
     restart: unless-stopped
     profiles: ['production']
 
@@ -131,7 +152,15 @@ volumes:
     driver: local
   redis_data:
     driver: local
+  certbot-etc:
+    driver: local
+  certbot-var:
+    driver: local
+  certbot-log:
+    driver: local
+  certbot-webroot:
+    driver: local
 
 networks:
   prompify-network:
-    driver: bridge 
+    driver: bridge

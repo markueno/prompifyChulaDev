@@ -151,6 +151,39 @@ export async function checkSessionConflict(userId: string): Promise<boolean> {
   return false;
 }
 
-export function clearAuthCookie(): string {
-  return 'auth_token=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0';
+/**
+ * Creates an authentication cookie string with proper Secure flag handling
+ * Only uses Secure flag in production (HTTPS), not in development (HTTP)
+ */
+export function createAuthCookie(token: string, request?: Request): string {
+  // Check if we're in a secure context (HTTPS or production)
+  let isSecure = false;
+  if (request) {
+    const url = new URL(request.url);
+    isSecure = url.protocol === 'https:';
+  }
+  // Also check NODE_ENV as fallback
+  if (!isSecure) {
+    isSecure = process.env.NODE_ENV === 'production';
+  }
+  
+  const secureFlag = isSecure ? 'Secure;' : '';
+  return `auth_token=${token}; HttpOnly; ${secureFlag} SameSite=Strict; Path=/; Max-Age=86400`;
+}
+
+/**
+ * Creates a cookie clearing string with proper Secure flag handling
+ */
+export function clearAuthCookie(request?: Request): string {
+  let isSecure = false;
+  if (request) {
+    const url = new URL(request.url);
+    isSecure = url.protocol === 'https:';
+  }
+  if (!isSecure) {
+    isSecure = process.env.NODE_ENV === 'production';
+  }
+  
+  const secureFlag = isSecure ? 'Secure;' : '';
+  return `auth_token=; Path=/; HttpOnly; ${secureFlag} SameSite=Strict; Max-Age=0`;
 } 

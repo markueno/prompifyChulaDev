@@ -1,6 +1,6 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { logoutUser } from '~/lib/database';
-import { getAuthToken } from '~/lib/auth';
+import { getAuthToken, clearAuthCookie } from '~/lib/auth';
 import crypto from 'crypto';
 
 interface LogoutResponse {
@@ -24,7 +24,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     // Clear cookie
     const headers = new Headers();
-    headers.append('Set-Cookie', 'auth_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
+    headers.append('Set-Cookie', clearAuthCookie(request));
 
     return json<LogoutResponse>({
       success: true,

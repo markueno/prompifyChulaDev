@@ -109,22 +109,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     registrationAttempts.set(clientIP, currentAttempts);
 
     // Check if user already exists
-    let existingUser;
-    try {
-      existingUser = await getUserByEmail(email);
-    } catch (error: any) {
-      console.error('❌ Database connection error during user lookup:', error);
-      // Check for connection errors
-      if (error.message?.includes('timeout') || error.message?.includes('Connection terminated') || error.message?.includes('ECONNREFUSED')) {
-        return json<RegisterResponse>({
-          success: false,
-          message: 'Database connection failed. Please check that PostgreSQL is running and DATABASE_URL is configured correctly.'
-        }, { status: 503 });
-      }
-      // Re-throw other errors
-      throw error;
-    }
-    
+    const existingUser = await getUserByEmail(email);
     if (existingUser) {
       return json<RegisterResponse>({
         success: false,
@@ -164,22 +149,18 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }
     } catch (error: any) {
       console.error('❌ Error during user creation:', error);
-      // Check for connection errors
-      if (error.message?.includes('timeout') || 
-          error.message?.includes('Connection terminated') || 
-          error.message?.includes('ECONNREFUSED') ||
-          error.message?.includes('ENOTFOUND')) {
-        return json<RegisterResponse>({
-          success: false,
-          message: 'Database connection failed. Please check that PostgreSQL is running and DATABASE_URL is configured correctly.'
-        }, { status: 503 });
-      }
-      // Check for duplicate key errors
-      if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+      // Check for specific database errors
+      if (error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
         return json<RegisterResponse>({
           success: false,
           message: 'An account with this email already exists'
         }, { status: 409 });
+      }
+      if (error.message?.includes('connection') || error.message?.includes('ECONNREFUSED')) {
+        return json<RegisterResponse>({
+          success: false,
+          message: 'Database connection failed. Please check your DATABASE_URL configuration.'
+        }, { status: 500 });
       }
       return json<RegisterResponse>({
         success: false,

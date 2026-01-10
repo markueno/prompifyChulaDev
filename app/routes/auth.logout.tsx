@@ -1,5 +1,5 @@
 import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { isAuthDisabled } from '~/lib/auth';
+import { isAuthDisabled, clearAuthCookie } from '~/lib/auth';
 import { logoutUser } from '~/lib/database';
 import { getAuthToken } from '~/lib/auth';
 import crypto from 'crypto';
@@ -13,7 +13,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
   // Clear authentication cookies and redirect to login
   const headers = new Headers();
-  headers.append('Set-Cookie', 'auth_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
+  headers.append('Set-Cookie', clearAuthCookie(request));
   
   return redirect('/auth/login', { headers });
 }
@@ -36,7 +36,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     // Clear cookie and redirect to login
     const headers = new Headers();
-    headers.append('Set-Cookie', 'auth_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
+    headers.append('Set-Cookie', clearAuthCookie(request));
     
     return redirect('/auth/login', { headers });
 
@@ -44,7 +44,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     console.error('Logout error:', error);
     // Even if there's an error, clear the cookie and redirect
     const headers = new Headers();
-    headers.append('Set-Cookie', 'auth_token=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0');
+    headers.append('Set-Cookie', clearAuthCookie(request));
     return redirect('/auth/login', { headers });
   }
 }

@@ -6,7 +6,7 @@ import { Card } from '~/components/ui/Card';
 import { Input } from '~/components/ui/Input';
 import { Label } from '~/components/ui/Label';
 import BackgroundRays from '~/components/ui/BackgroundRays';
-import { isAuthDisabled } from '~/lib/auth';
+import { isAuthDisabled, optionalAuth, createAuthCookie } from '~/lib/auth';
 
 interface ActionData {
   error?: string;
@@ -21,6 +21,18 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   }
 
   // Check if user is already authenticated
+  try {
+    const user = await optionalAuth(request, context);
+    if (user) {
+      console.log('✅ User already authenticated, redirecting to home');
+      return redirect('/');
+    }
+  } catch (error) {
+    // User is not authenticated, continue to login page
+    console.log('ℹ️ User not authenticated, showing login page');
+  }
+
+  // Check for token in query params (for email verification redirects)
   const url = new URL(request.url);
   const token = url.searchParams.get('token');
   
@@ -61,9 +73,9 @@ export async function action({ request }: ActionFunctionArgs) {
         return json<ActionData>({ error: (data as any)?.message || 'Login failed' });
       }
 
-      // Set authentication cookie/token
+      // Set authentication cookie/token using helper function
       const headers = new Headers();
-      headers.append('Set-Cookie', `auth_token=${(data as any)?.token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`);
+      headers.append('Set-Cookie', createAuthCookie((data as any)?.token, request));
 
       return redirect('/', { headers });
     }

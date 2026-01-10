@@ -35,7 +35,7 @@ fi
 
 # Start services with Docker Compose
 echo "🐳 Starting services with Docker Compose..."
-docker-compose -f docker-compose.dev-https.yaml --profile development-https up -d
+docker-compose -f docker-compose.prod.yaml --profile production up -d
 
 # Wait for services to be ready
 echo "⏳ Waiting for services to start..."
@@ -43,7 +43,7 @@ sleep 10
 
 # Check if services are running
 echo "🔍 Checking service status..."
-docker-compose -f docker-compose.dev-https.yaml --profile development-https ps
+docker-compose -f docker-compose.prod.yaml --profile production ps
 
 # Test KooGallery endpoints
 echo "🧪 Testing KooGallery endpoints..."
@@ -73,5 +73,5 @@ echo "   - HTTP: http://localhost"
 echo "   - HTTPS: https://localhost"
 echo ""
 echo "📊 Monitor logs with:"
-echo "   docker-compose -f docker-compose.dev-https.yaml --profile development-https logs -f"
+echo "   docker-compose -f docker-compose.prod.yaml --profile production logs -f"
 

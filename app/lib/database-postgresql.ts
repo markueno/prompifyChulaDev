@@ -212,7 +212,7 @@ export async function getUserByEmailPostgres(email: string) {
     return null;
   } finally {
     if (client) {
-      client.release();
+    client.release();
     }
   }
 }
@@ -252,7 +252,7 @@ export async function createUserPostgres(user: any) {
     return false;
   } finally {
     if (client) {
-      client.release();
+    client.release();
     }
   }
 }

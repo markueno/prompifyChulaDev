@@ -1,18 +1,35 @@
 #!/usr/bin/env node
 
 import pg from 'pg';
+import Database from 'better-sqlite3';
 
 const { Pool } = pg;
 
-console.log('🔍 Testing PostgreSQL Database Connection...\n');
+console.log('🔍 Testing Database Connections...\n');
+
+// Test SQLite
+console.log('📦 Testing SQLite...');
+try {
+  const sqliteDb = new Database('./data/prompify.db');
+  console.log('✅ SQLite connection successful');
+  
+  // Test a simple query
+  const result = sqliteDb.prepare('SELECT COUNT(*) as count FROM sqlite_master WHERE type=\'table\'').get();
+  console.log(`📊 Found ${result.count} tables in SQLite`);
+  
+  sqliteDb.close();
+} catch (error) {
+  console.error('❌ SQLite connection failed:', error.message);
+}
+
+console.log('\n🐘 Testing PostgreSQL...');
 
 // Test PostgreSQL
 async function testPostgreSQL() {
   try {
     const databaseUrl = process.env.DATABASE_URL;
     if (!databaseUrl) {
-      console.log('⚠️  DATABASE_URL not set, cannot test PostgreSQL');
-      console.log('   Please set DATABASE_URL environment variable');
+      console.log('⚠️  DATABASE_URL not set, skipping PostgreSQL test');
       return;
     }
 
@@ -30,38 +47,17 @@ async function testPostgreSQL() {
     const result = await client.query('SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = \'public\'');
     console.log(`📊 Found ${result.rows[0].count} tables in PostgreSQL`);
     
-    // List all tables
-    const tablesResult = await client.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      ORDER BY table_name
-    `);
-    
-    if (tablesResult.rows.length > 0) {
-      console.log('\n📋 Tables in database:');
-      tablesResult.rows.forEach(row => {
-        console.log(`   - ${row.table_name}`);
-      });
-    }
-    
     client.release();
     await pool.end();
-    
-    console.log('\n🎯 Database test completed successfully!');
   } catch (error) {
     console.error('❌ PostgreSQL connection failed:', error.message);
-    console.error('\n💡 Troubleshooting tips:');
-    console.error('   1. Check that DATABASE_URL is correctly set');
-    console.error('   2. Verify PostgreSQL is running');
-    console.error('   3. Check network connectivity to database server');
-    console.error('   4. Verify credentials are correct');
   }
 }
 
 testPostgreSQL().then(() => {
+  console.log('\n🎯 Database test completed!');
   console.log('\n📝 Next steps:');
-  console.log('   - Ensure DATABASE_URL is set in your environment');
-  console.log('   - Run the application with docker-compose.prod.yaml for production');
-  console.log('   - Or set DATABASE_URL for local development');
-});
+  console.log('1. Set DATABASE_TYPE=postgresql to use PostgreSQL');
+  console.log('2. Set DATABASE_URL for PostgreSQL connection');
+  console.log('3. Run the application with docker-compose.prod.yaml');
+}); 
