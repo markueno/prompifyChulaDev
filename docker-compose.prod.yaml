@@ -42,11 +42,12 @@ services:
       retries: 3
     profiles: ['production']
 
-  app-dev-https:
+  app:
     image: bolt-ai:development
     build:
       context: .
       target: bolt-ai-development
+    container_name: prompify-app
     env_file: '.env'
     environment:
       # Core Application Settings
@@ -113,9 +114,9 @@ services:
     profiles: ['production']
 
   # Nginx reverse proxy for HTTPS
-  nginx-dev:
+  nginx:
     image: nginx:alpine
-    container_name: prompify-nginx-dev
+    container_name: prompify-nginx
     volumes:
       - ./nginx-ecs.conf:/etc/nginx/nginx.conf:ro
       - certbot-etc:/etc/letsencrypt:ro
@@ -128,24 +129,24 @@ services:
     networks:
       - prompify-network
     depends_on:
-      - app-dev-https
+      - app
     restart: unless-stopped
     profiles: ['production']
 
   # Certbot for SSL certificate management
-  # certbot:
-  #   image: certbot/certbot:latest
-  #   container_name: prompify-certbot-dev
-  #   volumes:
-  #     - certbot-etc:/etc/letsencrypt
-  #     - certbot-var:/var/lib/letsencrypt
-  #     - certbot-log:/var/log/letsencrypt
-  #     - certbot-webroot:/var/www/certbot
-  #   networks:
-  #     - prompify-network
-  #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot; sleep 12h & wait $${!}; done;'"
-  #   restart: unless-stopped
-  #   profiles: ['production']
+  certbot:
+    image: certbot/certbot:latest
+    container_name: prompify-certbot-dev
+    volumes:
+      - certbot-etc:/etc/letsencrypt
+      - certbot-var:/var/lib/letsencrypt
+      - certbot-log:/var/log/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    networks:
+      - prompify-network
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped
+    profiles: ['production']
 
 volumes:
   postgres_data:
