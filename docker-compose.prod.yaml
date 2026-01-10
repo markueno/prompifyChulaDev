@@ -133,19 +133,19 @@ services:
     profiles: ['production']
 
   # Certbot for SSL certificate management
-  certbot:
-    image: certbot/certbot:latest
-    container_name: prompify-certbot-dev
-    volumes:
-      - certbot-etc:/etc/letsencrypt
-      - certbot-var:/var/lib/letsencrypt
-      - certbot-log:/var/log/letsencrypt
-      - certbot-webroot:/var/www/certbot
-    networks:
-      - prompify-network
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot; sleep 12h & wait $${!}; done;'"
-    restart: unless-stopped
-    profiles: ['production']
+  # certbot:
+  #   image: certbot/certbot:latest
+  #   container_name: prompify-certbot-dev
+  #   volumes:
+  #     - certbot-etc:/etc/letsencrypt
+  #     - certbot-var:/var/lib/letsencrypt
+  #     - certbot-log:/var/log/letsencrypt
+  #     - certbot-webroot:/var/www/certbot
+  #   networks:
+  #     - prompify-network
+  #   entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot --webroot-path=/var/www/certbot; sleep 12h & wait $${!}; done;'"
+  #   restart: unless-stopped
+  #   profiles: ['production']
 
 volumes:
   postgres_data:
