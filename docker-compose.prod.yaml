@@ -118,7 +118,7 @@ services:
     image: nginx:alpine
     container_name: prompify-nginx
     volumes:
-      - ./nginx-ecs.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-prod.conf:/etc/nginx/nginx.conf:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro  # Mount host certificates directly
       - certbot-var:/var/lib/letsencrypt:ro
       - certbot-webroot:/var/www/certbot:ro

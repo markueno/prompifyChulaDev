@@ -289,6 +289,13 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
 
       toast('Successfully installed ' + modelToInstall + '. The model list will refresh automatically.');
 
+      // Pre-cache models in the system after installation
+      try {
+        await fetch('/api/models/Ollama');
+      } catch (error) {
+        console.error('Error pre-caching models after installation:', error);
+      }
+
       // Ensure we call onModelInstalled after successful installation
       setTimeout(() => {
         onModelInstalled();

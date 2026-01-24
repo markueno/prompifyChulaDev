@@ -48,6 +48,12 @@ export const isImportButtonsHidden = (): boolean => {
   return hideButtons === 'true' || hideButtons === '1';
 };
 
+// Environment variable utility for hiding settings
+export const isSettingsHidden = (): boolean => {
+  const hideSettings = import.meta.env.VITE_HIDE_SETTINGS;
+  return hideSettings === 'true' || hideSettings === '1';
+};
+
 const llmManager = LLMManager.getInstance(import.meta.env);
 
 export const PROVIDER_LIST = llmManager.getAllProviders();

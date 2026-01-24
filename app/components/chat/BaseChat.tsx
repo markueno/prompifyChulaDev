@@ -3,7 +3,7 @@
  * Preventing TS checks with files presented in the video for a better presentation.
  */
 import type { JSONValue, Message } from 'ai';
-import React, { type RefCallback, useEffect, useState } from 'react';
+import React, { type RefCallback, useCallback, useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
@@ -252,18 +252,59 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         }
 
         setIsModelLoading('all');
-        fetch('/api/models')
-          .then(response => response.json())
-          .then(data => {
-            const typedData = data as { modelList: ModelInfo[] };
-            setModelList(typedData.modelList);
-          })
-          .catch(error => {
-            console.error('Error fetching model list:', error);
-          })
-          .finally(() => {
-            setIsModelLoading(undefined);
-          });
+        
+        // Pre-fetch models, prioritizing Ollama if it's enabled
+        const ollamaProvider = providerList?.find(p => p.name === 'Ollama');
+        const fetchPromises = [];
+        
+        // If Ollama is enabled, pre-fetch its models first
+        if (ollamaProvider) {
+          fetchPromises.push(
+            fetch('/api/models/Ollama')
+              .then(response => response.json())
+              .then(data => {
+                const typedData = data as { modelList: ModelInfo[] };
+                return typedData.modelList;
+              })
+              .catch(error => {
+                console.error('Error pre-fetching Ollama models:', error);
+                return [];
+              })
+          );
+        }
+        
+        // Fetch all models
+        fetchPromises.push(
+          fetch('/api/models')
+            .then(response => response.json())
+            .then(data => {
+              const typedData = data as { modelList: ModelInfo[] };
+              return typedData.modelList;
+            })
+            .catch(error => {
+              console.error('Error fetching model list:', error);
+              return [];
+            })
+        );
+        
+        Promise.all(fetchPromises).then(results => {
+          // Use the full model list from the second fetch
+          if (results.length > 0) {
+            const allModels = results[results.length - 1];
+            setModelList(allModels);
+            
+            // If Ollama is selected and codestral is available, set it as default
+            if (provider?.name === 'Ollama' && setModel) {
+              const codestralModel = allModels.find(m => m.provider === 'Ollama' && (m.name === 'codestral' || m.name.includes('codestral')));
+              if (codestralModel && model !== codestralModel.name) {
+                setModel(codestralModel.name);
+                Cookies.set('selectedModel', codestralModel.name, { expires: 30 });
+              }
+            }
+          }
+        }).finally(() => {
+          setIsModelLoading(undefined);
+        });
       }
     }, [providerList, provider]);
 
@@ -291,6 +332,31 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       });
       setIsModelLoading(undefined);
     };
+
+    const refreshOllamaModels = useCallback(async () => {
+      if (provider?.name !== 'Ollama') {
+        return;
+      }
+
+      setIsModelLoading('Ollama');
+
+      try {
+        // Fetch fresh models for Ollama with timestamp to bypass cache
+        const response = await fetch(`/api/models/Ollama?t=${Date.now()}`);
+        const data = await response.json();
+        const providerModels = (data as { modelList: ModelInfo[] }).modelList;
+
+        // Update only Ollama models in the list
+        setModelList(prevModels => {
+          const otherModels = prevModels.filter(model => model.provider !== 'Ollama');
+          return [...otherModels, ...providerModels];
+        });
+      } catch (error) {
+        console.error('Error refreshing Ollama models:', error);
+      } finally {
+        setIsModelLoading(undefined);
+      }
+    }, [provider?.name]);
 
     const startListening = () => {
       if (recognition) {
@@ -519,6 +585,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
                               apiKeys={apiKeys}
                               modelLoading={isModelLoading}
+                              onRefreshModels={refreshOllamaModels}
                             />
                             {(providerList || []).length > 0 &&
                               provider &&

@@ -14,6 +14,7 @@ import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 import { classNames } from '~/utils/classNames';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
+import { isSettingsHidden } from '~/utils/constants';
 
 const menuVariants = {
   closed: {
@@ -260,13 +261,13 @@ export const Menu = () => {
             </DialogRoot>
           </div>
           <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-800 px-4 py-3">
-            {/* <SettingsButton onClick={handleSettingsClick} /> */}
+            {!isSettingsHidden() && <SettingsButton onClick={handleSettingsClick} />}
             <ThemeSwitch />
           </div>
         </div>
       </motion.div>
 
-      <ControlPanel open={isSettingsOpen} onClose={handleSettingsClose} />
+      {!isSettingsHidden() && <ControlPanel open={isSettingsOpen} onClose={handleSettingsClose} />}
     </>
   );
 };

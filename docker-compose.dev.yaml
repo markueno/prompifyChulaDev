@@ -120,7 +120,7 @@ services:
     image: nginx:alpine
     container_name: prompify-nginx-dev
     volumes:
-      - ./nginx-ecs.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-dev.conf:/etc/nginx/nginx.conf:ro
       - certbot-etc:/etc/letsencrypt:ro
       - certbot-var:/var/lib/letsencrypt:ro
       - certbot-webroot:/var/www/certbot:ro

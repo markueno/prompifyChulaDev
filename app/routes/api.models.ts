@@ -58,6 +58,10 @@ export async function loader({
   const apiKeys = getApiKeysFromCookie(cookieHeader);
   const providerSettings = getProviderSettingsFromCookie(cookieHeader);
 
+  // Check for refresh parameter to bypass cache
+  const url = new URL(request.url);
+  const forceRefresh = url.searchParams.get('refresh') === 'true' || url.searchParams.get('t');
+
   const { providers, defaultProvider } = getProviderInfo(llmManager);
 
   let modelList: ModelInfo[] = [];
@@ -67,6 +71,11 @@ export async function loader({
     const provider = llmManager.getProvider(params.provider);
 
     if (provider) {
+      // Clear cache if force refresh is requested
+      if (forceRefresh && provider.cachedDynamicModels) {
+        provider.cachedDynamicModels = undefined;
+      }
+
       modelList = await llmManager.getModelListFromProvider(provider, {
         apiKeys,
         providerSettings,

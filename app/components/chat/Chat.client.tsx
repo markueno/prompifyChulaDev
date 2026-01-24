@@ -458,6 +458,26 @@ export const ChatImpl = memo(
     const handleProviderChange = (newProvider: ProviderInfo) => {
       setProvider(newProvider);
       Cookies.set('selectedProvider', newProvider.name, { expires: 30 });
+      
+      // Set codestral as default model when Ollama is selected
+      if (newProvider.name === 'Ollama') {
+        // Pre-fetch models first to ensure codestral is available
+        fetch('/api/models/Ollama')
+          .then(response => response.json())
+          .then(data => {
+            const typedData = data as { modelList: ModelInfo[] };
+            const codestralModel = typedData.modelList.find(m => m.name === 'codestral' || m.name.includes('codestral'));
+            const modelToUse = codestralModel?.name || 'codestral';
+            setModel(modelToUse);
+            Cookies.set('selectedModel', modelToUse, { expires: 30 });
+          })
+          .catch(() => {
+            // Fallback to codestral even if fetch fails
+            const codestralModel = 'codestral';
+            setModel(codestralModel);
+            Cookies.set('selectedModel', codestralModel, { expires: 30 });
+          });
+      }
     };
 
     return (

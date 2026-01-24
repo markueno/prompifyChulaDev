@@ -1,5 +1,5 @@
 import type { ProviderInfo } from '~/types/model';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import { classNames } from '~/utils/classNames';
@@ -14,6 +14,7 @@ interface ModelSelectorProps {
   providerList: ProviderInfo[];
   apiKeys: Record<string, string>;
   modelLoading?: string;
+  onRefreshModels?: () => void;
 }
 
 export const ModelSelector = ({
@@ -24,6 +25,7 @@ export const ModelSelector = ({
   modelList,
   providerList,
   modelLoading,
+  onRefreshModels,
 }: ModelSelectorProps) => {
   const [modelSearchQuery, setModelSearchQuery] = useState('');
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
@@ -65,6 +67,17 @@ export const ModelSelector = ({
       searchInputRef.current.focus();
     }
   }, [isModelDropdownOpen]);
+
+  // Auto-refresh Ollama models when dropdown opens
+  useEffect(() => {
+    if (isModelDropdownOpen && provider?.name === 'Ollama' && onRefreshModels) {
+      // Small delay to ensure dropdown is fully open
+      const timeoutId = setTimeout(() => {
+        onRefreshModels();
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isModelDropdownOpen, provider?.name, onRefreshModels]);
 
   // Handle keyboard navigation
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -175,10 +188,18 @@ export const ModelSelector = ({
             setProvider(newProvider);
           }
 
-          const firstModel = [...modelList].find(m => m.provider === e.target.value);
+          // For Ollama, prefer codestral as default, otherwise use first available
+          let modelToSelect = [...modelList].find(m => m.provider === e.target.value);
+          
+          if (e.target.value === 'Ollama') {
+            const codestralModel = [...modelList].find(m => m.provider === 'Ollama' && (m.name === 'codestral' || m.name.includes('codestral')));
+            if (codestralModel) {
+              modelToSelect = codestralModel;
+            }
+          }
 
-          if (firstModel && setModel) {
-            setModel(firstModel.name);
+          if (modelToSelect && setModel) {
+            setModel(modelToSelect.name);
           }
         }}
         className="flex-1 p-2 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus transition-all"
@@ -230,27 +251,50 @@ export const ModelSelector = ({
             id="model-listbox"
           >
             <div className="px-2 pb-2">
-              <div className="relative">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={modelSearchQuery}
-                  onChange={e => setModelSearchQuery(e.target.value)}
-                  placeholder="Search models..."
-                  className={classNames(
-                    'w-full pl-8 pr-3 py-1.5 rounded-md text-sm',
-                    'bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor',
-                    'text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary',
-                    'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
-                    'transition-all'
-                  )}
-                  onClick={e => e.stopPropagation()}
-                  role="searchbox"
-                  aria-label="Search models"
-                />
-                <div className="absolute left-2.5 top-1/2 -translate-y-1/2">
-                  <span className="i-ph:magnifying-glass text-bolt-elements-textTertiary" />
+              <div className="relative flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={modelSearchQuery}
+                    onChange={e => setModelSearchQuery(e.target.value)}
+                    placeholder="Search models..."
+                    className={classNames(
+                      'w-full pl-8 pr-3 py-1.5 rounded-md text-sm',
+                      'bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor',
+                      'text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary',
+                      'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
+                      'transition-all'
+                    )}
+                    onClick={e => e.stopPropagation()}
+                    role="searchbox"
+                    aria-label="Search models"
+                  />
+                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2">
+                    <span className="i-ph:magnifying-glass text-bolt-elements-textTertiary" />
+                  </div>
                 </div>
+                {provider?.name === 'Ollama' && onRefreshModels && (
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      onRefreshModels();
+                    }}
+                    className={classNames(
+                      'p-1.5 rounded-md text-sm',
+                      'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
+                      'text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary',
+                      'hover:bg-bolt-elements-background-depth-4',
+                      'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
+                      'transition-all',
+                      'flex items-center justify-center'
+                    )}
+                    title="Refresh Ollama models"
+                    aria-label="Refresh Ollama models"
+                  >
+                    <span className="i-ph:arrow-clockwise text-base" />
+                  </button>
+                )}
               </div>
             </div>
 

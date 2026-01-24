@@ -140,12 +140,14 @@ export default function LocalProvidersTab() {
     setCategoryEnabled(newCategoryState);
   }, [filteredProviders]);
 
-  // Fetch Ollama models when enabled
+  // Fetch Ollama models when enabled and pre-cache them in the system
   useEffect(() => {
     const ollamaProvider = filteredProviders.find(p => p.name === 'Ollama');
 
     if (ollamaProvider?.settings.enabled) {
       fetchOllamaModels();
+      // Pre-fetch and cache models in the system via API
+      preCacheOllamaModels();
     }
   }, [filteredProviders]);
 
@@ -153,7 +155,8 @@ export default function LocalProvidersTab() {
     try {
       setIsLoadingModels(true);
 
-      const response = await fetch('http://127.0.0.1:11434/api/tags');
+      const baseUrl = filteredProviders.find(p => p.name === 'Ollama')?.settings.baseUrl || 'http://127.0.0.1:11434';
+      const response = await fetch(`${baseUrl}/api/tags`);
       const data = (await response.json()) as { models: OllamaModel[] };
 
       setOllamaModels(
@@ -166,6 +169,16 @@ export default function LocalProvidersTab() {
       console.error('Error fetching Ollama models:', error);
     } finally {
       setIsLoadingModels(false);
+    }
+  };
+
+  // Pre-cache Ollama models in the system so they're available before prompts
+  const preCacheOllamaModels = async () => {
+    try {
+      // Fetch models via API to cache them in the system
+      await fetch('/api/models/Ollama');
+    } catch (error) {
+      console.error('Error pre-caching Ollama models:', error);
     }
   };
 
@@ -223,9 +236,13 @@ export default function LocalProvidersTab() {
         }
       }
 
-      const updatedResponse = await fetch('http://127.0.0.1:11434/api/tags');
+      const baseUrl = filteredProviders.find(p => p.name === 'Ollama')?.settings.baseUrl || 'http://127.0.0.1:11434';
+      const updatedResponse = await fetch(`${baseUrl}/api/tags`);
       const updatedData = (await updatedResponse.json()) as { models: OllamaModel[] };
       const updatedModel = updatedData.models.find(m => m.name === modelName);
+
+      // Pre-cache updated models in the system
+      await preCacheOllamaModels();
 
       return updatedModel !== undefined;
     } catch (error) {
@@ -293,6 +310,10 @@ export default function LocalProvidersTab() {
       }
 
       setOllamaModels(current => current.filter(m => m.name !== modelName));
+      
+      // Pre-cache updated models in the system after deletion
+      await preCacheOllamaModels();
+      
       toast(`Deleted ${modelName}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
