@@ -294,6 +294,73 @@ export async function verifyUserPostgres(userId: string) {
   }
 }
 
+const RESET_TOKEN_EXPIRY_HOURS = 1;
+
+/** Create a password reset token for the user with the given email. Returns the token and user, or null. */
+export async function createPasswordResetTokenPostgres(email: string): Promise<{ token: string; user: { id: string; email: string } } | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const userResult = await client.query(
+      'SELECT id, email FROM users WHERE email = $1',
+      [email]
+    );
+    const user = userResult.rows[0];
+    if (!user) return null;
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
+
+    await client.query(
+      'UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3',
+      [token, expires, user.id]
+    );
+    return { token, user: { id: user.id, email: user.email } };
+  } catch (error) {
+    console.error('Error creating password reset token:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+/** Get user by reset token (for validating link). */
+export async function getUserByResetTokenPostgres(token: string) {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      'SELECT * FROM users WHERE reset_token = $1',
+      [token]
+    );
+    return result.rows[0] || null;
+  } catch (error) {
+    console.error('Error getting user by reset token:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+/** Set new password from valid reset token and clear token. Returns true if updated. */
+export async function setPasswordFromResetTokenPostgres(token: string, passwordHash: string): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      UPDATE users
+      SET password_hash = $1, reset_token = NULL, reset_expires = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE reset_token = $2 AND reset_expires > CURRENT_TIMESTAMP
+    `, [passwordHash, token]);
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('Error setting password from reset token:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
 export async function updateLoginAttemptsPostgres(email: string, attempts: number) {
   const pool = getPostgresPool();
   const client = await pool.connect();

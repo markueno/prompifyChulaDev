@@ -1,5 +1,7 @@
 // Email service for Prompify
-// This is a simple email service that can be extended with real email providers
+// Sends real emails via SendGrid when SENDGRID_API_KEY is set; otherwise logs to console (dev).
+
+import sgMail from '@sendgrid/mail';
 
 interface EmailOptions {
   to: string;
@@ -8,49 +10,35 @@ interface EmailOptions {
   text?: string;
 }
 
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY?.trim();
+const FROM_EMAIL = process.env.FROM_EMAIL?.trim() || 'noreply@prompify.com';
+
 export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
-    // For development, we'll just log the email
-    console.log('=== EMAIL SENT ===');
+    if (SENDGRID_API_KEY) {
+      sgMail.setApiKey(SENDGRID_API_KEY);
+      await sgMail.send({
+        to: options.to,
+        from: FROM_EMAIL,
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+      console.log('[Email] Sent via SendGrid to:', options.to, 'Subject:', options.subject);
+      return true;
+    }
+
+    // No API key: log only (development)
+    console.log('=== EMAIL SENT (log only, no SendGrid) ===');
     console.log('To:', options.to);
     console.log('Subject:', options.subject);
     console.log('HTML:', options.html);
     console.log('==================');
-    
-    // In production, you would use a real email service here
-    // Examples:
-    
-    // SendGrid
-    // const sgMail = require('@sendgrid/mail');
-    // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-    // await sgMail.send(options);
-    
-    // AWS SES
-    // const AWS = require('aws-sdk');
-    // const ses = new AWS.SES();
-    // await ses.sendEmail({
-    //   Source: 'noreply@yourdomain.com',
-    //   Destination: { ToAddresses: [options.to] },
-    //   Message: {
-    //     Subject: { Data: options.subject },
-    //     Body: { Html: { Data: options.html } }
-    //   }
-    // }).promise();
-    
-    // Nodemailer (Gmail, Outlook, etc.)
-    // const nodemailer = require('nodemailer');
-    // const transporter = nodemailer.createTransporter({
-    //   service: 'gmail',
-    //   auth: {
-    //     user: process.env.EMAIL_USER,
-    //     pass: process.env.EMAIL_PASS
-    //   }
-    // });
-    // await transporter.sendMail(options);
-    
     return true;
-  } catch (error) {
-    console.error('Email sending failed:', error);
+  } catch (error: unknown) {
+    const err = error as { response?: { body?: unknown }; message?: string };
+    console.error('Email sending failed:', err.message ?? error);
+    if (err.response?.body) console.error('SendGrid response:', err.response.body);
     return false;
   }
 }

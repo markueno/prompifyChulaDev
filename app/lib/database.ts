@@ -9,6 +9,9 @@ import {
   createUserPostgres,
   getUserByVerificationTokenPostgres,
   verifyUserPostgres,
+  createPasswordResetTokenPostgres,
+  getUserByResetTokenPostgres,
+  setPasswordFromResetTokenPostgres,
   updateLoginAttemptsPostgres,
   resetLoginAttemptsPostgres,
   logEmailPostgres,
@@ -207,6 +210,27 @@ export async function verifyUser(userId: string) {
     console.error('Error verifying user:', error);
     return false;
   }
+}
+
+export async function createPasswordResetToken(email: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return createPasswordResetTokenPostgres(email);
+  }
+  return null;
+}
+
+export async function getUserByResetToken(token: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getUserByResetTokenPostgres(token);
+  }
+  return null;
+}
+
+export async function setPasswordFromResetToken(token: string, passwordHash: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return setPasswordFromResetTokenPostgres(token, passwordHash);
+  }
+  return false;
 }
 
 export async function updateLoginAttempts(email: string, attempts: number) {
