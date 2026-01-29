@@ -1,5 +1,6 @@
 import { getSystemPrompt } from './prompts/prompts';
 import optimized from './prompts/optimized';
+import { getCodestralPrompt } from './prompts/codestral';
 
 export interface PromptOptions {
   cwd: string;
@@ -25,6 +26,11 @@ export class PromptLibrary {
       label: 'Optimized Prompt (experimental)',
       description: 'an Experimental version of the prompt for lower token usage',
       get: options => optimized(options),
+    },
+    codestral: {
+      label: 'Codestral Optimized Prompt',
+      description: 'Enhanced prompt specifically optimized for Codestral model with strict anti-placeholder rules',
+      get: options => getCodestralPrompt(options.cwd),
     },
   };
   static getList() {

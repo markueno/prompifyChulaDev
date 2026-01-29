@@ -10,18 +10,9 @@ import { UserProfile } from '~/components/auth/UserProfile';
 export function Header() {
   const chat = useStore(chatStore);
   const { user } = useLoaderData<{ user: any }>();
-  
-  // Check if user is the bypass admin user
-  const isBypassed = user?.id === 'admin-bypass';
 
   return (
-    <>
-      {isBypassed && (
-        <div className="bg-yellow-500 text-black px-4 py-2 text-center font-semibold">
-          ⚠️ ADMIN MODE: Authentication is completely disabled - Direct access enabled
-        </div>
-      )}
-      <header
+    <header
         className={classNames('flex items-center p-5 border-b h-[var(--header-height)]', {
           'border-transparent': !chat.started,
           'border-bolt-elements-borderColor': chat.started,
@@ -51,6 +42,5 @@ export function Header() {
           </>
         )}
       </header>
-    </>
   );
 }

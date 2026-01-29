@@ -65,10 +65,11 @@ export default class OllamaProvider extends BaseProvider {
        * Running in Server
        * Backend: Check if we're running in Docker
        */
-      const isDocker = process?.env?.RUNNING_IN_DOCKER === 'true' || serverEnv?.RUNNING_IN_DOCKER === 'true';
+      // Temporarily commented out to use localhost instead of host.docker.internal
+      // const isDocker = process?.env?.RUNNING_IN_DOCKER === 'true' || serverEnv?.RUNNING_IN_DOCKER === 'true';
 
-      baseUrl = isDocker ? baseUrl.replace('localhost', 'host.docker.internal') : baseUrl;
-      baseUrl = isDocker ? baseUrl.replace('127.0.0.1', 'host.docker.internal') : baseUrl;
+      // baseUrl = isDocker ? baseUrl.replace('localhost', 'host.docker.internal') : baseUrl;
+      // baseUrl = isDocker ? baseUrl.replace('127.0.0.1', 'host.docker.internal') : baseUrl;
     }
 
     const response = await fetch(`${baseUrl}/api/tags`);
@@ -103,9 +104,10 @@ export default class OllamaProvider extends BaseProvider {
       throw new Error('No baseUrl found for OLLAMA provider');
     }
 
-    const isDocker = process?.env?.RUNNING_IN_DOCKER === 'true' || serverEnv?.RUNNING_IN_DOCKER === 'true';
-    baseUrl = isDocker ? baseUrl.replace('localhost', 'host.docker.internal') : baseUrl;
-    baseUrl = isDocker ? baseUrl.replace('127.0.0.1', 'host.docker.internal') : baseUrl;
+    // Temporarily commented out to use localhost instead of host.docker.internal
+    // const isDocker = process?.env?.RUNNING_IN_DOCKER === 'true' || serverEnv?.RUNNING_IN_DOCKER === 'true';
+    // baseUrl = isDocker ? baseUrl.replace('localhost', 'host.docker.internal') : baseUrl;
+    // baseUrl = isDocker ? baseUrl.replace('127.0.0.1', 'host.docker.internal') : baseUrl;
 
     logger.debug('Ollama Base Url used: ', baseUrl);
 
