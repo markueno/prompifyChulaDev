@@ -21,6 +21,15 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
   const url = new URL(request.url);
   const token = url.searchParams.get('token');
+  const errorFromQuery = url.searchParams.get('error');
+
+  // Show error message when redirected from GET /api/auth/verify?token=... with error
+  if (errorFromQuery) {
+    const message = errorFromQuery === 'missing' || errorFromQuery === 'unexpected'
+      ? (errorFromQuery === 'missing' ? 'Invalid verification link. Please check your email and try again.' : 'An unexpected error occurred during verification.')
+      : decodeURIComponent(errorFromQuery);
+    return json<LoaderData>({ success: false, message });
+  }
 
   if (!token) {
     return json<LoaderData>({

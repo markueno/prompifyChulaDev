@@ -44,7 +44,8 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
 }
 
 export async function sendVerificationEmail(email: string, token: string): Promise<boolean> {
-  const verificationUrl = `${process.env.APP_URL || 'http://localhost:5173'}/auth/verify?token=${token}`;
+  // Use /api/auth/verify?token=... so a single GET verifies and redirects (no loader POST needed)
+  const verificationUrl = `${process.env.APP_URL || 'http://localhost:5173'}/api/auth/verify?token=${token}`;
   
   const htmlContent = `
     <!DOCTYPE html>
