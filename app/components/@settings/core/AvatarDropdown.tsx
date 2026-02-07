@@ -13,10 +13,34 @@ const BetaLabel = () => (
 
 interface AvatarDropdownProps {
   onSelectTab: (tab: TabType) => void;
+  /** When true, avatar is non-interactive (no dropdown). Used e.g. on Profile tab. */
+  disabled?: boolean;
 }
 
-export const AvatarDropdown = ({ onSelectTab }: AvatarDropdownProps) => {
+const AvatarImage = ({ profile }: { profile: Profile | null }) => (
+  <div className="w-10 h-10 rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 bg-white dark:bg-gray-800">
+    {profile?.avatar ? (
+      <img
+        src={profile.avatar}
+        alt={profile?.username || 'Profile'}
+        className="w-full h-full rounded-full object-cover"
+        loading="eager"
+        decoding="sync"
+      />
+    ) : (
+      <div className="w-full h-full rounded-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+        <div className="i-ph:question w-6 h-6" />
+      </div>
+    )}
+  </div>
+);
+
+export const AvatarDropdown = ({ onSelectTab, disabled = false }: AvatarDropdownProps) => {
   const profile = useStore(profileStore) as Profile;
+
+  if (disabled) {
+    return <AvatarImage profile={profile} />;
+  }
 
   return (
     <DropdownMenu.Root>

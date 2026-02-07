@@ -104,6 +104,8 @@ export default defineConfig(config => {
       target: 'esnext',
     },
     plugins: [
+      // Prevent Vite import-analysis from parsing non-JS root files (e.g. .dockerignore)
+      ignoreNonJsRootFilesPlugin(),
       nodePolyfills({
         include: ['path', 'buffer', 'process'],
       }),
@@ -137,6 +139,20 @@ export default defineConfig(config => {
     },
   };
 });
+
+/** Prevents import-analysis from parsing .dockerignore, .gitignore, etc. by returning empty JS. */
+function ignoreNonJsRootFilesPlugin() {
+  const ignorePattern = /[\/\\]\.(dockerignore|gitignore|prettierignore|editorconfig)(\?.*)?$/;
+  return {
+    name: 'ignore-non-js-root-files',
+    enforce: 'pre',
+    load(id: string) {
+      if (ignorePattern.test(id)) {
+        return { code: 'export {}', map: null };
+      }
+    },
+  };
+}
 
 function chrome129IssuePlugin() {
   return {

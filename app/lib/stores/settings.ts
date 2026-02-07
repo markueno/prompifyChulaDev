@@ -56,6 +56,12 @@ export const shortcutsStore = map<Shortcuts>({
   },
 });
 
+/** Global store for Control Panel open state (sidebar gear + header user dropdown Settings) */
+export const controlPanelOpenStore = atom(false);
+
+/** When opening the Control Panel, show this tab if set (e.g. 'profile' when clicking Profile in header) */
+export const controlPanelInitialTabStore = atom<string | null>(null);
+
 // Create a single key for provider settings
 const PROVIDER_SETTINGS_KEY = 'provider_settings';
 

@@ -26,21 +26,21 @@ export function Header() {
             <img src="/logo-dark-styled.png" alt="logo" className="w-[90px] inline-block hidden dark:block" />
           </a>
         </div>
-        {chat.started && ( // Display ChatDescription and HeaderActionButtons only when the chat has started.
-          <>
-            <span className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">
-              <ClientOnly>{() => <ChatDescription />}</ClientOnly>
-            </span>
-            <ClientOnly>
-              {() => (
-                <div className="mr-1 flex items-center gap-2">
-                  <HeaderActionButtons />
-                  {user && <UserProfile user={user} />}
-                </div>
-              )}
-            </ClientOnly>
-          </>
+        {chat.started ? (
+          <span className="flex-1 px-4 truncate text-center text-bolt-elements-textPrimary">
+            <ClientOnly>{() => <ChatDescription />}</ClientOnly>
+          </span>
+        ) : (
+          <span className="flex-1" />
         )}
+        <ClientOnly>
+          {() => (
+            <div className="mr-1 flex items-center gap-2">
+              {chat.started && <HeaderActionButtons />}
+              {user && <UserProfile user={user} />}
+            </div>
+          )}
+        </ClientOnly>
       </header>
   );
 }

@@ -9,11 +9,21 @@ export default function ProfileTab() {
   const profile = useStore(profileStore);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Create debounced update functions
+  type ProfileField = 'username' | 'bio' | 'nickname' | 'email' | 'githubAccount' | 'vercelAccount';
   const debouncedUpdate = useCallback(
-    debounce((field: 'username' | 'bio', value: string) => {
+    debounce((field: ProfileField, value: string) => {
       updateProfile({ [field]: value });
-      toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} updated`);
+      const label =
+        field === 'githubAccount'
+          ? 'GitHub account link'
+          : field === 'vercelAccount'
+            ? 'Vercel account link'
+            : field === 'nickname'
+              ? 'Username (shown in header)'
+              : field === 'username'
+                ? 'Official name'
+                : field.charAt(0).toUpperCase() + field.slice(1);
+      toast.success(`${label} updated`);
     }, 1000),
     []
   );
@@ -51,21 +61,28 @@ export default function ProfileTab() {
     }
   };
 
-  const handleProfileUpdate = (field: 'username' | 'bio', value: string) => {
-    // Update the store immediately for UI responsiveness
+  const handleProfileUpdate = (field: ProfileField, value: string) => {
     updateProfile({ [field]: value });
-
-    // Debounce the toast notification
     debouncedUpdate(field, value);
   };
+
+  const inputClass = classNames(
+    'w-full pl-11 pr-4 py-2.5 rounded-xl',
+    'bg-white dark:bg-gray-800/50',
+    'border border-gray-200 dark:border-gray-700/50',
+    'text-gray-900 dark:text-white',
+    'placeholder-gray-400 dark:placeholder-gray-500',
+    'focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50',
+    'transition-all duration-300 ease-out'
+  );
+  const iconClass = 'w-5 h-5 text-gray-400 dark:text-gray-500 transition-colors group-focus-within:text-purple-500';
 
   return (
     <div className="max-w-2xl mx-auto">
       <div className="space-y-6">
-        {/* Personal Information Section */}
+        {/* 1. Profile picture */}
         <div>
-          {/* Avatar Upload */}
-          <div className="flex items-start gap-6 mb-8">
+          <div className="flex items-start gap-6 mb-6">
             <div
               className={classNames(
                 'w-24 h-24 rounded-full overflow-hidden',
@@ -123,54 +140,92 @@ export default function ProfileTab() {
               <p className="text-sm text-gray-500 dark:text-gray-400">Upload a profile picture or avatar</p>
             </div>
           </div>
+        </div>
 
-          {/* Username Input */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Username</label>
+        {/* 2. Username (shown in header) - top field */}
+        <div>
+          <div className="relative group">
+            <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
+              <div className={`i-ph:at ${iconClass}`} />
+            </div>
+            <input
+              type="text"
+              value={profile.nickname}
+              onChange={e => handleProfileUpdate('nickname', e.target.value)}
+              className={inputClass}
+              placeholder="Username (shown in header)"
+            />
+          </div>
+        </div>
+
+        {/* 3. About - Official name and Bio */}
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">About</h3>
+          <div className="space-y-4">
             <div className="relative group">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
-                <div className="i-ph:user-circle-fill w-5 h-5 text-gray-400 dark:text-gray-500 transition-colors group-focus-within:text-purple-500" />
+                <div className={`i-ph:user-circle-fill ${iconClass}`} />
               </div>
               <input
                 type="text"
                 value={profile.username}
                 onChange={e => handleProfileUpdate('username', e.target.value)}
-                className={classNames(
-                  'w-full pl-11 pr-4 py-2.5 rounded-xl',
-                  'bg-white dark:bg-gray-800/50',
-                  'border border-gray-200 dark:border-gray-700/50',
-                  'text-gray-900 dark:text-white',
-                  'placeholder-gray-400 dark:placeholder-gray-500',
-                  'focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50',
-                  'transition-all duration-300 ease-out'
-                )}
-                placeholder="Enter your username"
+                className={inputClass}
+                placeholder="Official name"
               />
             </div>
-          </div>
-
-          {/* Bio Input */}
-          <div className="mb-8">
-            <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Bio</label>
             <div className="relative group">
               <div className="absolute left-3.5 top-3">
-                <div className="i-ph:text-aa w-5 h-5 text-gray-400 dark:text-gray-500 transition-colors group-focus-within:text-purple-500" />
+                <div className={`i-ph:text-aa ${iconClass}`} />
               </div>
               <textarea
                 value={profile.bio}
                 onChange={e => handleProfileUpdate('bio', e.target.value)}
-                className={classNames(
-                  'w-full pl-11 pr-4 py-2.5 rounded-xl',
-                  'bg-white dark:bg-gray-800/50',
-                  'border border-gray-200 dark:border-gray-700/50',
-                  'text-gray-900 dark:text-white',
-                  'placeholder-gray-400 dark:placeholder-gray-500',
-                  'focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50',
-                  'transition-all duration-300 ease-out',
-                  'resize-none',
-                  'h-32'
-                )}
-                placeholder="Tell us about yourself"
+                className={classNames(inputClass, 'resize-none h-32')}
+                placeholder="Bio"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Account */}
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Account</h3>
+          <div className="space-y-4">
+            <div className="relative group">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
+                <div className={`i-ph:envelope-simple ${iconClass}`} />
+              </div>
+              <input
+                type="email"
+                value={profile.email}
+                onChange={e => handleProfileUpdate('email', e.target.value)}
+                className={inputClass}
+                placeholder="Email"
+              />
+            </div>
+            <div className="relative group">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
+                <div className={`i-ph:github-logo ${iconClass}`} />
+              </div>
+              <input
+                type="url"
+                value={profile.githubAccount}
+                onChange={e => handleProfileUpdate('githubAccount', e.target.value)}
+                className={inputClass}
+                placeholder="GitHub account link (e.g. https://github.com/username)"
+              />
+            </div>
+            <div className="relative group">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
+                <div className={`i-ph:cloud-arrow-up ${iconClass}`} />
+              </div>
+              <input
+                type="url"
+                value={profile.vercelAccount}
+                onChange={e => handleProfileUpdate('vercelAccount', e.target.value)}
+                className={inputClass}
+                placeholder="Vercel account link (e.g. https://vercel.com/username)"
               />
             </div>
           </div>

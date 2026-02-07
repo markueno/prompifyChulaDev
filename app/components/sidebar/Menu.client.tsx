@@ -14,6 +14,7 @@ import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 import { classNames } from '~/utils/classNames';
 import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
+import { controlPanelOpenStore } from '~/lib/stores/settings';
 import { isSettingsHidden } from '~/utils/constants';
 
 const menuVariants = {
@@ -67,7 +68,7 @@ export const Menu = () => {
   const [list, setList] = useState<ChatHistoryItem[]>([]);
   const [open, setOpen] = useState(false);
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const isSettingsOpen = useStore(controlPanelOpenStore);
   const profile = useStore(profileStore);
 
   const { filteredItems: filteredList, handleSearchChange } = useSearchFilter({
@@ -150,12 +151,12 @@ export const Menu = () => {
   };
 
   const handleSettingsClick = () => {
-    setIsSettingsOpen(true);
+    controlPanelOpenStore.set(true);
     setOpen(false);
   };
 
   const handleSettingsClose = () => {
-    setIsSettingsOpen(false);
+    controlPanelOpenStore.set(false);
   };
 
   return (

@@ -1,14 +1,21 @@
 import { Form } from '@remix-run/react';
+import { useStore } from '@nanostores/react';
 import { Button } from '~/components/ui/Button';
 import { Dropdown, DropdownItem, DropdownSeparator } from '~/components/ui/Dropdown';
 import type { User } from '~/lib/auth';
+import { controlPanelOpenStore, controlPanelInitialTabStore } from '~/lib/stores/settings';
+import { profileStore } from '~/lib/stores/profile';
 
 interface UserProfileProps {
   user: User | null;
 }
 
 export function UserProfile({ user }: UserProfileProps) {
-  // Safety check for undefined user
+  const profile = useStore(profileStore);
+  // Display name: nickname if set, otherwise auth email
+  const displayName = (profile?.nickname?.trim() || user?.email || '').trim();
+  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() ?? '');
+
   if (!user || !user.email) {
     return null;
   }
@@ -16,9 +23,9 @@ export function UserProfile({ user }: UserProfileProps) {
   const trigger = (
     <Button variant="ghost" className="flex items-center gap-2">
       <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
-        {user.email.charAt(0).toUpperCase()}
+        {displayInitial}
       </div>
-      <span className="hidden md:block text-sm">{user.email}</span>
+      <span className="hidden md:block text-sm">{displayName || user.email}</span>
       <div className="i-ph:caret-down text-sm" />
     </Button>
   );
@@ -28,34 +35,45 @@ export function UserProfile({ user }: UserProfileProps) {
       <div className="w-56">
         <div className="p-3 border-b border-bolt-elements-borderColor">
           <p className="text-sm font-medium text-bolt-elements-textPrimary">
-            {user.email}
+            {displayName || user.email}
           </p>
           <p className="text-xs text-bolt-elements-textSecondary">
-            {user.verified ? 'Verified Account' : 'Unverified Account'}
+            {user.isVerified ? 'Verified Account' : 'Unverified Account'}
           </p>
         </div>
 
         <DropdownSeparator />
 
         <DropdownItem asChild>
-          <a href="/settings" className="flex items-center gap-2 px-3 py-2 text-sm">
+          <button
+            type="button"
+            className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive rounded cursor-pointer"
+            onClick={() => controlPanelOpenStore.set(true)}
+          >
             <div className="i-ph:gear text-lg" />
             Settings
-          </a>
+          </button>
         </DropdownItem>
 
         <DropdownItem asChild>
-          <a href="/profile" className="flex items-center gap-2 px-3 py-2 text-sm">
+          <button
+            type="button"
+            className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive rounded cursor-pointer"
+            onClick={() => {
+              controlPanelInitialTabStore.set('profile');
+              controlPanelOpenStore.set(true);
+            }}
+          >
             <div className="i-ph:user text-lg" />
             Profile
-          </a>
+          </button>
         </DropdownItem>
 
         <DropdownSeparator />
 
         <DropdownItem asChild>
           <Form action="/auth/logout" method="post" className="w-full">
-            <button className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-red-600 hover:text-red-700">
+            <button type="submit" className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-red-600 hover:text-red-700">
               <div className="i-ph:sign-out text-lg" />
               Sign Out
             </button>

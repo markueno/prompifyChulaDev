@@ -16,6 +16,7 @@ import {
   developerModeStore,
   setDeveloperMode,
   resetTabConfiguration,
+  controlPanelInitialTabStore,
 } from '~/lib/stores/settings';
 import { profileStore } from '~/lib/stores/profile';
 import type { TabType, TabVisibilityConfig, Profile } from './types';
@@ -59,13 +60,6 @@ interface BaseTabConfig {
   order: number;
 }
 
-interface AnimatedSwitchProps {
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  id: string;
-  label: string;
-}
-
 const TAB_DESCRIPTIONS: Record<TabType, string> = {
   profile: 'Manage your profile and account settings',
   settings: 'Configure application preferences',
@@ -92,65 +86,39 @@ const BetaLabel = () => (
   </div>
 );
 
-const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchProps) => {
-  return (
-    <div className="flex items-center gap-2">
-      <Switch
-        id={id}
-        checked={checked}
-        onCheckedChange={onCheckedChange}
-        className={classNames(
-          'relative inline-flex h-6 w-11 items-center rounded-full',
-          'transition-all duration-300 ease-[cubic-bezier(0.87,_0,_0.13,_1)]',
-          'bg-gray-200 dark:bg-gray-700',
-          'data-[state=checked]:bg-purple-500',
-          'focus:outline-none focus:ring-2 focus:ring-purple-500/20',
-          'cursor-pointer',
-          'group'
-        )}
-      >
-        <motion.span
-          className={classNames(
-            'absolute left-[2px] top-[2px]',
-            'inline-block h-5 w-5 rounded-full',
-            'bg-white shadow-lg',
-            'transition-shadow duration-300',
-            'group-hover:shadow-md group-active:shadow-sm',
-            'group-hover:scale-95 group-active:scale-90'
-          )}
-          initial={false}
-          transition={{
-            type: 'spring',
-            stiffness: 500,
-            damping: 30,
-            duration: 0.2,
-          }}
-          animate={{
-            x: checked ? '1.25rem' : '0rem',
-          }}
-        >
-          <motion.div
-            className="absolute inset-0 rounded-full bg-white"
-            initial={false}
-            animate={{
-              scale: checked ? 1 : 0.8,
-            }}
-            transition={{ duration: 0.2 }}
-          />
-        </motion.span>
-        <span className="sr-only">Toggle {label}</span>
-      </Switch>
-      <div className="flex items-center gap-2">
-        <label
-          htmlFor={id}
-          className="text-sm text-gray-500 dark:text-gray-400 select-none cursor-pointer whitespace-nowrap w-[88px]"
-        >
-          {label}
-        </label>
-      </div>
-    </div>
-  );
-};
+interface AnimatedSwitchProps {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  id: string;
+  label: string;
+}
+
+const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchProps) => (
+  <div className="flex items-center gap-2">
+    <Switch
+      id={id}
+      checked={checked}
+      onCheckedChange={onCheckedChange}
+      className={classNames(
+        'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer items-center rounded-full',
+        'transition-colors duration-200',
+        'bg-gray-200 dark:bg-gray-700',
+        'data-[state=checked]:bg-purple-500',
+        'focus:outline-none focus:ring-2 focus:ring-purple-500/20'
+      )}
+    >
+      <motion.span
+        className="absolute left-[2px] top-[2px] inline-block h-5 w-5 rounded-full bg-white shadow"
+        initial={false}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        animate={{ x: checked ? 20 : 0 }}
+      />
+    </Switch>
+    <label htmlFor={id} className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer whitespace-nowrap select-none">
+      {label}
+    </label>
+  </div>
+);
 
 export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
   // State
@@ -263,7 +231,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
     },
   };
 
-  // Reset to default view when modal opens/closes
+  // Reset to default view when modal opens/closes; honor initial tab when opening from header (e.g. Profile)
   useEffect(() => {
     if (!open) {
       // Reset when closing
@@ -271,8 +239,13 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
       setLoadingTab(null);
       setShowTabManagement(false);
     } else {
-      // When opening, set to null to show the main view
-      setActiveTab(null);
+      const initialTab = controlPanelInitialTabStore.get();
+      if (initialTab) {
+        setActiveTab(initialTab as TabType);
+        controlPanelInitialTabStore.set(null);
+      } else {
+        setActiveTab(null);
+      }
     }
   }, [open]);
 
@@ -294,14 +267,8 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
   };
 
   const handleDeveloperModeChange = (checked: boolean) => {
-    console.log('Developer mode changed:', checked);
     setDeveloperMode(checked);
   };
-
-  // Add effect to log developer mode changes
-  useEffect(() => {
-    console.log('Current developer mode:', developerMode);
-  }, [developerMode]);
 
   const getTabComponent = (tabId: TabType | 'tab-management') => {
     if (tabId === 'tab-management') {
@@ -465,19 +432,21 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                   </div>
 
                   <div className="flex items-center gap-6">
-                    {/* Mode Toggle */}
-                    <div className="flex items-center gap-2 min-w-[140px] border-r border-gray-200 dark:border-gray-800 pr-6">
-                      <AnimatedSwitch
-                        id="developer-mode"
-                        checked={developerMode}
-                        onCheckedChange={handleDeveloperModeChange}
-                        label={developerMode ? 'Developer Mode' : 'User Mode'}
-                      />
-                    </div>
+                    {/* Developer / User mode toggle (hidden on Profile tab) */}
+                    {activeTab !== 'profile' && (
+                      <div className="flex items-center gap-2 min-w-[140px] border-r border-gray-200 dark:border-gray-800 pr-6">
+                        <AnimatedSwitch
+                          id="developer-mode"
+                          checked={developerMode}
+                          onCheckedChange={handleDeveloperModeChange}
+                          label={developerMode ? 'Developer Mode' : 'User Mode'}
+                        />
+                      </div>
+                    )}
 
-                    {/* Avatar and Dropdown */}
-                    <div className="border-l border-gray-200 dark:border-gray-800 pl-6">
-                      <AvatarDropdown onSelectTab={handleTabClick} />
+                    {/* Avatar and Dropdown (non-interactive on Profile tab) */}
+                    <div className={classNames('pl-6', activeTab !== 'profile' ? 'border-l border-gray-200 dark:border-gray-800' : '')}>
+                      <AvatarDropdown onSelectTab={handleTabClick} disabled={activeTab === 'profile'} />
                     </div>
 
                     {/* Close Button */}
