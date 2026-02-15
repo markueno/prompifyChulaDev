@@ -38,9 +38,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }, { status: 400 });
     }
 
-    // Email validation
+    // Email validation and normalize (case-insensitive)
+    const emailNormalized = (email ?? '').trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(emailNormalized)) {
       return json<RegisterResponse>({
         success: false,
         message: 'Invalid email format'
@@ -109,7 +110,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     registrationAttempts.set(clientIP, currentAttempts);
 
     // Check if user already exists
-    const existingUser = await getUserByEmail(email);
+    const existingUser = await getUserByEmail(emailNormalized);
     if (existingUser) {
       return json<RegisterResponse>({
         success: false,
@@ -129,7 +130,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const userId = crypto.randomUUID();
     const user = {
       id: userId,
-      email: email.toLowerCase(),
+      email: emailNormalized,
       passwordHash,
       isVerified: false,
       verificationToken,
@@ -169,7 +170,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     // Send verification email
-    const emailSent = await sendVerificationEmail(email, verificationToken);
+    const emailSent = await sendVerificationEmail(emailNormalized, verificationToken);
     
     // Log email attempt
     await logEmail(userId, 'verification', emailSent, emailSent ? undefined : 'Email service not configured');

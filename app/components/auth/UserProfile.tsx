@@ -1,4 +1,3 @@
-import { Form } from '@remix-run/react';
 import { useStore } from '@nanostores/react';
 import { Button } from '~/components/ui/Button';
 import { Dropdown, DropdownItem, DropdownSeparator } from '~/components/ui/Dropdown';
@@ -72,12 +71,12 @@ export function UserProfile({ user }: UserProfileProps) {
         <DropdownSeparator />
 
         <DropdownItem asChild>
-          <Form action="/auth/logout" method="post" className="w-full">
+          <form action="/auth/logout" method="post" className="w-full">
             <button type="submit" className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-red-600 hover:text-red-700">
               <div className="i-ph:sign-out text-lg" />
               Sign Out
             </button>
-          </Form>
+          </form>
         </DropdownItem>
       </div>
     </Dropdown>

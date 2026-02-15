@@ -50,9 +50,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }, { status: 400 });
     }
 
-    // Email validation
+    // Email validation and normalize (case-insensitive)
+    const emailNormalized = (email ?? '').trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(emailNormalized)) {
       return json<LoginResponse>({
         success: false,
         message: 'Invalid email format'
@@ -85,7 +86,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     loginAttempts.set(clientIP, currentAttempts);
 
     // Get user from database
-    const user = await getUserByEmail(email) as {
+    const user = await getUserByEmail(emailNormalized) as {
       id: string;
       email: string;
       password_hash: string;
@@ -95,7 +96,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     
     if (!user) {
       // Update login attempts for non-existent user
-      await updateLoginAttempts(email, 1);
+      await updateLoginAttempts(emailNormalized, 1);
       return json<LoginResponse>({
         success: false,
         message: 'Invalid email or password'
@@ -115,7 +116,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     
     if (!isValidPassword) {
       // Update login attempts
-      await updateLoginAttempts(email, (user.login_attempts || 0) + 1);
+      await updateLoginAttempts(emailNormalized, (user.login_attempts || 0) + 1);
       return json<LoginResponse>({
         success: false,
         message: 'Invalid email or password'
