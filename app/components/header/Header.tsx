@@ -4,6 +4,7 @@ import { useLoaderData } from '@remix-run/react';
 import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
+import { NotificationBell } from './NotificationBell.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { UserProfile } from '~/components/auth/UserProfile';
 
@@ -37,7 +38,12 @@ export function Header() {
           {() => (
             <div className="mr-1 flex items-center gap-2">
               {chat.started && <HeaderActionButtons />}
-              {user && <UserProfile user={user} />}
+              {user && (
+                <>
+                  <NotificationBell />
+                  <UserProfile user={user} />
+                </>
+              )}
             </div>
           )}
         </ClientOnly>

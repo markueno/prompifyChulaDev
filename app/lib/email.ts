@@ -170,4 +170,77 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     html: htmlContent,
     text: textContent
   });
+}
+
+export async function sendInvitationEmail(
+  inviteeEmail: string,
+  inviterEmail: string,
+  projectName: string,
+  acceptUrl: string
+): Promise<boolean> {
+  const displayProjectName = projectName?.trim() || 'a project';
+  const inviterDisplay = inviterEmail.split('@')[0].replace(/[._]/g, ' ');
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Project invitation - Prompify</title>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: #007bff; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background: #f8f9fa; }
+        .button { display: inline-block; padding: 12px 24px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Project invitation</h1>
+        </div>
+        <div class="content">
+          <h2>You've been invited to collaborate</h2>
+          <p><strong>${inviterDisplay}</strong> (${inviterEmail}) has invited you to join the project <strong>${displayProjectName}</strong> on Prompify.</p>
+          <p>You'll be able to access the chat history, code, and preview. Click the button below to accept the invitation:</p>
+          <p style="text-align: center;">
+            <a href="${acceptUrl}" class="button">Accept invitation</a>
+          </p>
+          <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+          <p style="word-break: break-all; color: #666;">${acceptUrl}</p>
+          <p><strong>This link will expire in 7 days.</strong></p>
+          <p>If you don't have a Prompify account, you'll need to sign up first. If you weren't expecting this invitation, you can safely ignore this email.</p>
+        </div>
+        <div class="footer">
+          <p>This email was sent by Prompify. Please do not reply to this email.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const textContent = `
+    Project invitation - Prompify
+
+    You've been invited to collaborate
+
+    ${inviterDisplay} (${inviterEmail}) has invited you to join the project "${displayProjectName}" on Prompify.
+
+    You'll be able to access the chat history, code, and preview. Accept the invitation by visiting:
+
+    ${acceptUrl}
+
+    This link will expire in 7 days.
+
+    If you don't have a Prompify account, you'll need to sign up first. If you weren't expecting this invitation, you can safely ignore this email.
+  `;
+
+  return await sendEmail({
+    to: inviteeEmail,
+    subject: `You've been invited to "${displayProjectName}" on Prompify`,
+    html: htmlContent,
+    text: textContent,
+  });
 } 

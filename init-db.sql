@@ -126,6 +126,34 @@ CREATE TABLE IF NOT EXISTS koogallery_logs (
     user_agent TEXT
 );
 
+-- Create chat_members table (multi-user project sharing)
+CREATE TABLE IF NOT EXISTS chat_members (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chat_id, user_id),
+    FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create chat_invitations table (invite by email)
+CREATE TABLE IF NOT EXISTS chat_invitations (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    invited_by_user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    status TEXT NOT NULL DEFAULT 'pending',
+    token TEXT UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chat_id, email),
+    FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+    FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
@@ -144,3 +172,8 @@ CREATE INDEX IF NOT EXISTS idx_koogallery_logs_endpoint ON koogallery_logs(endpo
 CREATE INDEX IF NOT EXISTS idx_koogallery_logs_order_id ON koogallery_logs(order_id);
 CREATE INDEX IF NOT EXISTS idx_koogallery_logs_instance_id ON koogallery_logs(instance_id);
 CREATE INDEX IF NOT EXISTS idx_koogallery_logs_timestamp ON koogallery_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_chat_members_chat_id ON chat_members(chat_id);
+CREATE INDEX IF NOT EXISTS idx_chat_members_user_id ON chat_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_invitations_chat_id ON chat_invitations(chat_id);
+CREATE INDEX IF NOT EXISTS idx_chat_invitations_email ON chat_invitations(email);
+CREATE INDEX IF NOT EXISTS idx_chat_invitations_token ON chat_invitations(token);

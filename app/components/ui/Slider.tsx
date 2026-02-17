@@ -5,6 +5,7 @@ import { cubicEasingFn } from '~/utils/easings';
 import { genericMemo } from '~/utils/react';
 
 export type SliderOptions<T> = {
+  first?: { value: T; text: string };
   left: { value: T; text: string };
   middle?: { value: T; text: string };
   right: { value: T; text: string };
@@ -18,11 +19,20 @@ interface SliderProps<T> {
 
 export const Slider = genericMemo(<T,>({ selected, options, setSelected }: SliderProps<T>) => {
   const hasMiddle = !!options.middle;
-  const isLeftSelected = hasMiddle ? selected === options.left.value : selected === options.left.value;
+  const hasFirst = !!options.first;
+  const isFirstSelected = hasFirst && options.first ? selected === options.first.value : false;
+  const isLeftSelected = selected === options.left.value;
   const isMiddleSelected = hasMiddle && options.middle ? selected === options.middle.value : false;
+  const isRightSelected = selected === options.right.value;
 
   return (
     <div className="flex items-center flex-wrap shrink-0 gap-1 bg-bolt-elements-background-depth-1 overflow-hidden rounded-full p-1">
+      {options.first && (
+        <SliderButton selected={isFirstSelected} setSelected={() => setSelected?.(options.first!.value)}>
+          {options.first.text}
+        </SliderButton>
+      )}
+
       <SliderButton selected={isLeftSelected} setSelected={() => setSelected?.(options.left.value)}>
         {options.left.text}
       </SliderButton>
@@ -33,10 +43,7 @@ export const Slider = genericMemo(<T,>({ selected, options, setSelected }: Slide
         </SliderButton>
       )}
 
-      <SliderButton
-        selected={!isLeftSelected && !isMiddleSelected}
-        setSelected={() => setSelected?.(options.right.value)}
-      >
+      <SliderButton selected={isRightSelected} setSelected={() => setSelected?.(options.right.value)}>
         {options.right.text}
       </SliderButton>
     </div>

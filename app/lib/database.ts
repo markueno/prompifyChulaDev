@@ -26,7 +26,15 @@ import {
   getChatByIdPostgres,
   deleteChatPostgres,
   logUserActivityPostgres,
-  getUserActivityPostgres
+  getUserActivityPostgres,
+  getChatMembersPostgres,
+  inviteToChatPostgres,
+  getPendingInvitationsForUserPostgres,
+  getChatInvitationsPostgres,
+  addChatMemberPostgres,
+  acceptInvitationByTokenPostgres,
+  updateChatMemberRolePostgres,
+  removeChatMemberPostgres
 } from './database-postgresql';
 
 // Database configuration
@@ -447,6 +455,62 @@ export async function deleteChat(chatId: string, userId: string) {
     console.error('Error deleting chat:', error);
     return false;
   }
+}
+
+export async function getChatMembers(chatId: string, userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getChatMembersPostgres(chatId, userId);
+  }
+  return { members: [], currentUserRole: '' };
+}
+
+export async function updateChatMemberRole(chatId: string, userId: string, targetUserId: string, newRole: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return updateChatMemberRolePostgres(chatId, userId, targetUserId, newRole);
+  }
+  return { success: false, error: 'Not supported' };
+}
+
+export async function removeChatMember(chatId: string, userId: string, targetUserId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return removeChatMemberPostgres(chatId, userId, targetUserId);
+  }
+  return { success: false, error: 'Not supported' };
+}
+
+export async function inviteToChat(chatId: string, userId: string, email: string, role?: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return inviteToChatPostgres(chatId, userId, email, role);
+  }
+  return { success: false, error: 'Not supported' };
+}
+
+export async function getPendingInvitationsForUser(userEmail: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getPendingInvitationsForUserPostgres(userEmail);
+  }
+  return [];
+}
+
+export async function getChatInvitations(chatId: string, userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getChatInvitationsPostgres(chatId, userId);
+  }
+  return [];
+}
+
+export async function addChatMember(chatId: string, userId: string, role?: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return addChatMemberPostgres(chatId, userId, role);
+  }
+  return false;
+}
+
+export async function acceptInvitationByToken(token: string, userId: string, userEmail: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return acceptInvitationByTokenPostgres(token, userId, userEmail);
+  }
+  return { success: false, error: 'Not supported' };
 }
 
 // User activity tracking functions

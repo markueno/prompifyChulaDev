@@ -8,6 +8,7 @@ import { diffLines, type Change } from 'diff';
 import { ActionRunner } from '~/lib/runtime/action-runner';
 import { getLanguageFromExtension } from '~/utils/getLanguageFromExtension';
 import type { FileHistory } from '~/types/actions';
+import { AdminPanel } from './AdminPanel';
 import { DiffView } from './DiffView';
 import {
   type OnChangeCallback as OnEditorChange,
@@ -38,6 +39,10 @@ interface WorkspaceProps {
 const viewTransition = { ease: cubicEasingFn };
 
 const sliderOptions: SliderOptions<WorkbenchViewType> = {
+  first: {
+    value: 'admin',
+    text: 'Admin',
+  },
   left: {
     value: 'code',
     text: 'Code',
@@ -405,6 +410,9 @@ export const Workbench = memo(
                       </PanelHeaderButton>
                     </div>
                   )}
+                  {selectedView === 'admin' && (
+                    <div className="ml-auto" />
+                  )}
                   {selectedView === 'diff' && (
                     <FileModifiedDropdown fileHistory={fileHistory} onSelectFile={handleSelectFile} />
                   )}
@@ -418,7 +426,10 @@ export const Workbench = memo(
                   />
                 </div>
                 <div className="relative flex-1 overflow-hidden">
-                  <View initial={{ x: '0%' }} animate={{ x: selectedView === 'code' ? '0%' : '-100%' }}>
+                  <View initial={{ x: '-100%' }} animate={{ x: selectedView === 'admin' ? '0%' : '-100%' }}>
+                    <AdminPanel />
+                  </View>
+                  <View initial={{ x: '0%' }} animate={{ x: selectedView === 'code' ? '0%' : selectedView === 'admin' ? '100%' : '-100%' }}>
                     <EditorPanel
                       editorDocument={currentDocument}
                       isStreaming={isStreaming}
@@ -435,7 +446,14 @@ export const Workbench = memo(
                   </View>
                   <View
                     initial={{ x: '100%' }}
-                    animate={{ x: selectedView === 'diff' ? '0%' : selectedView === 'code' ? '100%' : '-100%' }}
+                    animate={{
+                      x:
+                        selectedView === 'diff'
+                          ? '0%'
+                          : selectedView === 'code' || selectedView === 'admin'
+                            ? '100%'
+                            : '-100%',
+                    }}
                   >
                     <DiffView fileHistory={fileHistory} setFileHistory={setFileHistory} actionRunner={actionRunner} />
                   </View>

@@ -55,8 +55,9 @@ export function useChatHistory() {
     }
 
     if (mixedId) {
-      getMessages(db, mixedId)
-        .then(storedMessages => {
+      const loadChat = async () => {
+        try {
+          let storedMessages = await getMessages(db, mixedId);
           if (storedMessages && storedMessages.messages.length > 0) {
             const rewindId = searchParams.get('rewindTo');
             const filteredMessages = rewindId
@@ -68,18 +69,42 @@ export function useChatHistory() {
             description.set(storedMessages.description);
             chatId.set(storedMessages.id);
             chatMetadata.set(storedMessages.metadata);
+          } else if (user?.id) {
+            const res = await fetch(`/api/chat/${mixedId}`);
+            if (res.ok) {
+              const { chat } = await res.json();
+              if (chat?.messages?.length > 0) {
+                const rewindId = searchParams.get('rewindTo');
+                const filteredMessages = rewindId
+                  ? chat.messages.slice(0, chat.messages.findIndex((m: any) => m.id === rewindId) + 1)
+                  : chat.messages;
+                setInitialMessages(filteredMessages);
+                setUrlId(chat.url_id);
+                description.set(chat.description);
+                chatId.set(chat.id);
+                chatMetadata.set(chat.metadata);
+                if (db) {
+                  await setMessages(db, chat.id, chat.messages, chat.url_id, chat.description, undefined, chat.metadata);
+                }
+              } else {
+                navigate('/', { replace: true });
+              }
+            } else {
+              navigate('/', { replace: true });
+            }
           } else {
             navigate('/', { replace: true });
           }
-
-          setReady(true);
-        })
-        .catch(error => {
+        } catch (error) {
           logStore.logError('Failed to load chat messages', error);
-          toast.error(error.message);
-        });
+          toast.error(typeof error === 'object' && error && 'message' in error ? String((error as Error).message) : 'Failed to load chat');
+        } finally {
+          setReady(true);
+        }
+      };
+      loadChat();
     }
-  }, []);
+  }, [mixedId, user?.id, searchParams, navigate]);
 
   return {
     ready: !mixedId || ready,

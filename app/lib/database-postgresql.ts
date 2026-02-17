@@ -160,6 +160,38 @@ export async function createPostgresTables() {
       )
     `);
 
+    // Chat members table (multi-user project sharing)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS chat_members (
+        id TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(chat_id, user_id),
+        FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Chat invitations table (invite by email)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS chat_invitations (
+        id TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL,
+        email TEXT NOT NULL,
+        invited_by_user_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        status TEXT NOT NULL DEFAULT 'pending',
+        token TEXT UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(chat_id, email),
+        FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+        FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
     // Create indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)');
@@ -178,6 +210,11 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_logs_order_id ON koogallery_logs(order_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_logs_instance_id ON koogallery_logs(instance_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_logs_timestamp ON koogallery_logs(timestamp)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_chat_members_chat_id ON chat_members(chat_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_chat_members_user_id ON chat_members(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_chat_id ON chat_invitations(chat_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_email ON chat_invitations(email)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_token ON chat_invitations(token)');
 
     console.log('PostgreSQL tables created successfully');
   } catch (error) {
@@ -566,7 +603,18 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
       RETURNING id
     `;
     const result = await client.query(query, [id, userId, urlId, description, JSON.stringify(messages), JSON.stringify(metadata)]);
-    return result.rows[0]?.id || null;
+    const savedId = result.rows[0]?.id || null;
+
+    // Ensure owner is in chat_members for multi-user sharing
+    if (savedId) {
+      await client.query(`
+        INSERT INTO chat_members (id, chat_id, user_id, role)
+        VALUES ($1, $2, $3, 'owner')
+        ON CONFLICT (chat_id, user_id) DO NOTHING
+      `, [crypto.randomUUID(), id, userId]);
+    }
+
+    return savedId;
   } catch (error) {
     console.error('Error saving chat to PostgreSQL:', error);
     return null;
@@ -580,11 +628,13 @@ export async function getChatsByUserPostgres(userId: string): Promise<any[]> {
   const client = await pool.connect();
   
   try {
+    // Include chats owned by user OR where user is a member (shared projects)
     const query = `
-      SELECT id, url_id, description, messages, metadata, created_at, updated_at, last_activity, is_archived
-      FROM chats 
-      WHERE user_id = $1 
-      ORDER BY updated_at DESC
+      SELECT DISTINCT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+      FROM chats c
+      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
+      WHERE c.user_id = $1 OR cm.user_id = $1
+      ORDER BY c.updated_at DESC
     `;
     const result = await client.query(query, [userId]);
     return result.rows.map(row => ({
@@ -605,10 +655,12 @@ export async function getChatByIdPostgres(chatId: string, userId: string): Promi
   const client = await pool.connect();
   
   try {
+    // Allow access if user is owner OR is a chat member (shared project)
     const query = `
-      SELECT id, url_id, description, messages, metadata, created_at, updated_at, last_activity, is_archived
-      FROM chats 
-      WHERE id = $1 AND user_id = $2
+      SELECT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
+      FROM chats c
+      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
     `;
     const result = await client.query(query, [chatId, userId]);
     if (result.rows.length === 0) {
@@ -701,6 +753,273 @@ export async function getUserActivityPostgres(userId: string, limit: number = 10
   } catch (error) {
     console.error('Error fetching user activity from PostgreSQL:', error);
     return [];
+  } finally {
+    client.release();
+  }
+}
+
+// Chat members and invitations (multi-user project sharing)
+export async function getChatMembersPostgres(chatId: string, requestingUserId: string): Promise<{ members: { id: string; email: string; role: string }[]; currentUserRole: string }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    // Check access: user must be owner or member
+    const accessCheck = await client.query(`
+      SELECT c.user_id as owner_id, cm.role as member_role FROM chats c
+      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
+    `, [chatId, requestingUserId]);
+    if (accessCheck.rows.length === 0) return { members: [], currentUserRole: '' };
+    const currentUserRole = accessCheck.rows[0].owner_id === requestingUserId ? 'owner' : (accessCheck.rows[0].member_role || 'member');
+
+    // Get owner from chats
+    const chatRow = await client.query(`SELECT user_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const ownerId = chatRow.rows[0]?.user_id;
+    if (!ownerId) return { members: [], currentUserRole: '' };
+
+    const ownerUser = await client.query(`SELECT id, email FROM users WHERE id = $1`, [ownerId]);
+    const members: { id: string; email: string; role: string }[] = [];
+    if (ownerUser.rows[0]) {
+      members.push({ id: ownerUser.rows[0].id, email: ownerUser.rows[0].email, role: 'owner' });
+    }
+
+    const memberRows = await client.query(`
+      SELECT u.id, u.email, cm.role
+      FROM chat_members cm
+      JOIN users u ON cm.user_id = u.id
+      JOIN chats c ON cm.chat_id = c.id
+      WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id != $2
+    `, [chatId, chatId, ownerId]);
+    for (const row of memberRows.rows) {
+      members.push({ id: row.id, email: row.email, role: row.role });
+    }
+    return { members, currentUserRole };
+  } catch (error) {
+    console.error('Error getting chat members:', error);
+    return { members: [], currentUserRole: '' };
+  } finally {
+    client.release();
+  }
+}
+
+export async function inviteToChatPostgres(chatId: string, invitingUserId: string, email: string, role: string = 'member'): Promise<{ success: boolean; error?: string; token?: string }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return { success: false, error: 'Email is required' };
+
+    // Check inviter has access (owner or admin)
+    const accessCheck = await client.query(`
+      SELECT cm.role, c.user_id FROM chats c
+      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
+    `, [chatId, invitingUserId]);
+    if (accessCheck.rows.length === 0) return { success: false, error: 'Chat not found or access denied' };
+    const inviterRole = accessCheck.rows[0].user_id === invitingUserId ? 'owner' : accessCheck.rows[0].role;
+    if (inviterRole !== 'owner' && inviterRole !== 'admin') return { success: false, error: 'Only owners and admins can invite' };
+
+    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const resolvedChatId = chatRow.rows[0]?.id;
+    if (!resolvedChatId) return { success: false, error: 'Chat not found' };
+
+    const invitee = await client.query(`SELECT id FROM users WHERE email = $1`, [normalizedEmail]);
+    if (invitee.rows[0]) {
+      const existingMember = await client.query(`SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`, [resolvedChatId, invitee.rows[0].id]);
+      if (existingMember.rows.length > 0) return { success: false, error: 'User is already a member' };
+    }
+
+    const existingInvite = await client.query(`SELECT token FROM chat_invitations WHERE chat_id = $1 AND LOWER(email) = $2 AND status = 'pending' AND expires_at > NOW()`, [resolvedChatId, normalizedEmail]);
+    if (existingInvite.rows.length > 0) return { success: false, error: 'Invitation already sent to this email' };
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await client.query(`
+      INSERT INTO chat_invitations (id, chat_id, email, invited_by_user_id, role, status, token, expires_at)
+      VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7)
+      ON CONFLICT (chat_id, email) DO UPDATE SET token = $6, expires_at = $7, status = 'pending', invited_by_user_id = $4
+    `, [crypto.randomUUID(), resolvedChatId, normalizedEmail, invitingUserId, role, token, expiresAt]);
+
+    return { success: true, token };
+  } catch (error) {
+    console.error('Error inviting to chat:', error);
+    return { success: false, error: 'Failed to send invitation' };
+  } finally {
+    client.release();
+  }
+}
+
+export async function getPendingInvitationsForUserPostgres(userEmail: string): Promise<{ id: string; chat_id: string; token: string; role: string; created_at: string; project_name: string; inviter_email: string }[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const normalizedEmail = userEmail.trim().toLowerCase();
+    const result = await client.query(`
+      SELECT ci.id, ci.chat_id, ci.token, ci.role, ci.created_at,
+             COALESCE(c.description, 'Untitled project') as project_name,
+             u.email as inviter_email
+      FROM chat_invitations ci
+      JOIN chats c ON ci.chat_id = c.id
+      JOIN users u ON ci.invited_by_user_id = u.id
+      WHERE LOWER(ci.email) = $1 AND ci.status = 'pending' AND ci.expires_at > NOW()
+      ORDER BY ci.created_at DESC
+    `, [normalizedEmail]);
+    return result.rows;
+  } catch (error) {
+    console.error('Error getting pending invitations for user:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function getChatInvitationsPostgres(chatId: string, requestingUserId: string): Promise<{ id: string; email: string; role: string; status: string; created_at: string }[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const accessCheck = await client.query(`
+      SELECT 1 FROM chats c
+      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
+    `, [chatId, requestingUserId]);
+    if (accessCheck.rows.length === 0) return [];
+
+    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const resolvedChatId = chatRow.rows[0]?.id;
+    if (!resolvedChatId) return [];
+
+    const result = await client.query(`
+      SELECT id, email, role, status, created_at
+      FROM chat_invitations
+      WHERE chat_id = $1 AND status = 'pending' AND expires_at > NOW()
+      ORDER BY created_at DESC
+    `, [resolvedChatId]);
+    return result.rows;
+  } catch (error) {
+    console.error('Error getting chat invitations:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function addChatMemberPostgres(chatId: string, userId: string, role: string = 'member'): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const resolvedChatId = chatRow.rows[0]?.id;
+    if (!resolvedChatId) return false;
+
+    await client.query(`
+      INSERT INTO chat_members (id, chat_id, user_id, role)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (chat_id, user_id) DO UPDATE SET role = $4
+    `, [crypto.randomUUID(), resolvedChatId, userId, role]);
+    return true;
+  } catch (error) {
+    console.error('Error adding chat member:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateChatMemberRolePostgres(chatId: string, requestingUserId: string, targetUserId: string, newRole: string): Promise<{ success: boolean; error?: string }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    if (!['admin', 'member'].includes(newRole)) return { success: false, error: 'Invalid role' };
+
+    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const ownerId = chatRow.rows[0]?.owner_id;
+    if (!ownerId) return { success: false, error: 'Chat not found' };
+    if (targetUserId === ownerId) return { success: false, error: 'Cannot change owner role' };
+
+    const accessCheck = await client.query(`
+      SELECT c.user_id, cm.role FROM chats c
+      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
+    `, [chatId, requestingUserId]);
+    if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied' };
+    const requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : (accessCheck.rows[0].role || 'member');
+
+    if (requesterRole === 'member') return { success: false, error: 'Only owners and admins can edit roles' };
+    if (requesterRole === 'admin') {
+      const targetMember = await client.query(`SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`, [chatId, chatId, targetUserId]);
+      if (targetMember.rows[0]?.role === 'admin') return { success: false, error: 'Only the owner can change an admin\'s role' };
+    }
+
+    const resolvedChatId = chatRow.rows[0]?.id;
+    if (!resolvedChatId) return { success: false, error: 'Chat not found' };
+
+    await client.query(`UPDATE chat_members SET role = $3 WHERE chat_id = $1 AND user_id = $2`, [resolvedChatId, targetUserId, newRole]);
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating member role:', error);
+    return { success: false, error: 'Failed to update role' };
+  } finally {
+    client.release();
+  }
+}
+
+export async function removeChatMemberPostgres(chatId: string, requestingUserId: string, targetUserId: string): Promise<{ success: boolean; error?: string }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const ownerId = chatRow.rows[0]?.owner_id;
+    const resolvedChatId = chatRow.rows[0]?.id;
+    if (!ownerId || !resolvedChatId) return { success: false, error: 'Chat not found' };
+    if (targetUserId === ownerId) return { success: false, error: 'Cannot remove the project owner' };
+
+    const accessCheck = await client.query(`
+      SELECT c.user_id, cm.role FROM chats c
+      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
+    `, [chatId, requestingUserId]);
+    if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied' };
+    const requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : (accessCheck.rows[0].role || 'member');
+
+    if (requesterRole === 'member') return { success: false, error: 'Only owners and admins can remove members' };
+    if (requesterRole === 'admin') {
+      const targetMember = await client.query(`SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`, [chatId, chatId, targetUserId]);
+      if (targetMember.rows[0]?.role === 'admin') return { success: false, error: 'Only the owner can remove an admin' };
+    }
+
+    await client.query(`DELETE FROM chat_members WHERE chat_id = $1 AND user_id = $2`, [resolvedChatId, targetUserId]);
+    return { success: true };
+  } catch (error) {
+    console.error('Error removing member:', error);
+    return { success: false, error: 'Failed to remove member' };
+  } finally {
+    client.release();
+  }
+}
+
+export async function acceptInvitationByTokenPostgres(token: string, userId: string, userEmail: string): Promise<{ success: boolean; chatUrl?: string; error?: string }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const normalizedEmail = userEmail.trim().toLowerCase();
+    const invResult = await client.query(`
+      SELECT ci.id, ci.chat_id, ci.email, ci.role, c.url_id
+      FROM chat_invitations ci
+      JOIN chats c ON ci.chat_id = c.id
+      WHERE ci.token = $1 AND ci.status = 'pending' AND ci.expires_at > NOW()
+    `, [token]);
+    if (invResult.rows.length === 0) return { success: false, error: 'Invitation not found or expired' };
+
+    const inv = invResult.rows[0];
+    if (inv.email.toLowerCase() !== normalizedEmail) return { success: false, error: 'This invitation was sent to a different email address' };
+
+    await client.query(`UPDATE chat_invitations SET status = 'accepted' WHERE id = $1`, [inv.id]);
+    await addChatMemberPostgres(inv.chat_id, userId, inv.role);
+
+    return { success: true, chatUrl: `/chat/${inv.url_id || inv.chat_id}` };
+  } catch (error) {
+    console.error('Error accepting invitation:', error);
+    return { success: false, error: 'Failed to accept invitation' };
   } finally {
     client.release();
   }
