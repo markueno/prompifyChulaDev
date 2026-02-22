@@ -28,7 +28,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     const baseUrl = process.env.APP_URL || 'http://localhost:5173';
     const acceptUrl = `${baseUrl}/invite/accept?token=${result.token}`;
 
-    const chat = await getChatById(chatId, user.id);
+    const chat = await getChatById(chatId, user.id, user.isModerator);
     const projectName = chat?.description || 'Untitled project';
 
     const emailSent = await sendInvitationEmail(email, user.email, projectName, acceptUrl);

@@ -12,7 +12,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
       return json({ error: 'Chat ID is required' }, { status: 400 });
     }
     
-    const chat = await getChatById(chatId, user.id);
+    const chat = await getChatById(chatId, user.id, user.isModerator);
     
     if (!chat) {
       return json({ error: 'Chat not found' }, { status: 404 });

@@ -6,7 +6,7 @@ import { saveChat, getChatsByUser, getChatById, deleteChat, logUserActivity } fr
 export async function loader({ request, context }: LoaderFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
-    const chats = await getChatsByUser(user.id);
+    const chats = await getChatsByUser(user.id, user.isModerator);
     
     // Log activity
     await logUserActivity(user.id, 'chats_loaded', { count: chats.length });

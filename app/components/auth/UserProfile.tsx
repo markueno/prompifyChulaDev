@@ -43,32 +43,34 @@ export function UserProfile({ user }: UserProfileProps) {
           </p>
         </div>
 
-        <DropdownSeparator />
-
-        <DropdownItem asChild>
-          <button
-            type="button"
-            className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive rounded cursor-pointer"
-            onClick={() => controlPanelOpenStore.set(true)}
-          >
-            <div className="i-ph:gear text-lg" />
-            Settings
-          </button>
-        </DropdownItem>
-
-        <DropdownItem asChild>
-          <button
-            type="button"
-            className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive rounded cursor-pointer"
-            onClick={() => {
-              controlPanelInitialTabStore.set('profile');
-              controlPanelOpenStore.set(true);
-            }}
-          >
-            <div className="i-ph:user text-lg" />
-            Profile
-          </button>
-        </DropdownItem>
+        {user.isModerator && (
+          <>
+            <DropdownSeparator />
+            <DropdownItem asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive rounded cursor-pointer"
+                onClick={() => controlPanelOpenStore.set(true)}
+              >
+                <div className="i-ph:gear text-lg" />
+                Settings
+              </button>
+            </DropdownItem>
+            <DropdownItem asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive rounded cursor-pointer"
+                onClick={() => {
+                  controlPanelInitialTabStore.set('profile');
+                  controlPanelOpenStore.set(true);
+                }}
+              >
+                <div className="i-ph:user text-lg" />
+                Profile
+              </button>
+            </DropdownItem>
+          </>
+        )}
 
         <DropdownSeparator />
 

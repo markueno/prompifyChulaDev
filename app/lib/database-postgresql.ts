@@ -41,6 +41,7 @@ export async function createPostgresTables() {
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         is_verified BOOLEAN DEFAULT FALSE,
+        is_moderator BOOLEAN DEFAULT FALSE,
         verification_token TEXT,
         verification_expires TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -52,6 +53,10 @@ export async function createPostgresTables() {
         reset_expires TIMESTAMP
       )
     `);
+    // Add is_moderator for existing DBs (no-op if already exists)
+    await client.query('ALTER TABLE users ADD COLUMN is_moderator BOOLEAN DEFAULT FALSE').catch((err: { code?: string }) => {
+      if (err.code !== '42701') throw err; // 42701 = duplicate_column
+    });
 
     // User sessions table
     await client.query(`
@@ -752,11 +757,23 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
   }
 }
 
-export async function getChatsByUserPostgres(userId: string): Promise<any[]> {
+export async function getChatsByUserPostgres(userId: string, isModerator?: boolean): Promise<any[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   
   try {
+    if (isModerator) {
+      const result = await client.query(`
+        SELECT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+        FROM chats c
+        ORDER BY c.updated_at DESC
+      `);
+      return result.rows.map(row => ({
+        ...row,
+        messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
+        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+      }));
+    }
     // Include chats owned by user OR where user is a member (shared projects)
     const query = `
       SELECT DISTINCT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
@@ -779,11 +796,25 @@ export async function getChatsByUserPostgres(userId: string): Promise<any[]> {
   }
 }
 
-export async function getChatByIdPostgres(chatId: string, userId: string): Promise<any | null> {
+export async function getChatByIdPostgres(chatId: string, userId: string, isModerator?: boolean): Promise<any | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   
   try {
+    if (isModerator) {
+      const result = await client.query(`
+        SELECT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
+        FROM chats c
+        WHERE c.id = $1 OR c.url_id = $1
+      `, [chatId]);
+      if (result.rows.length === 0) return null;
+      const row = result.rows[0];
+      return {
+        ...row,
+        messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
+        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+      };
+    }
     // Allow access if user is owner OR is a chat member (shared project)
     const query = `
       SELECT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
@@ -888,18 +919,22 @@ export async function getUserActivityPostgres(userId: string, limit: number = 10
 }
 
 // Chat members and invitations (multi-user project sharing)
-export async function getChatMembersPostgres(chatId: string, requestingUserId: string): Promise<{ members: { id: string; email: string; role: string }[]; currentUserRole: string }> {
+export async function getChatMembersPostgres(chatId: string, requestingUserId: string, isModerator?: boolean): Promise<{ members: { id: string; email: string; role: string }[]; currentUserRole: string }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
-    // Check access: user must be owner or member
-    const accessCheck = await client.query(`
-      SELECT c.user_id as owner_id, cm.role as member_role FROM chats c
-      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
-      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-    `, [chatId, requestingUserId]);
-    if (accessCheck.rows.length === 0) return { members: [], currentUserRole: '' };
-    const currentUserRole = accessCheck.rows[0].owner_id === requestingUserId ? 'owner' : (accessCheck.rows[0].member_role || 'member');
+    let currentUserRole: string;
+    if (isModerator) {
+      currentUserRole = 'moderator';
+    } else {
+      const accessCheck = await client.query(`
+        SELECT c.user_id as owner_id, cm.role as member_role FROM chats c
+        LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+        WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
+      `, [chatId, requestingUserId]);
+      if (accessCheck.rows.length === 0) return { members: [], currentUserRole: '' };
+      currentUserRole = accessCheck.rows[0].owner_id === requestingUserId ? 'owner' : (accessCheck.rows[0].member_role || 'member');
+    }
 
     // Get owner from chats
     const chatRow = await client.query(`SELECT user_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
@@ -1059,7 +1094,7 @@ export async function addChatMemberPostgres(chatId: string, userId: string, role
   }
 }
 
-export async function updateChatMemberRolePostgres(chatId: string, requestingUserId: string, targetUserId: string, newRole: string): Promise<{ success: boolean; error?: string }> {
+export async function updateChatMemberRolePostgres(chatId: string, requestingUserId: string, targetUserId: string, newRole: string, isModerator?: boolean): Promise<{ success: boolean; error?: string }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
@@ -1070,13 +1105,18 @@ export async function updateChatMemberRolePostgres(chatId: string, requestingUse
     if (!ownerId) return { success: false, error: 'Chat not found' };
     if (targetUserId === ownerId) return { success: false, error: 'Cannot change owner role' };
 
-    const accessCheck = await client.query(`
-      SELECT c.user_id, cm.role FROM chats c
-      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
-      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-    `, [chatId, requestingUserId]);
-    if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied' };
-    const requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : (accessCheck.rows[0].role || 'member');
+    let requesterRole: string;
+    if (isModerator) {
+      requesterRole = 'owner';
+    } else {
+      const accessCheck = await client.query(`
+        SELECT c.user_id, cm.role FROM chats c
+        LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+        WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
+      `, [chatId, requestingUserId]);
+      if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied' };
+      requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : (accessCheck.rows[0].role || 'member');
+    }
 
     if (requesterRole === 'member') return { success: false, error: 'Only owners and admins can edit roles' };
     if (requesterRole === 'admin') {
@@ -1097,7 +1137,7 @@ export async function updateChatMemberRolePostgres(chatId: string, requestingUse
   }
 }
 
-export async function removeChatMemberPostgres(chatId: string, requestingUserId: string, targetUserId: string): Promise<{ success: boolean; error?: string }> {
+export async function removeChatMemberPostgres(chatId: string, requestingUserId: string, targetUserId: string, isModerator?: boolean): Promise<{ success: boolean; error?: string }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
@@ -1107,13 +1147,18 @@ export async function removeChatMemberPostgres(chatId: string, requestingUserId:
     if (!ownerId || !resolvedChatId) return { success: false, error: 'Chat not found' };
     if (targetUserId === ownerId) return { success: false, error: 'Cannot remove the project owner' };
 
-    const accessCheck = await client.query(`
-      SELECT c.user_id, cm.role FROM chats c
-      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
-      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-    `, [chatId, requestingUserId]);
-    if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied' };
-    const requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : (accessCheck.rows[0].role || 'member');
+    let requesterRole: string;
+    if (isModerator) {
+      requesterRole = 'owner';
+    } else {
+      const accessCheck = await client.query(`
+        SELECT c.user_id, cm.role FROM chats c
+        LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+        WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
+      `, [chatId, requestingUserId]);
+      if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied' };
+      requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : (accessCheck.rows[0].role || 'member');
+    }
 
     if (requesterRole === 'member') return { success: false, error: 'Only owners and admins can remove members' };
     if (requesterRole === 'admin') {

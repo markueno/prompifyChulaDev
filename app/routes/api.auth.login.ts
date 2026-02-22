@@ -23,6 +23,7 @@ interface LoginResponse {
     id: string;
     email: string;
     isVerified: boolean;
+    isModerator?: boolean;
   };
   message?: string;
 }
@@ -91,6 +92,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       email: string;
       password_hash: string;
       is_verified: number;
+      is_moderator?: boolean;
       login_attempts: number;
     } | undefined;
     
@@ -128,11 +130,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     // Generate JWT token
     const secret = (context.cloudflare?.env as any)?.JWT_SECRET || 'your-secret-key';
+    const isModerator = Boolean(user.is_moderator);
     const token = jwt.sign(
       { 
         userId: user.id || '',
         email: user.email || '',
-        isVerified: (user.is_verified || 0) === 1 
+        isVerified: (user.is_verified || 0) === 1,
+        isModerator,
       },
       secret,
       { expiresIn: '24h' }
@@ -160,7 +164,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
       user: {
         id: user.id || '',
         email: user.email || '',
-        isVerified: Boolean(user.is_verified)
+        isVerified: Boolean(user.is_verified),
+        isModerator,
       }
     });
 

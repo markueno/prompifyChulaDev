@@ -180,7 +180,7 @@ const UsersSection = memo(() => {
 
   const canEditOrRemove = (member: ChatMember) => {
     if (member.role === 'owner') return false;
-    if (currentUserRole === 'owner') return true;
+    if (currentUserRole === 'owner' || currentUserRole === 'moderator') return true;
     if (currentUserRole === 'admin') return member.role === 'member'; // admin can only edit/remove members
     return false;
   };

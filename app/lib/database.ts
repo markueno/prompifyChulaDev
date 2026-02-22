@@ -421,10 +421,10 @@ export async function saveChat(userId: string, chatData: {
   }
 }
 
-export async function getChatsByUser(userId: string) {
+export async function getChatsByUser(userId: string, isModerator?: boolean) {
   try {
     if (DATABASE_TYPE === 'postgresql') {
-      return getChatsByUserPostgres(userId);
+      return getChatsByUserPostgres(userId, isModerator);
     } else {
       // SQLite implementation would go here if needed
       console.warn('Chat retrieval not implemented for SQLite');
@@ -436,10 +436,10 @@ export async function getChatsByUser(userId: string) {
   }
 }
 
-export async function getChatById(chatId: string, userId: string) {
+export async function getChatById(chatId: string, userId: string, isModerator?: boolean) {
   try {
     if (DATABASE_TYPE === 'postgresql') {
-      return getChatByIdPostgres(chatId, userId);
+      return getChatByIdPostgres(chatId, userId, isModerator);
     } else {
       // SQLite implementation would go here if needed
       console.warn('Chat retrieval not implemented for SQLite');
@@ -466,23 +466,23 @@ export async function deleteChat(chatId: string, userId: string) {
   }
 }
 
-export async function getChatMembers(chatId: string, userId: string) {
+export async function getChatMembers(chatId: string, userId: string, isModerator?: boolean) {
   if (DATABASE_TYPE === 'postgresql') {
-    return getChatMembersPostgres(chatId, userId);
+    return getChatMembersPostgres(chatId, userId, isModerator);
   }
   return { members: [], currentUserRole: '' };
 }
 
-export async function updateChatMemberRole(chatId: string, userId: string, targetUserId: string, newRole: string) {
+export async function updateChatMemberRole(chatId: string, userId: string, targetUserId: string, newRole: string, isModerator?: boolean) {
   if (DATABASE_TYPE === 'postgresql') {
-    return updateChatMemberRolePostgres(chatId, userId, targetUserId, newRole);
+    return updateChatMemberRolePostgres(chatId, userId, targetUserId, newRole, isModerator);
   }
   return { success: false, error: 'Not supported' };
 }
 
-export async function removeChatMember(chatId: string, userId: string, targetUserId: string) {
+export async function removeChatMember(chatId: string, userId: string, targetUserId: string, isModerator?: boolean) {
   if (DATABASE_TYPE === 'postgresql') {
-    return removeChatMemberPostgres(chatId, userId, targetUserId);
+    return removeChatMemberPostgres(chatId, userId, targetUserId, isModerator);
   }
   return { success: false, error: 'Not supported' };
 }

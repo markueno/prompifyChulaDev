@@ -1,5 +1,6 @@
 import { motion, type Variants } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLoaderData } from '@remix-run/react';
 import { toast } from 'react-toastify';
 import { Dialog, DialogButton, DialogDescription, DialogRoot, DialogTitle } from '~/components/ui/Dialog';
 import { ThemeSwitch } from '~/components/ui/ThemeSwitch';
@@ -63,6 +64,10 @@ function CurrentDateTime() {
 }
 
 export const Menu = () => {
+  const loaderData = useLoaderData<{ user?: { isModerator?: boolean } }>();
+  const isModerator = loaderData?.user?.isModerator === true;
+  const showSettings = !isSettingsHidden() && isModerator;
+
   const { duplicateCurrentChat, exportChat } = useChatHistory();
   const menuRef = useRef<HTMLDivElement>(null);
   const [list, setList] = useState<ChatHistoryItem[]>([]);
@@ -262,13 +267,13 @@ export const Menu = () => {
             </DialogRoot>
           </div>
           <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-800 px-4 py-3">
-            {!isSettingsHidden() && <SettingsButton onClick={handleSettingsClick} />}
+            {showSettings && <SettingsButton onClick={handleSettingsClick} />}
             <ThemeSwitch />
           </div>
         </div>
       </motion.div>
 
-      {!isSettingsHidden() && <ControlPanel open={isSettingsOpen} onClose={handleSettingsClose} />}
+      {showSettings && <ControlPanel open={isSettingsOpen} onClose={handleSettingsClose} />}
     </>
   );
 };

@@ -7,6 +7,7 @@ export interface User {
   id: string;
   email: string;
   isVerified: boolean;
+  isModerator?: boolean;
 }
 
 // Check if authentication is temporarily disabled
@@ -48,6 +49,7 @@ export function getMockAdminUser(): User {
     id: 'admin-bypass',
     email: 'admin@bypass.local',
     isVerified: true,
+    isModerator: false,
   };
 }
 
@@ -100,10 +102,11 @@ export async function requireAuth(request: Request, context: any): Promise<User>
     // Update session activity
     await updateSessionActivity(tokenHash);
     
-    const user = {
+    const user: User = {
       id: decoded.userId,
       email: decoded.email,
-      isVerified: decoded.isVerified
+      isVerified: decoded.isVerified,
+      isModerator: Boolean(decoded.isModerator),
     };
     
     console.log('✅ Authentication successful, returning user:', user);

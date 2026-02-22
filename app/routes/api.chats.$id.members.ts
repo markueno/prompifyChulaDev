@@ -8,7 +8,7 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
     const chatId = params.id;
     if (!chatId) return json({ error: 'Chat ID required' }, { status: 400 });
 
-    const result = await getChatMembers(chatId, user.id);
+    const result = await getChatMembers(chatId, user.id, user.isModerator);
     return json(result);
   } catch (error) {
     console.error('Error loading chat members:', error);
@@ -26,13 +26,13 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     const { action: actionType, targetUserId, role } = body;
 
     if (actionType === 'updateRole' && targetUserId && role) {
-      const result = await updateChatMemberRole(chatId, user.id, targetUserId, role);
+      const result = await updateChatMemberRole(chatId, user.id, targetUserId, role, user.isModerator);
       if (!result.success) return json({ success: false, error: result.error }, { status: 400 });
       return json({ success: true });
     }
 
     if (actionType === 'remove' && targetUserId) {
-      const result = await removeChatMember(chatId, user.id, targetUserId);
+      const result = await removeChatMember(chatId, user.id, targetUserId, user.isModerator);
       if (!result.success) return json({ success: false, error: result.error }, { status: 400 });
       return json({ success: true });
     }

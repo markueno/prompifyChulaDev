@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useRouteLoaderData } from '@remix-run/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '@nanostores/react';
 import { Switch } from '@radix-ui/react-switch';
@@ -121,6 +122,11 @@ const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchP
 );
 
 export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
+  const indexData = useRouteLoaderData('routes/_index') as { user?: { isModerator?: boolean } } | undefined;
+  const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { isModerator?: boolean } } | undefined;
+  const user = indexData?.user ?? chatIdData?.user;
+  const isModerator = user?.isModerator === true;
+
   // State
   const [activeTab, setActiveTab] = useState<TabType | null>(null);
   const [loadingTab, setLoadingTab] = useState<TabType | null>(null);
@@ -418,7 +424,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center space-x-4">
-                    {(activeTab || showTabManagement) && (
+                    {(activeTab || showTabManagement) && isModerator && (
                       <button
                         onClick={handleBack}
                         className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-purple-500/10 dark:hover:bg-purple-500/20 group transition-all duration-200"
@@ -427,27 +433,31 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                       </button>
                     )}
                     <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
-                      {showTabManagement ? 'Tab Management' : activeTab ? TAB_LABELS[activeTab] : 'Control Panel'}
+                      {!isModerator ? 'Access denied' : showTabManagement ? 'Tab Management' : activeTab ? TAB_LABELS[activeTab] : 'Control Panel'}
                     </DialogTitle>
                   </div>
 
                   <div className="flex items-center gap-6">
-                    {/* Developer / User mode toggle (hidden on Profile tab) */}
-                    {activeTab !== 'profile' && (
-                      <div className="flex items-center gap-2 min-w-[140px] border-r border-gray-200 dark:border-gray-800 pr-6">
-                        <AnimatedSwitch
-                          id="developer-mode"
-                          checked={developerMode}
-                          onCheckedChange={handleDeveloperModeChange}
-                          label={developerMode ? 'Developer Mode' : 'User Mode'}
-                        />
-                      </div>
-                    )}
+                    {isModerator && (
+                      <>
+                        {/* Developer / User mode toggle (hidden on Profile tab) */}
+                        {activeTab !== 'profile' && (
+                          <div className="flex items-center gap-2 min-w-[140px] border-r border-gray-200 dark:border-gray-800 pr-6">
+                            <AnimatedSwitch
+                              id="developer-mode"
+                              checked={developerMode}
+                              onCheckedChange={handleDeveloperModeChange}
+                              label={developerMode ? 'Developer Mode' : 'User Mode'}
+                            />
+                          </div>
+                        )}
 
-                    {/* Avatar and Dropdown (non-interactive on Profile tab) */}
-                    <div className={classNames('pl-6', activeTab !== 'profile' ? 'border-l border-gray-200 dark:border-gray-800' : '')}>
-                      <AvatarDropdown onSelectTab={handleTabClick} disabled={activeTab === 'profile'} />
-                    </div>
+                        {/* Avatar and Dropdown (non-interactive on Profile tab) */}
+                        <div className={classNames('pl-6', activeTab !== 'profile' ? 'border-l border-gray-200 dark:border-gray-800' : '')}>
+                          <AvatarDropdown onSelectTab={handleTabClick} disabled={activeTab === 'profile'} />
+                        </div>
+                      </>
+                    )}
 
                     {/* Close Button */}
                     <button
@@ -473,6 +483,12 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                     'touch-auto'
                   )}
                 >
+                  {!isModerator ? (
+                    <div className="p-6 flex flex-col items-center justify-center min-h-[200px] text-center text-gray-600 dark:text-gray-400">
+                      <p className="text-lg font-medium">Only moderators can access settings.</p>
+                      <p className="mt-2 text-sm">If you need access, contact your administrator.</p>
+                    </div>
+                  ) : (
                   <motion.div
                     key={activeTab || 'home'}
                     initial={{ opacity: 0 }}
@@ -513,6 +529,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                       </motion.div>
                     )}
                   </motion.div>
+                  )}
                 </div>
               </div>
             </motion.div>
