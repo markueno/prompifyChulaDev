@@ -21,6 +21,10 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       return json({ success: false, error: result.error }, { status: 400 });
     }
 
+    if (result.alreadyMember) {
+      return json({ success: true, alreadyMember: true, message: 'This person already has access to the project.' });
+    }
+
     const baseUrl = process.env.APP_URL || 'http://localhost:5173';
     const acceptUrl = `${baseUrl}/invite/accept?token=${result.token}`;
 

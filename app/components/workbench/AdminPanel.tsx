@@ -202,7 +202,7 @@ const UsersSection = memo(() => {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('Invitation sent');
+        toast.success(data.alreadyMember ? (data.message || 'This person already has access to the project.') : 'Invitation sent');
         setInviteEmail('');
         setInviteOpen(false);
         fetchData();

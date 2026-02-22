@@ -854,7 +854,9 @@ export async function getChatMembersPostgres(chatId: string, requestingUserId: s
   try {
     // Check access: user must be owner or member
     const accessCheck = await client.query(`
-      SELECT c.user_id as owner_id, cm.role as member_role FROM chats c
+      SELECT c.user_id as owner_id, cm.role as member_role FROM chats cct, and that they can access chat history, code, and preview. Includes an Accept invitation button/link (valid 7 days). Notes that they need a Prompify account (sign up first if needed).
+      Delivery is via SendGrid when SENDGRID_API_KEY is set; otherwise it’s only logged and not actually sent.
+      So: one email per project invite – the project invitation email from your app’s FROM_EMAIL, sent through SendGrid when configured.
       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
       WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
     `, [chatId, requestingUserId]);
@@ -891,7 +893,7 @@ export async function getChatMembersPostgres(chatId: string, requestingUserId: s
   }
 }
 
-export async function inviteToChatPostgres(chatId: string, invitingUserId: string, email: string, role: string = 'member'): Promise<{ success: boolean; error?: string; token?: string }> {
+export async function inviteToChatPostgres(chatId: string, invitingUserId: string, email: string, role: string = 'member'): Promise<{ success: boolean; error?: string; token?: string; alreadyMember?: boolean }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
@@ -918,7 +920,9 @@ export async function inviteToChatPostgres(chatId: string, invitingUserId: strin
     const invitee = await client.query(`SELECT id FROM users WHERE email = $1`, [normalizedEmail]);
     if (invitee.rows[0]) {
       const existingMember = await client.query(`SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`, [resolvedChatId, invitee.rows[0].id]);
-      if (existingMember.rows.length > 0) return { success: false, error: 'User is already a member' };
+      if (existingMember.rows.length > 0) {
+        return { success: true, alreadyMember: true };
+      }
     }
 
     const existingInvite = await client.query(`SELECT token FROM chat_invitations WHERE chat_id = $1 AND LOWER(email) = $2 AND status = 'pending' AND expires_at > NOW()`, [resolvedChatId, normalizedEmail]);
