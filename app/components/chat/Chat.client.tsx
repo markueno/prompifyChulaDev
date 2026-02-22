@@ -20,7 +20,8 @@ import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
 import type { ProviderInfo } from '~/types/model';
-import { useSearchParams } from '@remix-run/react';
+import type { ModelInfo } from '~/lib/modules/llm/types';
+import { useRouteLoaderData, useSearchParams } from '@remix-run/react';
 import { createSampler } from '~/utils/sampler';
 import { getTemplates, selectStarterTemplate } from '~/utils/selectStarterTemplate';
 import { logStore } from '~/lib/stores/logs';
@@ -111,9 +112,16 @@ interface ChatProps {
   description?: string;
 }
 
+const ANTHROPIC_PROVIDER = (PROVIDER_LIST.find(p => p.name === 'Anthropic') || DEFAULT_PROVIDER) as ProviderInfo;
+
 export const ChatImpl = memo(
   ({ description, initialMessages, storeMessageHistory, importChat, exportChat }: ChatProps) => {
     useShortcuts();
+
+    const indexData = useRouteLoaderData('routes/_index') as { user?: { isModerator?: boolean } } | undefined;
+    const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { isModerator?: boolean } } | undefined;
+    const user = indexData?.user ?? chatIdData?.user;
+    const isModerator = user?.isModerator === true;
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
@@ -133,6 +141,13 @@ export const ChatImpl = memo(
       const savedProvider = Cookies.get('selectedProvider');
       return (PROVIDER_LIST.find(p => p.name === savedProvider) || DEFAULT_PROVIDER) as ProviderInfo;
     });
+
+    useEffect(() => {
+      if (!isModerator) {
+        setModel(DEFAULT_MODEL);
+        setProvider(ANTHROPIC_PROVIDER);
+      }
+    }, [isModerator]);
 
     const { showChat } = useStore(chatStore);
 
@@ -451,11 +466,13 @@ export const ChatImpl = memo(
     }, []);
 
     const handleModelChange = (newModel: string) => {
+      if (!isModerator) return;
       setModel(newModel);
       Cookies.set('selectedModel', newModel, { expires: 30 });
     };
 
     const handleProviderChange = (newProvider: ProviderInfo) => {
+      if (!isModerator) return;
       setProvider(newProvider);
       Cookies.set('selectedProvider', newProvider.name, { expires: 30 });
       
@@ -499,6 +516,7 @@ export const ChatImpl = memo(
         provider={provider}
         setProvider={handleProviderChange}
         providerList={activeProviders}
+        isModerator={isModerator}
         messageRef={messageRef}
         scrollRef={scrollRef}
         handleInputChange={e => {

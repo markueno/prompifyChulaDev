@@ -111,6 +111,8 @@ interface BaseChatProps {
   clearAlert?: () => void;
   data?: JSONValue[] | undefined;
   actionRunner?: ActionRunner;
+  /** When false, LLM/provider dropdown, model selection, and API key UI are hidden; defaults to Anthropic + Claude Sonnet 4.6 */
+  isModerator?: boolean;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -147,6 +149,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       clearAlert,
       data,
       actionRunner,
+      isModerator = false,
     },
     ref
   ) => {
@@ -574,30 +577,38 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     <div>
                       <ClientOnly>
                         {() => (
-                          <div className={isModelSettingsCollapsed ? 'hidden' : ''}>
-                            <ModelSelector
-                              key={provider?.name + ':' + modelList.length}
-                              model={model}
-                              setModel={setModel}
-                              modelList={modelList}
-                              provider={provider}
-                              setProvider={setProvider}
-                              providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
-                              apiKeys={apiKeys}
-                              modelLoading={isModelLoading}
-                              onRefreshModels={refreshOllamaModels}
-                            />
-                            {(providerList || []).length > 0 &&
-                              provider &&
-                              !LOCAL_PROVIDERS.includes(provider.name) && (
-                                <APIKeyManager
+                          <div className={!isModerator ? '' : isModelSettingsCollapsed ? 'hidden' : ''}>
+                            {isModerator ? (
+                              <>
+                                <ModelSelector
+                                  key={provider?.name + ':' + modelList.length}
+                                  model={model}
+                                  setModel={setModel}
+                                  modelList={modelList}
                                   provider={provider}
-                                  apiKey={apiKeys[provider.name] || ''}
-                                  setApiKey={key => {
-                                    onApiKeysChange(provider.name, key);
-                                  }}
+                                  setProvider={setProvider}
+                                  providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
+                                  apiKeys={apiKeys}
+                                  modelLoading={isModelLoading}
+                                  onRefreshModels={refreshOllamaModels}
                                 />
-                              )}
+                                {(providerList || []).length > 0 &&
+                                  provider &&
+                                  !LOCAL_PROVIDERS.includes(provider.name) && (
+                                    <APIKeyManager
+                                      provider={provider}
+                                      apiKey={apiKeys[provider.name] || ''}
+                                      setApiKey={key => {
+                                        onApiKeysChange(provider.name, key);
+                                      }}
+                                    />
+                                  )}
+                              </>
+                            ) : (
+                              <div className="mb-2 py-2 px-3 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textSecondary text-sm">
+                                Prompify 2.3 model
+                              </div>
+                            )}
                           </div>
                         )}
                       </ClientOnly>
@@ -826,20 +837,22 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                             disabled={isStreaming}
                           />
                           {chatStarted && <ClientOnly>{() => <ExportChatButton exportChat={exportChat} />}</ClientOnly>}
-                          <IconButton
-                            title="Model Settings"
-                            className={classNames('transition-all flex items-center gap-1', {
-                              'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent':
-                                isModelSettingsCollapsed,
-                              'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault':
-                                !isModelSettingsCollapsed,
-                            })}
-                            onClick={() => setIsModelSettingsCollapsed(!isModelSettingsCollapsed)}
-                            disabled={!providerList || providerList.length === 0}
-                          >
-                            <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
-                            {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
-                          </IconButton>
+                          {isModerator && (
+                            <IconButton
+                              title="Model Settings"
+                              className={classNames('transition-all flex items-center gap-1', {
+                                'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent':
+                                  isModelSettingsCollapsed,
+                                'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault':
+                                  !isModelSettingsCollapsed,
+                              })}
+                              onClick={() => setIsModelSettingsCollapsed(!isModelSettingsCollapsed)}
+                              disabled={!providerList || providerList.length === 0}
+                            >
+                              <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
+                              {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
+                            </IconButton>
+                          )}
                         </div>
                         {input.length > 3 ? (
                           <div className="text-xs text-bolt-elements-textTertiary">
