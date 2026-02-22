@@ -862,7 +862,7 @@ export async function getChatMembersPostgres(chatId: string, requestingUserId: s
     const currentUserRole = accessCheck.rows[0].owner_id === requestingUserId ? 'owner' : (accessCheck.rows[0].member_role || 'member');
 
     // Get owner from chats
-    const chatRow = await client.query(`SELECT user_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const chatRow = await client.query(`SELECT user_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const ownerId = chatRow.rows[0]?.user_id;
     if (!ownerId) return { members: [], currentUserRole: '' };
 
@@ -899,7 +899,7 @@ export async function inviteToChatPostgres(chatId: string, invitingUserId: strin
     if (!normalizedEmail) return { success: false, error: 'Email is required' };
 
     // Check if chat exists first (so we can give a clear error when project hasn't been saved yet)
-    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const resolvedChatId = chatRow.rows[0]?.id;
     if (!resolvedChatId) {
       return { success: false, error: 'Chat not found. Save your project first (send at least one message) before inviting others.' };
@@ -976,7 +976,7 @@ export async function getChatInvitationsPostgres(chatId: string, requestingUserI
     `, [chatId, requestingUserId]);
     if (accessCheck.rows.length === 0) return [];
 
-    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const resolvedChatId = chatRow.rows[0]?.id;
     if (!resolvedChatId) return [];
 
@@ -999,7 +999,7 @@ export async function addChatMemberPostgres(chatId: string, userId: string, role
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
-    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const resolvedChatId = chatRow.rows[0]?.id;
     if (!resolvedChatId) return false;
 
@@ -1023,7 +1023,7 @@ export async function updateChatMemberRolePostgres(chatId: string, requestingUse
   try {
     if (!['admin', 'member'].includes(newRole)) return { success: false, error: 'Invalid role' };
 
-    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const ownerId = chatRow.rows[0]?.owner_id;
     if (!ownerId) return { success: false, error: 'Chat not found' };
     if (targetUserId === ownerId) return { success: false, error: 'Cannot change owner role' };
@@ -1038,7 +1038,7 @@ export async function updateChatMemberRolePostgres(chatId: string, requestingUse
 
     if (requesterRole === 'member') return { success: false, error: 'Only owners and admins can edit roles' };
     if (requesterRole === 'admin') {
-      const targetMember = await client.query(`SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`, [chatId, chatId, targetUserId]);
+      const targetMember = await client.query(`SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`, [chatId, targetUserId]);
       if (targetMember.rows[0]?.role === 'admin') return { success: false, error: 'Only the owner can change an admin\'s role' };
     }
 
@@ -1059,7 +1059,7 @@ export async function removeChatMemberPostgres(chatId: string, requestingUserId:
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
-    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const ownerId = chatRow.rows[0]?.owner_id;
     const resolvedChatId = chatRow.rows[0]?.id;
     if (!ownerId || !resolvedChatId) return { success: false, error: 'Chat not found' };
@@ -1075,7 +1075,7 @@ export async function removeChatMemberPostgres(chatId: string, requestingUserId:
 
     if (requesterRole === 'member') return { success: false, error: 'Only owners and admins can remove members' };
     if (requesterRole === 'admin') {
-      const targetMember = await client.query(`SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`, [chatId, chatId, targetUserId]);
+      const targetMember = await client.query(`SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`, [chatId, targetUserId]);
       if (targetMember.rows[0]?.role === 'admin') return { success: false, error: 'Only the owner can remove an admin' };
     }
 
