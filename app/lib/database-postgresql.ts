@@ -192,6 +192,46 @@ export async function createPostgresTables() {
       )
     `);
 
+    // Subscription tiers table (Trial, Builder, Innovator)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscription_tiers (
+        id TEXT PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        display_name TEXT NOT NULL,
+        price_cents INTEGER NOT NULL DEFAULT 0,
+        limits JSONB DEFAULT '{}',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Subscriptions table - one per user, links to tier
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS subscriptions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL UNIQUE,
+        tier_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        current_period_start TIMESTAMP,
+        current_period_end TIMESTAMP,
+        stripe_subscription_id TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (tier_id) REFERENCES subscription_tiers(id)
+      )
+    `);
+
+    // Seed subscription tiers (Trial=free, Builder, Innovator)
+    await client.query(`
+      INSERT INTO subscription_tiers (id, name, display_name, price_cents, limits, sort_order)
+      VALUES
+        ('tier_trial', 'trial', 'Trial', 0, '{}', 1),
+        ('tier_builder', 'builder', 'Builder', 0, '{}', 2),
+        ('tier_innovator', 'innovator', 'Innovator', 0, '{}', 3)
+      ON CONFLICT (id) DO NOTHING
+    `);
+
     // Create indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)');
@@ -215,6 +255,17 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_chat_id ON chat_invitations(chat_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_email ON chat_invitations(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_token ON chat_invitations(token)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_tier_id ON subscriptions(tier_id)');
+
+    // Backfill: assign Trial tier to verified users without a subscription
+    await client.query(`
+      INSERT INTO subscriptions (id, user_id, tier_id, status)
+      SELECT gen_random_uuid()::text, u.id, 'tier_trial', 'active'
+      FROM users u
+      LEFT JOIN subscriptions s ON u.id = s.user_id
+      WHERE s.id IS NULL AND u.is_verified = TRUE
+    `);
 
     console.log('PostgreSQL tables created successfully');
   } catch (error) {
@@ -254,6 +305,36 @@ export async function getUserByEmailPostgres(email: string) {
   }
 }
 
+/** Create Trial subscription for user. Uses provided client for same-transaction atomicity. Skips if already exists (e.g. double verify). */
+async function createSubscriptionForUserWithClient(client: PoolClient, userId: string): Promise<void> {
+  const id = crypto.randomUUID();
+  await client.query(`
+    INSERT INTO subscriptions (id, user_id, tier_id, status)
+    VALUES ($1, $2, 'tier_trial', 'active')
+    ON CONFLICT (user_id) DO NOTHING
+  `, [id, userId]);
+}
+
+/** Get subscription by user ID. For future subscription/upgrade logic. */
+export async function getSubscriptionByUserIdPostgres(userId: string) {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(`
+      SELECT s.*, st.name as tier_name, st.display_name as tier_display_name, st.price_cents
+      FROM subscriptions s
+      JOIN subscription_tiers st ON s.tier_id = st.id
+      WHERE s.user_id = $1
+    `, [userId]);
+    return result.rows[0] || null;
+  } catch (error: any) {
+    console.error('Error getting subscription by user:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
 export async function createUserPostgres(user: any) {
   const pool = getPostgresPool();
   let client;
@@ -272,15 +353,15 @@ export async function createUserPostgres(user: any) {
       user.verificationExpires,
       user.createdAt
     ]);
-    return result.rowCount > 0;
+    return result.rowCount !== null && result.rowCount > 0;
   } catch (error: any) {
     console.error('❌ Error creating user:', error);
     // Re-throw connection errors so they can be handled upstream
-    if (error.message?.includes('timeout') || 
-        error.message?.includes('Connection terminated') || 
+    if (error.message?.includes('timeout') ||
+        error.message?.includes('Connection terminated') ||
         error.message?.includes('ECONNREFUSED') ||
         error.message?.includes('ENOTFOUND')) {
-      throw error; // Let the caller handle connection errors
+      throw error;
     }
     // Re-throw duplicate key errors
     if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
@@ -289,7 +370,7 @@ export async function createUserPostgres(user: any) {
     return false;
   } finally {
     if (client) {
-    client.release();
+      client.release();
     }
   }
 }
@@ -317,13 +398,21 @@ export async function verifyUserPostgres(userId: string) {
   const client = await pool.connect();
   
   try {
+    await client.query('BEGIN');
     const result = await client.query(`
       UPDATE users 
       SET is_verified = TRUE, verification_token = NULL, verification_expires = NULL 
       WHERE id = $1
     `, [userId]);
-    return result.rowCount > 0;
-  } catch (error) {
+    if (result.rowCount && result.rowCount > 0) {
+      await createSubscriptionForUserWithClient(client, userId);
+      await client.query('COMMIT');
+      return true;
+    }
+    await client.query('ROLLBACK');
+    return false;
+  } catch (error: any) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('Error verifying user:', error);
     return false;
   } finally {
@@ -809,19 +898,22 @@ export async function inviteToChatPostgres(chatId: string, invitingUserId: strin
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) return { success: false, error: 'Email is required' };
 
+    // Check if chat exists first (so we can give a clear error when project hasn't been saved yet)
+    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
+    const resolvedChatId = chatRow.rows[0]?.id;
+    if (!resolvedChatId) {
+      return { success: false, error: 'Chat not found. Save your project first (send at least one message) before inviting others.' };
+    }
+
     // Check inviter has access (owner or admin)
     const accessCheck = await client.query(`
       SELECT cm.role, c.user_id FROM chats c
       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
       WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
     `, [chatId, invitingUserId]);
-    if (accessCheck.rows.length === 0) return { success: false, error: 'Chat not found or access denied' };
+    if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied to this project.' };
     const inviterRole = accessCheck.rows[0].user_id === invitingUserId ? 'owner' : accessCheck.rows[0].role;
     if (inviterRole !== 'owner' && inviterRole !== 'admin') return { success: false, error: 'Only owners and admins can invite' };
-
-    const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId, chatId]);
-    const resolvedChatId = chatRow.rows[0]?.id;
-    if (!resolvedChatId) return { success: false, error: 'Chat not found' };
 
     const invitee = await client.query(`SELECT id FROM users WHERE email = $1`, [normalizedEmail]);
     if (invitee.rows[0]) {

@@ -197,6 +197,7 @@ const UsersSection = memo(() => {
       const res = await fetch(`/api/chats/${currentChatId}/invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ email: inviteEmail.trim() }),
       });
       const data = await res.json();

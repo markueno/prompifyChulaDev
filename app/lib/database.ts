@@ -34,7 +34,8 @@ import {
   addChatMemberPostgres,
   acceptInvitationByTokenPostgres,
   updateChatMemberRolePostgres,
-  removeChatMemberPostgres
+  removeChatMemberPostgres,
+  getSubscriptionByUserIdPostgres
 } from './database-postgresql';
 
 // Database configuration
@@ -239,6 +240,14 @@ export async function setPasswordFromResetToken(token: string, passwordHash: str
     return setPasswordFromResetTokenPostgres(token, passwordHash);
   }
   return false;
+}
+
+/** Get user's subscription with tier info. PostgreSQL only; returns null for SQLite. */
+export async function getSubscriptionByUserId(userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getSubscriptionByUserIdPostgres(userId);
+  }
+  return null;
 }
 
 export async function updateLoginAttempts(email: string, attempts: number) {
