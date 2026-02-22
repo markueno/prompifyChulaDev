@@ -154,6 +154,37 @@ CREATE TABLE IF NOT EXISTS chat_invitations (
     FOREIGN KEY (invited_by_user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Create token_usage table (event log per chat response)
+CREATE TABLE IF NOT EXISTS token_usage (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens INTEGER NOT NULL DEFAULT 0,
+    model TEXT,
+    provider TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create token_balances table (allocations with effective periods: tier, top-up, promo, etc.)
+CREATE TABLE IF NOT EXISTS token_balances (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    source_reference_id TEXT,
+    tokens_allocated INTEGER NOT NULL DEFAULT 0,
+    tokens_used INTEGER NOT NULL DEFAULT 0,
+    effective_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    effective_end TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT chk_token_balances_source CHECK (source IN ('tier', 'top_up', 'promo', 'grant'))
+);
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
@@ -177,3 +208,8 @@ CREATE INDEX IF NOT EXISTS idx_chat_members_user_id ON chat_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_invitations_chat_id ON chat_invitations(chat_id);
 CREATE INDEX IF NOT EXISTS idx_chat_invitations_email ON chat_invitations(email);
 CREATE INDEX IF NOT EXISTS idx_chat_invitations_token ON chat_invitations(token);
+CREATE INDEX IF NOT EXISTS idx_token_usage_chat_id ON token_usage(chat_id);
+CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id);
+CREATE INDEX IF NOT EXISTS idx_token_usage_user_created ON token_usage(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_token_balances_user_id ON token_balances(user_id);
+CREATE INDEX IF NOT EXISTS idx_token_balances_user_effective ON token_balances(user_id, effective_start, effective_end);

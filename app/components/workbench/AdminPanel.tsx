@@ -297,7 +297,6 @@ const UsersSection = memo(() => {
             className="px-3 py-2 text-sm rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-accent-500/50"
           >
             <option value="all">all roles</option>
-            <option value="owner">owner</option>
             <option value="admin">admin</option>
             <option value="member">member</option>
           </select>

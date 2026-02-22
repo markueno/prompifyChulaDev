@@ -232,6 +232,41 @@ export async function createPostgresTables() {
       ON CONFLICT (id) DO NOTHING
     `);
 
+    // Token usage - event log per chat response
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS token_usage (
+        id TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        prompt_tokens INTEGER NOT NULL DEFAULT 0,
+        completion_tokens INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0,
+        model TEXT,
+        provider TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Token balances - allocations with effective periods (tier, top-up, promo, etc.)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS token_balances (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        source_reference_id TEXT,
+        tokens_allocated INTEGER NOT NULL DEFAULT 0,
+        tokens_used INTEGER NOT NULL DEFAULT 0,
+        effective_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        effective_end TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT chk_token_balances_source CHECK (source IN ('tier', 'top_up', 'promo', 'grant'))
+      )
+    `);
+
     // Create indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)');
@@ -257,6 +292,11 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_token ON chat_invitations(token)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_tier_id ON subscriptions(tier_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_chat_id ON token_usage(chat_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_user_created ON token_usage(user_id, created_at)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_token_balances_user_id ON token_balances(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_token_balances_user_effective ON token_balances(user_id, effective_start, effective_end)');
 
     // Backfill: assign Trial tier to verified users without a subscription
     await client.query(`
@@ -694,7 +734,7 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
     const result = await client.query(query, [id, userId, urlId, description, JSON.stringify(messages), JSON.stringify(metadata)]);
     const savedId = result.rows[0]?.id || null;
 
-    // Ensure owner is in chat_members for multi-user sharing
+    // Project creator is always the owner: add them to chat_members with role 'owner'
     if (savedId) {
       await client.query(`
         INSERT INTO chat_members (id, chat_id, user_id, role)
@@ -854,9 +894,7 @@ export async function getChatMembersPostgres(chatId: string, requestingUserId: s
   try {
     // Check access: user must be owner or member
     const accessCheck = await client.query(`
-      SELECT c.user_id as owner_id, cm.role as member_role FROM chats cct, and that they can access chat history, code, and preview. Includes an Accept invitation button/link (valid 7 days). Notes that they need a Prompify account (sign up first if needed).
-      Delivery is via SendGrid when SENDGRID_API_KEY is set; otherwise it’s only logged and not actually sent.
-      So: one email per project invite – the project invitation email from your app’s FROM_EMAIL, sent through SendGrid when configured.
+      SELECT c.user_id as owner_id, cm.role as member_role FROM chats c
       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
       WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
     `, [chatId, requestingUserId]);
@@ -880,7 +918,7 @@ export async function getChatMembersPostgres(chatId: string, requestingUserId: s
       JOIN users u ON cm.user_id = u.id
       JOIN chats c ON cm.chat_id = c.id
       WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id != $2
-    `, [chatId, chatId, ownerId]);
+    `, [chatId, ownerId]);
     for (const row of memberRows.rows) {
       members.push({ id: row.id, email: row.email, role: row.role });
     }

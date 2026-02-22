@@ -57,18 +57,39 @@ if (!import.meta.env.SSR) {
 
         const { workbenchStore } = await import('~/lib/stores/workbench');
 
-        // Listen for preview errors
+        // Listen for preview errors (runtime exceptions, promise rejections, and compile/build errors via console.error)
         webcontainer.on('preview-message', message => {
           console.log('WebContainer preview message:', message);
 
-          // Handle both uncaught exceptions and unhandled promise rejections
-          if (message.type === 'PREVIEW_UNCAUGHT_EXCEPTION' || message.type === 'PREVIEW_UNHANDLED_REJECTION') {
-            const isPromise = message.type === 'PREVIEW_UNHANDLED_REJECTION';
+          const isConsoleError = message.type === 'PREVIEW_CONSOLE_ERROR';
+          const isUncaught = message.type === 'PREVIEW_UNCAUGHT_EXCEPTION';
+          const isRejection = message.type === 'PREVIEW_UNHANDLED_REJECTION';
+
+          if (isConsoleError || isUncaught || isRejection) {
+            let description: string;
+            let content: string;
+
+            if (isConsoleError) {
+              // Vite/Babel compile errors often come through console.error
+              const args = (message as { args?: unknown[] }).args ?? [];
+              const formattedArgs = args
+                .map(a =>
+                  typeof a === 'string' ? a : typeof a === 'object' && a !== null ? JSON.stringify(a, null, 2) : String(a)
+                )
+                .join('\n');
+              const stack = (message as { stack?: string }).stack ?? '';
+              description = formattedArgs.split('\n')[0] ?? 'Build/compile error';
+              content = [formattedArgs, stack].filter(Boolean).join('\n\nStack trace:\n');
+            } else {
+              description = (message as { message?: string }).message ?? 'Unknown error';
+              content = `Error occurred at ${message.pathname}${message.search}${message.hash}\nPort: ${message.port}\n\nStack trace:\n${cleanStackTrace((message as { stack?: string }).stack || '')}`;
+            }
+
             workbenchStore.actionAlert.set({
               type: 'preview',
-              title: isPromise ? 'Unhandled Promise Rejection' : 'Uncaught Exception',
-              description: message.message,
-              content: `Error occurred at ${message.pathname}${message.search}${message.hash}\nPort: ${message.port}\n\nStack trace:\n${cleanStackTrace(message.stack || '')}`,
+              title: isConsoleError ? 'Preview Build/Compile Error' : isRejection ? 'Unhandled Promise Rejection' : 'Uncaught Exception',
+              description,
+              content,
               source: 'preview',
             });
           }
