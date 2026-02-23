@@ -449,13 +449,13 @@ export async function verifyUserPostgres(userId: string) {
       SET is_verified = TRUE, verification_token = NULL, verification_expires = NULL 
       WHERE id = $1
     `, [userId]);
-    if (result.rowCount && result.rowCount > 0) {
-      await createSubscriptionForUserWithClient(client, userId);
-      await client.query('COMMIT');
-      return true;
+    if (result.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return false;
     }
-    await client.query('ROLLBACK');
-    return false;
+    await createSubscriptionForUserWithClient(client, userId);
+    await client.query('COMMIT');
+    return true;
   } catch (error: any) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('Error verifying user:', error);
