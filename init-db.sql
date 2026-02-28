@@ -185,6 +185,40 @@ CREATE TABLE IF NOT EXISTS token_balances (
     CONSTRAINT chk_token_balances_source CHECK (source IN ('tier', 'top_up', 'promo', 'grant'))
 );
 
+-- Subscription tiers table (Trial, Builder, Innovator)
+CREATE TABLE IF NOT EXISTS subscription_tiers (
+    id TEXT PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,
+    display_name TEXT NOT NULL,
+    price_cents INTEGER NOT NULL DEFAULT 0,
+    limits JSONB DEFAULT '{}',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Subscriptions table - one per user, links to tier
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL UNIQUE,
+    tier_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    current_period_start TIMESTAMP,
+    current_period_end TIMESTAMP,
+    stripe_subscription_id TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (tier_id) REFERENCES subscription_tiers(id)
+);
+
+-- Seed subscription tiers
+INSERT INTO subscription_tiers (id, name, display_name, price_cents, limits, sort_order)
+VALUES
+    ('tier_trial', 'trial', 'Trial', 0, '{}', 1),
+    ('tier_builder', 'builder', 'Builder', 0, '{}', 2),
+    ('tier_innovator', 'innovator', 'Innovator', 0, '{}', 3)
+ON CONFLICT (id) DO NOTHING;
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
@@ -213,3 +247,5 @@ CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id);
 CREATE INDEX IF NOT EXISTS idx_token_usage_user_created ON token_usage(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_token_balances_user_id ON token_balances(user_id);
 CREATE INDEX IF NOT EXISTS idx_token_balances_user_effective ON token_balances(user_id, effective_start, effective_end);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_tier_id ON subscriptions(tier_id);

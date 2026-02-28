@@ -453,7 +453,11 @@ export async function verifyUserPostgres(userId: string) {
       await client.query('ROLLBACK');
       return false;
     }
-    await createSubscriptionForUserWithClient(client, userId);
+    try {
+      await createSubscriptionForUserWithClient(client, userId);
+    } catch (subErr: any) {
+      console.warn('Could not create subscription (table may not exist):', subErr?.message ?? subErr);
+    }
     await client.query('COMMIT');
     return true;
   } catch (error: any) {
