@@ -25,6 +25,8 @@ import {
   getChatsByUserPostgres,
   getChatByIdPostgres,
   deleteChatPostgres,
+  insertPromptPostgres,
+  getPromptsByChatIdPostgres,
   logUserActivityPostgres,
   getUserActivityPostgres,
   getChatMembersPostgres,
@@ -469,6 +471,20 @@ export async function deleteChat(chatId: string, userId: string) {
   }
 }
 
+export async function insertPrompt(params: { chatId: string; userId: string; messageId: string }) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return insertPromptPostgres(params);
+  }
+  return null;
+}
+
+export async function getPromptsByChatId(chatId: string, userId: string, isModerator?: boolean) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getPromptsByChatIdPostgres(chatId, userId, isModerator);
+  }
+  return [];
+}
+
 export async function getChatMembers(chatId: string, userId: string, isModerator?: boolean) {
   if (DATABASE_TYPE === 'postgresql') {
     return getChatMembersPostgres(chatId, userId, isModerator);
@@ -492,6 +508,7 @@ export async function removeChatMember(chatId: string, userId: string, targetUse
 
 export async function insertTokenUsage(params: {
   chatId: string;
+  messageId?: string;
   userId: string;
   promptTokens: number;
   completionTokens: number;

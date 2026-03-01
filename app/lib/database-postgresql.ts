@@ -237,11 +237,26 @@ export async function createPostgresTables() {
       ON CONFLICT (id) DO NOTHING
     `);
 
-    // Token usage - event log per chat response
+    // Prompts table - per-prompt record (account + chat)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS prompts (
+        id TEXT PRIMARY KEY,
+        chat_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(chat_id, message_id),
+        FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Token usage - tokens per prompt (within a chat/project)
     await client.query(`
       CREATE TABLE IF NOT EXISTS token_usage (
         id TEXT PRIMARY KEY,
         chat_id TEXT NOT NULL,
+        message_id TEXT,
         user_id TEXT NOT NULL,
         prompt_tokens INTEGER NOT NULL DEFAULT 0,
         completion_tokens INTEGER NOT NULL DEFAULT 0,
@@ -253,6 +268,9 @@ export async function createPostgresTables() {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+    await client.query('ALTER TABLE token_usage ADD COLUMN IF NOT EXISTS message_id TEXT').catch((err: { code?: string }) => {
+      if (err.code !== '42701') throw err;
+    });
 
     // Token balances - allocations with effective periods (tier, top-up, promo, etc.)
     await client.query(`
@@ -297,7 +315,11 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_token ON chat_invitations(token)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_tier_id ON subscriptions(tier_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_prompts_chat_id ON prompts(chat_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON prompts(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_prompts_created_at ON prompts(created_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_chat_id ON token_usage(chat_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_message_id ON token_usage(message_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_user_created ON token_usage(user_id, created_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_balances_user_id ON token_balances(user_id)');
@@ -725,6 +747,7 @@ export async function getActiveSessionCountPostgres(userId: string) {
 // Token usage and balance functions
 export async function insertTokenUsagePostgres(params: {
   chatId: string;
+  messageId?: string;
   userId: string;
   promptTokens: number;
   completionTokens: number;
@@ -737,11 +760,12 @@ export async function insertTokenUsagePostgres(params: {
   try {
     const id = crypto.randomUUID();
     await client.query(
-      `INSERT INTO token_usage (id, chat_id, user_id, prompt_tokens, completion_tokens, total_tokens, model, provider)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      `INSERT INTO token_usage (id, chat_id, message_id, user_id, prompt_tokens, completion_tokens, total_tokens, model, provider)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [
         id,
         params.chatId,
+        params.messageId ?? null,
         params.userId,
         params.promptTokens,
         params.completionTokens,
@@ -828,7 +852,8 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
   const client = await pool.connect();
   
   try {
-    const { id, urlId, description, messages, metadata } = chatData;
+    const { id, urlId, url_id, description, messages, metadata } = chatData;
+    const resolvedUrlId = urlId ?? url_id;
     const query = `
       INSERT INTO chats (id, user_id, url_id, description, messages, metadata, updated_at, last_activity)
       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -840,7 +865,7 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
         last_activity = CURRENT_TIMESTAMP
       RETURNING id
     `;
-    const result = await client.query(query, [id, userId, urlId, description, JSON.stringify(messages), JSON.stringify(metadata)]);
+    const result = await client.query(query, [id, userId, resolvedUrlId, description, JSON.stringify(messages), JSON.stringify(metadata)]);
     const savedId = result.rows[0]?.id || null;
 
     // Project creator is always the owner: add them to chat_members with role 'owner'
@@ -852,10 +877,101 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
       `, [crypto.randomUUID(), id, userId]);
     }
 
+    // Sync prompts table from user messages (record account + chat per prompt)
+    if (savedId && Array.isArray(messages)) {
+      await syncPromptsFromChatMessagesPostgres(client, id, messages, userId);
+    }
+
     return savedId;
   } catch (error) {
     console.error('Error saving chat to PostgreSQL:', error);
     return null;
+  } finally {
+    client.release();
+  }
+}
+
+/** Sync prompts table from chat messages - one row per user prompt with account + chat */
+async function syncPromptsFromChatMessagesPostgres(
+  client: PoolClient,
+  chatId: string,
+  messages: any[],
+  defaultUserId: string
+): Promise<void> {
+  for (const msg of messages) {
+    if (msg?.role !== 'user') continue;
+    const messageId = msg.id;
+    if (!messageId || typeof messageId !== 'string') continue;
+    const authorId = msg?.author?.id;
+    const userId = authorId && typeof authorId === 'string' ? authorId : defaultUserId;
+    await client.query(
+      `INSERT INTO prompts (id, chat_id, user_id, message_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (chat_id, message_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
+      [crypto.randomUUID(), chatId, userId, messageId]
+    );
+  }
+}
+
+export async function insertPromptPostgres(params: {
+  chatId: string;
+  userId: string;
+  messageId: string;
+}): Promise<string | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const id = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO prompts (id, chat_id, user_id, message_id)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (chat_id, message_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
+      [id, params.chatId, params.userId, params.messageId]
+    );
+    return id;
+  } catch (error) {
+    console.error('Error inserting prompt:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getPromptsByChatIdPostgres(
+  chatId: string,
+  requestingUserId: string,
+  isModerator?: boolean
+): Promise<{ id: string; message_id: string; user_id: string; email: string; created_at: string }[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    // Ensure requester has access to the chat
+    const accessCheck = await client.query(
+      `SELECT 1 FROM chats c
+       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
+       WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)`,
+      [chatId, requestingUserId]
+    );
+    if (accessCheck.rows.length === 0 && !isModerator) return [];
+
+    const result = await client.query(
+      `SELECT p.id, p.message_id, p.user_id, p.created_at, u.email
+       FROM prompts p
+       JOIN users u ON p.user_id = u.id
+       WHERE p.chat_id = (SELECT id FROM chats WHERE id = $1 OR url_id = $1 LIMIT 1)
+       ORDER BY p.created_at ASC`,
+      [chatId]
+    );
+    return result.rows.map((r: any) => ({
+      id: r.id,
+      message_id: r.message_id,
+      user_id: r.user_id,
+      email: r.email,
+      created_at: r.created_at,
+    }));
+  } catch (error) {
+    console.error('Error fetching prompts:', error);
+    return [];
   } finally {
     client.release();
   }

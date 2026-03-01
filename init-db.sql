@@ -190,10 +190,23 @@ VALUES
     ('tier_innovator', 'innovator', 'Innovator', 0, '{}', 3)
 ON CONFLICT (id) DO NOTHING;
 
--- Create token_usage table (event log per chat response)
+-- Create prompts table (per-prompt record: account + chat)
+CREATE TABLE IF NOT EXISTS prompts (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chat_id, message_id),
+    FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create token_usage table (tokens per prompt, within a chat/project)
 CREATE TABLE IF NOT EXISTS token_usage (
     id TEXT PRIMARY KEY,
     chat_id TEXT NOT NULL,
+    message_id TEXT,
     user_id TEXT NOT NULL,
     prompt_tokens INTEGER NOT NULL DEFAULT 0,
     completion_tokens INTEGER NOT NULL DEFAULT 0,
@@ -246,7 +259,11 @@ CREATE INDEX IF NOT EXISTS idx_chat_invitations_email ON chat_invitations(email)
 CREATE INDEX IF NOT EXISTS idx_chat_invitations_token ON chat_invitations(token);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_tier_id ON subscriptions(tier_id);
+CREATE INDEX IF NOT EXISTS idx_prompts_chat_id ON prompts(chat_id);
+CREATE INDEX IF NOT EXISTS idx_prompts_user_id ON prompts(user_id);
+CREATE INDEX IF NOT EXISTS idx_prompts_created_at ON prompts(created_at);
 CREATE INDEX IF NOT EXISTS idx_token_usage_chat_id ON token_usage(chat_id);
+CREATE INDEX IF NOT EXISTS idx_token_usage_message_id ON token_usage(message_id);
 CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id);
 CREATE INDEX IF NOT EXISTS idx_token_usage_user_created ON token_usage(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_token_balances_user_id ON token_balances(user_id);

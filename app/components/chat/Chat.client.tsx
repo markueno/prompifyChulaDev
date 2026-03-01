@@ -45,7 +45,7 @@ function getMessageAuthor(user: { id?: string; email?: string } | undefined, pro
 export function Chat() {
   renderLogger.trace('Chat');
 
-  const { ready, initialMessages, storeMessageHistory, importChat, exportChat } = useChatHistory();
+  const { ready, initialMessages, storeMessageHistory, importChat, exportChat, ensureChatId } = useChatHistory();
   const title = useStore(description);
   useEffect(() => {
     workbenchStore.setReloadedMessages(initialMessages.map(m => m.id));
@@ -60,6 +60,7 @@ export function Chat() {
           exportChat={exportChat}
           storeMessageHistory={storeMessageHistory}
           importChat={importChat}
+          ensureChatId={ensureChatId}
         />
       )}
       <ToastContainer
@@ -116,19 +117,21 @@ interface ChatProps {
   storeMessageHistory: (messages: Message[]) => Promise<void>;
   importChat: (description: string, messages: Message[]) => Promise<void>;
   exportChat: () => void;
+  ensureChatId: () => Promise<string | undefined>;
   description?: string;
 }
 
 const ANTHROPIC_PROVIDER = (PROVIDER_LIST.find(p => p.name === 'Anthropic') || DEFAULT_PROVIDER) as ProviderInfo;
 
 export const ChatImpl = memo(
-  ({ description, initialMessages, storeMessageHistory, importChat, exportChat }: ChatProps) => {
+  ({ description, initialMessages, storeMessageHistory, importChat, exportChat, ensureChatId }: ChatProps) => {
     useShortcuts();
 
     const indexData = useRouteLoaderData('routes/_index') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
     const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
     const user = indexData?.user ?? chatIdData?.user;
     const profile = useStore(profileStore);
+    useStore(chatId);
     const isModerator = user?.isModerator === true;
     const messageAuthor = getMessageAuthor(user, profile);
 
@@ -231,11 +234,11 @@ export const ChatImpl = memo(
     });
     useEffect(() => {
       const prompt = searchParams.get('prompt');
-
-      // console.log(prompt, searchParams, model, provider);
-
-      if (prompt) {
+      if (!prompt) return;
+      (async () => {
         setSearchParams({});
+        await ensureChatId();
+        await new Promise(r => setTimeout(r, 0));
         runAnimation();
         append({
           role: 'user',
@@ -247,7 +250,7 @@ export const ChatImpl = memo(
           ] as any, // Type assertion to bypass compiler check
           author: messageAuthor,
         } as any);
-      }
+      })();
     }, [model, provider, searchParams]);
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
@@ -329,6 +332,9 @@ export const ChatImpl = memo(
         abort();
         return;
       }
+
+      await ensureChatId();
+      await new Promise(r => setTimeout(r, 0));
 
       runAnimation();
 

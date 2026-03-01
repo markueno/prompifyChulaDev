@@ -224,6 +224,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
                 try {
                   const inserted = await insertTokenUsage({
                     chatId,
+                    messageId: lastUserMessage?.id,
                     userId: user.id,
                     promptTokens: cumulativeUsage.promptTokens,
                     completionTokens: cumulativeUsage.completionTokens,

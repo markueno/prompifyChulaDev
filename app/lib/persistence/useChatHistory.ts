@@ -106,9 +106,20 @@ export function useChatHistory() {
     }
   }, [mixedId, user?.id, searchParams, navigate]);
 
+  const ensureChatId = async (): Promise<string | undefined> => {
+    if (!db) return chatId.get();
+    const current = chatId.get();
+    if (current) return current;
+    const nextId = await getNextId(db);
+    chatId.set(nextId);
+    if (!urlId) navigateChat(nextId);
+    return nextId;
+  };
+
   return {
     ready: !mixedId || ready,
     initialMessages,
+    ensureChatId,
     updateChatMestaData: async (metadata: IChatMetadata) => {
       const id = chatId.get();
 
