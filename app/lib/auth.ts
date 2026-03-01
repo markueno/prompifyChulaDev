@@ -8,6 +8,8 @@ export interface User {
   email: string;
   isVerified: boolean;
   isModerator?: boolean;
+  /** Account tier: Trial, Builder, Innovator. Blank if not found. */
+  accountTier?: string | null;
 }
 
 // Check if authentication is temporarily disabled

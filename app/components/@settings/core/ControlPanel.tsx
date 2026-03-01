@@ -283,7 +283,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
 
     switch (tabId) {
       case 'profile':
-        return <ProfileTab />;
+        return <ProfileTab user={user} />;
       case 'settings':
         return <SettingsTab />;
       case 'notifications':

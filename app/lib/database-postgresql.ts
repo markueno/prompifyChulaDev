@@ -722,6 +722,106 @@ export async function getActiveSessionCountPostgres(userId: string) {
   }
 }
 
+// Token usage and balance functions
+export async function insertTokenUsagePostgres(params: {
+  chatId: string;
+  userId: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  model?: string;
+  provider?: string;
+}): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const id = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO token_usage (id, chat_id, user_id, prompt_tokens, completion_tokens, total_tokens, model, provider)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        id,
+        params.chatId,
+        params.userId,
+        params.promptTokens,
+        params.completionTokens,
+        params.totalTokens,
+        params.model ?? null,
+        params.provider ?? null,
+      ]
+    );
+    return true;
+  } catch (error) {
+    console.error('Error inserting token usage:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function consumeTokenBalancePostgres(userId: string, tokensToConsume: number): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const now = new Date().toISOString();
+    const balances = await client.query(
+      `SELECT id, tokens_allocated, tokens_used
+       FROM token_balances
+       WHERE user_id = $1
+         AND effective_start <= $2
+         AND (effective_end IS NULL OR effective_end >= $2)
+         AND (tokens_allocated - tokens_used) > 0
+       ORDER BY effective_end ASC NULLS LAST`,
+      [userId, now]
+    );
+
+    let remaining = tokensToConsume;
+    for (const row of balances.rows) {
+      if (remaining <= 0) break;
+      const available = row.tokens_allocated - row.tokens_used;
+      const deduct = Math.min(remaining, available);
+      await client.query(
+        `UPDATE token_balances SET tokens_used = tokens_used + $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [row.id, deduct]
+      );
+      remaining -= deduct;
+    }
+
+    await client.query('COMMIT');
+    return remaining <= 0;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error consuming token balance:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getTokenBalanceRemainingPostgres(userId: string): Promise<number> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const now = new Date().toISOString();
+    const result = await client.query(
+      `SELECT COALESCE(SUM(tokens_allocated - tokens_used), 0)::bigint as remaining
+       FROM token_balances
+       WHERE user_id = $1
+         AND effective_start <= $2
+         AND (effective_end IS NULL OR effective_end >= $2)`,
+      [userId, now]
+    );
+    return parseInt(String(result.rows[0]?.remaining ?? 0), 10);
+  } catch (error) {
+    console.error('Error getting token balance:', error);
+    return 0;
+  } finally {
+    client.release();
+  }
+}
+
 // Chat Management Functions
 export async function saveChatPostgres(userId: string, chatData: any): Promise<string | null> {
   const pool = getPostgresPool();

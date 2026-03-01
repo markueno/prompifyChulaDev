@@ -1,7 +1,7 @@
 import { useStore } from '@nanostores/react';
 import { motion, type HTMLMotionProps, type Variants } from 'framer-motion';
 import { computed } from 'nanostores';
-import { memo, useCallback, useEffect, useState, useMemo } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import { Popover, Transition } from '@headlessui/react';
 import { diffLines, type Change } from 'diff';
@@ -304,10 +304,14 @@ export const Workbench = memo(
       workbenchStore.currentView.set(view);
     };
 
+    const prevHasPreview = useRef(hasPreview);
     useEffect(() => {
-      if (hasPreview) {
+      // Only auto-switch to preview when it *first* becomes available (false → true).
+      // This prevents overriding the user's manual tab selection after follow-up responses.
+      if (hasPreview && !prevHasPreview.current) {
         setSelectedView('preview');
       }
+      prevHasPreview.current = hasPreview;
     }, [hasPreview]);
 
     useEffect(() => {

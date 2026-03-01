@@ -17,8 +17,9 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
   const { description, content, source } = alert;
 
   const [autoFixEnabled, setAutoFixEnabled] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem(AUTO_FIX_STORAGE_KEY) === 'true';
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem(AUTO_FIX_STORAGE_KEY);
+    return stored === null ? true : stored === 'true';
   });
 
   const isPreview = source === 'preview';

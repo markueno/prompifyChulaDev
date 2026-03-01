@@ -35,7 +35,10 @@ import {
   acceptInvitationByTokenPostgres,
   updateChatMemberRolePostgres,
   removeChatMemberPostgres,
-  getSubscriptionByUserIdPostgres
+  getSubscriptionByUserIdPostgres,
+  insertTokenUsagePostgres,
+  consumeTokenBalancePostgres,
+  getTokenBalanceRemainingPostgres
 } from './database-postgresql';
 
 // Database configuration
@@ -485,6 +488,35 @@ export async function removeChatMember(chatId: string, userId: string, targetUse
     return removeChatMemberPostgres(chatId, userId, targetUserId, isModerator);
   }
   return { success: false, error: 'Not supported' };
+}
+
+export async function insertTokenUsage(params: {
+  chatId: string;
+  userId: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  model?: string;
+  provider?: string;
+}) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return insertTokenUsagePostgres(params);
+  }
+  return false;
+}
+
+export async function consumeTokenBalance(userId: string, tokensToConsume: number) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return consumeTokenBalancePostgres(userId, tokensToConsume);
+  }
+  return false;
+}
+
+export async function getTokenBalanceRemaining(userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getTokenBalanceRemainingPostgres(userId);
+  }
+  return 0;
 }
 
 export async function inviteToChat(chatId: string, userId: string, email: string, role?: string) {

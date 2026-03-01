@@ -4,12 +4,13 @@
  */
 import { useStore } from '@nanostores/react';
 import type { Message } from 'ai';
+import { profileStore } from '~/lib/stores/profile';
 import { useChat } from 'ai/react';
 import { useAnimate } from 'framer-motion';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { cssTransition, toast, ToastContainer } from 'react-toastify';
 import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from '~/lib/hooks';
-import { description, useChatHistory } from '~/lib/persistence';
+import { description, chatId, chatMetadata, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
@@ -34,6 +35,12 @@ const toastAnimation = cssTransition({
 });
 
 const logger = createScopedLogger('Chat');
+
+/** Build author info for multi-account prompt history display */
+function getMessageAuthor(user: { id?: string; email?: string } | undefined, profile: { nickname?: string; username?: string; avatar?: string } | undefined) {
+  const name = (profile?.nickname?.trim() || profile?.username?.trim() || user?.email || 'Anonymous').trim();
+  return { id: user?.id || 'anonymous', name, avatar: profile?.avatar };
+}
 
 export function Chat() {
   renderLogger.trace('Chat');
@@ -118,10 +125,12 @@ export const ChatImpl = memo(
   ({ description, initialMessages, storeMessageHistory, importChat, exportChat }: ChatProps) => {
     useShortcuts();
 
-    const indexData = useRouteLoaderData('routes/_index') as { user?: { isModerator?: boolean } } | undefined;
-    const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { isModerator?: boolean } } | undefined;
+    const indexData = useRouteLoaderData('routes/_index') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
+    const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
     const user = indexData?.user ?? chatIdData?.user;
+    const profile = useStore(profileStore);
     const isModerator = user?.isModerator === true;
+    const messageAuthor = getMessageAuthor(user, profile);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
@@ -175,6 +184,17 @@ export const ChatImpl = memo(
         files,
         promptId,
         contextOptimization: contextOptimizationEnabled,
+        chatId: chatId.get(),
+        urlId:
+          typeof window !== 'undefined'
+            ? (() => {
+                const segments = new URL(window.location.href).pathname.split('/').filter(Boolean);
+                const last = segments[segments.length - 1];
+                return last && last !== 'chat' ? last : undefined;
+              })()
+            : undefined,
+        description: description,
+        metadata: chatMetadata.get(),
       },
       sendExtraMessageFields: true,
       onError: e => {
@@ -225,7 +245,8 @@ export const ChatImpl = memo(
               text: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${prompt}`,
             },
           ] as any, // Type assertion to bypass compiler check
-        });
+          author: messageAuthor,
+        } as any);
       }
     }, [model, provider, searchParams]);
 
@@ -339,7 +360,8 @@ export const ChatImpl = memo(
                   id: `1-${new Date().getTime()}`,
                   role: 'user',
                   content: messageContent,
-                },
+                  author: messageAuthor,
+                } as any,
                 {
                   id: `2-${new Date().getTime()}`,
                   role: 'assistant',
@@ -350,7 +372,8 @@ export const ChatImpl = memo(
                   role: 'user',
                   content: `[Model: ${model}]\n\n[Provider: ${provider.name}]\n\n${userMessage}`,
                   annotations: ['hidden'],
-                },
+                  author: messageAuthor,
+                } as any,
               ]);
               reload();
               setFakeLoading(false);
@@ -375,7 +398,8 @@ export const ChatImpl = memo(
                 image: imageData,
               })),
             ] as any,
-          },
+            author: messageAuthor,
+          } as any,
         ]);
         reload();
         setFakeLoading(false);
@@ -405,7 +429,8 @@ export const ChatImpl = memo(
               image: imageData,
             })),
           ] as any,
-        });
+          author: messageAuthor,
+        } as any);
 
         workbenchStore.resetAllFileModifications();
       } else {
@@ -421,7 +446,8 @@ export const ChatImpl = memo(
               image: imageData,
             })),
           ] as any,
-        });
+                  author: messageAuthor,
+                } as any);
       }
 
       setInput('');

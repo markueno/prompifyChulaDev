@@ -60,7 +60,12 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                 return <Fragment key={index} />;
               }
 
-              return (
+              const author = (message as any)?.author;
+            // Use author when present (multi-account); for legacy messages without author, fallback to current profile for single-user chats
+            const displayName = author?.name ?? (profile?.nickname?.trim() || profile?.username || profile?.email || 'User');
+            const displayAvatar = author?.avatar ?? profile?.avatar;
+
+            return (
                 <div
                   key={index}
                   className={classNames('flex gap-4 p-6 w-full rounded-[calc(0.75rem-1px)]', {
@@ -71,18 +76,23 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                   })}
                 >
                   {isUserMessage && (
-                    <div className="flex items-center justify-center w-[40px] h-[40px] overflow-hidden bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-500 rounded-full shrink-0 self-start">
-                      {profile?.avatar ? (
-                        <img
-                          src={profile.avatar}
-                          alt={profile?.username || 'User'}
-                          className="w-full h-full object-cover"
-                          loading="eager"
-                          decoding="sync"
-                        />
-                      ) : (
-                        <div className="i-ph:user-fill text-2xl" />
-                      )}
+                    <div className="flex flex-col items-center gap-1 shrink-0 self-start">
+                      <div className="flex items-center justify-center w-[40px] h-[40px] overflow-hidden bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-500 rounded-full">
+                        {displayAvatar ? (
+                          <img
+                            src={displayAvatar}
+                            alt={displayName}
+                            className="w-full h-full object-cover"
+                            loading="eager"
+                            decoding="sync"
+                          />
+                        ) : (
+                          <div className="i-ph:user-fill text-2xl" />
+                        )}
+                      </div>
+                      <span className="text-xs text-bolt-elements-textSecondary max-w-[80px] truncate text-center block" title={displayName}>
+                        {displayName}
+                      </span>
                     </div>
                   )}
                   <div className="grid grid-col-1 w-full">

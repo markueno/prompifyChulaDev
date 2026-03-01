@@ -11,6 +11,8 @@ import type { ContextAnnotation, ProgressAnnotation } from '~/types/context';
 import { WORK_DIR } from '~/utils/constants';
 import { createSummary } from '~/lib/.server/llm/create-summary';
 import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
+import { optionalAuth } from '~/lib/auth';
+import { saveChat, insertTokenUsage, consumeTokenBalance } from '~/lib/database';
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -37,12 +39,19 @@ function parseCookies(cookieHeader: string): Record<string, string> {
 }
 
 async function chatAction({ context, request }: ActionFunctionArgs) {
-  const { messages, files, promptId, contextOptimization } = await request.json<{
+  const body = await request.json<{
     messages: Messages;
     files: any;
     promptId?: string;
     contextOptimization: boolean;
+    chatId?: string;
+    urlId?: string;
+    description?: string;
+    metadata?: any;
   }>();
+  const { messages, files, promptId, contextOptimization, chatId, urlId, description, metadata } = body;
+
+  const user = await optionalAuth(request, context);
 
   const cookieHeader = request.headers.get('Cookie');
   const apiKeys = JSON.parse(parseCookies(cookieHeader || '').apiKeys || '{}');
@@ -68,6 +77,20 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
     const dataStream = createDataStream({
       async execute(dataStream) {
+        if (user?.id && chatId) {
+          try {
+            await saveChat(user.id, {
+              id: chatId,
+              urlId,
+              description,
+              messages,
+              metadata: metadata ?? {},
+            });
+          } catch (e) {
+            logger.debug('Could not ensure chat exists for token recording', e);
+          }
+        }
+
         const filePaths = getFilePaths(files || {});
         let filteredFiles: FileMap | undefined = undefined;
         let summary: string | undefined = undefined;
@@ -192,6 +215,30 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             }
 
             if (finishReason !== 'length') {
+              const totalTokens = cumulativeUsage.totalTokens;
+              if (user?.id && chatId && totalTokens > 0) {
+                const lastUserMessage = messages.filter((x: any) => x.role === 'user').slice(-1)[0];
+                const { model, provider } = lastUserMessage
+                  ? extractPropertiesFromMessage(lastUserMessage)
+                  : { model: undefined, provider: undefined };
+                try {
+                  const inserted = await insertTokenUsage({
+                    chatId,
+                    userId: user.id,
+                    promptTokens: cumulativeUsage.promptTokens,
+                    completionTokens: cumulativeUsage.completionTokens,
+                    totalTokens,
+                    model,
+                    provider,
+                  });
+                  if (inserted) {
+                    await consumeTokenBalance(user.id, totalTokens);
+                  }
+                } catch (e) {
+                  logger.debug('Failed to record token usage', e);
+                }
+              }
+
               dataStream.writeMessageAnnotation({
                 type: 'usage',
                 value: {

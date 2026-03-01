@@ -5,6 +5,7 @@ import { Chat } from '~/components/chat/Chat.client';
 import { Header } from '~/components/header/Header';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
+import { getSubscriptionByUserId } from '~/lib/database';
 
 export const meta: MetaFunction = () => {
   return [
@@ -31,10 +32,12 @@ export const loader = async ({ request, context }: LoaderFunctionArgs) => {
   // Only check authentication if it's enabled
   console.log('🔒 Authentication enabled - checking user auth...');
   const user = await requireAuth(request, context);
-  
-  console.log('👤 User loaded in index route:', user);
-  
-  return json({ user });
+  const sub = await getSubscriptionByUserId(user.id);
+  const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
+
+  console.log('👤 User loaded in index route:', userWithTier);
+
+  return json({ user: userWithTier });
 };
 
 /**

@@ -4,8 +4,13 @@ import { classNames } from '~/utils/classNames';
 import { profileStore, updateProfile } from '~/lib/stores/profile';
 import { toast } from 'react-toastify';
 import { debounce } from '~/utils/debounce';
+import type { User } from '~/lib/auth';
 
-export default function ProfileTab() {
+interface ProfileTabProps {
+  user?: User | null;
+}
+
+export default function ProfileTab({ user }: ProfileTabProps) {
   const profile = useStore(profileStore);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -198,11 +203,22 @@ export default function ProfileTab() {
               </div>
               <input
                 type="email"
-                value={profile.email}
+                value={user?.email ?? profile.email}
                 onChange={e => handleProfileUpdate('email', e.target.value)}
-                className={inputClass}
+                disabled={!user?.isModerator}
+                readOnly={!user?.isModerator}
+                className={classNames(
+                  inputClass,
+                  !user?.isModerator && 'opacity-60 cursor-not-allowed bg-gray-100 dark:bg-gray-800/80'
+                )}
                 placeholder="Email"
+                title={!user?.isModerator ? 'Email cannot be changed. Contact an administrator.' : undefined}
               />
+              {!user?.isModerator && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Registered email. Only moderators can change it.
+                </p>
+              )}
             </div>
             <div className="relative group">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
