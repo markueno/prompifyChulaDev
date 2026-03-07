@@ -202,11 +202,11 @@ CREATE TABLE IF NOT EXISTS prompts (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- Create token_usage table (tokens per prompt, within a chat/project)
+-- Create token_usage table (one row per prompt: tokens used for that prompt's response)
 CREATE TABLE IF NOT EXISTS token_usage (
     id TEXT PRIMARY KEY,
     chat_id TEXT NOT NULL,
-    message_id TEXT,
+    message_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     prompt_tokens INTEGER NOT NULL DEFAULT 0,
     completion_tokens INTEGER NOT NULL DEFAULT 0,
@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS token_usage (
     model TEXT,
     provider TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chat_id, message_id),
     FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

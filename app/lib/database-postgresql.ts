@@ -53,10 +53,6 @@ export async function createPostgresTables() {
         reset_expires TIMESTAMP
       )
     `);
-    // Add is_moderator for existing DBs (no-op if already exists)
-    await client.query('ALTER TABLE users ADD COLUMN is_moderator BOOLEAN DEFAULT FALSE').catch((err: { code?: string }) => {
-      if (err.code !== '42701') throw err; // 42701 = duplicate_column
-    });
 
     // User sessions table
     await client.query(`
@@ -251,12 +247,12 @@ export async function createPostgresTables() {
       )
     `);
 
-    // Token usage - tokens per prompt (within a chat/project)
+    // Token usage - one row per prompt (tokens used for that prompt's response)
     await client.query(`
       CREATE TABLE IF NOT EXISTS token_usage (
         id TEXT PRIMARY KEY,
         chat_id TEXT NOT NULL,
-        message_id TEXT,
+        message_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
         prompt_tokens INTEGER NOT NULL DEFAULT 0,
         completion_tokens INTEGER NOT NULL DEFAULT 0,
@@ -264,13 +260,11 @@ export async function createPostgresTables() {
         model TEXT,
         provider TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(chat_id, message_id),
         FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
-    await client.query('ALTER TABLE token_usage ADD COLUMN IF NOT EXISTS message_id TEXT').catch((err: { code?: string }) => {
-      if (err.code !== '42701') throw err;
-    });
 
     // Token balances - allocations with effective periods (tier, top-up, promo, etc.)
     await client.query(`
@@ -747,7 +741,7 @@ export async function getActiveSessionCountPostgres(userId: string) {
 // Token usage and balance functions
 export async function insertTokenUsagePostgres(params: {
   chatId: string;
-  messageId?: string;
+  messageId: string;
   userId: string;
   promptTokens: number;
   completionTokens: number;
@@ -765,7 +759,7 @@ export async function insertTokenUsagePostgres(params: {
       [
         id,
         params.chatId,
-        params.messageId ?? null,
+        params.messageId,
         params.userId,
         params.promptTokens,
         params.completionTokens,

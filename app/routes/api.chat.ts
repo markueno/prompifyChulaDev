@@ -78,6 +78,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
     const dataStream = createDataStream({
       async execute(dataStream) {
+        const triggeringMessageId = messages.filter((x: any) => x.role === 'user').slice(-1)[0]?.id;
+
         if (user?.id && chatId) {
           try {
             await saveChat(user.id, {
@@ -217,7 +219,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
             if (finishReason !== 'length') {
               const totalTokens = cumulativeUsage.totalTokens;
-              if (user?.id && chatId && totalTokens > 0) {
+              if (user?.id && chatId && triggeringMessageId && totalTokens > 0) {
                 const lastUserMessage = messages.filter((x: any) => x.role === 'user').slice(-1)[0];
                 const { model, provider } = lastUserMessage
                   ? extractPropertiesFromMessage(lastUserMessage)
@@ -225,7 +227,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
                 try {
                   const inserted = await insertTokenUsage({
                     chatId,
-                    messageId: lastUserMessage?.id,
+                    messageId: triggeringMessageId,
                     userId: user.id,
                     promptTokens: cumulativeUsage.promptTokens,
                     completionTokens: cumulativeUsage.completionTokens,

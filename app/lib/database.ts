@@ -508,7 +508,7 @@ export async function removeChatMember(chatId: string, userId: string, targetUse
 
 export async function insertTokenUsage(params: {
   chatId: string;
-  messageId?: string;
+  messageId: string;
   userId: string;
   promptTokens: number;
   completionTokens: number;
