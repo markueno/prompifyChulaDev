@@ -3,6 +3,7 @@
  * Preventing TS checks with files presented in the video for a better presentation.
  */
 import { useStore } from '@nanostores/react';
+import { customPromptTemplateStore } from '~/lib/stores/settings';
 import type { Message } from 'ai';
 import { profileStore } from '~/lib/stores/profile';
 import { useChat } from 'ai/react';
@@ -144,6 +145,7 @@ export const ChatImpl = memo(
     const files = useStore(workbenchStore.files);
     const actionAlert = useStore(workbenchStore.alert);
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
+    const customPromptTemplate = useStore(customPromptTemplateStore);
 
     const [model, setModel] = useState(() => {
       const savedModel = Cookies.get('selectedModel');
@@ -186,6 +188,7 @@ export const ChatImpl = memo(
         apiKeys,
         files,
         promptId,
+        customPrompt: promptId === 'custom' ? customPromptTemplate : undefined,
         contextOptimization: contextOptimizationEnabled,
         chatId: chatId.get(),
         urlId:

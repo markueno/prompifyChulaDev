@@ -24,6 +24,7 @@ export async function streamText(props: {
   files?: FileMap;
   providerSettings?: Record<string, IProviderSetting>;
   promptId?: string;
+  customPrompt?: string;
   contextOptimization?: boolean;
   contextFiles?: FileMap;
   summary?: string;
@@ -37,6 +38,7 @@ export async function streamText(props: {
     files,
     providerSettings,
     promptId,
+    customPrompt,
     contextOptimization,
     contextFiles,
     summary,
@@ -97,6 +99,7 @@ export async function streamText(props: {
       cwd: WORK_DIR,
       allowedHtmlElements: allowedHTMLElements,
       modificationTagName: MODIFICATIONS_TAG_NAME,
+      customPrompt,
     }) ?? getSystemPrompt();
 
   if (files && contextFiles && contextOptimization) {

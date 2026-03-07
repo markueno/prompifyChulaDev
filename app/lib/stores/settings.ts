@@ -136,6 +136,7 @@ const SETTINGS_KEYS = {
   CONTEXT_OPTIMIZATION: 'contextOptimizationEnabled',
   EVENT_LOGS: 'isEventLogsEnabled',
   PROMPT_ID: 'promptId',
+  CUSTOM_PROMPT_TEMPLATE: 'customPromptTemplate',
   DEVELOPER_MODE: 'isDeveloperMode',
 } as const;
 
@@ -177,6 +178,9 @@ export const autoSelectStarterTemplate = atom<boolean>(initialSettings.autoSelec
 export const enableContextOptimizationStore = atom<boolean>(initialSettings.contextOptimization);
 export const isEventLogsEnabled = atom<boolean>(initialSettings.eventLogs);
 export const promptStore = atom<string>(initialSettings.promptId);
+export const customPromptTemplateStore = atom<string>(
+  isBrowser ? localStorage.getItem(SETTINGS_KEYS.CUSTOM_PROMPT_TEMPLATE) || '' : ''
+);
 
 // Helper functions to update settings with persistence
 export const updateLatestBranch = (enabled: boolean) => {
@@ -202,6 +206,18 @@ export const updateEventLogs = (enabled: boolean) => {
 export const updatePromptId = (id: string) => {
   promptStore.set(id);
   localStorage.setItem(SETTINGS_KEYS.PROMPT_ID, id);
+};
+
+export const setCustomPromptTemplate = (content: string) => {
+  customPromptTemplateStore.set(content);
+  if (isBrowser) {
+    localStorage.setItem(SETTINGS_KEYS.CUSTOM_PROMPT_TEMPLATE, content);
+  }
+};
+
+export const getCustomPromptTemplate = (): string => {
+  if (!isBrowser) return '';
+  return localStorage.getItem(SETTINGS_KEYS.CUSTOM_PROMPT_TEMPLATE) || '';
 };
 
 // Initialize tab configuration from localStorage or defaults

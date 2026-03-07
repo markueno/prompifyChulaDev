@@ -6,6 +6,8 @@ export interface PromptOptions {
   cwd: string;
   allowedHtmlElements: string[];
   modificationTagName: string;
+  /** Custom prompt content when uploaded by user (used when promptId is 'custom') */
+  customPrompt?: string;
 }
 
 export class PromptLibrary {
@@ -32,6 +34,11 @@ export class PromptLibrary {
       description: 'Enhanced prompt specifically optimized for Codestral model with strict anti-placeholder rules',
       get: options => getCodestralPrompt(options.cwd),
     },
+    custom: {
+      label: 'Custom (uploaded)',
+      description: 'Use your uploaded prompt template file',
+      get: options => options.customPrompt ?? getSystemPrompt(options.cwd),
+    },
   };
   static getList() {
     return Object.entries(this.library).map(([key, value]) => {
@@ -47,7 +54,7 @@ export class PromptLibrary {
     const prompt = this.library[promptId];
 
     if (!prompt) {
-      throw 'Prompt Now Found';
+      throw 'Prompt Not Found';
     }
 
     return this.library[promptId]?.get(options);

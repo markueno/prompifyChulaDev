@@ -43,13 +43,14 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     messages: Messages;
     files: any;
     promptId?: string;
+    customPrompt?: string;
     contextOptimization: boolean;
     chatId?: string;
     urlId?: string;
     description?: string;
     metadata?: any;
   }>();
-  const { messages, files, promptId, contextOptimization, chatId, urlId, description, metadata } = body;
+  const { messages, files, promptId, customPrompt, contextOptimization, chatId, urlId, description, metadata } = body;
 
   const user = await optionalAuth(request, context);
 
@@ -286,6 +287,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               files,
               providerSettings,
               promptId,
+              customPrompt,
               contextOptimization,
               contextFiles: filteredFiles,
               summary,
@@ -325,6 +327,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           files,
           providerSettings,
           promptId,
+          customPrompt,
           contextOptimization,
           contextFiles: filteredFiles,
           summary,

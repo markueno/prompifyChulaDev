@@ -1,11 +1,12 @@
 // Remove unused imports
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Switch } from '~/components/ui/Switch';
 import { useSettings } from '~/lib/hooks/useSettings';
 import { classNames } from '~/utils/classNames';
 import { toast } from 'react-toastify';
 import { PromptLibrary } from '~/lib/common/prompt-library';
+import { setCustomPromptTemplate } from '~/lib/stores/settings';
 
 interface FeatureToggle {
   id: string;
@@ -105,7 +106,10 @@ const FeatureSection = memo(
   )
 );
 
+const CUSTOM_PROMPT_ACCEPT = '.txt,.md,.prompt,text/plain,text/markdown';
+
 export default function FeaturesTab() {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const {
     autoSelectTemplate,
     isLatestBranch,
@@ -175,6 +179,27 @@ export default function FeaturesTab() {
       }
     },
     [enableLatestBranch, setAutoSelectTemplate, enableContextOptimization, setEventLogs]
+  );
+
+  const handleUploadPromptTemplate = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const content = reader.result as string;
+        if (!content?.trim()) {
+          toast.error('File is empty');
+          return;
+        }
+        setCustomPromptTemplate(content);
+        setPromptId('custom');
+        toast.success('Prompt template uploaded. Select "Custom (uploaded)" to use it.');
+      };
+      reader.readAsText(file);
+      e.target.value = '';
+    },
+    [setPromptId]
   );
 
   const features = {
@@ -267,27 +292,52 @@ export default function FeaturesTab() {
               Choose a prompt from the library to use as the system prompt
             </p>
           </div>
-          <select
-            value={promptId}
-            onChange={e => {
-              setPromptId(e.target.value);
-              toast.success('Prompt template updated');
-            }}
-            className={classNames(
-              'p-2 rounded-lg text-sm min-w-[200px]',
-              'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
-              'text-bolt-elements-textPrimary',
-              'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
-              'group-hover:border-purple-500/30',
-              'transition-all duration-200'
-            )}
-          >
-            {PromptLibrary.getList().map(x => (
-              <option key={x.id} value={x.id}>
-                {x.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-2 items-end">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={CUSTOM_PROMPT_ACCEPT}
+              onChange={handleUploadPromptTemplate}
+              className="hidden"
+            />
+            <motion.button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={classNames(
+                'px-3 py-1.5 rounded-lg text-xs font-medium',
+                'bg-purple-500/10 text-purple-500',
+                'hover:bg-purple-500/20',
+                'transition-all duration-200',
+                'flex items-center gap-1.5'
+              )}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <span className="i-ph:upload-simple" />
+              Upload prompt template locally
+            </motion.button>
+            <select
+              value={promptId}
+              onChange={e => {
+                setPromptId(e.target.value);
+                toast.success('Prompt template updated');
+              }}
+              className={classNames(
+                'p-2 rounded-lg text-sm min-w-[200px]',
+                'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
+                'text-bolt-elements-textPrimary',
+                'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
+                'group-hover:border-purple-500/30',
+                'transition-all duration-200'
+              )}
+            >
+              {PromptLibrary.getList().map(x => (
+                <option key={x.id} value={x.id}>
+                  {x.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </motion.div>
     </div>
