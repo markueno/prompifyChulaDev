@@ -1,20 +1,20 @@
 import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { default as AppIndexRoute } from './app._index';
+import { Outlet } from '@remix-run/react';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getSubscriptionByUserId } from '~/lib/database';
 
-export async function loader({ request, context, params }: LoaderFunctionArgs) {
-  // Check if authentication is disabled first
+export async function loader({ request, context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
     const mockUser = getMockAdminUser();
-    return json({ id: params.id, user: mockUser });
+    return json({ user: mockUser });
   }
 
-  // Only check authentication if it's enabled
   const user = await requireAuth(request, context);
   const sub = await getSubscriptionByUserId(user.id);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
-  return json({ id: params.id, user: userWithTier });
+  return json({ user: userWithTier });
 }
 
-export default AppIndexRoute;
+export default function AppLayout() {
+  return <Outlet />;
+}

@@ -14,18 +14,18 @@ interface ActionData {
 }
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  // If authentication is disabled, redirect to main page
+  // If authentication is disabled, redirect to app builder
   if (isAuthDisabled(context)) {
-    console.log('🚫 Authentication disabled - redirecting from login to main page');
-    return redirect('/');
+    console.log('🚫 Authentication disabled - redirecting from login to app');
+    return redirect('/app');
   }
 
   // Check if user is already authenticated
   try {
     const user = await optionalAuth(request, context);
     if (user) {
-      console.log('✅ User already authenticated, redirecting to home');
-      return redirect('/');
+      console.log('✅ User already authenticated, redirecting to app');
+      return redirect('/app');
     }
   } catch (error) {
     // User is not authenticated, continue to login page
@@ -37,9 +37,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const token = url.searchParams.get('token');
   
   if (token) {
-    // Verify token and redirect to dashboard
-    // This would be implemented with your JWT verification
-    return redirect('/');
+    // Verify token and redirect to app
+    return redirect('/app');
   }
   
   return json({});
@@ -77,7 +76,7 @@ export async function action({ request }: ActionFunctionArgs) {
       const headers = new Headers();
       headers.append('Set-Cookie', createAuthCookie((data as any)?.token, request));
 
-      return redirect('/', { headers });
+      return redirect('/app', { headers });
     }
   } catch (error) {
     console.error('Login error:', error);

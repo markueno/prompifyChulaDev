@@ -182,13 +182,13 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     FOREIGN KEY (tier_id) REFERENCES subscription_tiers(id)
 );
 
--- Seed subscription tiers
+-- Seed subscription tiers (token limits per month, expire after 1 month)
 INSERT INTO subscription_tiers (id, name, display_name, price_cents, limits, sort_order)
 VALUES
-    ('tier_trial', 'trial', 'Trial', 0, '{}', 1),
-    ('tier_builder', 'builder', 'Builder', 0, '{}', 2),
-    ('tier_innovator', 'innovator', 'Innovator', 0, '{}', 3)
-ON CONFLICT (id) DO NOTHING;
+    ('tier_trial', 'trial', 'Trial', 0, '{"tokens": 150000, "tokens_per_month": true}', 1),
+    ('tier_builder', 'builder', 'Builder', 0, '{"tokens": 500000, "tokens_per_month": true}', 2),
+    ('tier_innovator', 'innovator', 'Innovator', 0, '{"tokens": 1000000, "tokens_per_month": true}', 3)
+ON CONFLICT (id) DO UPDATE SET limits = EXCLUDED.limits;
 
 -- Create prompts table (per-prompt record: account + chat)
 CREATE TABLE IF NOT EXISTS prompts (
@@ -235,6 +235,26 @@ CREATE TABLE IF NOT EXISTS token_balances (
     CONSTRAINT chk_token_balances_source CHECK (source IN ('tier', 'top_up', 'promo', 'grant'))
 );
 
+-- Create payments table (subscription purchases, top-ups; token_balances.source_reference_id can reference this)
+CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'usd',
+    tokens INTEGER,
+    stripe_payment_intent_id TEXT,
+    stripe_invoice_id TEXT,
+    stripe_subscription_id TEXT,
+    subscription_id TEXT,
+    status TEXT NOT NULL DEFAULT 'succeeded',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE SET NULL,
+    CONSTRAINT chk_payments_type CHECK (type IN ('subscription', 'top_up')),
+    CONSTRAINT chk_payments_status CHECK (status IN ('succeeded', 'failed', 'refunded'))
+);
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
@@ -269,3 +289,6 @@ CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id);
 CREATE INDEX IF NOT EXISTS idx_token_usage_user_created ON token_usage(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_token_balances_user_id ON token_balances(user_id);
 CREATE INDEX IF NOT EXISTS idx_token_balances_user_effective ON token_balances(user_id, effective_start, effective_end);
+CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_type ON payments(type);
+CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments(created_at);

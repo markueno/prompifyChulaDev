@@ -187,7 +187,7 @@ export const Menu = () => {
         <div className="flex-1 flex flex-col h-full w-full overflow-hidden">
           <div className="p-4 space-y-3">
             <a
-              href="/"
+              href="/app"
               className="flex gap-2 items-center bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-lg px-4 py-2 transition-colors"
             >
               <span className="inline-block i-lucide:message-square h-4 w-4" />
