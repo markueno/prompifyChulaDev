@@ -34,14 +34,12 @@ export const links: LinksFunction = () => [
     href: 'https://fonts.gstatic.com',
     crossOrigin: 'anonymous',
   },
-  {
-    rel: 'stylesheet',
-    href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
-  },
+  // Google Fonts loaded async via inline script (non-render-blocking)
 ];
 
 const inlineThemeCode = stripIndents`
   setTutorialKitTheme();
+  loadFontsAsync();
 
   function setTutorialKitTheme() {
     let theme = localStorage.getItem('bolt_theme');
@@ -51,6 +49,15 @@ const inlineThemeCode = stripIndents`
     }
 
     document.querySelector('html')?.setAttribute('data-theme', theme);
+  }
+
+  function loadFontsAsync() {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+    link.media = 'print';
+    link.onload = function() { this.media = 'all'; };
+    document.head.appendChild(link);
   }
 `;
 

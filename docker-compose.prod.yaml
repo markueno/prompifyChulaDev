@@ -43,15 +43,15 @@ services:
     profiles: ['production']
 
   app:
-    image: bolt-ai:development
+    image: bolt-ai:production
     build:
       context: .
-      target: bolt-ai-development
+      target: bolt-ai-production
     container_name: prompify-app
     env_file: '.env'
     environment:
       # Core Application Settings
-      - NODE_ENV=development
+      - NODE_ENV=production
       - PORT=5173
       - RUNNING_IN_DOCKER=true
       
@@ -59,15 +59,6 @@ services:
       - DATABASE_TYPE=postgresql
       - DATABASE_URL=postgresql://${POSTGRES_USER:-prompify_user}:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/${POSTGRES_DB:-prompify}
       - REDIS_URL=redis://redis:6379
-      
-      # Development-specific Settings (Hot Module Replacement)
-      #- VITE_HMR_PROTOCOL=ws
-      - VITE_HMR_PROTOCOL=wss
-      
-      - VITE_HMR_HOST=localhost
-      - VITE_HMR_PORT=5173
-      - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
       
       # AI Provider API Keys (Optional - only needed if using those services)
       - GROQ_API_KEY=${GROQ_API_KEY}
@@ -83,7 +74,7 @@ services:
       - AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG}
       
       # Application Configuration (Optional with defaults)
-      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-warn}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
       - AUTH_DISABLED=${AUTH_DISABLED:-true}
       
@@ -94,12 +85,7 @@ services:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
-      - type: bind
-        source: .
-        target: /app
-        consistency: cached
-      - /app/node_modules
-      - /root/qa/ssl:/app/ssl:ro  # Mount SSL certificates
+      - /root/qa/ssl:/app/ssl:ro  # Mount SSL certificates (adjust path if needed)
     ports:
       - '5173:5173'
       - '5174:5174'  # HTTPS port
@@ -110,7 +96,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: pnpm run dev --host 0.0.0.0
     profiles: ['production']
 
   # Nginx reverse proxy for HTTPS
