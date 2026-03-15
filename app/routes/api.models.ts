@@ -61,6 +61,8 @@ export async function loader({
   // Check for refresh parameter to bypass cache
   const url = new URL(request.url);
   const forceRefresh = url.searchParams.get('refresh') === 'true' || url.searchParams.get('t');
+  const excludeProvidersParam = url.searchParams.get('excludeProviders');
+  const excludeProviders = excludeProvidersParam ? excludeProvidersParam.split(',').map(p => p.trim()) : [];
 
   const { providers, defaultProvider } = getProviderInfo(llmManager);
 
@@ -83,11 +85,12 @@ export async function loader({
       });
     }
   } else {
-    // Update all models
+    // Update all models (optionally excluding some providers, e.g. Ollama until selected)
     modelList = await llmManager.updateModelList({
       apiKeys,
       providerSettings,
       serverEnv: context.cloudflare?.env,
+      excludeProviders,
     });
   }
 

@@ -1,12 +1,8 @@
 import { createRequestHandler } from '@remix-run/node';
 import { installGlobals } from '@remix-run/node';
-import sourceMapSupport from 'source-map-support';
 
 // Install globals for Node.js
 installGlobals();
-
-// Source map support for better error messages
-sourceMapSupport.install();
 
 // Import the built app
 import * as build from './build/server/index.js';
@@ -45,10 +41,3 @@ process.on('SIGINT', () => {
     console.log('Process terminated');
   });
 });
-
-
-
-
-
-
-

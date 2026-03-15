@@ -78,13 +78,19 @@ export class LLMManager {
     apiKeys?: Record<string, string>;
     providerSettings?: Record<string, IProviderSetting>;
     serverEnv?: Record<string, string>;
+    /** Exclude these providers from the fetch (e.g. ['Ollama'] to defer until selected) */
+    excludeProviders?: string[];
   }): Promise<ModelInfo[]> {
-    const { apiKeys, providerSettings, serverEnv } = options;
+    const { apiKeys, providerSettings, serverEnv, excludeProviders = [] } = options;
 
     let enabledProviders = Array.from(this._providers.values()).map(p => p.name);
 
     if (providerSettings && Object.keys(providerSettings).length > 0) {
       enabledProviders = enabledProviders.filter(p => providerSettings[p].enabled);
+    }
+
+    if (excludeProviders.length > 0) {
+      enabledProviders = enabledProviders.filter(p => !excludeProviders.includes(p));
     }
 
     // Check if dynamic models are disabled globally

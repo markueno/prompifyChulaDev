@@ -22,6 +22,18 @@ async function getModelList(options: {
   return llmManager.updateModelList(options);
 }
 
+function findModelInList(models: ModelInfo[], model: string): ModelInfo | undefined {
+  return (
+    models.find((m: ModelInfo) => m.name === model) ||
+    models.find(
+      (m: ModelInfo) =>
+        m.name.startsWith(`${model}:`) ||
+        model === m.name.split(':')[0] ||
+        model.split(':')[0] === m.name
+    )
+  );
+}
+
 const logger = createScopedLogger('api.llmcall');
 
 async function llmCallAction({ context, request }: ActionFunctionArgs) {
@@ -95,7 +107,20 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
   } else {
     try {
       const models = await getModelList({ apiKeys, providerSettings, serverEnv: context.cloudflare?.env as any });
-      const modelDetails = models.find((m: ModelInfo) => m.name === model);
+      let modelDetails = findModelInList(models, model);
+
+      if (!modelDetails && providerName === 'Ollama') {
+        const llmManager = LLMManager.getInstance(import.meta.env);
+        const ollamaProvider = llmManager.getProvider('Ollama');
+        if (ollamaProvider) {
+          const ollamaModels = await llmManager.getModelListFromProvider(ollamaProvider, {
+            apiKeys,
+            providerSettings,
+            serverEnv: context.cloudflare?.env as any,
+          });
+          modelDetails = findModelInList(ollamaModels, model);
+        }
+      }
 
       if (!modelDetails) {
         throw new Error('Model not found');

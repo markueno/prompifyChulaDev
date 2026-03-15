@@ -68,17 +68,6 @@ export const ModelSelector = ({
     }
   }, [isModelDropdownOpen]);
 
-  // Auto-refresh Ollama models when dropdown opens
-  useEffect(() => {
-    if (isModelDropdownOpen && provider?.name === 'Ollama' && onRefreshModels) {
-      // Small delay to ensure dropdown is fully open
-      const timeoutId = setTimeout(() => {
-        onRefreshModels();
-      }, 100);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isModelDropdownOpen, provider?.name, onRefreshModels]);
-
   // Handle keyboard navigation
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!isModelDropdownOpen) {
@@ -188,15 +177,7 @@ export const ModelSelector = ({
             setProvider(newProvider);
           }
 
-          // For Ollama, prefer codestral as default, otherwise use first available
-          let modelToSelect = [...modelList].find(m => m.provider === e.target.value);
-          
-          if (e.target.value === 'Ollama') {
-            const codestralModel = [...modelList].find(m => m.provider === 'Ollama' && (m.name === 'codestral' || m.name.includes('codestral')));
-            if (codestralModel) {
-              modelToSelect = codestralModel;
-            }
-          }
+          const modelToSelect = [...modelList].find(m => m.provider === e.target.value);
 
           if (modelToSelect && setModel) {
             setModel(modelToSelect.name);

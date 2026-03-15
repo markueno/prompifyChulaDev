@@ -46,12 +46,13 @@ export function isAuthDisabled(context: any): boolean {
 }
 
 // Get a mock admin user when authentication is disabled
+// Full access to Settings and Control Panel (no account type or moderator checks)
 export function getMockAdminUser(): User {
   return {
     id: 'admin-bypass',
     email: 'admin@bypass.local',
     isVerified: true,
-    isModerator: false,
+    isModerator: true,
   };
 }
 

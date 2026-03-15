@@ -161,6 +161,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
     const [transcript, setTranscript] = useState('');
     const [isModelLoading, setIsModelLoading] = useState<string | undefined>('all');
+    const modelRef = React.useRef(model);
+    modelRef.current = model;
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
     // Add state for guided form
@@ -254,60 +256,63 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           Cookies.remove('apiKeys');
         }
 
-        setIsModelLoading('all');
-        
-        // Pre-fetch models, prioritizing Ollama if it's enabled
         const ollamaProvider = providerList?.find(p => p.name === 'Ollama');
-        const fetchPromises = [];
-        
-        // If Ollama is enabled, pre-fetch its models first
-        if (ollamaProvider) {
-          fetchPromises.push(
-            fetch('/api/models/Ollama')
-              .then(response => response.json())
-              .then(data => {
-                const typedData = data as { modelList: ModelInfo[] };
-                return typedData.modelList;
-              })
-              .catch(error => {
-                console.error('Error pre-fetching Ollama models:', error);
-                return [];
-              })
-          );
-        }
-        
-        // Fetch all models
-        fetchPromises.push(
-          fetch('/api/models')
+        const isOllamaSelected = provider?.name === 'Ollama';
+
+        if (isOllamaSelected && ollamaProvider) {
+          // Only fetch Ollama when it's selected; fetch base list (excl. Ollama) + Ollama in parallel
+          // Uses server cache for Ollama (no cache buster)
+          setIsModelLoading('Ollama');
+          Promise.all([
+            fetch('/api/models?excludeProviders=Ollama').then(r => r.json()),
+            fetch('/api/models/Ollama').then(r => r.json()),
+          ])
+            .then(([baseData, ollamaData]) => {
+              const baseModels = (baseData as { modelList: ModelInfo[] }).modelList;
+              const ollamaModels = (ollamaData as { modelList: ModelInfo[] }).modelList;
+              setModelList([...baseModels, ...ollamaModels]);
+              if (setModel) {
+                const currentModel = modelRef.current;
+                const currentInOllama = currentModel && ollamaModels.some(m => m.name === currentModel);
+                if (!currentInOllama && ollamaModels.length > 0) {
+                  const modelToUse = ollamaModels[0].name;
+                  if (modelToUse) {
+                    setModel(modelToUse);
+                    Cookies.set('selectedModel', modelToUse, { expires: 30 });
+                  }
+                }
+              }
+            })
+            .catch(error => {
+              console.error('Error fetching models:', error);
+            })
+            .finally(() => setIsModelLoading(undefined));
+        } else {
+          // Fetch all models except Ollama (Ollama fetched only when selected)
+          setIsModelLoading('all');
+          fetch(ollamaProvider ? '/api/models?excludeProviders=Ollama' : '/api/models')
             .then(response => response.json())
             .then(data => {
               const typedData = data as { modelList: ModelInfo[] };
-              return typedData.modelList;
+              const allModels = typedData.modelList;
+              setModelList(allModels);
+              // When switching to non-Ollama, only set default if current model isn't valid for this provider
+              if (provider && setModel) {
+                const currentModel = modelRef.current;
+                const modelsForProvider = allModels.filter(m => m.provider === provider.name);
+                const currentInProvider = currentModel && modelsForProvider.some(m => m.name === currentModel);
+                if (!currentInProvider && modelsForProvider.length > 0) {
+                  const firstForProvider = modelsForProvider[0];
+                  setModel(firstForProvider.name);
+                  Cookies.set('selectedModel', firstForProvider.name, { expires: 30 });
+                }
+              }
             })
             .catch(error => {
               console.error('Error fetching model list:', error);
-              return [];
             })
-        );
-        
-        Promise.all(fetchPromises).then(results => {
-          // Use the full model list from the second fetch
-          if (results.length > 0) {
-            const allModels = results[results.length - 1];
-            setModelList(allModels);
-            
-            // If Ollama is selected and codestral is available, set it as default
-            if (provider?.name === 'Ollama' && setModel) {
-              const codestralModel = allModels.find(m => m.provider === 'Ollama' && (m.name === 'codestral' || m.name.includes('codestral')));
-              if (codestralModel && model !== codestralModel.name) {
-                setModel(codestralModel.name);
-                Cookies.set('selectedModel', codestralModel.name, { expires: 30 });
-              }
-            }
-          }
-        }).finally(() => {
-          setIsModelLoading(undefined);
-        });
+            .finally(() => setIsModelLoading(undefined));
+        }
       }
     }, [providerList, provider]);
 
