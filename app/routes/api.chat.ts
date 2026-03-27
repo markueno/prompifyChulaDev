@@ -71,7 +71,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   let progressCounter: number = 1;
 
   try {
-    const totalMessageContent = messages.reduce((acc, message) => acc + message.content, '');
+    const extractText = (msg: { content: string | Array<{ type?: string; text?: string }> }) =>
+      Array.isArray(msg.content)
+        ? (msg.content.find((p: any) => p.type === 'text')?.text as string) || ''
+        : (msg.content as string) || '';
+    const totalMessageContent = messages.reduce((acc, message) => acc + extractText(message), '');
     logger.debug(`Total message length: ${totalMessageContent.split(' ').length}, words`);
 
     let lastChunk: string | undefined = undefined;
@@ -104,7 +108,8 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         }
 
         if (filePaths.length > 0 && contextOptimization) {
-          logger.debug('Generating Chat Summary');
+          try {
+            logger.debug('Generating Chat Summary');
           dataStream.writeData({
             type: 'progress',
             label: 'summary',
@@ -201,8 +206,19 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             order: progressCounter++,
             message: 'Code Files Selected',
           } satisfies ProgressAnnotation);
-
-          // logger.debug('Code Files Selected');
+          } catch (summaryOrContextError: any) {
+            logger.warn(
+              'Context optimization failed (summary/selectContext), proceeding without. Error:',
+              summaryOrContextError?.message
+            );
+            dataStream.writeData({
+              type: 'progress',
+              label: summary ? 'context' : 'summary',
+              status: 'complete',
+              order: progressCounter++,
+              message: 'Skipped (continuing with response)',
+            } satisfies ProgressAnnotation);
+          }
         }
 
         // Stream the text
