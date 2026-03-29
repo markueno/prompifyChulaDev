@@ -151,9 +151,10 @@ export const ChatImpl = memo(
   ({ description, initialMessages, storeMessageHistory, importChat, exportChat, ensureChatId }: ChatProps) => {
     useShortcuts();
 
-    const indexData = useRouteLoaderData('routes/_index') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
+    const appIndexData = useRouteLoaderData('routes/app._index') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
+    const appLayoutData = useRouteLoaderData('routes/app') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
     const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
-    const user = indexData?.user ?? chatIdData?.user;
+    const user = appIndexData?.user ?? appLayoutData?.user ?? chatIdData?.user;
     const profile = useStore(profileStore);
     useStore(chatId);
     const isModerator = user?.isModerator === true;

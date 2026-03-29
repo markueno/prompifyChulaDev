@@ -122,9 +122,10 @@ const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchP
 );
 
 export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
-  const indexData = useRouteLoaderData('routes/_index') as { user?: { isModerator?: boolean } } | undefined;
+  const appIndexData = useRouteLoaderData('routes/app._index') as { user?: { isModerator?: boolean } } | undefined;
+  const appLayoutData = useRouteLoaderData('routes/app') as { user?: { isModerator?: boolean } } | undefined;
   const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { isModerator?: boolean } } | undefined;
-  const user = indexData?.user ?? chatIdData?.user;
+  const user = appIndexData?.user ?? appLayoutData?.user ?? chatIdData?.user;
   const isModerator = user?.isModerator === true;
 
   // State

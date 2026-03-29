@@ -59,7 +59,7 @@ export async function createPostgresTables() {
       CREATE TABLE IF NOT EXISTS user_sessions (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
-        token_hash TEXT NOT NULL,
+        token_hash TEXT UNIQUE NOT NULL,
         expires_at TIMESTAMP NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -223,14 +223,14 @@ export async function createPostgresTables() {
       )
     `);
 
-    // Seed subscription tiers (Trial=free, Builder, Innovator)
+    // Seed subscription tiers (token limits per month, expire after 1 month)
     await client.query(`
       INSERT INTO subscription_tiers (id, name, display_name, price_cents, limits, sort_order)
       VALUES
-        ('tier_trial', 'trial', 'Trial', 0, '{}', 1),
-        ('tier_builder', 'builder', 'Builder', 0, '{}', 2),
-        ('tier_innovator', 'innovator', 'Innovator', 0, '{}', 3)
-      ON CONFLICT (id) DO NOTHING
+        ('tier_trial', 'trial', 'Trial', 0, '{"tokens": 150000, "tokens_per_month": true}', 1),
+        ('tier_builder', 'builder', 'Builder', 0, '{"tokens": 500000, "tokens_per_month": true}', 2),
+        ('tier_innovator', 'innovator', 'Innovator', 0, '{"tokens": 1000000, "tokens_per_month": true}', 3)
+      ON CONFLICT (id) DO UPDATE SET limits = EXCLUDED.limits
     `);
 
     // Prompts table - per-prompt record (account + chat)
@@ -339,15 +339,6 @@ export async function createPostgresTables() {
       'CREATE INDEX IF NOT EXISTS idx_token_consumption_alloc_balance ON token_consumption_allocations(token_balance_id)'
     );
 
-    // Backfill: assign Trial tier to verified users without a subscription
-    await client.query(`
-      INSERT INTO subscriptions (id, user_id, tier_id, status)
-      SELECT gen_random_uuid()::text, u.id, 'tier_trial', 'active'
-      FROM users u
-      LEFT JOIN subscriptions s ON u.id = s.user_id
-      WHERE s.id IS NULL AND u.is_verified = TRUE
-    `);
-
     console.log('PostgreSQL tables created successfully');
   } catch (error) {
     console.error('Error creating PostgreSQL tables:', error);
@@ -386,14 +377,35 @@ export async function getUserByEmailPostgres(email: string) {
   }
 }
 
-/** Create Trial subscription for user. Uses provided client for same-transaction atomicity. Skips if already exists (e.g. double verify). */
+/** Create Trial subscription for user with 1-month effective period and token balance. Skips if already exists. */
 async function createSubscriptionForUserWithClient(client: PoolClient, userId: string): Promise<void> {
-  const id = crypto.randomUUID();
-  await client.query(`
-    INSERT INTO subscriptions (id, user_id, tier_id, status)
-    VALUES ($1, $2, 'tier_trial', 'active')
-    ON CONFLICT (user_id) DO NOTHING
-  `, [id, userId]);
+  const now = new Date();
+  const periodEnd = new Date(now);
+  periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+  const subId = crypto.randomUUID();
+  const insertResult = await client.query(
+    `INSERT INTO subscriptions (id, user_id, tier_id, status, current_period_start, current_period_end)
+     VALUES ($1, $2, 'tier_trial', 'active', $3, $4)
+     ON CONFLICT (user_id) DO NOTHING
+     RETURNING id`,
+    [subId, userId, now.toISOString(), periodEnd.toISOString()]
+  );
+
+  if (insertResult.rows.length === 0) return;
+
+  const tierResult = await client.query(
+    `SELECT limits FROM subscription_tiers WHERE id = 'tier_trial'`
+  );
+  const limits = tierResult.rows[0]?.limits;
+  const tokens = limits?.tokens ?? 150000;
+
+  const balanceId = crypto.randomUUID();
+  await client.query(
+    `INSERT INTO token_balances (id, user_id, source, source_reference_id, tokens_allocated, tokens_used, effective_start, effective_end)
+     VALUES ($1, $2, 'tier', $3, $4, 0, $5, $6)`,
+    [balanceId, userId, subId, tokens, now.toISOString(), periodEnd.toISOString()]
+  );
 }
 
 /** Get subscription by user ID. For future subscription/upgrade logic. */
@@ -402,7 +414,7 @@ export async function getSubscriptionByUserIdPostgres(userId: string) {
   const client = await pool.connect();
   try {
     const result = await client.query(`
-      SELECT s.*, st.name as tier_name, st.display_name as tier_display_name, st.price_cents
+      SELECT s.*, st.name as tier_name, st.display_name as tier_display_name, st.price_cents, st.limits
       FROM subscriptions s
       JOIN subscription_tiers st ON s.tier_id = st.id
       WHERE s.user_id = $1

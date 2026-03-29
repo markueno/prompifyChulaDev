@@ -7,7 +7,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const user = await requireAuth(request, context);
   const url = new URL(request.url);
   const token = url.searchParams.get('token');
-  if (!token) return redirect('/');
+  if (!token) return redirect('/app');
   return json({ token, user: { id: user.id, email: user.email } });
 }
 

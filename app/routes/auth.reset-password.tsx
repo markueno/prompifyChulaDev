@@ -19,11 +19,11 @@ interface ActionData {
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
-    return redirect('/');
+    return redirect('/app');
   }
   try {
     const user = await optionalAuth(request, context);
-    if (user) return redirect('/');
+    if (user) return redirect('/app');
   } catch {
     // not authenticated
   }
