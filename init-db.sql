@@ -235,6 +235,18 @@ CREATE TABLE IF NOT EXISTS token_balances (
     CONSTRAINT chk_token_balances_source CHECK (source IN ('tier', 'top_up', 'promo', 'grant'))
 );
 
+-- Level B: attribution of each token_usage row to token_balances rows (FIFO drawdown)
+CREATE TABLE IF NOT EXISTS token_consumption_allocations (
+    id TEXT PRIMARY KEY,
+    token_usage_id TEXT NOT NULL,
+    token_balance_id TEXT NOT NULL,
+    tokens INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_consumption_alloc_tokens_pos CHECK (tokens > 0),
+    FOREIGN KEY (token_usage_id) REFERENCES token_usage(id) ON DELETE CASCADE,
+    FOREIGN KEY (token_balance_id) REFERENCES token_balances(id) ON DELETE CASCADE
+);
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
@@ -269,3 +281,5 @@ CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id);
 CREATE INDEX IF NOT EXISTS idx_token_usage_user_created ON token_usage(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_token_balances_user_id ON token_balances(user_id);
 CREATE INDEX IF NOT EXISTS idx_token_balances_user_effective ON token_balances(user_id, effective_start, effective_end);
+CREATE INDEX IF NOT EXISTS idx_token_consumption_alloc_usage ON token_consumption_allocations(token_usage_id);
+CREATE INDEX IF NOT EXISTS idx_token_consumption_alloc_balance ON token_consumption_allocations(token_balance_id);

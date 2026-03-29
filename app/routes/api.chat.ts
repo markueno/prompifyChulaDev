@@ -12,7 +12,7 @@ import { WORK_DIR } from '~/utils/constants';
 import { createSummary } from '~/lib/.server/llm/create-summary';
 import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
 import { optionalAuth } from '~/lib/auth';
-import { saveChat, insertTokenUsage, consumeTokenBalance } from '~/lib/database';
+import { saveChat, insertTokenUsageAndConsume } from '~/lib/database';
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -241,7 +241,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
                   ? extractPropertiesFromMessage(lastUserMessage)
                   : { model: undefined, provider: undefined };
                 try {
-                  const inserted = await insertTokenUsage({
+                  const recorded = await insertTokenUsageAndConsume({
                     chatId,
                     messageId: triggeringMessageId,
                     userId: user.id,
@@ -251,8 +251,10 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
                     model,
                     provider,
                   });
-                  if (inserted) {
-                    await consumeTokenBalance(user.id, totalTokens);
+                  if (!recorded) {
+                    logger.debug(
+                      'Token usage + balance/allocations not recorded (failed transaction or duplicate chat/message)'
+                    );
                   }
                 } catch (e) {
                   logger.debug('Failed to record token usage', e);

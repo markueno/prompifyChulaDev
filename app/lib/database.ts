@@ -39,6 +39,7 @@ import {
   removeChatMemberPostgres,
   getSubscriptionByUserIdPostgres,
   insertTokenUsagePostgres,
+  insertTokenUsageAndConsumePostgres,
   consumeTokenBalancePostgres,
   getTokenBalanceRemainingPostgres
 } from './database-postgresql';
@@ -518,6 +519,23 @@ export async function insertTokenUsage(params: {
 }) {
   if (DATABASE_TYPE === 'postgresql') {
     return insertTokenUsagePostgres(params);
+  }
+  return false;
+}
+
+/** Level B: record usage + consumption allocations + balance updates atomically (PostgreSQL). */
+export async function insertTokenUsageAndConsume(params: {
+  chatId: string;
+  messageId: string;
+  userId: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  model?: string;
+  provider?: string;
+}) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return insertTokenUsageAndConsumePostgres(params);
   }
   return false;
 }

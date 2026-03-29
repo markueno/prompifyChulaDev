@@ -37,6 +37,29 @@ const toastAnimation = cssTransition({
 
 const logger = createScopedLogger('Chat');
 
+/** Surface Remix JSON error bodies (e.g. 402 token balance) in the same toast format as other chat errors. */
+function getChatRequestErrorMessage(error: unknown): string {
+  const fallback = 'No details were returned';
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: string }).message;
+    if (typeof message === 'string' && message.length > 0) {
+      const trimmed = message.trim();
+      if (trimmed.startsWith('{')) {
+        try {
+          const data = JSON.parse(trimmed) as { message?: string };
+          if (typeof data.message === 'string' && data.message.length > 0) {
+            return data.message;
+          }
+        } catch {
+          /* use raw message */
+        }
+      }
+      return message;
+    }
+  }
+  return fallback;
+}
+
 /** Build author info for multi-account prompt history display */
 function getMessageAuthor(user: { id?: string; email?: string } | undefined, profile: { nickname?: string; username?: string; avatar?: string } | undefined) {
   const name = (profile?.nickname?.trim() || profile?.username?.trim() || user?.email || 'Anonymous').trim();
@@ -205,14 +228,13 @@ export const ChatImpl = memo(
       sendExtraMessageFields: true,
       onError: e => {
         logger.error('Request failed\n\n', e, error);
+        const detail = getChatRequestErrorMessage(e);
         logStore.logError('Chat request failed', e, {
           component: 'Chat',
           action: 'request',
-          error: e.message,
+          error: detail,
         });
-        toast.error(
-          'There was an error processing your request: ' + (e.message ? e.message : 'No details were returned')
-        );
+        toast.error('There was an error processing your request: ' + detail);
       },
       onFinish: (message, response) => {
         const usage = response.usage;

@@ -284,6 +284,20 @@ export async function createPostgresTables() {
       )
     `);
 
+    // Level B: which token_usage row drew how many tokens from which token_balances row
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS token_consumption_allocations (
+        id TEXT PRIMARY KEY,
+        token_usage_id TEXT NOT NULL,
+        token_balance_id TEXT NOT NULL,
+        tokens INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT chk_consumption_alloc_tokens_pos CHECK (tokens > 0),
+        FOREIGN KEY (token_usage_id) REFERENCES token_usage(id) ON DELETE CASCADE,
+        FOREIGN KEY (token_balance_id) REFERENCES token_balances(id) ON DELETE CASCADE
+      )
+    `);
+
     // Create indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)');
@@ -318,6 +332,12 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_user_created ON token_usage(user_id, created_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_balances_user_id ON token_balances(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_balances_user_effective ON token_balances(user_id, effective_start, effective_end)');
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_token_consumption_alloc_usage ON token_consumption_allocations(token_usage_id)'
+    );
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_token_consumption_alloc_balance ON token_consumption_allocations(token_balance_id)'
+    );
 
     // Backfill: assign Trial tier to verified users without a subscription
     await client.query(`
@@ -739,6 +759,130 @@ export async function getActiveSessionCountPostgres(userId: string) {
 }
 
 // Token usage and balance functions
+
+/** Apply FIFO consumption (+ optional overage on sink row). If tokenUsageId is set, writes Level B allocation rows. */
+async function applyTokenConsumptionInTransaction(
+  client: PoolClient,
+  userId: string,
+  n: number,
+  tokenUsageId: string | null
+): Promise<void> {
+  const now = new Date().toISOString();
+  const balances = await client.query(
+    `SELECT id, tokens_allocated, tokens_used
+     FROM token_balances
+     WHERE user_id = $1
+       AND effective_start <= $2::timestamptz
+       AND (effective_end IS NULL OR effective_end >= $2::timestamptz)
+     ORDER BY effective_end ASC NULLS LAST`,
+    [userId, now]
+  );
+
+  const insertAllocation = async (tokenBalanceId: string, tokens: number) => {
+    if (!tokenUsageId || tokens <= 0) {
+      return;
+    }
+    await client.query(
+      `INSERT INTO token_consumption_allocations (id, token_usage_id, token_balance_id, tokens)
+       VALUES ($1, $2, $3, $4)`,
+      [crypto.randomUUID(), tokenUsageId, tokenBalanceId, tokens]
+    );
+  };
+
+  let remaining = n;
+
+  for (const row of balances.rows) {
+    if (remaining <= 0) {
+      break;
+    }
+    const allocated = Number(row.tokens_allocated);
+    const used = Number(row.tokens_used);
+    const available = allocated - used;
+    if (available <= 0) {
+      continue;
+    }
+    const deduct = Math.min(remaining, available);
+    await client.query(
+      `UPDATE token_balances SET tokens_used = tokens_used + $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [row.id, deduct]
+    );
+    await insertAllocation(row.id as string, deduct);
+    remaining -= deduct;
+  }
+
+  if (remaining > 0) {
+    const rows = balances.rows as { id: string }[];
+    if (rows.length > 0) {
+      const sinkId = rows[rows.length - 1].id as string;
+      await client.query(
+        `UPDATE token_balances SET tokens_used = tokens_used + $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [sinkId, remaining]
+      );
+      await insertAllocation(sinkId, remaining);
+    } else {
+      const newBalanceId = crypto.randomUUID();
+      await client.query(
+        `INSERT INTO token_balances (id, user_id, source, source_reference_id, tokens_allocated, tokens_used, effective_start, effective_end)
+         VALUES ($1, $2, 'grant', 'balance-overage', 0, $3, $4::timestamptz, NULL)`,
+        [newBalanceId, userId, remaining, now]
+      );
+      await insertAllocation(newBalanceId, remaining);
+    }
+  }
+}
+
+/** Level B: insert token_usage + allocation rows + update token_balances in one transaction. */
+export async function insertTokenUsageAndConsumePostgres(params: {
+  chatId: string;
+  messageId: string;
+  userId: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  model?: string;
+  provider?: string;
+}): Promise<boolean> {
+  const n = Math.floor(Number(params.totalTokens));
+  if (!Number.isFinite(n) || n <= 0) {
+    return false;
+  }
+
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const tokenUsageId = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO token_usage (id, chat_id, message_id, user_id, prompt_tokens, completion_tokens, total_tokens, model, provider)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        tokenUsageId,
+        params.chatId,
+        params.messageId,
+        params.userId,
+        params.promptTokens,
+        params.completionTokens,
+        params.totalTokens,
+        params.model ?? null,
+        params.provider ?? null,
+      ]
+    );
+    await applyTokenConsumptionInTransaction(client, params.userId, n, tokenUsageId);
+    await client.query('COMMIT');
+    return true;
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore rollback errors */
+    }
+    console.error('Error in insertTokenUsageAndConsumePostgres:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
 export async function insertTokenUsagePostgres(params: {
   chatId: string;
   messageId: string;
@@ -777,40 +921,26 @@ export async function insertTokenUsagePostgres(params: {
   }
 }
 
+/** Level A fallback: updates balances only (no allocation rows). Prefer insertTokenUsageAndConsumePostgres for chat. */
 export async function consumeTokenBalancePostgres(userId: string, tokensToConsume: number): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-
-    const now = new Date().toISOString();
-    const balances = await client.query(
-      `SELECT id, tokens_allocated, tokens_used
-       FROM token_balances
-       WHERE user_id = $1
-         AND effective_start <= $2
-         AND (effective_end IS NULL OR effective_end >= $2)
-         AND (tokens_allocated - tokens_used) > 0
-       ORDER BY effective_end ASC NULLS LAST`,
-      [userId, now]
-    );
-
-    let remaining = tokensToConsume;
-    for (const row of balances.rows) {
-      if (remaining <= 0) break;
-      const available = row.tokens_allocated - row.tokens_used;
-      const deduct = Math.min(remaining, available);
-      await client.query(
-        `UPDATE token_balances SET tokens_used = tokens_used + $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-        [row.id, deduct]
-      );
-      remaining -= deduct;
+    const n = Math.floor(Number(tokensToConsume));
+    if (!Number.isFinite(n) || n <= 0) {
+      return true;
     }
 
+    await client.query('BEGIN');
+    await applyTokenConsumptionInTransaction(client, userId, n, null);
     await client.query('COMMIT');
-    return remaining <= 0;
+    return true;
   } catch (error) {
-    await client.query('ROLLBACK');
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
     console.error('Error consuming token balance:', error);
     return false;
   } finally {
