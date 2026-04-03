@@ -3,8 +3,10 @@ import { contactEmailLooksUnsafe, normalizeContactPlainText } from '~/lib/contac
 import {
   CONTACT_COUNTRY_OPTIONS,
   CONTACT_ENQUIRY_VALUES,
+  getContactDialCodeForCountry,
   type ContactEnquiryValue,
 } from '~/lib/contact-form-options';
+import { insertContactSubmission } from '~/lib/database';
 
 type ContactResponse = { error?: string; success?: string };
 
@@ -66,32 +68,54 @@ export async function action({ request }: ActionFunctionArgs) {
     return json<ContactResponse>({ error: 'Please enter a valid email address.' }, { status: 400 });
   }
 
-  if (phoneRaw.length > MAX_PHONE) {
-    return json<ContactResponse>({ error: 'Phone number is too long.' }, { status: 400 });
-  }
-
-  if (phoneRaw && !/^[\d\s\-+().]{7,40}$/.test(phoneRaw)) {
+  if (!countryRaw || !ALLOWED_COUNTRIES.has(countryRaw)) {
     return json<ContactResponse>(
-      { error: 'Please enter a valid phone number, or leave it blank.' },
+      { error: 'Please select the country for your phone (dial code).' },
       { status: 400 }
     );
   }
 
-  if (countryRaw && !ALLOWED_COUNTRIES.has(countryRaw)) {
-    return json<ContactResponse>({ error: 'Please select a valid country or leave it blank.' }, { status: 400 });
+  if (!phoneRaw) {
+    return json<ContactResponse>({ error: 'Please enter your phone number.' }, { status: 400 });
   }
 
-  const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
-  console.log('[contact form]', {
+  if (phoneRaw.length > MAX_PHONE) {
+    return json<ContactResponse>({ error: 'Phone number is too long.' }, { status: 400 });
+  }
+
+  if (!/^[\d\s\-+().]{7,40}$/.test(phoneRaw)) {
+    return json<ContactResponse>({ error: 'Please enter a valid phone number.' }, { status: 400 });
+  }
+
+  const dial = getContactDialCodeForCountry(countryRaw);
+  const countryCodeDb = dial.length > 0 ? dial : null;
+
+  const ip =
+    request.headers.get('CF-Connecting-IP') ??
+    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ??
+    null;
+  const userAgent = request.headers.get('User-Agent');
+
+  const insertedId = await insertContactSubmission({
     enquiryType: enquiryTypeRaw,
     name,
     email,
-    phone: phoneRaw || undefined,
-    country: countryRaw || undefined,
+    phone: phoneRaw,
+    country: countryRaw,
+    countryCode: countryCodeDb,
     message,
-    messageLength: message.length,
-    ip,
+    ipAddress: ip,
+    userAgent,
   });
+
+  if (!insertedId) {
+    return json<ContactResponse>(
+      { error: 'Could not save your message. Please try again later.' },
+      { status: 500 }
+    );
+  }
+
+  console.log('[contact form] saved', { id: insertedId, enquiryType: enquiryTypeRaw });
 
   return json<ContactResponse>({
     success: 'Thank you for reaching out. We will get back to you soon.',

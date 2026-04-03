@@ -113,30 +113,41 @@ function LandingContactModal({ onClose }: { onClose: () => void }) {
 
             <div className="landing-contact-field-row">
               <div className="landing-contact-field-col">
+                <label className="landing-login-modal-label" htmlFor="landing-contact-country">
+                  Country for phone <span className="landing-login-modal-required">*</span>
+                </label>
+                <select
+                  id="landing-contact-country"
+                  name="country"
+                  required
+                  className="landing-login-modal-select"
+                  defaultValue=""
+                >
+                  <option value="" disabled hidden>
+                    Select country for phone
+                  </option>
+                  {CONTACT_COUNTRY_OPTIONS.filter((o) => o.value).map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="landing-login-modal-hint">Dial code for your number (stored with your phone in our records).</p>
+              </div>
+              <div className="landing-contact-field-col">
                 <label className="landing-login-modal-label" htmlFor="landing-contact-phone">
-                  Phone <span className="landing-login-modal-optional">(optional)</span>
+                  Phone number <span className="landing-login-modal-required">*</span>
                 </label>
                 <input
                   id="landing-contact-phone"
                   name="phone"
                   type="tel"
+                  required
                   maxLength={40}
                   autoComplete="tel"
                   className="landing-login-modal-input"
-                  placeholder="+1 555 0100"
+                  placeholder="e.g. 555 0100 or full number"
                 />
-              </div>
-              <div className="landing-contact-field-col">
-                <label className="landing-login-modal-label" htmlFor="landing-contact-country">
-                  Country <span className="landing-login-modal-optional">(optional)</span>
-                </label>
-                <select id="landing-contact-country" name="country" className="landing-login-modal-select">
-                  {CONTACT_COUNTRY_OPTIONS.map((opt) => (
-                    <option key={opt.value || 'none'} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 

@@ -339,6 +339,29 @@ export async function createPostgresTables() {
       'CREATE INDEX IF NOT EXISTS idx_token_consumption_alloc_balance ON token_consumption_allocations(token_balance_id)'
     );
 
+    // Public contact form (landing page) — no FK to users
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contact_submissions (
+        id TEXT PRIMARY KEY,
+        enquiry_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        country TEXT NOT NULL,
+        country_code TEXT,
+        message TEXT NOT NULL,
+        ip_address TEXT,
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON contact_submissions(created_at)'
+    );
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_contact_submissions_enquiry_type ON contact_submissions(enquiry_type)'
+    );
+
     console.log('PostgreSQL tables created successfully');
   } catch (error) {
     console.error('Error creating PostgreSQL tables:', error);
@@ -349,6 +372,49 @@ export async function createPostgresTables() {
 }
 
 // Database helper functions for PostgreSQL
+export type ContactSubmissionInput = {
+  id: string;
+  enquiryType: string;
+  name: string;
+  email: string;
+  phone: string;
+  country: string;
+  countryCode: string | null;
+  message: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+};
+
+export async function insertContactSubmissionPostgres(row: ContactSubmissionInput): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `INSERT INTO contact_submissions (
+        id, enquiry_type, name, email, phone, country, country_code, message, ip_address, user_agent
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        row.id,
+        row.enquiryType,
+        row.name,
+        row.email,
+        row.phone,
+        row.country,
+        row.countryCode,
+        row.message,
+        row.ipAddress ?? null,
+        row.userAgent ?? null,
+      ]
+    );
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('Error inserting contact submission:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
 export async function getUserByEmailPostgres(email: string) {
   const pool = getPostgresPool();
   let client;

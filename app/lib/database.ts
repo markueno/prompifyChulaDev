@@ -41,7 +41,9 @@ import {
   insertTokenUsagePostgres,
   insertTokenUsageAndConsumePostgres,
   consumeTokenBalancePostgres,
-  getTokenBalanceRemainingPostgres
+  getTokenBalanceRemainingPostgres,
+  insertContactSubmissionPostgres,
+  type ContactSubmissionInput,
 } from './database-postgresql';
 
 // Database configuration
@@ -161,6 +163,72 @@ function createSQLiteTables(db: Database.Database) {
   db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON user_sessions(token_hash)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_rate_limits_ip_endpoint ON rate_limits(ip_address, endpoint)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_email_logs_user_id ON email_logs(user_id)');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contact_submissions (
+      id TEXT PRIMARY KEY,
+      enquiry_type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      country TEXT NOT NULL,
+      country_code TEXT,
+      message TEXT NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON contact_submissions(created_at)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_contact_submissions_enquiry_type ON contact_submissions(enquiry_type)');
+}
+
+export async function insertContactSubmission(
+  row: Omit<ContactSubmissionInput, 'id'> & { id?: string }
+): Promise<string | null> {
+  const id = row.id ?? crypto.randomUUID();
+  const full: ContactSubmissionInput = {
+    id,
+    enquiryType: row.enquiryType,
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    country: row.country,
+    countryCode: row.countryCode,
+    message: row.message,
+    ipAddress: row.ipAddress,
+    userAgent: row.userAgent,
+  };
+
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      const ok = await insertContactSubmissionPostgres(full);
+      return ok ? id : null;
+    }
+    const db = getDatabase();
+    const result = db
+      .prepare(
+        `INSERT INTO contact_submissions (
+          id, enquiry_type, name, email, phone, country, country_code, message, ip_address, user_agent
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        full.id,
+        full.enquiryType,
+        full.name,
+        full.email,
+        full.phone,
+        full.country,
+        full.countryCode,
+        full.message,
+        full.ipAddress ?? null,
+        full.userAgent ?? null
+      );
+    return result.changes > 0 ? id : null;
+  } catch (error) {
+    console.error('Error inserting contact submission:', error);
+    return null;
+  }
 }
 
 // Database helper functions

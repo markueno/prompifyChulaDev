@@ -267,6 +267,21 @@ CREATE TABLE IF NOT EXISTS payments (
     CONSTRAINT chk_payments_status CHECK (status IN ('succeeded', 'failed', 'refunded'))
 );
 
+-- Landing / public contact form (ISO country + separate dial code)
+CREATE TABLE IF NOT EXISTS contact_submissions (
+    id TEXT PRIMARY KEY,
+    enquiry_type TEXT NOT NULL,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    country TEXT NOT NULL,
+    country_code TEXT,
+    message TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
@@ -306,3 +321,5 @@ CREATE INDEX IF NOT EXISTS idx_token_consumption_alloc_balance ON token_consumpt
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
 CREATE INDEX IF NOT EXISTS idx_payments_type ON payments(type);
 CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments(created_at);
+CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON contact_submissions(created_at);
+CREATE INDEX IF NOT EXISTS idx_contact_submissions_enquiry_type ON contact_submissions(enquiry_type);
