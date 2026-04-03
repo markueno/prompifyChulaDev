@@ -1,5 +1,6 @@
-import { useNavigate } from '@remix-run/react';
+import { useFetcher } from '@remix-run/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { CONTACT_COUNTRY_OPTIONS, CONTACT_ENQUIRY_OPTIONS } from '~/lib/contact-form-options';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
@@ -23,8 +24,153 @@ function escapeHtml(text: string) {
   return div.innerHTML;
 }
 
+type AuthActionData = { error?: string; success?: string };
+
+function LandingContactModal({ onClose }: { onClose: () => void }) {
+  const contactFetcher = useFetcher<AuthActionData>();
+
+  return (
+    <div
+      className="landing-login-modal-root"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="landing-contact-title"
+    >
+      <button type="button" className="landing-login-modal-backdrop" aria-label="Close" onClick={onClose} />
+      <div className="landing-login-modal-panel landing-login-modal-panel--contact">
+        <button type="button" className="landing-login-modal-close" aria-label="Close" onClick={onClose}>
+          ×
+        </button>
+        <div className="landing-login-modal-header">
+          <h2 id="landing-contact-title">Contact us</h2>
+          <p>Tell us how we can help. Fields marked * are required.</p>
+        </div>
+
+        {contactFetcher.data?.success ? (
+          <div className="landing-login-modal-form landing-login-modal-form--stack">
+            <div className="landing-login-modal-success" role="status">
+              {contactFetcher.data.success}
+            </div>
+            <button type="button" className="landing-login-modal-submit" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        ) : (
+          <contactFetcher.Form method="post" action="/api/contact" className="landing-login-modal-form">
+            {contactFetcher.data?.error && (
+              <div className="landing-login-modal-error" role="alert">
+                {contactFetcher.data.error}
+              </div>
+            )}
+
+            <label className="landing-login-modal-label" htmlFor="landing-contact-enquiry">
+              Topic <span className="landing-login-modal-required">*</span>
+            </label>
+            <select
+              id="landing-contact-enquiry"
+              name="enquiryType"
+              required
+              className="landing-login-modal-select"
+              defaultValue=""
+            >
+              <option value="" disabled>
+                Select a topic
+              </option>
+              {CONTACT_ENQUIRY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="landing-login-modal-hint">We route your message to the right team.</p>
+
+            <label className="landing-login-modal-label" htmlFor="landing-contact-name">
+              Full name <span className="landing-login-modal-required">*</span>
+            </label>
+            <input
+              id="landing-contact-name"
+              name="name"
+              type="text"
+              required
+              maxLength={125}
+              autoComplete="name"
+              className="landing-login-modal-input"
+              placeholder="Your name"
+            />
+
+            <label className="landing-login-modal-label" htmlFor="landing-contact-email">
+              Email <span className="landing-login-modal-required">*</span>
+            </label>
+            <input
+              id="landing-contact-email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              className="landing-login-modal-input"
+              placeholder="you@company.com"
+            />
+
+            <div className="landing-contact-field-row">
+              <div className="landing-contact-field-col">
+                <label className="landing-login-modal-label" htmlFor="landing-contact-phone">
+                  Phone <span className="landing-login-modal-optional">(optional)</span>
+                </label>
+                <input
+                  id="landing-contact-phone"
+                  name="phone"
+                  type="tel"
+                  maxLength={40}
+                  autoComplete="tel"
+                  className="landing-login-modal-input"
+                  placeholder="+1 555 0100"
+                />
+              </div>
+              <div className="landing-contact-field-col">
+                <label className="landing-login-modal-label" htmlFor="landing-contact-country">
+                  Country <span className="landing-login-modal-optional">(optional)</span>
+                </label>
+                <select id="landing-contact-country" name="country" className="landing-login-modal-select">
+                  {CONTACT_COUNTRY_OPTIONS.map((opt) => (
+                    <option key={opt.value || 'none'} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <label className="landing-login-modal-label" htmlFor="landing-contact-message">
+              How can we help? <span className="landing-login-modal-required">*</span>
+            </label>
+            <textarea
+              id="landing-contact-message"
+              name="message"
+              required
+              maxLength={125}
+              rows={4}
+              className="landing-login-modal-textarea"
+              placeholder="How can we help? (max 125 characters)"
+            />
+
+            <button
+              type="submit"
+              className="landing-login-modal-submit"
+              disabled={contactFetcher.state === 'submitting'}
+            >
+              {contactFetcher.state === 'submitting' ? 'Sending…' : 'Send message'}
+            </button>
+          </contactFetcher.Form>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function LandingPage() {
-  const navigate = useNavigate();
+  const loginFetcher = useFetcher<AuthActionData>();
+  const registerFetcher = useFetcher<AuthActionData>();
+  const forgotFetcher = useFetcher<AuthActionData>();
   const containerRef = useRef<HTMLDivElement>(null);
   const heroBgRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -38,10 +184,52 @@ export function LandingPage() {
   const [showExamples, setShowExamples] = useState(true);
   const [showFloatingResponse, setShowFloatingResponse] = useState(false);
   const [floatingResponseContent, setFloatingResponseContent] = useState('');
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactModalKey, setContactModalKey] = useState(0);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'forgot'>('login');
+  const [forgotShowFormForced, setForgotShowFormForced] = useState(false);
+  const [loginShowPassword, setLoginShowPassword] = useState(false);
+  const [registerShowPassword, setRegisterShowPassword] = useState(false);
+  const [registerShowConfirmPassword, setRegisterShowConfirmPassword] = useState(false);
+  const [registerPasswordStrength, setRegisterPasswordStrength] = useState({
+    length: false,
+    lowercase: false,
+    uppercase: false,
+    number: false,
+    special: false,
+  });
 
-  const goToLogin = useCallback(() => {
-    navigate('/auth/login');
-  }, [navigate]);
+  const closeAuthModal = useCallback(() => {
+    setShowLoginModal(false);
+    setAuthModalMode('login');
+    setForgotShowFormForced(false);
+  }, []);
+
+  const closeContactModal = useCallback(() => {
+    setShowContactModal(false);
+  }, []);
+
+  const openContactModal = useCallback(() => {
+    setShowLoginModal(false);
+    setAuthModalMode('login');
+    setForgotShowFormForced(false);
+    setContactModalKey((k) => k + 1);
+    setShowContactModal(true);
+  }, []);
+
+  const goToForgotInModal = useCallback(() => {
+    setForgotShowFormForced(false);
+    setAuthModalMode('forgot');
+  }, []);
+
+  const openLoginModalSoon = useCallback(() => {
+    window.setTimeout(() => {
+      setShowContactModal(false);
+      setAuthModalMode('login');
+      setShowLoginModal(true);
+    }, 450);
+  }, []);
 
   const handleSubmit = useCallback((text?: string, fromFloating?: boolean) => {
     const input = text || (fromFloating ? floatingValue : promptValue);
@@ -68,14 +256,58 @@ export function LandingPage() {
 
       if (fromFloating) {
         setFloatingResponseContent(response);
-        setTimeout(() => setShowFloatingResponse(false), 6000);
       }
+      openLoginModalSoon();
     }, 1600);
-  }, [promptValue, floatingValue, isLoading]);
+  }, [promptValue, floatingValue, isLoading, openLoginModalSoon]);
 
   useEffect(() => {
     messagesAreaRef.current?.scrollTo({ top: messagesAreaRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (showLoginModal) {
+      setShowFloatingResponse(false);
+    }
+  }, [showLoginModal]);
+
+  useEffect(() => {
+    if (!showLoginModal && !showContactModal) {
+      return;
+    }
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showContactModal) {
+          closeContactModal();
+        } else {
+          closeAuthModal();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [showLoginModal, showContactModal, closeAuthModal, closeContactModal]);
+
+  useEffect(() => {
+    if (forgotFetcher.state === 'submitting') {
+      setForgotShowFormForced(false);
+    }
+  }, [forgotFetcher.state]);
+
+  const updateRegisterPasswordStrength = useCallback((password: string) => {
+    setRegisterPasswordStrength({
+      length: password.length >= 8,
+      lowercase: /(?=.*[a-z])/.test(password),
+      uppercase: /(?=.*[A-Z])/.test(password),
+      number: /(?=.*\d)/.test(password),
+      special: /(?=.*[!@#$%^&*])/.test(password),
+    });
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -162,15 +394,6 @@ export function LandingPage() {
           tl.to(overlay, { opacity: 0.4, ease: 'none' }, 0);
         }
       }
-    });
-
-    ScrollTrigger.create({
-      trigger: '.landing-hero-section',
-      start: 'top 80%',
-      onEnter: () => {
-        const el = container.querySelector('.landing-heading .landing-highlight');
-        el?.classList.add('active');
-      },
     });
 
     ScrollTrigger.create({
@@ -322,7 +545,7 @@ export function LandingPage() {
         ))}
 
         {/* Outro */}
-        <section className="landing-outro">
+        <section className="landing-outro" id="contact">
           <h2 className="landing-shimmer-text">
             Prompt
             <br />
@@ -334,8 +557,20 @@ export function LandingPage() {
             <b>At Prompify, creativity meets creation.</b>
           </p>
           <div className="landing-outro-buttons">
-            <a href="/auth/login" className="landing-cta-btn">Start Prompting</a>
-            <a href="#contact" className="landing-cta-btn">Contact Us</a>
+            <button
+              type="button"
+              className="landing-cta-btn landing-cta-btn--shine"
+              onClick={() => {
+                setShowContactModal(false);
+                setAuthModalMode('login');
+                setShowLoginModal(true);
+              }}
+            >
+              Start Prompting
+            </button>
+            <button type="button" className="landing-cta-btn" onClick={openContactModal}>
+              Contact Us
+            </button>
           </div>
         </section>
 
@@ -360,7 +595,9 @@ export function LandingPage() {
             <div className="landing-info-col">
               <h4>Support</h4>
               <a href="#help">Help Center</a>
-              <a href="#contact">Contact Us</a>
+              <button type="button" className="landing-info-footer-btn" onClick={openContactModal}>
+                Contact Us
+              </button>
               <a href="#faq">FAQ</a>
             </div>
             <div className="landing-info-col">
@@ -372,6 +609,279 @@ export function LandingPage() {
           </div>
         </section>
       </main>
+
+      {showLoginModal && (
+        <div
+          className="landing-login-modal-root"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="landing-auth-title"
+        >
+          <button
+            type="button"
+            className="landing-login-modal-backdrop"
+            aria-label="Close"
+            onClick={closeAuthModal}
+          />
+          <div className="landing-login-modal-panel">
+            <button type="button" className="landing-login-modal-close" aria-label="Close" onClick={closeAuthModal}>
+              ×
+            </button>
+
+            {authModalMode === 'login' && (
+              <>
+                <div className="landing-login-modal-header">
+                  <h2 id="landing-auth-title">Welcome back</h2>
+                  <p>Sign in to continue building with Prompify</p>
+                </div>
+
+                <loginFetcher.Form method="post" action="/auth/login" className="landing-login-modal-form">
+                  <input type="hidden" name="intent" value="login" />
+
+                  {loginFetcher.data?.error && (
+                    <div className="landing-login-modal-error" role="alert">
+                      {loginFetcher.data.error}
+                    </div>
+                  )}
+
+                  <label className="landing-login-modal-label" htmlFor="landing-login-email">
+                    Email
+                  </label>
+                  <input
+                    id="landing-login-email"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    className="landing-login-modal-input"
+                    placeholder="you@company.com"
+                  />
+
+                  <label className="landing-login-modal-label" htmlFor="landing-login-password">
+                    Password
+                  </label>
+                  <div className="landing-login-modal-password-wrap">
+                    <input
+                      id="landing-login-password"
+                      name="password"
+                      type={loginShowPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="current-password"
+                      className="landing-login-modal-input"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      className="landing-login-modal-toggle-pw"
+                      onClick={() => setLoginShowPassword((v) => !v)}
+                      aria-label={loginShowPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {loginShowPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="landing-login-modal-submit"
+                    disabled={loginFetcher.state === 'submitting'}
+                  >
+                    {loginFetcher.state === 'submitting' ? 'Signing in…' : 'Sign in'}
+                  </button>
+                </loginFetcher.Form>
+
+                <div className="landing-login-modal-footer">
+                  <button type="button" className="landing-login-modal-footer-btn" onClick={() => setAuthModalMode('register')}>
+                    Create an account
+                  </button>
+                  <span className="landing-login-modal-dot">·</span>
+                  <button type="button" className="landing-login-modal-footer-btn" onClick={goToForgotInModal}>
+                    Forgot password?
+                  </button>
+                </div>
+              </>
+            )}
+
+            {authModalMode === 'forgot' && (
+              <>
+                <div className="landing-login-modal-header">
+                  <h2 id="landing-auth-title">Forgot your password?</h2>
+                  <p>Enter your email and we&apos;ll send you a link to reset it.</p>
+                </div>
+
+                {forgotFetcher.data?.success && !forgotShowFormForced ? (
+                  <div className="landing-login-modal-form landing-login-modal-form--stack">
+                    <div className="landing-login-modal-success" role="status">
+                      {forgotFetcher.data.success}
+                    </div>
+                    <button
+                      type="button"
+                      className="landing-login-modal-submit"
+                      onClick={() => setAuthModalMode('login')}
+                    >
+                      Back to Sign in
+                    </button>
+                    <button
+                      type="button"
+                      className="landing-login-modal-submit landing-login-modal-submit--secondary"
+                      onClick={() => setForgotShowFormForced(true)}
+                    >
+                      Send another link
+                    </button>
+                  </div>
+                ) : (
+                  <forgotFetcher.Form method="post" action="/auth/forgot-password" className="landing-login-modal-form">
+                    {forgotFetcher.data?.error && (
+                      <div className="landing-login-modal-error" role="alert">
+                        {forgotFetcher.data.error}
+                      </div>
+                    )}
+
+                    <label className="landing-login-modal-label" htmlFor="landing-forgot-email">
+                      Email
+                    </label>
+                    <input
+                      id="landing-forgot-email"
+                      name="email"
+                      type="email"
+                      required
+                      autoComplete="email"
+                      className="landing-login-modal-input"
+                      placeholder="you@company.com"
+                    />
+
+                    <button
+                      type="submit"
+                      className="landing-login-modal-submit"
+                      disabled={forgotFetcher.state === 'submitting'}
+                    >
+                      {forgotFetcher.state === 'submitting' ? 'Sending…' : 'Send reset link'}
+                    </button>
+                  </forgotFetcher.Form>
+                )}
+
+                <div className="landing-login-modal-footer">
+                  <button type="button" className="landing-login-modal-footer-btn" onClick={() => setAuthModalMode('login')}>
+                    Back to Sign in
+                  </button>
+                </div>
+              </>
+            )}
+
+            {authModalMode === 'register' && (
+              <>
+                <div className="landing-login-modal-header">
+                  <h2 id="landing-auth-title">Create account</h2>
+                  <p>Join Prompify and start building</p>
+                </div>
+
+                <registerFetcher.Form method="post" action="/auth/register" className="landing-login-modal-form">
+                  <input type="hidden" name="intent" value="register" />
+
+                  {registerFetcher.data?.error && (
+                    <div className="landing-login-modal-error" role="alert">
+                      {registerFetcher.data.error}
+                    </div>
+                  )}
+
+                  {registerFetcher.data?.success && (
+                    <div className="landing-login-modal-success" role="status">
+                      {registerFetcher.data.success}
+                    </div>
+                  )}
+
+                  <label className="landing-login-modal-label" htmlFor="landing-register-email">
+                    Email
+                  </label>
+                  <input
+                    id="landing-register-email"
+                    name="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    className="landing-login-modal-input"
+                    placeholder="you@company.com"
+                  />
+
+                  <label className="landing-login-modal-label" htmlFor="landing-register-password">
+                    Password
+                  </label>
+                  <div className="landing-login-modal-password-wrap">
+                    <input
+                      id="landing-register-password"
+                      name="password"
+                      type={registerShowPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="new-password"
+                      className="landing-login-modal-input"
+                      placeholder="Create a strong password"
+                      onChange={(e) => updateRegisterPasswordStrength(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="landing-login-modal-toggle-pw"
+                      onClick={() => setRegisterShowPassword((v) => !v)}
+                      aria-label={registerShowPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {registerShowPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+
+                  <ul className="landing-modal-pw-strength" aria-label="Password requirements">
+                    <li className={registerPasswordStrength.length ? 'met' : ''}>At least 8 characters</li>
+                    <li className={registerPasswordStrength.lowercase ? 'met' : ''}>One lowercase letter</li>
+                    <li className={registerPasswordStrength.uppercase ? 'met' : ''}>One uppercase letter</li>
+                    <li className={registerPasswordStrength.number ? 'met' : ''}>One number</li>
+                    <li className={registerPasswordStrength.special ? 'met' : ''}>One special character (!@#$%^&amp;*)</li>
+                  </ul>
+
+                  <label className="landing-login-modal-label" htmlFor="landing-register-confirm">
+                    Confirm password
+                  </label>
+                  <div className="landing-login-modal-password-wrap">
+                    <input
+                      id="landing-register-confirm"
+                      name="confirmPassword"
+                      type={registerShowConfirmPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="new-password"
+                      className="landing-login-modal-input"
+                      placeholder="Confirm your password"
+                    />
+                    <button
+                      type="button"
+                      className="landing-login-modal-toggle-pw"
+                      onClick={() => setRegisterShowConfirmPassword((v) => !v)}
+                      aria-label={registerShowConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {registerShowConfirmPassword ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="landing-login-modal-submit"
+                    disabled={registerFetcher.state === 'submitting'}
+                  >
+                    {registerFetcher.state === 'submitting' ? 'Creating account…' : 'Create account'}
+                  </button>
+                </registerFetcher.Form>
+
+                <div className="landing-login-modal-footer">
+                  <button type="button" className="landing-login-modal-footer-btn" onClick={() => setAuthModalMode('login')}>
+                    Already have an account? Sign in
+                  </button>
+                  <span className="landing-login-modal-dot">·</span>
+                  <button type="button" className="landing-login-modal-footer-btn" onClick={goToForgotInModal}>
+                    Forgot password?
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showContactModal && <LandingContactModal key={contactModalKey} onClose={closeContactModal} />}
     </div>
   );
 }

@@ -94,35 +94,33 @@
   animation: landingFadeInUp 0.9s ease 0.1s forwards;
 }
 
-/* Prompify gradient - animated on scroll into view */
+/* Prompify gradient — continuous shifting (infinite loop) */
 .landing-heading .landing-highlight {
   color: transparent;
   background: linear-gradient(
-    135deg,
+    120deg,
     #f97316 0%,
-    #f97316 30%,
-    #fed7aa 45%,
+    #ea580c 18%,
+    #fed7aa 38%,
     #E2FFC7 50%,
-    #fed7aa 55%,
-    #f97316 65%,
+    #fed7aa 62%,
+    #ea580c 82%,
     #f97316 100%
   );
-  background-size: 300% 100%;
-  background-position: 0% 0;
+  background-size: 220% 100%;
+  background-position: 0% 50%;
   -webkit-background-clip: text;
   background-clip: text;
-  animation: landingHighlight 65s ease-in-out infinite;
-  animation-play-state: paused;
-}
-
-.landing-heading .landing-highlight.active {
-  animation-play-state: running;
+  animation: landingHighlight 14s ease-in-out infinite alternate;
 }
 
 @keyframes landingHighlight {
-  0% { background-position: 100% 0; }
-  15% { background-position: 0% 0; }
-  100% { background-position: 0% 0; }
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
 }
 
 .landing-subtitle {
@@ -507,6 +505,7 @@
   color: #f97316;
   font-size: 1.05rem;
   font-weight: 600;
+  font-family: inherit;
   border-radius: 12px;
   text-decoration: none;
   cursor: pointer;
@@ -514,10 +513,38 @@
   transition: all 0.3s ease;
 }
 
+button.landing-cta-btn {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .landing-cta-btn:hover {
   background: rgba(251, 146, 60, 0.96);
   color: #fff;
   transform: translateY(-2px);
+}
+
+/* Start Prompting — continuous border / color pulse (hover pauses it) */
+.landing-cta-btn--shine {
+  animation: landingCtaShine 5.5s ease-in-out infinite;
+}
+
+.landing-cta-btn--shine:hover {
+  animation-play-state: paused;
+}
+
+@keyframes landingCtaShine {
+  0%,
+  100% {
+    color: #c2410c;
+    border-color: rgba(194, 65, 12, 0.5);
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
+  }
+  50% {
+    color: #fb923c;
+    border-color: rgba(251, 146, 60, 0.95);
+    box-shadow: 0 0 24px rgba(249, 115, 22, 0.28);
+  }
 }
 
 .landing-info {
@@ -565,6 +592,26 @@
   color: #fff;
 }
 
+.landing-info-col .landing-info-footer-btn {
+  display: block;
+  width: fit-content;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
+  color: rgba(0, 0, 0, 0.7);
+  font-size: 0.9rem;
+  text-align: left;
+  transition: color 0.2s ease;
+}
+
+.landing-info-col .landing-info-footer-btn:hover {
+  color: #fff;
+}
+
 @keyframes landingFadeInUp {
   to {
     opacity: 1;
@@ -575,6 +622,429 @@
 @keyframes landingPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+/* Login modal (post-prompt CTA — glass card + blurred page) */
+.landing-login-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: landingModalFadeIn 0.28s ease;
+}
+
+@keyframes landingModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.landing-login-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  background: rgba(12, 12, 14, 0.62);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.landing-login-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  padding: 1.75rem 1.5rem 1.5rem;
+  border-radius: 1rem;
+  /* More opaque than before: easier to read while keeping a light glass edge */
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(255, 252, 248, 0.9) 45%,
+    rgba(255, 248, 242, 0.88) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.65) inset,
+    0 24px 80px rgba(0, 0, 0, 0.28);
+  color: #0a0a0a;
+  animation: landingModalSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.landing-login-modal-panel--contact {
+  max-width: 500px;
+}
+
+@keyframes landingModalSlide {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.landing-login-modal-close {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.06);
+  color: #0a0a0a;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.landing-login-modal-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.landing-login-modal-header {
+  text-align: center;
+  margin-bottom: 1.25rem;
+  padding-right: 1.5rem;
+}
+
+.landing-login-modal-header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #c2410c 0%, #f97316 40%, #ea580c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.landing-login-modal-header p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: rgba(10, 10, 10, 0.62);
+  font-weight: 400;
+}
+
+.landing-login-modal-required {
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.landing-login-modal-optional {
+  font-weight: 500;
+  color: rgba(10, 10, 10, 0.45);
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.65rem;
+}
+
+.landing-login-modal-hint {
+  margin: -0.2rem 0 0.35rem;
+  font-size: 0.72rem;
+  color: rgba(10, 10, 10, 0.48);
+  line-height: 1.35;
+}
+
+.landing-contact-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+@media (max-width: 520px) {
+  .landing-contact-field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.landing-contact-field-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.landing-contact-field-col .landing-login-modal-label {
+  margin-top: 0;
+}
+
+.landing-login-modal-select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 2rem 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.97);
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #0a0a0a;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2347370f' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.landing-login-modal-select:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
+
+.landing-login-modal-select:invalid {
+  color: rgba(10, 10, 10, 0.4);
+}
+
+.landing-login-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.landing-login-modal-error {
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  background: rgba(254, 226, 226, 0.92);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  color: #991b1b;
+  margin-bottom: 0.25rem;
+}
+
+              .landing-login-modal-success {
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  background: rgba(220, 252, 231, 0.95);
+  border: 1px solid rgba(22, 163, 74, 0.35);
+  color: #166534;
+  margin-bottom: 0.25rem;
+}
+
+.landing-modal-pw-strength {
+  list-style: none;
+  margin: 0.15rem 0 0.35rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.landing-modal-pw-strength li {
+  font-size: 0.7rem;
+  color: rgba(10, 10, 10, 0.42);
+  padding-left: 0.65rem;
+  position: relative;
+}
+
+.landing-modal-pw-strength li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.35em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(10, 10, 10, 0.22);
+}
+
+.landing-modal-pw-strength li.met {
+  color: #15803d;
+}
+
+.landing-modal-pw-strength li.met::before {
+  background: #22c55e;
+}
+
+.landing-login-modal-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(10, 10, 10, 0.55);
+  margin-top: 0.35rem;
+}
+
+.landing-login-modal-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.97);
+  font-size: 0.9rem;
+  color: #0a0a0a;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.landing-login-modal-input:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
+
+.landing-login-modal-input::placeholder {
+  color: rgba(10, 10, 10, 0.35);
+}
+
+.landing-login-modal-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 120px;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.97);
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: #0a0a0a;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.landing-login-modal-textarea:focus {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+}
+
+.landing-login-modal-textarea::placeholder {
+  color: rgba(10, 10, 10, 0.35);
+}
+
+.landing-login-modal-password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.landing-login-modal-password-wrap .landing-login-modal-input {
+  padding-right: 3.5rem;
+}
+
+.landing-login-modal-toggle-pw {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #ea580c;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+}
+
+.landing-login-modal-toggle-pw:hover {
+  text-decoration: underline;
+}
+
+.landing-login-modal-submit {
+  margin-top: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: #f97316;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.landing-login-modal-submit:hover:not(:disabled) {
+  background: #ea580c;
+}
+
+.landing-login-modal-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.landing-login-modal-submit--secondary {
+  margin-top: 0.5rem;
+  background: transparent;
+  color: #c2410c;
+  border: 2px solid rgba(249, 115, 22, 0.55);
+  box-shadow: none;
+}
+
+.landing-login-modal-submit--secondary:hover:not(:disabled) {
+  background: rgba(249, 115, 22, 0.08);
+  color: #9a3412;
+}
+
+.landing-login-modal-form--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.landing-login-modal-form--stack .landing-login-modal-submit {
+  margin-top: 0;
+}
+
+.landing-login-modal-footer {
+  margin-top: 1.15rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+}
+
+.landing-login-modal-footer a {
+  color: #c2410c;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing-login-modal-footer a:hover {
+  text-decoration: underline;
+}
+
+.landing-login-modal-footer-btn {
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: #c2410c;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.landing-login-modal-footer-btn:hover {
+  text-decoration: underline;
+}
+
+.landing-login-modal-dot {
+  color: rgba(10, 10, 10, 0.35);
+  user-select: none;
 }
 
 @media (max-width: 768px) {
