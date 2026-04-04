@@ -1,11 +1,6 @@
 import { useFetcher } from '@remix-run/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CONTACT_COUNTRY_OPTIONS, CONTACT_ENQUIRY_OPTIONS } from '~/lib/contact-form-options';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import Lenis from 'lenis';
-
-gsap.registerPlugin(ScrollTrigger);
 
 const PIC_BASE = '/landing-pics';
 
@@ -19,6 +14,14 @@ const PIN_CARDS = [
 ];
 
 function escapeHtml(text: string) {
+  if (typeof document === 'undefined') {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
@@ -185,7 +188,7 @@ export function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const heroBgRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const lenisRef = useRef<Lenis | null>(null);
+  const lenisRef = useRef<{ destroy: () => void } | null>(null);
   const messagesAreaRef = useRef<HTMLDivElement>(null);
 
   const [promptValue, setPromptValue] = useState('');
@@ -321,106 +324,128 @@ export function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    let cancelled = false;
+    let cleanup: (() => void) | undefined;
 
-    const heroBg = heroBgRef.current;
-    const content = contentRef.current;
+    void (async () => {
+      const [{ default: gsap }, scrollTriggerMod, { default: Lenis }] = await Promise.all([
+        import('gsap'),
+        import('gsap/ScrollTrigger'),
+        import('lenis'),
+      ]);
+      const { ScrollTrigger } = scrollTriggerMod;
+      if (cancelled) return;
 
-    const lenis = new Lenis();
-    lenisRef.current = lenis;
-    lenis.on('scroll', ScrollTrigger.update);
+      gsap.registerPlugin(ScrollTrigger);
 
-    gsap.ticker.add((time) => {
-      lenis.raf(time * 1000);
-    });
-    gsap.ticker.lagSmoothing(0);
+      const container = containerRef.current;
+      if (!container) return;
 
-    const floatingBar = container.querySelector('.landing-floating-chat-bar');
+      const heroBg = heroBgRef.current;
+      const content = contentRef.current;
 
-    const handleScroll = () => {
-      const scrollTop = window.scrollY;
-      const heroH = window.innerHeight;
+      const lenis = new Lenis();
+      lenisRef.current = lenis;
+      lenis.on('scroll', ScrollTrigger.update);
 
-      if (heroBg && content && scrollTop <= heroH) {
-        const progress = scrollTop / heroH;
-        heroBg.style.transform = `scale(${1 + progress * 0.06})`;
-        heroBg.style.opacity = '1';
-        heroBg.style.visibility = 'visible';
-        const fadeProgress = Math.max((progress - 0.45) / 0.55, 0);
-        content.style.opacity = String(Math.max(1 - fadeProgress * 2, 0));
-        content.style.transform = `translateY(${-fadeProgress * 80}px)`;
-        content.style.pointerEvents = progress > 0.55 ? 'none' : 'auto';
-      } else if (content) {
-        content.style.opacity = '0';
-        content.style.pointerEvents = 'none';
-      }
+      const rafCb = (time: number) => {
+        lenis.raf(time * 1000);
+      };
+      gsap.ticker.add(rafCb);
+      gsap.ticker.lagSmoothing(0);
 
-      if (heroBg) {
-        heroBg.style.visibility = scrollTop > heroH * 1.3 ? 'hidden' : 'visible';
-      }
+      const floatingBar = container.querySelector('.landing-floating-chat-bar');
 
-      if (floatingBar) {
-        floatingBar.classList.toggle('visible', scrollTop > heroH * 0.55);
-      }
-    };
+      const handleScroll = () => {
+        const scrollTop = window.scrollY;
+        const heroH = window.innerHeight;
 
-    handleScroll();
-    window.addEventListener('scroll', handleScroll, { passive: true });
-
-    const pinCards = container.querySelectorAll('.landing-pin-card');
-    pinCards.forEach((eachCard, index) => {
-      if (index < pinCards.length - 1) {
-        ScrollTrigger.create({
-          trigger: eachCard,
-          start: 'top top',
-          endTrigger: pinCards[pinCards.length - 1],
-          end: 'top top',
-          pin: true,
-          pinSpacing: false,
-        });
-
-        const tl = gsap.timeline({
-          scrollTrigger: {
-            trigger: pinCards[index + 1],
-            start: 'top bottom',
-            end: 'top top',
-            scrub: 3,
-          },
-        });
-
-        tl.to(
-          eachCard,
-          {
-            scale: 0.75,
-            rotationX: index % 2 === 0 ? 20 : -20,
-            force3D: true,
-            ease: 'none',
-          },
-          0
-        );
-
-        const overlay = eachCard.querySelector('.landing-overlay');
-        if (overlay) {
-          tl.to(overlay, { opacity: 0.4, ease: 'none' }, 0);
+        if (heroBg && content && scrollTop <= heroH) {
+          const progress = scrollTop / heroH;
+          heroBg.style.transform = `scale(${1 + progress * 0.06})`;
+          heroBg.style.opacity = '1';
+          heroBg.style.visibility = 'visible';
+          const fadeProgress = Math.max((progress - 0.45) / 0.55, 0);
+          content.style.opacity = String(Math.max(1 - fadeProgress * 2, 0));
+          content.style.transform = `translateY(${-fadeProgress * 80}px)`;
+          content.style.pointerEvents = progress > 0.55 ? 'none' : 'auto';
+        } else if (content) {
+          content.style.opacity = '0';
+          content.style.pointerEvents = 'none';
         }
-      }
-    });
 
-    ScrollTrigger.create({
-      trigger: '.landing-outro',
-      start: 'top 80%',
-      onEnter: () => {
-        const el = container.querySelector('.landing-shimmer-text');
-        el?.classList.add('active');
-      },
-    });
+        if (heroBg) {
+          heroBg.style.visibility = scrollTop > heroH * 1.3 ? 'hidden' : 'visible';
+        }
+
+        if (floatingBar) {
+          floatingBar.classList.toggle('visible', scrollTop > heroH * 0.55);
+        }
+      };
+
+      handleScroll();
+      window.addEventListener('scroll', handleScroll, { passive: true });
+
+      const pinCards = container.querySelectorAll('.landing-pin-card');
+      pinCards.forEach((eachCard, index) => {
+        if (index < pinCards.length - 1) {
+          ScrollTrigger.create({
+            trigger: eachCard,
+            start: 'top top',
+            endTrigger: pinCards[pinCards.length - 1],
+            end: 'top top',
+            pin: true,
+            pinSpacing: false,
+          });
+
+          const tl = gsap.timeline({
+            scrollTrigger: {
+              trigger: pinCards[index + 1],
+              start: 'top bottom',
+              end: 'top top',
+              scrub: 3,
+            },
+          });
+
+          tl.to(
+            eachCard,
+            {
+              scale: 0.75,
+              rotationX: index % 2 === 0 ? 20 : -20,
+              force3D: true,
+              ease: 'none',
+            },
+            0
+          );
+
+          const overlay = eachCard.querySelector('.landing-overlay');
+          if (overlay) {
+            tl.to(overlay, { opacity: 0.4, ease: 'none' }, 0);
+          }
+        }
+      });
+
+      ScrollTrigger.create({
+        trigger: '.landing-outro',
+        start: 'top 80%',
+        onEnter: () => {
+          const el = container.querySelector('.landing-shimmer-text');
+          el?.classList.add('active');
+        },
+      });
+
+      cleanup = () => {
+        window.removeEventListener('scroll', handleScroll);
+        gsap.ticker.remove(rafCb);
+        ScrollTrigger.getAll().forEach((t) => t.kill());
+        lenis.destroy();
+        lenisRef.current = null;
+      };
+    })();
 
     return () => {
-      window.removeEventListener('scroll', handleScroll);
-      ScrollTrigger.getAll().forEach((t) => t.kill());
-      lenis.destroy();
-      lenisRef.current = null;
+      cancelled = true;
+      cleanup?.();
     };
   }, []);
 
