@@ -590,6 +590,7 @@ export function LandingPage() {
           <div className="landing-info-top">
             <p>© 2024 Basic Concept Limited. All rights reserved.</p>
           </div>
+          {/*
           <div className="landing-info-bottom">
             <div className="landing-info-col">
               <h4>Company</h4>
@@ -618,6 +619,7 @@ export function LandingPage() {
               <a href="#cookies">Cookie Policy</a>
             </div>
           </div>
+          */}
         </section>
       </main>
 
