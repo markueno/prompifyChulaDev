@@ -1,5 +1,7 @@
 import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { default as AppIndexRoute } from './app._index';
+import AppIndexRoute, { links, meta } from './app._index';
+
+export { links, meta };
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getSubscriptionByUserId } from '~/lib/database';
 

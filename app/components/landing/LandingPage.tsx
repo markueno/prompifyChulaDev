@@ -1,4 +1,4 @@
-import { useFetcher } from '@remix-run/react';
+import { useFetcher, useNavigate, useSearchParams } from '@remix-run/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CONTACT_COUNTRY_OPTIONS, CONTACT_ENQUIRY_OPTIONS } from '~/lib/contact-form-options';
 
@@ -182,9 +182,12 @@ function LandingContactModal({ onClose }: { onClose: () => void }) {
 }
 
 export function LandingPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const loginFetcher = useFetcher<AuthActionData>();
   const registerFetcher = useFetcher<AuthActionData>();
   const forgotFetcher = useFetcher<AuthActionData>();
+  const loginAttemptRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const heroBgRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -219,6 +222,25 @@ export function LandingPage() {
     setAuthModalMode('login');
     setForgotShowFormForced(false);
   }, []);
+
+  useEffect(() => {
+    if (!loginAttemptRef.current || loginFetcher.state !== 'idle') return;
+
+    loginAttemptRef.current = false;
+
+    if (loginFetcher.data?.error) return;
+
+    navigate('/app', { replace: true });
+  }, [loginFetcher.state, loginFetcher.data, navigate]);
+
+  useEffect(() => {
+    if (searchParams.get('login') !== '1') return;
+    const mode = searchParams.get('mode');
+    setShowLoginModal(true);
+    setShowContactModal(false);
+    setForgotShowFormForced(false);
+    setAuthModalMode(mode === 'register' || mode === 'forgot' ? mode : 'login');
+  }, [searchParams]);
 
   const closeContactModal = useCallback(() => {
     setShowContactModal(false);
@@ -673,7 +695,14 @@ export function LandingPage() {
                   <p>Sign in to continue building with Prompify</p>
                 </div>
 
-                <loginFetcher.Form method="post" action="/auth/login" className="landing-login-modal-form">
+                <loginFetcher.Form
+                  method="post"
+                  action="/auth/login"
+                  className="landing-login-modal-form"
+                  onSubmit={() => {
+                    loginAttemptRef.current = true;
+                  }}
+                >
                   <input type="hidden" name="intent" value="login" />
 
                   {loginFetcher.data?.error && (

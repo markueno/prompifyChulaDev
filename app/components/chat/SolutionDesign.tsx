@@ -563,8 +563,8 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
     <div className="max-w-4xl mx-auto p-6">
       {/* Header */}
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-4">Solution Design</h1>
-        <p className="text-lg text-bolt-elements-textSecondary mb-6">{displayPrompt()}</p>
+        <h1 className="text-3xl font-bold text-white drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)] mb-4">Solution Design</h1>
+        <p className="text-lg text-white/95 drop-shadow-[0_1px_6px_rgba(0,0,0,0.4)] mb-6">{displayPrompt()}</p>
 
         {/* Navigation Tabs */}
         <div className="flex flex-wrap justify-center gap-2 mb-8">
@@ -573,10 +573,10 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
               key={section.id}
               onClick={() => setActiveSection(section.id)}
               className={classNames(
-                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
+                'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border',
                 activeSection === section.id
-                  ? 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
-                  : 'bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-4'
+                  ? 'bg-orange-500 text-white border-orange-500 shadow-[0_8px_20px_rgba(249,115,22,0.35)]'
+                  : 'bg-white text-gray-900 border-white hover:bg-gray-100'
               )}
             >
               <div className={section.icon}></div>

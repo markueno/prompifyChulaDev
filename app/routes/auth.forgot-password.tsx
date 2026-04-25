@@ -88,7 +88,7 @@ export default function ForgotPasswordPage() {
             </div>
             <div className="flex flex-col gap-2">
               <Button asChild className="w-full">
-                <a href="/auth/login">Back to Sign In</a>
+                <a href="/?login=1">Back to Sign In</a>
               </Button>
               <Button variant="outline" asChild className="w-full">
                 <a href="/auth/forgot-password">Send another link</a>
@@ -125,7 +125,7 @@ export default function ForgotPasswordPage() {
         )}
 
         <div className="text-center">
-          <a href="/auth/login" className="text-sm text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary">
+          <a href="/?login=1" className="text-sm text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary">
             Back to Sign In
           </a>
         </div>

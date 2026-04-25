@@ -42,9 +42,12 @@ import {
   insertTokenUsageAndConsumePostgres,
   consumeTokenBalancePostgres,
   getTokenBalanceRemainingPostgres,
+  getProjectOverviewPostgres,
   insertContactSubmissionPostgres,
   type ContactSubmissionInput,
 } from './database-postgresql';
+
+export type { ProjectOverview, ProjectOverviewRecentRun } from './database-postgresql';
 
 // Database configuration
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -620,6 +623,31 @@ export async function getTokenBalanceRemaining(userId: string) {
     return getTokenBalanceRemainingPostgres(userId);
   }
   return 0;
+}
+
+const emptyProjectOverview: import('./database-postgresql').ProjectOverview = {
+  projectCount: 0,
+  activeProjectsLast7Days: 0,
+  tokensLast7Days: 0,
+  runsLast7Days: 0,
+  tokenBalanceRemaining: 0,
+  errorRatePercent: null,
+  failuresLast7Days: 0,
+  recentRuns: [],
+  healthStatus: 'healthy',
+  healthReasons: [],
+};
+
+export async function getProjectOverview(userId: string, isModerator?: boolean) {
+  if (DATABASE_TYPE !== 'postgresql') {
+    return emptyProjectOverview;
+  }
+  try {
+    return await getProjectOverviewPostgres(userId, isModerator);
+  } catch (error) {
+    console.error('Error loading project overview:', error);
+    return emptyProjectOverview;
+  }
 }
 
 export async function inviteToChat(chatId: string, userId: string, email: string, role?: string) {

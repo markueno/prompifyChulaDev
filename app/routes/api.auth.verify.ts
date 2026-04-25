@@ -47,7 +47,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   try {
     const result = await verifyToken(token);
     if (result.success) {
-      return redirect('/auth/login?verified=1');
+      return redirect('/?login=1&verified=1');
     }
     return redirect(`/auth/verify?error=${encodeURIComponent(result.message)}`);
   } catch (error) {

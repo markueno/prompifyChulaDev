@@ -103,6 +103,11 @@ export default defineConfig(config => {
     build: {
       target: 'esnext',
     },
+    // Pure-ESM deps (e.g. lenis) must be bundled for SSR; otherwise Node's CJS loader
+    // evaluates their .js and throws "Cannot use import statement outside a module".
+    ssr: {
+      noExternal: ['lenis', 'gsap'],
+    },
     plugins: [
       // Prevent Vite import-analysis from parsing non-JS root files (e.g. .dockerignore)
       ignoreNonJsRootFilesPlugin(),

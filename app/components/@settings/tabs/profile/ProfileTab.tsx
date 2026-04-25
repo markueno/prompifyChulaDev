@@ -5,6 +5,8 @@ import { profileStore, updateProfile } from '~/lib/stores/profile';
 import { toast } from 'react-toastify';
 import { debounce } from '~/utils/debounce';
 import type { User } from '~/lib/auth';
+import { GithubConnection } from '~/components/@settings/tabs/connections/GithubConnection';
+import { NetlifyConnection } from '~/components/@settings/tabs/connections/NetlifyConnection';
 
 interface ProfileTabProps {
   user?: User | null;
@@ -14,20 +16,16 @@ export default function ProfileTab({ user }: ProfileTabProps) {
   const profile = useStore(profileStore);
   const [isUploading, setIsUploading] = useState(false);
 
-  type ProfileField = 'username' | 'bio' | 'nickname' | 'email' | 'githubAccount' | 'vercelAccount';
+  type ProfileField = 'username' | 'bio' | 'nickname' | 'email';
   const debouncedUpdate = useCallback(
     debounce((field: ProfileField, value: string) => {
       updateProfile({ [field]: value });
       const label =
-        field === 'githubAccount'
-          ? 'GitHub account link'
-          : field === 'vercelAccount'
-            ? 'Vercel account link'
-            : field === 'nickname'
-              ? 'Username (shown in header)'
-              : field === 'username'
-                ? 'Official name'
-                : field.charAt(0).toUpperCase() + field.slice(1);
+        field === 'nickname'
+          ? 'Username (shown in header)'
+          : field === 'username'
+            ? 'Official name'
+            : field.charAt(0).toUpperCase() + field.slice(1);
       toast.success(`${label} updated`);
     }, 1000),
     []
@@ -220,30 +218,8 @@ export default function ProfileTab({ user }: ProfileTabProps) {
                 </p>
               )}
             </div>
-            <div className="relative group">
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
-                <div className={`i-ph:github-logo ${iconClass}`} />
-              </div>
-              <input
-                type="url"
-                value={profile.githubAccount}
-                onChange={e => handleProfileUpdate('githubAccount', e.target.value)}
-                className={inputClass}
-                placeholder="GitHub account link (e.g. https://github.com/username)"
-              />
-            </div>
-            <div className="relative group">
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2">
-                <div className={`i-ph:cloud-arrow-up ${iconClass}`} />
-              </div>
-              <input
-                type="url"
-                value={profile.vercelAccount}
-                onChange={e => handleProfileUpdate('vercelAccount', e.target.value)}
-                className={inputClass}
-                placeholder="Vercel account link (e.g. https://vercel.com/username)"
-              />
-            </div>
+            <GithubConnection />
+            <NetlifyConnection />
           </div>
         </div>
       </div>

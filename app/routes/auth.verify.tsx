@@ -82,7 +82,7 @@ export default function VerifyPage() {
       // Redirect to login after 3 seconds
       const timer = setTimeout(() => {
         setIsRedirecting(true);
-        window.location.href = '/auth/login';
+        window.location.href = '/?login=1';
       }, 3000);
 
       return () => clearTimeout(timer);
@@ -130,7 +130,7 @@ export default function VerifyPage() {
         <div className="space-y-3">
           {loaderData.success ? (
             <Button
-              onClick={() => window.location.href = '/auth/login'}
+              onClick={() => window.location.href = '/?login=1'}
               className="w-full"
             >
               Sign In Now
@@ -144,7 +144,7 @@ export default function VerifyPage() {
                 Create New Account
               </Button>
               <Button
-                onClick={() => window.location.href = '/auth/login'}
+                onClick={() => window.location.href = '/?login=1'}
                 variant="outline"
                 className="w-full"
               >

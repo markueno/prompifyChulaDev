@@ -14,7 +14,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   // Clear authentication cookies and redirect to login
   const headers = new Headers();
   headers.append('Set-Cookie', clearAuthCookie(request));
-  return redirect('/auth/login', { status: 303, headers });
+  return redirect('/?login=1', { status: 303, headers });
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
@@ -36,12 +36,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
     // Clear cookie and redirect to login (303 = GET after POST)
     const headers = new Headers();
     headers.append('Set-Cookie', clearAuthCookie(request));
-    return redirect('/auth/login', { status: 303, headers });
+    return redirect('/?login=1', { status: 303, headers });
   } catch (error) {
     console.error('Logout error:', error);
     const headers = new Headers();
     headers.append('Set-Cookie', clearAuthCookie(request));
-    return redirect('/auth/login', { status: 303, headers });
+    return redirect('/?login=1', { status: 303, headers });
   }
 }
 

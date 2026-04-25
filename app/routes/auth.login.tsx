@@ -32,16 +32,15 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     console.log('ℹ️ User not authenticated, showing login page');
   }
 
-  // Check for token in query params (for email verification redirects)
+  // Retire standalone login page: open login modal on homepage instead.
   const url = new URL(request.url);
-  const token = url.searchParams.get('token');
-  
-  if (token) {
-    // Verify token and redirect to app
-    return redirect('/app');
-  }
-  
-  return json({});
+  const destination = new URL('/', url.origin);
+  url.searchParams.forEach((value, key) => {
+    destination.searchParams.set(key, value);
+  });
+  destination.searchParams.set('login', '1');
+
+  return redirect(`${destination.pathname}?${destination.searchParams.toString()}`);
 }
 
 export async function action({ request }: ActionFunctionArgs) {

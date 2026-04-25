@@ -79,7 +79,7 @@ export async function requireAuth(request: Request, context: any): Promise<User>
   
   if (!token) {
     console.log('❌ No auth token found - redirecting to login');
-    throw redirect('/auth/login');
+    throw redirect('/?login=1');
   }
 
   console.log('🔑 Token found, verifying...');
@@ -97,7 +97,7 @@ export async function requireAuth(request: Request, context: any): Promise<User>
     if (!session) {
       console.log('❌ Session not found or expired - redirecting to login');
       // Session not found or expired - user logged in elsewhere
-      throw redirect('/auth/login?message=session_expired');
+      throw redirect('/?login=1&message=session_expired');
     }
     
     console.log('✅ Session valid, updating activity...');
@@ -116,7 +116,7 @@ export async function requireAuth(request: Request, context: any): Promise<User>
     return user;
   } catch (error) {
     console.error('❌ Auth error:', error);
-    throw redirect('/auth/login');
+    throw redirect('/?login=1');
   }
 }
 

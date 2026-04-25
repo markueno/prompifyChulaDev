@@ -1340,6 +1340,166 @@ export async function getUserActivityPostgres(userId: string, limit: number = 10
   }
 }
 
+export type ProjectOverviewRecentRun = {
+  at: string;
+  chatId: string;
+  /** Prefer this for `/chat/:id` links when present. */
+  chatUrlId: string | null;
+  projectTitle: string | null;
+  totalTokens: number;
+  model: string | null;
+  provider: string | null;
+};
+
+export type ProjectOverview = {
+  projectCount: number;
+  activeProjectsLast7Days: number;
+  tokensLast7Days: number;
+  runsLast7Days: number;
+  tokenBalanceRemaining: number;
+  /** Share of failed-tagged activity vs LLM runs in the last 7 days; null if no denominator. */
+  errorRatePercent: number | null;
+  failuresLast7Days: number;
+  recentRuns: ProjectOverviewRecentRun[];
+  healthStatus: 'healthy' | 'attention';
+  healthReasons: string[];
+};
+
+/** Lightweight dashboard stats for /app/overview (no full chat message payloads). */
+export async function getProjectOverviewPostgres(userId: string, isModerator?: boolean): Promise<ProjectOverview> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  const empty: ProjectOverview = {
+    projectCount: 0,
+    activeProjectsLast7Days: 0,
+    tokensLast7Days: 0,
+    runsLast7Days: 0,
+    tokenBalanceRemaining: 0,
+    errorRatePercent: null,
+    failuresLast7Days: 0,
+    recentRuns: [],
+    healthStatus: 'healthy',
+    healthReasons: [],
+  };
+
+  try {
+    const now = new Date().toISOString();
+
+    const chatAgg = isModerator
+      ? await client.query(
+          `SELECT
+             COUNT(*)::int AS project_count,
+             COUNT(*) FILTER (WHERE c.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
+           FROM chats c`
+        )
+      : await client.query(
+          `SELECT
+             COUNT(*)::int AS project_count,
+             COUNT(*) FILTER (WHERE c.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
+           FROM chats c
+           WHERE c.user_id = $1
+              OR EXISTS (
+                SELECT 1 FROM chat_members cm
+                WHERE cm.chat_id = c.id AND cm.user_id = $1
+              )`,
+          [userId]
+        );
+
+    const projectCount = chatAgg.rows[0]?.project_count ?? 0;
+    const activeProjectsLast7Days = chatAgg.rows[0]?.active_7d ?? 0;
+
+    const usageAgg = await client.query(
+      `SELECT
+         COALESCE(SUM(total_tokens), 0)::bigint AS tokens_7d,
+         COUNT(*)::int AS runs_7d
+       FROM token_usage
+       WHERE user_id = $1
+         AND created_at >= NOW() - INTERVAL '7 days'`,
+      [userId]
+    );
+    const tokensLast7Days = parseInt(String(usageAgg.rows[0]?.tokens_7d ?? 0), 10);
+    const runsLast7Days = usageAgg.rows[0]?.runs_7d ?? 0;
+
+    const failAgg = await client.query(
+      `SELECT COUNT(*)::int AS n
+       FROM user_activity
+       WHERE user_id = $1
+         AND created_at >= NOW() - INTERVAL '7 days'
+         AND (
+           action_type ILIKE '%error%'
+           OR action_type ILIKE '%fail%'
+           OR action_type IN ('llm_call_failed', 'chat_stream_error')
+         )`,
+      [userId]
+    );
+    const failuresLast7Days = failAgg.rows[0]?.n ?? 0;
+
+    const denom = failuresLast7Days + runsLast7Days;
+    const errorRatePercent =
+      denom > 0 ? Math.round((1000 * failuresLast7Days) / denom) / 10 : null;
+
+    const balanceResult = await client.query(
+      `SELECT COALESCE(SUM(tokens_allocated - tokens_used), 0)::bigint AS remaining
+       FROM token_balances
+       WHERE user_id = $1
+         AND effective_start <= $2
+         AND (effective_end IS NULL OR effective_end >= $2)`,
+      [userId, now]
+    );
+    const tokenBalanceRemaining = parseInt(String(balanceResult.rows[0]?.remaining ?? 0), 10);
+
+    const recent = await client.query(
+      `SELECT tu.created_at, tu.chat_id, c.url_id AS chat_url_id, tu.total_tokens, tu.model, tu.provider, c.description
+       FROM token_usage tu
+       LEFT JOIN chats c ON c.id = tu.chat_id
+       WHERE tu.user_id = $1
+       ORDER BY tu.created_at DESC
+       LIMIT 12`,
+      [userId]
+    );
+    const recentRuns: ProjectOverviewRecentRun[] = recent.rows.map((r: any) => ({
+      at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+      chatId: r.chat_id,
+      chatUrlId: r.chat_url_id ?? null,
+      projectTitle: r.description ?? null,
+      totalTokens: parseInt(String(r.total_tokens ?? 0), 10),
+      model: r.model ?? null,
+      provider: r.provider ?? null,
+    }));
+
+    let healthStatus: 'healthy' | 'attention' = 'healthy';
+    const healthReasons: string[] = [];
+    if (tokenBalanceRemaining === 0 && runsLast7Days > 0) {
+      healthStatus = 'attention';
+      healthReasons.push('Token balance is empty; add credits or a subscription to continue.');
+    }
+    if (errorRatePercent !== null && errorRatePercent >= 20) {
+      healthStatus = 'attention';
+      healthReasons.push(
+        `Roughly ${errorRatePercent}% of recent activity matched failure signals (vs recorded LLM runs this week).`
+      );
+    }
+
+    return {
+      projectCount,
+      activeProjectsLast7Days,
+      tokensLast7Days,
+      runsLast7Days,
+      tokenBalanceRemaining,
+      errorRatePercent,
+      failuresLast7Days,
+      recentRuns,
+      healthStatus,
+      healthReasons,
+    };
+  } catch (error) {
+    console.error('Error building project overview:', error);
+    return empty;
+  } finally {
+    client.release();
+  }
+}
+
 // Chat members and invitations (multi-user project sharing)
 export async function getChatMembersPostgres(chatId: string, requestingUserId: string, isModerator?: boolean): Promise<{ members: { id: string; email: string; role: string }[]; currentUserRole: string }> {
   const pool = getPostgresPool();
