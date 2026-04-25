@@ -47,9 +47,21 @@ export async function selectContext(props: {
     return message;
   });
 
-  const provider = PROVIDER_LIST.find(p => p.name === currentProvider) || DEFAULT_PROVIDER;
-  const staticModels = LLMManager.getInstance().getStaticModelListFromProvider(provider);
+  let provider = PROVIDER_LIST.find(p => p.name === currentProvider) || DEFAULT_PROVIDER;
+  let staticModels = LLMManager.getInstance().getStaticModelListFromProvider(provider);
   let modelDetails = staticModels.find(m => m.name === currentModel);
+
+  if (!modelDetails) {
+    const matchingProvider = PROVIDER_LIST.find(p => (p.staticModels || []).some(m => m.name === currentModel));
+    if (matchingProvider && matchingProvider.name !== provider.name) {
+      logger.warn(
+        `Provider mismatch detected. Requested provider=${provider.name}, model=${currentModel}, resolved provider=${matchingProvider.name}`
+      );
+      provider = matchingProvider;
+      staticModels = LLMManager.getInstance().getStaticModelListFromProvider(provider);
+      modelDetails = staticModels.find(m => m.name === currentModel);
+    }
+  }
 
   if (!modelDetails) {
     const modelsList = [
