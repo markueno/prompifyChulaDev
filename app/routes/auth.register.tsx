@@ -17,7 +17,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const token = url.searchParams.get('token');
   
   if (token) {
-    return redirect('/app');
+    return redirect('/app/');
   }
   
   return json({});

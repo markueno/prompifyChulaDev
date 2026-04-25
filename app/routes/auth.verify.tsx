@@ -16,7 +16,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   // If authentication is disabled, redirect to main page
   if (isAuthDisabled(context)) {
     console.log('🚫 Authentication disabled - redirecting from verify to main page');
-    return redirect('/app');
+    return redirect('/app/');
   }
 
   const url = new URL(request.url);

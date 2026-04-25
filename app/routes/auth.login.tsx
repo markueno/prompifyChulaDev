@@ -17,7 +17,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   // If authentication is disabled, redirect to app builder
   if (isAuthDisabled(context)) {
     console.log('🚫 Authentication disabled - redirecting from login to app');
-    return redirect('/app');
+    return redirect('/app/');
   }
 
   // Check if user is already authenticated
@@ -25,7 +25,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     const user = await optionalAuth(request, context);
     if (user) {
       console.log('✅ User already authenticated, redirecting to app');
-      return redirect('/app');
+      return redirect('/app/');
     }
   } catch (error) {
     // User is not authenticated, continue to login page
@@ -75,7 +75,7 @@ export async function action({ request }: ActionFunctionArgs) {
       const headers = new Headers();
       headers.append('Set-Cookie', createAuthCookie((data as any)?.token, request));
 
-      return redirect('/app', { headers });
+      return redirect('/app/', { headers });
     }
   } catch (error) {
     console.error('Login error:', error);

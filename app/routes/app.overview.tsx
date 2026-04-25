@@ -80,7 +80,7 @@ export default function AppOverview() {
               </p>
             </div>
             <Link
-              to="/app"
+              to="/app/"
               className="rounded-lg border border-bolt-elements-borderColor px-4 py-2 text-sm font-medium text-bolt-elements-textPrimary transition-colors hover:bg-bolt-elements-background-depth-2"
             >
               Back to app

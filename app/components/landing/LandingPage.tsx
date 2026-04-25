@@ -230,7 +230,7 @@ export function LandingPage() {
 
     if (loginFetcher.data?.error) return;
 
-    navigate('/app', { replace: true });
+    navigate('/app/', { replace: true });
   }, [loginFetcher.state, loginFetcher.data, navigate]);
 
   useEffect(() => {

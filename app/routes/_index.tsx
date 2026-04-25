@@ -20,7 +20,7 @@ export const meta: MetaFunction = () => {
 
 export async function loader({ context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
-    return redirect('/app');
+    return redirect('/app/');
   }
   return json({});
 }

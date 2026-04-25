@@ -22,11 +22,11 @@ export const links: LinksFunction = () => [
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
-    return redirect('/app');
+    return redirect('/app/');
   }
   try {
     const user = await optionalAuth(request, context);
-    if (user) return redirect('/app');
+    if (user) return redirect('/app/');
   } catch {
     // not authenticated
   }
