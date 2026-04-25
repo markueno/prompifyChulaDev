@@ -128,13 +128,22 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
 
       const dynamicMaxTokens = modelDetails && modelDetails.maxTokenAllowed ? modelDetails.maxTokenAllowed : MAX_TOKENS;
 
-      const providerInfo = PROVIDER_LIST.find(p => p.name === provider.name);
+      // Trust the model metadata first to avoid mismatched model/provider pairs
+      // coming from stale client state (e.g., qwen-* accidentally sent with Anthropic).
+      const resolvedProviderName = modelDetails.provider || provider.name;
+      const providerInfo = PROVIDER_LIST.find(p => p.name === resolvedProviderName);
 
       if (!providerInfo) {
         throw new Error('Provider not found');
       }
 
-      logger.info(`Generating response Provider: ${provider.name}, Model: ${modelDetails.name}`);
+      if (resolvedProviderName !== provider.name) {
+        logger.warn(
+          `Provider mismatch detected. Requested provider=${provider.name}, model provider=${resolvedProviderName}, model=${modelDetails.name}`
+        );
+      }
+
+      logger.info(`Generating response Provider: ${resolvedProviderName}, Model: ${modelDetails.name}`);
 
       const result = await generateText({
         system,
