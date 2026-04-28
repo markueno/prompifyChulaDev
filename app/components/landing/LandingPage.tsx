@@ -29,6 +29,8 @@ function escapeHtml(text: string) {
 
 type AuthActionData = { error?: string; success?: string };
 
+const LOGIN_SIGNING_IN_MAX_MS = 4000;
+
 function LandingContactModal({ onClose }: { onClose: () => void }) {
   const contactFetcher = useFetcher<AuthActionData>();
 
@@ -188,6 +190,8 @@ export function LandingPage() {
   const registerFetcher = useFetcher<AuthActionData>();
   const forgotFetcher = useFetcher<AuthActionData>();
   const loginAttemptRef = useRef(false);
+  const loginSigningInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loginSigningIn, setLoginSigningIn] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const heroBgRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -217,15 +221,39 @@ export function LandingPage() {
     special: false,
   });
 
+  const clearLoginSigningIn = useCallback(() => {
+    if (loginSigningInTimerRef.current) {
+      clearTimeout(loginSigningInTimerRef.current);
+      loginSigningInTimerRef.current = null;
+    }
+    setLoginSigningIn(false);
+  }, []);
+
   const closeAuthModal = useCallback(() => {
+    clearLoginSigningIn();
     setShowLoginModal(false);
     setAuthModalMode('login');
     setForgotShowFormForced(false);
-  }, []);
+  }, [clearLoginSigningIn]);
+
+  useEffect(
+    () => () => {
+      if (loginSigningInTimerRef.current) {
+        clearTimeout(loginSigningInTimerRef.current);
+        loginSigningInTimerRef.current = null;
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!loginAttemptRef.current || loginFetcher.state !== 'idle') return;
 
+    if (loginSigningInTimerRef.current) {
+      clearTimeout(loginSigningInTimerRef.current);
+      loginSigningInTimerRef.current = null;
+    }
+    setLoginSigningIn(false);
     loginAttemptRef.current = false;
 
     if (loginFetcher.data?.error) return;
@@ -701,6 +729,14 @@ export function LandingPage() {
                   className="landing-login-modal-form"
                   onSubmit={() => {
                     loginAttemptRef.current = true;
+                    if (loginSigningInTimerRef.current) {
+                      clearTimeout(loginSigningInTimerRef.current);
+                    }
+                    setLoginSigningIn(true);
+                    loginSigningInTimerRef.current = setTimeout(() => {
+                      loginSigningInTimerRef.current = null;
+                      setLoginSigningIn(false);
+                    }, LOGIN_SIGNING_IN_MAX_MS);
                   }}
                 >
                   <input type="hidden" name="intent" value="login" />
@@ -750,9 +786,15 @@ export function LandingPage() {
                   <button
                     type="submit"
                     className="landing-login-modal-submit"
-                    disabled={loginFetcher.state === 'submitting'}
+                    disabled={
+                      loginFetcher.state === 'submitting' ||
+                      (loginSigningIn && !loginFetcher.data?.error)
+                    }
                   >
-                    {loginFetcher.state === 'submitting' ? 'Signing in…' : 'Sign in'}
+                    {loginFetcher.state === 'submitting' ||
+                    (loginSigningIn && !loginFetcher.data?.error)
+                      ? 'Signing in…'
+                      : 'Sign in'}
                   </button>
                 </loginFetcher.Form>
 

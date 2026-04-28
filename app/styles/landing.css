@@ -1110,6 +1110,21 @@ button.landing-cta-btn {
   color: rgba(255, 255, 255, 0.94);
 }
 
+/* Right toolbar: ghost / segmented / dropdown sit on light surfaces; override global white header text */
+.landing-app-chrome > header .header-app-toolbar .text-bolt-elements-textPrimary,
+.landing-app-chrome > header .header-app-toolbar .text-bolt-elements-textSecondary,
+.landing-app-chrome > header .header-app-toolbar .text-bolt-elements-textTertiary,
+.landing-app-chrome > header .header-app-toolbar .text-bolt-elements-item-contentAccent,
+.landing-app-chrome > header .header-app-toolbar .text-bolt-elements-item-contentActive,
+.landing-app-chrome > header .header-app-toolbar .text-bolt-elements-item-contentDefault,
+.landing-app-chrome > header .header-app-toolbar a:not([class*='text-white']) {
+  color: #18181b !important;
+}
+
+.landing-app-chrome > header .header-app-toolbar {
+  color: #18181b;
+}
+
 .landing-app-chrome > header .text-accent {
   color: rgba(255, 255, 255, 0.98);
 }

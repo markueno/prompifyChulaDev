@@ -257,7 +257,10 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
           >
             {isDeploying ? 'Deploying...' : 'Deploy'}
             <div
-              className={classNames('i-ph:caret-down w-4 h-4 transition-transform', isDropdownOpen ? 'rotate-180' : '')}
+              className={classNames(
+                'i-ph:caret-down w-4 h-4 transition-transform text-inherit',
+                isDropdownOpen ? 'rotate-180' : '',
+              )}
             />
           </Button>
         </div>
@@ -362,11 +365,10 @@ function Button({ active = false, disabled = false, children, onClick, className
       className={classNames(
         'flex items-center p-1.5',
         {
-          'bg-bolt-elements-item-backgroundDefault hover:bg-bolt-elements-item-backgroundActive text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary':
-            !active,
-          'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent': active && !disabled,
-          'bg-bolt-elements-item-backgroundDefault text-alpha-gray-20 dark:text-alpha-white-20 cursor-not-allowed':
-            disabled,
+          'bg-bolt-elements-item-backgroundDefault hover:bg-bolt-elements-item-backgroundActive text-zinc-900 hover:text-black':
+            !active && !disabled,
+          'bg-bolt-elements-item-backgroundAccent text-zinc-900': active && !disabled,
+          'bg-bolt-elements-item-backgroundDefault text-zinc-400 cursor-not-allowed': disabled,
         },
         className
       )}

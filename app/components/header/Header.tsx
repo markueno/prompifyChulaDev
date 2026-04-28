@@ -34,10 +34,10 @@ export function Header() {
             <Link
               to="/app/overview"
               className={classNames(
-                'hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
+                'header-nav-overview hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
                 onOverview
-                  ? 'bg-bolt-elements-background-depth-2 text-bolt-elements-textPrimary'
-                  : 'text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary'
+                  ? 'bg-bolt-elements-background-depth-2 !text-zinc-900'
+                  : '!text-zinc-200/95 hover:!text-white'
               )}
             >
               Overview
@@ -53,7 +53,7 @@ export function Header() {
         )}
         <ClientOnly>
           {() => (
-            <div className="mr-1 flex items-center gap-2">
+            <div className="header-app-toolbar mr-1 flex items-center gap-2">
               {chat.started && <HeaderActionButtons />}
               {user && (
                 <>

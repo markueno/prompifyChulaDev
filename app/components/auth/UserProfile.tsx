@@ -20,12 +20,12 @@ export function UserProfile({ user }: UserProfileProps) {
   }
 
   const trigger = (
-    <Button variant="ghost" className="flex items-center gap-2">
+    <Button variant="ghost" className="flex items-center gap-2 text-zinc-900 hover:text-black">
       <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium">
         {displayInitial}
       </div>
-      <span className="hidden md:block text-sm">{displayName || user.email}</span>
-      <div className="i-ph:caret-down text-sm" />
+      <span className="hidden md:block text-sm font-medium text-zinc-900">{displayName || user.email}</span>
+      <div className="i-ph:caret-down text-sm text-zinc-900" />
     </Button>
   );
 
