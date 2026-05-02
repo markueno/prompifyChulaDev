@@ -1,4 +1,5 @@
 import { atom, map, type MapStore, type ReadableAtom, type WritableAtom } from 'nanostores';
+import type { AdminSectionId } from '~/components/workbench/AdminPanel';
 import type { EditorDocument, ScrollPosition } from '~/components/editor/codemirror/CodeMirrorEditor';
 import { ActionRunner } from '~/lib/runtime/action-runner';
 import type { ActionCallbackData, ArtifactCallbackData } from '~/lib/runtime/message-parser';
@@ -47,6 +48,9 @@ export class WorkbenchStore {
 
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
   currentView: WritableAtom<WorkbenchViewType> = import.meta.hot?.data.currentView ?? atom('code');
+  /** Active section in Admin panel (users, logs, …). Shared so code can deep-link to Logs. */
+  adminPanelSection: WritableAtom<AdminSectionId> =
+    import.meta.hot?.data.adminPanelSection ?? atom<AdminSectionId>('overview');
   unsavedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.unsavedFiles ?? atom(new Set<string>());
   actionAlert: WritableAtom<ActionAlert | undefined> =
     import.meta.hot?.data.unsavedFiles ?? atom<ActionAlert | undefined>(undefined);
@@ -59,6 +63,7 @@ export class WorkbenchStore {
       import.meta.hot.data.unsavedFiles = this.unsavedFiles;
       import.meta.hot.data.showWorkbench = this.showWorkbench;
       import.meta.hot.data.currentView = this.currentView;
+      import.meta.hot.data.adminPanelSection = this.adminPanelSection;
       import.meta.hot.data.actionAlert = this.actionAlert;
     }
   }
@@ -102,6 +107,35 @@ export class WorkbenchStore {
   }
   clearAlert() {
     this.actionAlert.set(undefined);
+  }
+
+  /** True while artifact action(s) are still pending/running. If messageId is provided, checks only that artifact. */
+  hasArtifactWorkInProgress(messageId?: string): boolean {
+    const hasRunningActions = (artifact: ArtifactState | undefined) => {
+      if (!artifact) {
+        return false;
+      }
+
+      for (const action of Object.values(artifact.runner.actions.get())) {
+        if (action.status === 'pending' || action.status === 'running') {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    if (messageId) {
+      return hasRunningActions(this.artifacts.get()[messageId]);
+    }
+
+    for (const artifact of Object.values(this.artifacts.get())) {
+      if (hasRunningActions(artifact)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   toggleTerminal(value?: boolean) {
@@ -550,3 +584,10 @@ export class WorkbenchStore {
 }
 
 export const workbenchStore = new WorkbenchStore();
+
+/** Open the workbench on Admin → Logs (embedded Event Logs UI). */
+export function openWorkbenchEventLogs(): void {
+  workbenchStore.showWorkbench.set(true);
+  workbenchStore.currentView.set('admin');
+  workbenchStore.adminPanelSection.set('logs');
+}

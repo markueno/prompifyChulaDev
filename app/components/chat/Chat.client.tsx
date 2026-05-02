@@ -37,6 +37,29 @@ const toastAnimation = cssTransition({
 
 const logger = createScopedLogger('Chat');
 
+const MAX_PREVIEW_RECOVERY_ATTEMPTS = 2;
+/** After artifact actions go idle, wait this long with no preview before auto follow-up. */
+const PREVIEW_RECOVERY_IDLE_MS = 15_000;
+/** How often to re-check whether install/shell work is still running. */
+const PREVIEW_RECOVERY_POLL_MS = 1_000;
+
+function getAssistantPlainText(message: Message): string {
+  const c = message.content;
+  if (typeof c === 'string') {
+    return c;
+  }
+  if (Array.isArray(c)) {
+    for (const item of c as ReadonlyArray<{ type?: string; text?: string }>) {
+      if (item?.type === 'text' && typeof item.text === 'string') {
+        return item.text;
+      }
+    }
+  }
+  return '';
+}
+
+const PREVIEW_RECOVERY_MARKER = '[Auto-preview-recovery]';
+
 /** Surface Remix JSON error bodies (e.g. 402 token balance) in the same toast format as other chat errors. */
 function getChatRequestErrorMessage(error: unknown): string {
   const fallback = 'No details were returned';
@@ -161,6 +184,28 @@ export const ChatImpl = memo(
     const messageAuthor = getMessageAuthor(user, profile);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const previewRecoveryAttemptsRef = useRef(0);
+    const previewRecoveryPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const previewRecoveryIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const recoveryArtifactMessageIdRef = useRef<string | undefined>(undefined);
+    const chatUiRef = useRef({
+      model: DEFAULT_MODEL,
+      provider: ANTHROPIC_PROVIDER,
+      messageAuthor: getMessageAuthor(user, profile),
+      append: null as ((...args: any[]) => any) | null,
+    });
+
+    function clearPreviewRecoveryScheduling() {
+      if (previewRecoveryPollRef.current != null) {
+        clearInterval(previewRecoveryPollRef.current);
+        previewRecoveryPollRef.current = null;
+      }
+      if (previewRecoveryIdleTimerRef.current != null) {
+        clearTimeout(previewRecoveryIdleTimerRef.current);
+        previewRecoveryIdleTimerRef.current = null;
+      }
+    }
+
     const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
     const [imageDataList, setImageDataList] = useState<string[]>([]);
@@ -254,10 +299,97 @@ export const ChatImpl = memo(
         }
 
         logger.debug('Finished streaming');
+
+        clearPreviewRecoveryScheduling();
+
+        const assistantText = getAssistantPlainText(message);
+        if (!assistantText.includes('boltArtifact')) {
+          recoveryArtifactMessageIdRef.current = undefined;
+          return;
+        }
+        recoveryArtifactMessageIdRef.current = message.id;
+
+        const runRecoveryFire = () => {
+          if (chatStore.get().aborted) {
+            return;
+          }
+
+          if (previewRecoveryAttemptsRef.current >= MAX_PREVIEW_RECOVERY_ATTEMPTS) {
+            return;
+          }
+
+          if (workbenchStore.previews.get().length > 0) {
+            return;
+          }
+
+          if (!workbenchStore.showWorkbench.get() || workbenchStore.filesCount === 0) {
+            return;
+          }
+
+          const { append: appendFn, model: m, provider: p, messageAuthor: author } = chatUiRef.current;
+          if (!appendFn) {
+            return;
+          }
+
+          previewRecoveryAttemptsRef.current += 1;
+          workbenchStore.showWorkbench.set(true);
+          workbenchStore.currentView.set('preview');
+
+          logger.info('Preview missing after artifact; auto follow-up to restore dev server / preview', {
+            attempt: previewRecoveryAttemptsRef.current,
+          });
+
+          toast.info('Preview did not load. Asking the assistant to fix it…');
+
+          appendFn({
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: `[Model: ${m}]\n\n[Provider: ${p.name}]\n\n${PREVIEW_RECOVERY_MARKER} The WebContainer preview did not become available after your last response (no preview was registered). Please: (1) Ensure package.json has a working "dev" script suitable for StackBlitz WebContainers; (2) Run npm/pnpm install if dependencies are missing; (3) Start the dev server with boltArtifact shell/start actions so the preview panel receives a server URL. Fix any errors preventing the dev server from listening. Do not ask the user to open localhost in an external browser—the app must show inside Prompify preview.`,
+              },
+            ] as any,
+            author: author,
+          } as any);
+        };
+
+        const tick = () => {
+          if (chatStore.get().aborted) {
+            clearPreviewRecoveryScheduling();
+            return;
+          }
+
+          if (workbenchStore.previews.get().length > 0) {
+            clearPreviewRecoveryScheduling();
+            return;
+          }
+
+          if (workbenchStore.hasArtifactWorkInProgress(recoveryArtifactMessageIdRef.current)) {
+            if (previewRecoveryIdleTimerRef.current != null) {
+              clearTimeout(previewRecoveryIdleTimerRef.current);
+              previewRecoveryIdleTimerRef.current = null;
+            }
+            return;
+          }
+
+          if (previewRecoveryIdleTimerRef.current == null) {
+            previewRecoveryIdleTimerRef.current = setTimeout(() => {
+              previewRecoveryIdleTimerRef.current = null;
+              clearPreviewRecoveryScheduling();
+              runRecoveryFire();
+            }, PREVIEW_RECOVERY_IDLE_MS);
+          }
+        };
+
+        previewRecoveryPollRef.current = setInterval(tick, PREVIEW_RECOVERY_POLL_MS);
+        tick();
       },
       initialMessages,
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
     });
+
+    chatUiRef.current = { model, provider, messageAuthor, append };
+
     useEffect(() => {
       const prompt = searchParams.get('prompt');
       if (!prompt) return;
@@ -352,6 +484,10 @@ export const ChatImpl = memo(
 
       if (!messageContent?.trim()) {
         return;
+      }
+
+      if (!messageContent.includes(PREVIEW_RECOVERY_MARKER)) {
+        previewRecoveryAttemptsRef.current = 0;
       }
 
       if (isLoading) {
@@ -521,6 +657,19 @@ export const ChatImpl = memo(
       if (storedApiKeys) {
         setApiKeys(JSON.parse(storedApiKeys));
       }
+    }, []);
+
+    useEffect(() => {
+      const unsub = workbenchStore.previews.subscribe(previews => {
+        if (previews.length > 0) {
+          previewRecoveryAttemptsRef.current = 0;
+          clearPreviewRecoveryScheduling();
+        }
+      });
+      return () => {
+        unsub();
+        clearPreviewRecoveryScheduling();
+      };
     }, []);
 
     const handleModelChange = (newModel: string) => {

@@ -21,7 +21,8 @@ export const WORK_DIR = `/home/${WORK_DIR_NAME}`;
 export const MODIFICATIONS_TAG_NAME = 'bolt_file_modifications';
 export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;
 export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
-export const DEFAULT_MODEL = 'qwen-max';
+/** DashScope/OpenAI-compat model id — align with Alibaba Model Studio (team keys work the same endpoint). */
+export const DEFAULT_MODEL = 'qwen3.6-plus';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
 export const DISABLE_DYNAMIC_MODELS = 'DISABLE_DYNAMIC_MODELS';
 
@@ -57,7 +58,10 @@ export const isSettingsHidden = (): boolean => {
 const llmManager = LLMManager.getInstance(import.meta.env);
 
 export const PROVIDER_LIST = llmManager.getAllProviders();
-export const DEFAULT_PROVIDER = llmManager.getDefaultProvider();
+/** Prefer the provider that actually defines DEFAULT_MODEL so first load matches Qwen + team key workflows. */
+export const DEFAULT_PROVIDER =
+  PROVIDER_LIST.find((p) => (p.staticModels ?? []).some((m) => m.name === DEFAULT_MODEL)) ??
+  llmManager.getDefaultProvider();
 
 export const providerBaseUrlEnvKeys: Record<string, { baseUrlKey?: string; apiTokenKey?: string }> = {};
 PROVIDER_LIST.forEach(provider => {

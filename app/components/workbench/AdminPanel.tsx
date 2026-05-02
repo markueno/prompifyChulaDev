@@ -4,6 +4,9 @@ import { toast } from 'react-toastify';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { classNames } from '~/utils/classNames';
 import { chatId } from '~/lib/persistence';
+import { EventLogsTab } from '~/components/@settings/tabs/event-logs/EventLogsTab';
+import { AdminSecuritySection } from '~/components/workbench/AdminSecuritySection';
+import { workbenchStore } from '~/lib/stores/workbench';
 
 export type AdminSectionId =
   | 'overview'
@@ -511,7 +514,7 @@ const UsersSection = memo(() => {
 UsersSection.displayName = 'UsersSection';
 
 export const AdminPanel = memo(() => {
-  const [activeSection, setActiveSection] = useState<AdminSectionId>('overview');
+  const activeSection = useStore(workbenchStore.adminPanelSection);
   const [expandedItems, setExpandedItems] = useState<Set<AdminSectionId>>(new Set());
 
   const toggleExpand = (id: AdminSectionId) => {
@@ -535,7 +538,7 @@ export const AdminPanel = memo(() => {
                   if (item.expandable) {
                     toggleExpand(item.id);
                   }
-                  setActiveSection(item.id);
+                  workbenchStore.adminPanelSection.set(item.id);
                 }}
                 className={classNames(
                   'w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors',
@@ -564,7 +567,7 @@ export const AdminPanel = memo(() => {
               {item.expandable && expandedItems.has(item.id) && (
                 <div className="pl-4 pb-1">
                   <button
-                    onClick={() => setActiveSection(item.id)}
+                    onClick={() => workbenchStore.adminPanelSection.set(item.id)}
                     className={classNames(
                       'w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded-md',
                       activeSection === item.id
@@ -582,16 +585,44 @@ export const AdminPanel = memo(() => {
       </aside>
 
       {/* Main content area */}
-      <main className="flex-1 overflow-auto p-6">
-        <div className="max-w-3xl">
-          <h1 className="text-xl font-semibold text-bolt-elements-textPrimary mb-1">
-            {SECTION_TITLES[activeSection]}
-          </h1>
-          <p className="text-sm text-bolt-elements-textSecondary mb-6">
-            {SECTION_DESCRIPTIONS[activeSection]}
-          </p>
+      <main
+        className={classNames(
+          'flex-1 p-6',
+          activeSection === 'logs'
+            ? 'flex min-h-0 flex-col overflow-hidden'
+            : 'overflow-auto'
+        )}
+      >
+        <div
+          className={classNames(
+            activeSection === 'logs' ? 'flex min-h-0 flex-1 flex-col max-w-none w-full' : 'max-w-3xl'
+          )}
+        >
+          {activeSection !== 'logs' ? (
+            <>
+              <h1 className="text-xl font-semibold text-bolt-elements-textPrimary mb-1">
+                {SECTION_TITLES[activeSection]}
+              </h1>
+              <p className="text-sm text-bolt-elements-textSecondary mb-6">
+                {SECTION_DESCRIPTIONS[activeSection]}
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-xl font-semibold text-bolt-elements-textPrimary mb-1">{SECTION_TITLES.logs}</h1>
+              <p className="text-sm text-bolt-elements-textSecondary mb-4">
+                Same as Settings → Event Logs (Bolt-style). Enable &quot;Event Logging&quot; under Settings → Features so
+                logs are recorded.
+              </p>
+              <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1">
+                <EventLogsTab />
+              </div>
+            </>
+          )}
           {activeSection === 'users' ? (
             <UsersSection />
+          ) : activeSection === 'logs' ? null : activeSection === 'security' ? (
+            <AdminSecuritySection />
           ) : (
             <div className="rounded-lg border border-dashed border-bolt-elements-borderColor p-12 text-center">
               <div className="i-ph:folder-open text-4xl text-bolt-elements-textTertiary mx-auto mb-3" />

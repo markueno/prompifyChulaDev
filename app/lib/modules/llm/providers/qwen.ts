@@ -16,6 +16,8 @@ export default class QwenProvider extends BaseProvider {
   };
 
   staticModels: ModelInfo[] = [
+    /** Team / DashScope compatible-mode id (long API keys OK; Alibaba Model Studio naming). */
+    { name: 'qwen3.6-plus', label: 'Qwen3.6-Plus', provider: 'Qwen', maxTokenAllowed: 65536 },
     { name: 'qwen-max', label: 'Qwen-Max', provider: 'Qwen', maxTokenAllowed: 32000 },
     { name: 'qwen-plus', label: 'Qwen-Plus', provider: 'Qwen', maxTokenAllowed: 32000 },
     { name: 'qwen-turbo', label: 'Qwen-Turbo', provider: 'Qwen', maxTokenAllowed: 32000 },

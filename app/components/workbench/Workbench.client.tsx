@@ -415,7 +415,16 @@ export const Workbench = memo(
                     </div>
                   )}
                   {selectedView === 'admin' && (
-                    <div className="ml-auto" />
+                    <div className="ml-auto flex items-center shrink-0">
+                      <PanelHeaderButton
+                        className="text-sm"
+                        title="Jump to embedded Event Logs (same data as Settings → Event Logs)"
+                        onClick={() => workbenchStore.adminPanelSection.set('logs')}
+                      >
+                        <div className="i-ph:list-bullets" />
+                        Event Logs
+                      </PanelHeaderButton>
+                    </div>
                   )}
                   {selectedView === 'diff' && (
                     <FileModifiedDropdown fileHistory={fileHistory} onSelectFile={handleSelectFile} />
