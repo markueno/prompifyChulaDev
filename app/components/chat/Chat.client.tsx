@@ -39,9 +39,24 @@ const logger = createScopedLogger('Chat');
 
 const MAX_PREVIEW_RECOVERY_ATTEMPTS = 2;
 /** After artifact actions go idle, wait this long with no preview before auto follow-up. */
-const PREVIEW_RECOVERY_IDLE_MS = 15_000;
+const PREVIEW_RECOVERY_IDLE_MS = 300_000;
 /** How often to re-check whether install/shell work is still running. */
 const PREVIEW_RECOVERY_POLL_MS = 1_000;
+
+type RecoveryStatus = 'active' | 'waiting-idle' | 'recovering' | 'done' | 'cancelled';
+interface RecoveryState {
+  attempts: number;
+  pollTimer: ReturnType<typeof setInterval> | null;
+  idleTimer: ReturnType<typeof setTimeout> | null;
+  status: RecoveryStatus;
+}
+interface RecoveryHistoryEntry {
+  messageId: string;
+  status: Extract<RecoveryStatus, 'done' | 'cancelled'>;
+  attempts: number;
+  endedAt: number;
+}
+const MAX_RECOVERY_HISTORY = 100;
 
 function getAssistantPlainText(message: Message): string {
   const c = message.content;
@@ -59,6 +74,7 @@ function getAssistantPlainText(message: Message): string {
 }
 
 const PREVIEW_RECOVERY_MARKER = '[Auto-preview-recovery]';
+const RECOVERY_CANDIDATE_TIMEOUT_MS = 10_000;
 
 /** Surface Remix JSON error bodies (e.g. 402 token balance) in the same toast format as other chat errors. */
 function getChatRequestErrorMessage(error: unknown): string {
@@ -184,10 +200,10 @@ export const ChatImpl = memo(
     const messageAuthor = getMessageAuthor(user, profile);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const previewRecoveryAttemptsRef = useRef(0);
-    const previewRecoveryPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const previewRecoveryIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const recoveryArtifactMessageIdRef = useRef<string | undefined>(undefined);
+    const recoveryStatesByMessageIdRef = useRef<Map<string, RecoveryState>>(new Map());
+    const recoveryHistoryRef = useRef<RecoveryHistoryEntry[]>([]);
+    const pendingRecoveryCandidatesRef = useRef<Set<string>>(new Set());
+    const pendingRecoveryTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
     const chatUiRef = useRef({
       model: DEFAULT_MODEL,
       provider: ANTHROPIC_PROVIDER,
@@ -195,16 +211,217 @@ export const ChatImpl = memo(
       append: null as ((...args: any[]) => any) | null,
     });
 
-    function clearPreviewRecoveryScheduling() {
-      if (previewRecoveryPollRef.current != null) {
-        clearInterval(previewRecoveryPollRef.current);
-        previewRecoveryPollRef.current = null;
+    const getOrCreateRecoveryState = useCallback((messageId: string) => {
+      const states = recoveryStatesByMessageIdRef.current;
+      const existing = states.get(messageId);
+
+      if (existing) {
+        return existing;
       }
-      if (previewRecoveryIdleTimerRef.current != null) {
-        clearTimeout(previewRecoveryIdleTimerRef.current);
-        previewRecoveryIdleTimerRef.current = null;
+
+      const created: RecoveryState = {
+        attempts: 0,
+        pollTimer: null,
+        idleTimer: null,
+        status: 'active',
+      };
+      states.set(messageId, created);
+      return created;
+    }, []);
+
+    const stopRecovery = useCallback((messageId: string, status: RecoveryStatus = 'cancelled') => {
+      const state = recoveryStatesByMessageIdRef.current.get(messageId);
+      if (!state) {
+        return;
       }
-    }
+
+      if (state.pollTimer != null) {
+        clearInterval(state.pollTimer);
+        state.pollTimer = null;
+      }
+
+      if (state.idleTimer != null) {
+        clearTimeout(state.idleTimer);
+        state.idleTimer = null;
+      }
+
+      state.status = status;
+
+      if (status === 'done' || status === 'cancelled') {
+        recoveryHistoryRef.current.push({
+          messageId,
+          status,
+          attempts: state.attempts,
+          endedAt: Date.now(),
+        });
+
+        if (recoveryHistoryRef.current.length > MAX_RECOVERY_HISTORY) {
+          recoveryHistoryRef.current.splice(0, recoveryHistoryRef.current.length - MAX_RECOVERY_HISTORY);
+        }
+
+        recoveryStatesByMessageIdRef.current.delete(messageId);
+      }
+    }, []);
+
+    const stopAllRecoveries = useCallback((status: RecoveryStatus = 'cancelled') => {
+      for (const messageId of Array.from(recoveryStatesByMessageIdRef.current.keys())) {
+        stopRecovery(messageId, status);
+      }
+    }, [stopRecovery]);
+
+    const clearPendingRecoveryCandidate = useCallback((messageId: string) => {
+      pendingRecoveryCandidatesRef.current.delete(messageId);
+      const timeout = pendingRecoveryTimeoutsRef.current.get(messageId);
+      if (timeout != null) {
+        clearTimeout(timeout);
+        pendingRecoveryTimeoutsRef.current.delete(messageId);
+      }
+    }, []);
+
+    const queueRecoveryCandidate = useCallback(
+      (messageId: string) => {
+        if (pendingRecoveryCandidatesRef.current.has(messageId)) {
+          return;
+        }
+
+        pendingRecoveryCandidatesRef.current.add(messageId);
+        const timeout = setTimeout(() => {
+          clearPendingRecoveryCandidate(messageId);
+        }, RECOVERY_CANDIDATE_TIMEOUT_MS);
+        pendingRecoveryTimeoutsRef.current.set(messageId, timeout);
+      },
+      [clearPendingRecoveryCandidate]
+    );
+
+    const runRecoveryFire = useCallback((messageId: string) => {
+      const state = recoveryStatesByMessageIdRef.current.get(messageId);
+      if (!state) {
+        return;
+      }
+
+      if (chatStore.get().aborted) {
+        stopRecovery(messageId, 'cancelled');
+        return;
+      }
+
+      if (state.attempts >= MAX_PREVIEW_RECOVERY_ATTEMPTS) {
+        stopRecovery(messageId, 'done');
+        return;
+      }
+
+      if (workbenchStore.previews.get().length > 0) {
+        stopRecovery(messageId, 'done');
+        return;
+      }
+
+      if (!workbenchStore.showWorkbench.get() || workbenchStore.filesCount === 0) {
+        stopRecovery(messageId, 'cancelled');
+        return;
+      }
+
+      const { append: appendFn, model: m, provider: p, messageAuthor: author } = chatUiRef.current;
+      if (!appendFn) {
+        return;
+      }
+
+      state.attempts += 1;
+      state.status = 'recovering';
+      workbenchStore.showWorkbench.set(true);
+      workbenchStore.currentView.set('preview');
+
+      logger.info('Preview missing after artifact; auto follow-up to restore dev server / preview', {
+        attempt: state.attempts,
+        messageId,
+      });
+
+      toast.info('Preview did not load. Asking the assistant to fix it…');
+
+      appendFn({
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `[Model: ${m}]\n\n[Provider: ${p.name}]\n\n${PREVIEW_RECOVERY_MARKER} The WebContainer preview did not become available after your last response (no preview was registered). Please: (1) Ensure package.json has a working "dev" script suitable for StackBlitz WebContainers; (2) Run npm/pnpm install if dependencies are missing; (3) Start the dev server with boltArtifact shell/start actions so the preview panel receives a server URL. Fix any errors preventing the dev server from listening. Do not ask the user to open localhost in an external browser—the app must show inside Prompify preview.`,
+          },
+        ] as any,
+        author: author,
+      } as any);
+    }, [stopRecovery]);
+
+    const tickRecovery = useCallback(
+      (messageId: string) => {
+        const state = recoveryStatesByMessageIdRef.current.get(messageId);
+        if (!state) {
+          return;
+        }
+
+        if (chatStore.get().aborted) {
+          stopRecovery(messageId, 'cancelled');
+          return;
+        }
+
+        if (workbenchStore.previews.get().length > 0) {
+          stopRecovery(messageId, 'done');
+          return;
+        }
+
+        if (workbenchStore.hasArtifactWorkInProgress(messageId)) {
+          if (state.idleTimer != null) {
+            clearTimeout(state.idleTimer);
+            state.idleTimer = null;
+          }
+          state.status = 'active';
+          return;
+        }
+
+        if (state.idleTimer == null) {
+          state.status = 'waiting-idle';
+          state.idleTimer = setTimeout(() => {
+            const latest = recoveryStatesByMessageIdRef.current.get(messageId);
+            if (!latest) {
+              return;
+            }
+
+            latest.idleTimer = null;
+            runRecoveryFire(messageId);
+          }, PREVIEW_RECOVERY_IDLE_MS);
+        }
+      },
+      [runRecoveryFire, stopRecovery]
+    );
+
+    const startRecovery = useCallback(
+      (messageId: string) => {
+        stopRecovery(messageId, 'active');
+        const state = getOrCreateRecoveryState(messageId);
+        state.status = 'active';
+
+        state.pollTimer = setInterval(() => {
+          tickRecovery(messageId);
+        }, PREVIEW_RECOVERY_POLL_MS);
+
+        tickRecovery(messageId);
+      },
+      [getOrCreateRecoveryState, stopRecovery, tickRecovery]
+    );
+
+    const maybeStartRecoveryFromArtifact = useCallback(
+      (messageId: string) => {
+        if (!pendingRecoveryCandidatesRef.current.has(messageId)) {
+          return false;
+        }
+
+        const artifact = workbenchStore.artifacts.get()[messageId];
+        if (!artifact) {
+          return false;
+        }
+
+        clearPendingRecoveryCandidate(messageId);
+        startRecovery(messageId);
+        return true;
+      },
+      [clearPendingRecoveryCandidate, startRecovery]
+    );
 
     const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -299,90 +516,8 @@ export const ChatImpl = memo(
         }
 
         logger.debug('Finished streaming');
-
-        clearPreviewRecoveryScheduling();
-
-        const assistantText = getAssistantPlainText(message);
-        if (!assistantText.includes('boltArtifact')) {
-          recoveryArtifactMessageIdRef.current = undefined;
-          return;
-        }
-        recoveryArtifactMessageIdRef.current = message.id;
-
-        const runRecoveryFire = () => {
-          if (chatStore.get().aborted) {
-            return;
-          }
-
-          if (previewRecoveryAttemptsRef.current >= MAX_PREVIEW_RECOVERY_ATTEMPTS) {
-            return;
-          }
-
-          if (workbenchStore.previews.get().length > 0) {
-            return;
-          }
-
-          if (!workbenchStore.showWorkbench.get() || workbenchStore.filesCount === 0) {
-            return;
-          }
-
-          const { append: appendFn, model: m, provider: p, messageAuthor: author } = chatUiRef.current;
-          if (!appendFn) {
-            return;
-          }
-
-          previewRecoveryAttemptsRef.current += 1;
-          workbenchStore.showWorkbench.set(true);
-          workbenchStore.currentView.set('preview');
-
-          logger.info('Preview missing after artifact; auto follow-up to restore dev server / preview', {
-            attempt: previewRecoveryAttemptsRef.current,
-          });
-
-          toast.info('Preview did not load. Asking the assistant to fix it…');
-
-          appendFn({
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `[Model: ${m}]\n\n[Provider: ${p.name}]\n\n${PREVIEW_RECOVERY_MARKER} The WebContainer preview did not become available after your last response (no preview was registered). Please: (1) Ensure package.json has a working "dev" script suitable for StackBlitz WebContainers; (2) Run npm/pnpm install if dependencies are missing; (3) Start the dev server with boltArtifact shell/start actions so the preview panel receives a server URL. Fix any errors preventing the dev server from listening. Do not ask the user to open localhost in an external browser—the app must show inside Prompify preview.`,
-              },
-            ] as any,
-            author: author,
-          } as any);
-        };
-
-        const tick = () => {
-          if (chatStore.get().aborted) {
-            clearPreviewRecoveryScheduling();
-            return;
-          }
-
-          if (workbenchStore.previews.get().length > 0) {
-            clearPreviewRecoveryScheduling();
-            return;
-          }
-
-          if (workbenchStore.hasArtifactWorkInProgress(recoveryArtifactMessageIdRef.current)) {
-            if (previewRecoveryIdleTimerRef.current != null) {
-              clearTimeout(previewRecoveryIdleTimerRef.current);
-              previewRecoveryIdleTimerRef.current = null;
-            }
-            return;
-          }
-
-          if (previewRecoveryIdleTimerRef.current == null) {
-            previewRecoveryIdleTimerRef.current = setTimeout(() => {
-              previewRecoveryIdleTimerRef.current = null;
-              clearPreviewRecoveryScheduling();
-              runRecoveryFire();
-            }, PREVIEW_RECOVERY_IDLE_MS);
-          }
-        };
-
-        previewRecoveryPollRef.current = setInterval(tick, PREVIEW_RECOVERY_POLL_MS);
-        tick();
+        queueRecoveryCandidate(message.id);
+        maybeStartRecoveryFromArtifact(message.id);
       },
       initialMessages,
       initialInput: Cookies.get(PROMPT_COOKIE_KEY) || '',
@@ -484,10 +619,6 @@ export const ChatImpl = memo(
 
       if (!messageContent?.trim()) {
         return;
-      }
-
-      if (!messageContent.includes(PREVIEW_RECOVERY_MARKER)) {
-        previewRecoveryAttemptsRef.current = 0;
       }
 
       if (isLoading) {
@@ -662,15 +793,33 @@ export const ChatImpl = memo(
     useEffect(() => {
       const unsub = workbenchStore.previews.subscribe(previews => {
         if (previews.length > 0) {
-          previewRecoveryAttemptsRef.current = 0;
-          clearPreviewRecoveryScheduling();
+          stopAllRecoveries('done');
         }
       });
       return () => {
         unsub();
-        clearPreviewRecoveryScheduling();
+        stopAllRecoveries('cancelled');
       };
-    }, []);
+    }, [stopAllRecoveries]);
+
+    useEffect(() => {
+      const unsub = workbenchStore.artifacts.subscribe(artifacts => {
+        for (const messageId of Array.from(pendingRecoveryCandidatesRef.current)) {
+          if (artifacts[messageId]) {
+            maybeStartRecoveryFromArtifact(messageId);
+          }
+        }
+      });
+
+      return () => {
+        unsub();
+        for (const timeout of pendingRecoveryTimeoutsRef.current.values()) {
+          clearTimeout(timeout);
+        }
+        pendingRecoveryTimeoutsRef.current.clear();
+        pendingRecoveryCandidatesRef.current.clear();
+      };
+    }, [maybeStartRecoveryFromArtifact]);
 
     const handleModelChange = (newModel: string) => {
       if (!isModerator) return;

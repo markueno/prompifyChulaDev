@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ActionAlert } from '~/types/actions';
 import { classNames } from '~/utils/classNames';
 
@@ -15,6 +15,7 @@ interface Props {
 
 export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
   const { description, content, source } = alert;
+  const autoPromptedSignatureRef = useRef<string | null>(null);
 
   const [autoFixEnabled, setAutoFixEnabled] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -23,6 +24,10 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
   });
 
   const isPreview = source === 'preview';
+  const consecutiveScopeKey =
+    typeof window === 'undefined'
+      ? AUTO_FIX_CONSECUTIVE_KEY
+      : `${AUTO_FIX_CONSECUTIVE_KEY}:${window.location.pathname}:${source ?? 'unknown'}`;
   const title = isPreview ? 'Preview Error' : 'Terminal Error';
   const message = isPreview
     ? 'We encountered an error while running the preview. Would you like Prompify to analyze and help resolve this issue?'
@@ -31,28 +36,43 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
   const formatErrorForPrompt = () =>
     `*Fix this ${isPreview ? 'preview' : 'terminal'} error*\n\`\`\`${isPreview ? 'js' : 'sh'}\n${content}\n\`\`\`\n`;
 
+  const resetConsecutiveCounter = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    sessionStorage.removeItem(consecutiveScopeKey);
+  };
+
   // Auto-prompt to LLM when error appears and auto-fix is enabled (stop after 3 consecutive)
   useEffect(() => {
     if (!autoFixEnabled || !content || typeof window === 'undefined') return;
 
-    const count = parseInt(sessionStorage.getItem(AUTO_FIX_CONSECUTIVE_KEY) ?? '0', 10);
+    const signature = `${source ?? 'unknown'}::${description ?? ''}::${content}`;
+    if (autoPromptedSignatureRef.current === signature) {
+      return;
+    }
+
+    const count = parseInt(sessionStorage.getItem(consecutiveScopeKey) ?? '0', 10);
     if (count >= AUTO_FIX_CONSECUTIVE_LIMIT) return;
 
     const timer = setTimeout(() => {
-      const currentCount = parseInt(sessionStorage.getItem(AUTO_FIX_CONSECUTIVE_KEY) ?? '0', 10);
+      const currentCount = parseInt(sessionStorage.getItem(consecutiveScopeKey) ?? '0', 10);
       if (currentCount >= AUTO_FIX_CONSECUTIVE_LIMIT) return;
 
-      sessionStorage.setItem(AUTO_FIX_CONSECUTIVE_KEY, String(currentCount + 1));
+      sessionStorage.setItem(consecutiveScopeKey, String(currentCount + 1));
+      autoPromptedSignatureRef.current = signature;
 
       postMessage(`*Fix this ${isPreview ? 'preview' : 'terminal'} error*\n\`\`\`${isPreview ? 'js' : 'sh'}\n${content}\n\`\`\`\n`);
     }, 1500);
     return () => clearTimeout(timer);
-  }, [autoFixEnabled, content, isPreview, postMessage]);
+  }, [autoFixEnabled, consecutiveScopeKey, content, description, isPreview, postMessage, source]);
 
   const toggleAutoFix = () => {
     const next = !autoFixEnabled;
     setAutoFixEnabled(next);
     localStorage.setItem(AUTO_FIX_STORAGE_KEY, String(next));
+    resetConsecutiveCounter();
   };
 
   return (
@@ -108,7 +128,10 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() => postMessage(formatErrorForPrompt())}
+                    onClick={() => {
+                      resetConsecutiveCounter();
+                      postMessage(formatErrorForPrompt());
+                    }}
                     className={classNames(
                       `px-2 py-1.5 rounded-md text-sm font-medium`,
                       'bg-bolt-elements-button-primary-background',
@@ -122,7 +145,10 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
                     Ask Prompify
                   </button>
                   <button
-                    onClick={clearAlert}
+                    onClick={() => {
+                      resetConsecutiveCounter();
+                      clearAlert();
+                    }}
                     className={classNames(
                       `px-2 py-1.5 rounded-md text-sm font-medium`,
                       'bg-bolt-elements-button-secondary-background',

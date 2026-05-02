@@ -41,6 +41,7 @@ export class WorkbenchStore {
   #filesStore = new FilesStore(webcontainer);
   #editorStore = new EditorStore(this.#filesStore);
   #terminalStore = new TerminalStore(webcontainer);
+  #alertQueue: ActionAlert[] = [...(import.meta.hot?.data.alertQueue ?? [])];
 
   #reloadedMessages = new Set<string>();
 
@@ -53,11 +54,15 @@ export class WorkbenchStore {
     import.meta.hot?.data.adminPanelSection ?? atom<AdminSectionId>('overview');
   unsavedFiles: WritableAtom<Set<string>> = import.meta.hot?.data.unsavedFiles ?? atom(new Set<string>());
   actionAlert: WritableAtom<ActionAlert | undefined> =
-    import.meta.hot?.data.unsavedFiles ?? atom<ActionAlert | undefined>(undefined);
+    import.meta.hot?.data.actionAlert ?? atom<ActionAlert | undefined>(undefined);
   modifiedFiles = new Set<string>();
   artifactIdList: string[] = [];
   #globalExecutionQueue = Promise.resolve();
   constructor() {
+    if (!this.actionAlert.get() && this.#alertQueue.length > 0) {
+      this.actionAlert.set(this.#alertQueue[0]);
+    }
+
     if (import.meta.hot) {
       import.meta.hot.data.artifacts = this.artifacts;
       import.meta.hot.data.unsavedFiles = this.unsavedFiles;
@@ -65,6 +70,7 @@ export class WorkbenchStore {
       import.meta.hot.data.currentView = this.currentView;
       import.meta.hot.data.adminPanelSection = this.adminPanelSection;
       import.meta.hot.data.actionAlert = this.actionAlert;
+      import.meta.hot.data.alertQueue = this.#alertQueue;
     }
   }
 
@@ -106,7 +112,37 @@ export class WorkbenchStore {
     return this.actionAlert;
   }
   clearAlert() {
-    this.actionAlert.set(undefined);
+    if (this.#alertQueue.length > 0) {
+      this.#alertQueue.shift();
+    }
+
+    this.actionAlert.set(this.#alertQueue[0]);
+
+    if (import.meta.hot) {
+      import.meta.hot.data.alertQueue = this.#alertQueue;
+    }
+  }
+
+  enqueueAlert(alert: ActionAlert) {
+    const lastQueued = this.#alertQueue[this.#alertQueue.length - 1];
+    if (
+      lastQueued &&
+      lastQueued.source === alert.source &&
+      lastQueued.description === alert.description &&
+      lastQueued.content === alert.content
+    ) {
+      return;
+    }
+
+    this.#alertQueue.push(alert);
+
+    if (!this.actionAlert.get()) {
+      this.actionAlert.set(alert);
+    }
+
+    if (import.meta.hot) {
+      import.meta.hot.data.alertQueue = this.#alertQueue;
+    }
   }
 
   /** True while artifact action(s) are still pending/running. If messageId is provided, checks only that artifact. */
@@ -312,7 +348,7 @@ export class WorkbenchStore {
             return;
           }
 
-          this.actionAlert.set(alert);
+          this.enqueueAlert(alert);
         }
       ),
     });

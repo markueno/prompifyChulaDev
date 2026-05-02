@@ -85,7 +85,7 @@ if (!import.meta.env.SSR) {
               content = `Error occurred at ${message.pathname}${message.search}${message.hash}\nPort: ${message.port}\n\nStack trace:\n${cleanStackTrace((message as { stack?: string }).stack || '')}`;
             }
 
-            workbenchStore.actionAlert.set({
+            workbenchStore.enqueueAlert({
               type: 'preview',
               title: isConsoleError ? 'Preview Build/Compile Error' : isRejection ? 'Unhandled Promise Rejection' : 'Uncaught Exception',
               description,
