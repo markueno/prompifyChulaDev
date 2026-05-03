@@ -293,9 +293,24 @@ export const ChatImpl = memo(
       [clearPendingRecoveryCandidate]
     );
 
+    const hasBlockingErrorAlert = useCallback(() => {
+      const alert = workbenchStore.alert.get();
+      if (!alert) {
+        return false;
+      }
+
+      // Error path first: if a runtime/terminal error alert is active, pause preview-missing recovery.
+      return alert.source === 'preview' || alert.source === 'terminal' || alert.type === 'error';
+    }, []);
+
     const runRecoveryFire = useCallback((messageId: string) => {
       const state = recoveryStatesByMessageIdRef.current.get(messageId);
       if (!state) {
+        return;
+      }
+
+      if (hasBlockingErrorAlert()) {
+        state.status = 'active';
         return;
       }
 
@@ -346,12 +361,21 @@ export const ChatImpl = memo(
         ] as any,
         author: author,
       } as any);
-    }, [stopRecovery]);
+    }, [hasBlockingErrorAlert, stopRecovery]);
 
     const tickRecovery = useCallback(
       (messageId: string) => {
         const state = recoveryStatesByMessageIdRef.current.get(messageId);
         if (!state) {
+          return;
+        }
+
+        if (hasBlockingErrorAlert()) {
+          if (state.idleTimer != null) {
+            clearTimeout(state.idleTimer);
+            state.idleTimer = null;
+          }
+          state.status = 'active';
           return;
         }
 
@@ -387,7 +411,7 @@ export const ChatImpl = memo(
           }, PREVIEW_RECOVERY_IDLE_MS);
         }
       },
-      [runRecoveryFire, stopRecovery]
+      [hasBlockingErrorAlert, runRecoveryFire, stopRecovery]
     );
 
     const startRecovery = useCallback(

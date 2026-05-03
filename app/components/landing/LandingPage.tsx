@@ -190,6 +190,7 @@ export function LandingPage() {
   const registerFetcher = useFetcher<AuthActionData>();
   const forgotFetcher = useFetcher<AuthActionData>();
   const loginAttemptRef = useRef(false);
+  const previousLoginFetcherStateRef = useRef(loginFetcher.state);
   const loginSigningInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loginSigningIn, setLoginSigningIn] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -247,7 +248,17 @@ export function LandingPage() {
   );
 
   useEffect(() => {
-    if (!loginAttemptRef.current || loginFetcher.state !== 'idle') return;
+    const previousState = previousLoginFetcherStateRef.current;
+    previousLoginFetcherStateRef.current = loginFetcher.state;
+
+    // Only complete login flow after an actual request cycle (submitting/loading -> idle).
+    if (
+      !loginAttemptRef.current ||
+      loginFetcher.state !== 'idle' ||
+      previousState === 'idle'
+    ) {
+      return;
+    }
 
     if (loginSigningInTimerRef.current) {
       clearTimeout(loginSigningInTimerRef.current);

@@ -179,58 +179,66 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                 ease: cubicEasingFn,
               }}
             >
-              <div className="flex items-center gap-1.5 text-sm">
-                <div className={classNames('text-lg', getIconColor(action.status))}>
-                  {status === 'running' ? (
-                    <>
-                      {type !== 'start' ? (
-                        <div className="i-svg-spinners:90-ring-with-bg"></div>
-                      ) : (
-                        <div className="i-ph:terminal-window-duotone"></div>
-                      )}
-                    </>
-                  ) : status === 'pending' ? (
-                    <div className="i-ph:circle-duotone"></div>
-                  ) : status === 'complete' ? (
-                    <div className="i-ph:check"></div>
-                  ) : status === 'failed' || status === 'aborted' ? (
-                    <div className="i-ph:x"></div>
+              <div
+                className={classNames(
+                  'rounded-xl border border-bolt-elements-borderColor',
+                  'bg-bolt-elements-background-depth-2 px-3.5 py-2.5',
+                  'text-bolt-elements-textPrimary shadow-sm'
+                )}
+              >
+                <div className="flex items-center gap-1.5 text-sm">
+                  <div className={classNames('shrink-0 text-lg', getIconColor(action.status))}>
+                    {status === 'running' ? (
+                      <>
+                        {type !== 'start' ? (
+                          <div className="i-svg-spinners:90-ring-with-bg"></div>
+                        ) : (
+                          <div className="i-ph:terminal-window-duotone"></div>
+                        )}
+                      </>
+                    ) : status === 'pending' ? (
+                      <div className="i-ph:circle-duotone"></div>
+                    ) : status === 'complete' ? (
+                      <div className="i-ph:check"></div>
+                    ) : status === 'failed' || status === 'aborted' ? (
+                      <div className="i-ph:x"></div>
+                    ) : null}
+                  </div>
+                  {type === 'file' ? (
+                    <div className="min-w-0">
+                      Create{' '}
+                      <code
+                        className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
+                        onClick={() => openArtifactInWorkbench(action.filePath)}
+                      >
+                        {action.filePath}
+                      </code>
+                    </div>
+                  ) : type === 'shell' ? (
+                    <div className="flex items-center w-full min-h-[28px]">
+                      <span className="flex-1">Run command</span>
+                    </div>
+                  ) : type === 'start' ? (
+                    <a
+                      onClick={e => {
+                        e.preventDefault();
+                        workbenchStore.currentView.set('preview');
+                      }}
+                      className="flex items-center w-full min-h-[28px] cursor-pointer"
+                    >
+                      <span className="flex-1">Start Application</span>
+                    </a>
                   ) : null}
                 </div>
-                {type === 'file' ? (
-                  <div>
-                    Create{' '}
-                    <code
-                      className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
-                      onClick={() => openArtifactInWorkbench(action.filePath)}
-                    >
-                      {action.filePath}
-                    </code>
-                  </div>
-                ) : type === 'shell' ? (
-                  <div className="flex items-center w-full min-h-[28px]">
-                    <span className="flex-1">Run command</span>
-                  </div>
-                ) : type === 'start' ? (
-                  <a
-                    onClick={e => {
-                      e.preventDefault();
-                      workbenchStore.currentView.set('preview');
-                    }}
-                    className="flex items-center w-full min-h-[28px]"
-                  >
-                    <span className="flex-1">Start Application</span>
-                  </a>
-                ) : null}
+                {(type === 'shell' || type === 'start') && (
+                  <ShellCodeBlock
+                    classsName={classNames('mt-2', {
+                      'mb-0.5': !isLast,
+                    })}
+                    code={content}
+                  />
+                )}
               </div>
-              {(type === 'shell' || type === 'start') && (
-                <ShellCodeBlock
-                  classsName={classNames('mt-1', {
-                    'mb-3.5': !isLast,
-                  })}
-                  code={content}
-                />
-              )}
             </motion.li>
           );
         })}
