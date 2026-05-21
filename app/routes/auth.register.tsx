@@ -85,7 +85,7 @@ export async function action({ request }: ActionFunctionArgs) {
       }
 
       return json<ActionData>({ 
-        success: 'Registration successful! Please check your email to verify your account.' 
+        success: (data as any)?.message || 'Registration successful!'
       });
     }
   } catch (error) {

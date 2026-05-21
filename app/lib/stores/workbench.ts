@@ -15,7 +15,6 @@ import fileSaver from 'file-saver';
 import { Octokit, type RestEndpointMethodTypes } from '@octokit/rest';
 import { path } from '~/utils/path';
 import { extractRelativePath } from '~/utils/diff';
-import { description } from '~/lib/persistence';
 import Cookies from 'js-cookie';
 import { createSampler } from '~/utils/sampler';
 import type { ActionAlert } from '~/types/actions';
@@ -125,6 +124,7 @@ export class WorkbenchStore {
 
   enqueueAlert(alert: ActionAlert) {
     const lastQueued = this.#alertQueue[this.#alertQueue.length - 1];
+
     if (
       lastQueued &&
       lastQueued.source === alert.source &&
@@ -443,6 +443,7 @@ export class WorkbenchStore {
   async downloadZip() {
     const zip = new JSZip();
     const files = this.files.get();
+    const { description } = await import('~/lib/persistence/useChatHistory');
 
     // Get the project name from the description input, or use a default name
     const projectName = (description.value ?? 'project').toLocaleLowerCase().split(' ').join('_');

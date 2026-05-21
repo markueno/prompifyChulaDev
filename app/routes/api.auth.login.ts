@@ -2,6 +2,7 @@ import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { isEmailVerificationRequired } from '~/lib/auth';
 
 interface User {
   id: string;
@@ -40,6 +41,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 
   try {
+    const emailVerificationRequired = isEmailVerificationRequired(context);
     const body: LoginRequest = await request.json();
     const { email, password } = body;
 
@@ -106,7 +108,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     // Check if user is verified
-    if (!user.is_verified || user.is_verified === 0) {
+    if (emailVerificationRequired && (!user.is_verified || user.is_verified === 0)) {
       return json<LoginResponse>({
         success: false,
         message: 'Please verify your email address before logging in'

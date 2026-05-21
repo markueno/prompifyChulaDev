@@ -1,5 +1,5 @@
 import { useLoaderData, useNavigate, useSearchParams } from '@remix-run/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { atom } from 'nanostores';
 import type { Message } from 'ai';
 import { toast } from 'react-toastify';
@@ -15,6 +15,7 @@ import {
   createChatFromMessages,
   type IChatMetadata,
 } from './db';
+import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
 
 export interface ChatHistoryItem {
   id: string;
@@ -34,8 +35,19 @@ export const description = atom<string | undefined>(undefined);
 export const chatMetadata = atom<IChatMetadata | undefined>(undefined);
 export function useChatHistory() {
   const navigate = useNavigate();
-  const { id: mixedId, user } = useLoaderData<{ id?: string; user?: any }>();
+  const { id: mixedId, user, projectId } = useLoaderData<{ id?: string; projectId?: string; user?: any }>();
   const [searchParams] = useSearchParams();
+  const activeProjectId = useMemo(() => {
+    if (projectId) {
+      return projectId;
+    }
+
+    if (typeof window !== 'undefined') {
+      return resolveProjectIdFromPathname(window.location.pathname) || DEFAULT_PROJECT_ID;
+    }
+
+    return DEFAULT_PROJECT_ID;
+  }, [projectId]);
 
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [ready, setReady] = useState<boolean>(false);
@@ -57,7 +69,8 @@ export function useChatHistory() {
     if (mixedId) {
       const loadChat = async () => {
         try {
-          let storedMessages = await getMessages(db, mixedId);
+          const storedMessages = await getMessages(db, mixedId);
+
           if (storedMessages && storedMessages.messages.length > 0) {
             const rewindId = searchParams.get('rewindTo');
             const filteredMessages = rewindId
@@ -70,9 +83,12 @@ export function useChatHistory() {
             chatId.set(storedMessages.id);
             chatMetadata.set(storedMessages.metadata);
           } else if (user?.id) {
-            const res = await fetch(`/api/chat/${mixedId}`);
+            const res = await fetch(`/api/chat/${mixedId}?projectId=${encodeURIComponent(activeProjectId)}`);
+
             if (res.ok) {
-              const { chat } = await res.json();
+              const responseData = (await res.json()) as { chat?: any };
+              const { chat } = responseData;
+
               if (chat?.messages?.length > 0) {
                 const rewindId = searchParams.get('rewindTo');
                 const filteredMessages = rewindId
@@ -83,8 +99,17 @@ export function useChatHistory() {
                 description.set(chat.description);
                 chatId.set(chat.id);
                 chatMetadata.set(chat.metadata);
+
                 if (db) {
-                  await setMessages(db, chat.id, chat.messages, chat.url_id, chat.description, undefined, chat.metadata);
+                  await setMessages(
+                    db,
+                    chat.id,
+                    chat.messages,
+                    chat.url_id,
+                    chat.description,
+                    undefined,
+                    chat.metadata
+                  );
                 }
               } else {
                 navigate('/', { replace: true });
@@ -97,22 +122,37 @@ export function useChatHistory() {
           }
         } catch (error) {
           logStore.logError('Failed to load chat messages', error);
-          toast.error(typeof error === 'object' && error && 'message' in error ? String((error as Error).message) : 'Failed to load chat');
+          toast.error(
+            typeof error === 'object' && error && 'message' in error
+              ? String((error as Error).message)
+              : 'Failed to load chat'
+          );
         } finally {
           setReady(true);
         }
       };
       loadChat();
     }
-  }, [mixedId, user?.id, searchParams, navigate]);
+  }, [activeProjectId, mixedId, user?.id, searchParams, navigate]);
 
   const ensureChatId = async (): Promise<string | undefined> => {
-    if (!db) return chatId.get();
+    if (!db) {
+      return chatId.get();
+    }
+
     const current = chatId.get();
-    if (current) return current;
+
+    if (current) {
+      return current;
+    }
+
     const nextId = await getNextId(db);
     chatId.set(nextId);
-    if (!urlId) navigateChat(nextId);
+
+    if (!urlId) {
+      navigateChat(nextId, activeProjectId);
+    }
+
     return nextId;
   };
 
@@ -145,7 +185,7 @@ export function useChatHistory() {
       if (!urlId && firstArtifact?.id) {
         const urlId = await getUrlId(db, firstArtifact.id);
 
-        navigateChat(urlId);
+        navigateChat(urlId, activeProjectId);
         setUrlId(urlId);
       }
 
@@ -159,7 +199,7 @@ export function useChatHistory() {
         chatId.set(nextId);
 
         if (!urlId) {
-          navigateChat(nextId);
+          navigateChat(nextId, activeProjectId);
         }
       }
 
@@ -172,9 +212,10 @@ export function useChatHistory() {
           const chatData = {
             id: chatId.get() as string,
             url_id: urlId,
+            projectId: activeProjectId,
             description: description.get(),
-            messages: messages,
-            metadata: chatMetadata.get()
+            messages,
+            metadata: chatMetadata.get(),
           };
 
           // Call the API to save to PostgreSQL
@@ -202,7 +243,7 @@ export function useChatHistory() {
 
       try {
         const newId = await duplicateChat(db, mixedId || listItemId);
-        navigate(`/chat/${newId}`);
+        navigate(buildProjectChatPath(activeProjectId, newId));
         toast.success('Chat duplicated successfully');
       } catch (error) {
         toast.error('Failed to duplicate chat');
@@ -216,7 +257,7 @@ export function useChatHistory() {
 
       try {
         const newId = await createChatFromMessages(db, description, messages, metadata);
-        window.location.href = `/chat/${newId}`;
+        window.location.href = buildProjectChatPath(activeProjectId, newId);
         toast.success('Chat imported successfully');
       } catch (error) {
         if (error instanceof Error) {
@@ -251,14 +292,14 @@ export function useChatHistory() {
   };
 }
 
-function navigateChat(nextId: string) {
+function navigateChat(nextId: string, projectId: string) {
   /**
    * FIXME: Using the intended navigate function causes a rerender for <Chat /> that breaks the app.
    *
-   * `navigate(`/chat/${nextId}`, { replace: true });`
+   * `navigate(buildProjectChatPath(projectId, nextId), { replace: true });`
    */
   const url = new URL(window.location.href);
-  url.pathname = `/chat/${nextId}`;
+  url.pathname = buildProjectChatPath(projectId, nextId);
 
   window.history.replaceState({}, '', url);
 }

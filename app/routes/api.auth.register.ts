@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { getUserByEmail, createUser, logEmail } from '~/lib/database';
 import { sendVerificationEmail } from '~/lib/email';
+import { isEmailVerificationRequired } from '~/lib/auth';
 
 interface RegisterRequest {
   email: string;
@@ -27,6 +28,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 
   try {
+    const emailVerificationRequired = isEmailVerificationRequired(context);
     const body: RegisterRequest = await request.json();
     const { email, password } = body;
 
@@ -122,9 +124,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const saltRounds = 12;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    // Generate verification token
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    // Generate verification token only when verification is required
+    const verificationToken = emailVerificationRequired ? crypto.randomBytes(32).toString('hex') : null;
+    const verificationExpires = emailVerificationRequired
+      ? new Date(Date.now() + 24 * 60 * 60 * 1000)
+      : null;
 
     // Create user in database
     const userId = crypto.randomUUID();
@@ -132,9 +136,9 @@ export async function action({ request, context }: ActionFunctionArgs) {
       id: userId,
       email: emailNormalized,
       passwordHash,
-      isVerified: false,
+      isVerified: !emailVerificationRequired,
       verificationToken,
-      verificationExpires: verificationExpires.toISOString(),
+      verificationExpires: verificationExpires?.toISOString() || null,
       createdAt: new Date().toISOString()
     };
 
@@ -169,18 +173,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }, { status: 500 });
     }
 
-    // Send verification email
-    const emailSent = await sendVerificationEmail(emailNormalized, verificationToken);
-    
-    // Log email attempt
-    await logEmail(userId, 'verification', emailSent, emailSent ? undefined : 'Email service not configured');
+    if (emailVerificationRequired && verificationToken) {
+      // Send verification email
+      const emailSent = await sendVerificationEmail(emailNormalized, verificationToken);
+      
+      // Log email attempt
+      await logEmail(userId, 'verification', emailSent, emailSent ? undefined : 'Email service not configured');
+    }
 
     // Clear rate limiting on successful registration
     registrationAttempts.delete(clientIP);
 
     return json<RegisterResponse>({
       success: true,
-      message: 'Account created successfully. Please check your email to verify your account.'
+      message: emailVerificationRequired
+        ? 'Account created successfully. Please check your email to verify your account.'
+        : 'Account created successfully. You can log in immediately.'
     });
 
   } catch (error) {

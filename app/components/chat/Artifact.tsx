@@ -208,7 +208,7 @@ const ActionList = memo(({ actions }: ActionListProps) => {
                     <div className="min-w-0">
                       Create{' '}
                       <code
-                        className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent hover:underline cursor-pointer"
+                        className="bg-bolt-elements-artifacts-inlineCode-background text-bolt-elements-artifacts-inlineCode-text px-1.5 py-1 rounded-md text-bolt-elements-item-contentAccent font-semibold hover:underline cursor-pointer"
                         onClick={() => openArtifactInWorkbench(action.filePath)}
                       >
                         {action.filePath}

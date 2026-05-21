@@ -1,16 +1,16 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
-import { saveChat, getChatsByUser, getChatById, deleteChat, logUserActivity } from '~/lib/database';
+import { saveChat, getChatsByUser, deleteChat, logUserActivity } from '~/lib/database';
 
 // Get all chats for a user
 export async function loader({ request, context }: LoaderFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
     const chats = await getChatsByUser(user.id, user.isModerator);
-    
+
     // Log activity
     await logUserActivity(user.id, 'chats_loaded', { count: chats.length });
-    
+
     return json({ chats });
   } catch (error) {
     console.error('Error loading chats:', error);
@@ -22,12 +22,13 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 export async function action({ request, context }: ActionFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
-    
+
     // Check if request is JSON or form data
     const contentType = request.headers.get('content-type') || '';
     let chatData: any;
     let action: string;
-    
+    let formData: FormData | null = null;
+
     if (contentType.includes('application/json')) {
       // Handle JSON request (from frontend)
       const body = await request.json();
@@ -35,23 +36,23 @@ export async function action({ request, context }: ActionFunctionArgs) {
       action = 'save'; // Default action for JSON requests
     } else {
       // Handle form data request
-      const formData = await request.formData();
+      formData = await request.formData();
       action = formData.get('action') as string;
-      
+
       chatData = {
         id: formData.get('id') as string,
         urlId: formData.get('urlId') as string,
+        projectId: formData.get('projectId') as string,
         description: formData.get('description') as string,
         messages: JSON.parse(formData.get('messages') as string),
-        metadata: JSON.parse(formData.get('metadata') as string || '{}')
+        metadata: JSON.parse((formData.get('metadata') as string) || '{}'),
       };
     }
-    
+
     switch (action) {
       case 'save': {
-        
         const chatId = await saveChat(user.id, chatData);
-        
+
         if (chatId) {
           await logUserActivity(user.id, 'chat_saved', { chatId: chatData.id });
           return json({ success: true, chatId });
@@ -59,11 +60,16 @@ export async function action({ request, context }: ActionFunctionArgs) {
           return json({ error: 'Failed to save chat' }, { status: 500 });
         }
       }
-      
+
       case 'delete': {
-        const chatId = formData.get('chatId') as string;
+        const chatId = (formData?.get('chatId') as string) || '';
+
+        if (!chatId) {
+          return json({ error: 'Chat ID is required' }, { status: 400 });
+        }
+
         const success = await deleteChat(chatId, user.id);
-        
+
         if (success) {
           await logUserActivity(user.id, 'chat_deleted', { chatId });
           return json({ success: true });
@@ -71,7 +77,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
           return json({ error: 'Failed to delete chat' }, { status: 500 });
         }
       }
-      
+
       default:
         return json({ error: 'Invalid action' }, { status: 400 });
     }
@@ -80,5 +86,3 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return json({ error: 'Failed to process chat action' }, { status: 500 });
   }
 }
-
-

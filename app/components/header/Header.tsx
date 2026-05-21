@@ -37,7 +37,7 @@ export function Header() {
                 'header-nav-overview hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
                 onOverview
                   ? 'bg-bolt-elements-background-depth-2 !text-zinc-900'
-                  : '!text-zinc-200/95 hover:!text-white'
+                  : '!text-zinc-900 hover:!text-black'
               )}
             >
               Overview

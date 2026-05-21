@@ -253,7 +253,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
             active
             disabled={isDeploying || !activePreview || isStreaming}
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="px-4 hover:bg-bolt-elements-item-backgroundActive flex items-center gap-2"
+            className="px-4 hover:bg-gray-50 flex items-center gap-2"
           >
             {isDeploying ? 'Deploying...' : 'Deploy'}
             <div
@@ -365,10 +365,10 @@ function Button({ active = false, disabled = false, children, onClick, className
       className={classNames(
         'flex items-center p-1.5',
         {
-          'bg-bolt-elements-item-backgroundDefault hover:bg-bolt-elements-item-backgroundActive text-zinc-900 hover:text-black':
+          'bg-white hover:bg-gray-50 text-zinc-900 hover:text-black':
             !active && !disabled,
-          'bg-bolt-elements-item-backgroundAccent text-zinc-900': active && !disabled,
-          'bg-bolt-elements-item-backgroundDefault text-zinc-400 cursor-not-allowed': disabled,
+          'bg-white text-zinc-900': active && !disabled,
+          'bg-white text-zinc-400 cursor-not-allowed': disabled,
         },
         className
       )}

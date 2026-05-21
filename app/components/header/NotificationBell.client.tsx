@@ -39,8 +39,8 @@ export function NotificationBell() {
 
   const trigger = (
     <DropdownMenu.Trigger asChild>
-      <Button variant="ghost" size="icon" className="relative text-zinc-900 hover:text-black">
-        <div className="i-ph:bell text-xl" />
+      <Button variant="ghost" size="icon" className="relative !text-zinc-900 hover:!text-black">
+        <div className="i-ph:bell text-xl !text-zinc-900" />
         {invitations.length > 0 && (
           <span
             className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-medium text-white"

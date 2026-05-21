@@ -1,34 +1,39 @@
-import {
-  json,
-  type LinksFunction,
-  type MetaFunction,
-  type LoaderFunctionArgs,
-} from '@remix-run/cloudflare';
+import { json, type LinksFunction, type MetaFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { Link, useLoaderData } from '@remix-run/react';
 import { Header } from '~/components/header/Header';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getProjectOverview, getSubscriptionByUserId } from '~/lib/database';
 import landingStyles from '~/styles/landing.css?url';
+import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
     const mockUser = getMockAdminUser();
     const overview = await getProjectOverview(mockUser.id, mockUser.isModerator);
+
     return json({ user: mockUser, overview });
   }
+
   const user = await requireAuth(request, context);
   const [sub, overview] = await Promise.all([
     getSubscriptionByUserId(user.id),
     getProjectOverview(user.id, user.isModerator),
   ]);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
+
   return json({ user: userWithTier, overview });
 }
 
 export const links: LinksFunction = () => [
-  { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap' },
-  { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap' },
+  {
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap',
+  },
+  {
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap',
+  },
   { rel: 'stylesheet', href: landingStyles },
 ];
 
@@ -37,15 +42,7 @@ export const meta: MetaFunction = () => [
   { name: 'description', content: 'Project health, recent runs, error rate, and usage.' },
 ];
 
-function StatCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
+function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1/80 p-4 backdrop-blur-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-bolt-elements-textSecondary">{label}</p>
@@ -58,10 +55,7 @@ function StatCard({
 export default function AppOverview() {
   const { overview } = useLoaderData<typeof loader>();
 
-  const errorDisplay =
-    overview.errorRatePercent === null
-      ? '—'
-      : `${overview.errorRatePercent}%`;
+  const errorDisplay = overview.errorRatePercent === null ? '—' : `${overview.errorRatePercent}%`;
   const errorHint =
     overview.errorRatePercent === null
       ? 'No LLM runs recorded this week, or failure events are not logged yet.'
@@ -150,15 +144,19 @@ export default function AppOverview() {
             ) : (
               <ul className="mt-4 divide-y divide-bolt-elements-borderColor rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1/60">
                 {overview.recentRuns.map((run, idx) => {
-                  const chatPath = `/chat/${run.chatUrlId || run.chatId}`;
+                  const chatPath = buildProjectChatPath(
+                    run.projectId || DEFAULT_PROJECT_ID,
+                    run.chatUrlId || run.chatId
+                  );
                   const when = new Date(run.at);
+
                   return (
-                    <li key={`${run.chatId}-${run.at}-${idx}`} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                    <li
+                      key={`${run.chatId}-${run.at}-${idx}`}
+                      className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                    >
                       <div className="min-w-0 flex-1">
-                        <Link
-                          to={chatPath}
-                          className="font-medium text-accent hover:underline"
-                        >
+                        <Link to={chatPath} className="font-medium text-accent hover:underline">
                           {run.projectTitle?.trim() || 'Untitled project'}
                         </Link>
                         <p className="truncate text-xs text-bolt-elements-textSecondary">

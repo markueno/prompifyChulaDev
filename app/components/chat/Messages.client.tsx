@@ -12,6 +12,7 @@ import { useStore } from '@nanostores/react';
 import { profileStore } from '~/lib/stores/profile';
 import { forwardRef } from 'react';
 import type { ForwardedRef } from 'react';
+import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
 
 interface MessagesProps {
   id?: string;
@@ -40,7 +41,8 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
         }
 
         const urlId = await forkChat(db, chatId.get()!, messageId);
-        window.location.href = `/chat/${urlId}`;
+        const activeProjectId = resolveProjectIdFromPathname(location.pathname) || DEFAULT_PROJECT_ID;
+        window.location.href = buildProjectChatPath(activeProjectId, urlId);
       } catch (error) {
         toast.error('Failed to fork chat: ' + (error as Error).message);
       }
@@ -61,11 +63,12 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
               }
 
               const author = (message as any)?.author;
-            // Use author when present (multi-account); for legacy messages without author, fallback to current profile for single-user chats
-            const displayName = author?.name ?? (profile?.nickname?.trim() || profile?.username || profile?.email || 'User');
-            const displayAvatar = author?.avatar ?? profile?.avatar;
+              // Use author when present (multi-account); for legacy messages without author, fallback to current profile for single-user chats
+              const displayName =
+                author?.name ?? (profile?.nickname?.trim() || profile?.username || profile?.email || 'User');
+              const displayAvatar = author?.avatar ?? profile?.avatar;
 
-            return (
+              return (
                 <div
                   key={index}
                   className={classNames('flex gap-4 p-6 w-full rounded-[calc(0.75rem-1px)]', {
@@ -90,7 +93,10 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                           <div className="i-ph:user-fill text-2xl" />
                         )}
                       </div>
-                      <span className="text-xs text-bolt-elements-textSecondary max-w-[80px] truncate text-center block" title={displayName}>
+                      <span
+                        className="text-xs text-bolt-elements-textSecondary max-w-[80px] truncate text-center block"
+                        title={displayName}
+                      >
                         {displayName}
                       </span>
                     </div>

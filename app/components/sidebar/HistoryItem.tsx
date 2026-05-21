@@ -5,6 +5,7 @@ import { type ChatHistoryItem } from '~/lib/persistence';
 import WithTooltip from '~/components/ui/Tooltip';
 import { useEditChatDescription } from '~/lib/hooks';
 import { forwardRef, type ForwardedRef } from 'react';
+import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 
 interface HistoryItemProps {
   item: ChatHistoryItem;
@@ -14,7 +15,8 @@ interface HistoryItemProps {
 }
 
 export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: HistoryItemProps) {
-  const { id: urlId } = useParams();
+  const { id: urlId, projectId } = useParams();
+  const activeProjectId = projectId || DEFAULT_PROJECT_ID;
   const isActiveChat = urlId === item.urlId;
 
   const { editing, handleChange, handleBlur, handleSubmit, handleKeyDown, currentDescription, toggleEditMode } =
@@ -49,7 +51,10 @@ export function HistoryItem({ item, onDelete, onDuplicate, exportChat }: History
           />
         </form>
       ) : (
-        <a href={`/chat/${item.urlId}`} className="flex w-full relative truncate block">
+        <a
+          href={buildProjectChatPath(activeProjectId, item.urlId || item.id)}
+          className="flex w-full relative truncate block"
+        >
           <WithTooltip tooltip={currentDescription}>
             <span className="truncate pr-24">{currentDescription}</span>
           </WithTooltip>

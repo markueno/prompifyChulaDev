@@ -1,5 +1,6 @@
 import pg from 'pg';
 import crypto from 'crypto';
+import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 
 const { Pool } = pg;
 type PoolClient = pg.PoolClient;
@@ -54,6 +55,35 @@ export async function createPostgresTables() {
       )
     `);
 
+    // Projects table (container for chats)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        owner_user_id TEXT NOT NULL,
+        slug TEXT,
+        name TEXT NOT NULL,
+        description TEXT,
+        is_archived BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Project members table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS project_members (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(project_id, user_id),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
     // User sessions table
     await client.query(`
       CREATE TABLE IF NOT EXISTS user_sessions (
@@ -100,6 +130,7 @@ export async function createPostgresTables() {
       CREATE TABLE IF NOT EXISTS chats (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
+        project_id TEXT,
         url_id TEXT UNIQUE,
         description TEXT,
         messages JSONB NOT NULL DEFAULT '[]',
@@ -108,7 +139,8 @@ export async function createPostgresTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_archived BOOLEAN DEFAULT FALSE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       )
     `);
 
@@ -298,6 +330,50 @@ export async function createPostgresTables() {
       )
     `);
 
+    // Backward-compatible migration: enforce project-scoped chats
+    await client.query(`ALTER TABLE chats ADD COLUMN IF NOT EXISTS project_id TEXT`);
+    await client.query(`
+      INSERT INTO projects (id, owner_user_id, slug, name, description)
+      SELECT
+        'proj_personal_' || u.id,
+        u.id,
+        $1,
+        'Personal',
+        'Default personal project'
+      FROM users u
+      ON CONFLICT (id) DO NOTHING
+    `, [DEFAULT_PROJECT_ID]);
+    await client.query(`
+      INSERT INTO project_members (id, project_id, user_id, role)
+      SELECT
+        md5('owner:' || p.id || ':' || p.owner_user_id),
+        p.id,
+        p.owner_user_id,
+        'owner'
+      FROM projects p
+      ON CONFLICT (project_id, user_id) DO NOTHING
+    `);
+    await client.query(`
+      UPDATE chats c
+      SET project_id = 'proj_personal_' || c.user_id
+      WHERE c.project_id IS NULL
+    `);
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'fk_chats_project_id'
+        ) THEN
+          ALTER TABLE chats
+          ADD CONSTRAINT fk_chats_project_id
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+    await client.query('ALTER TABLE chats ALTER COLUMN project_id SET NOT NULL');
+
     // Create indexes
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)');
@@ -306,7 +382,12 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON user_sessions(token_hash)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_rate_limits_ip_endpoint ON rate_limits(ip_address, endpoint)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_email_logs_user_id ON email_logs(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_projects_owner_user_id ON projects(owner_user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_projects_owner_slug ON projects(owner_user_id, slug)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_project_members_project_id ON project_members(project_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_chats_project_id ON chats(project_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chats_url_id ON chats(url_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_user_activity_user_id ON user_activity(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_user_activity_action_type ON user_activity(action_type)');
@@ -1048,18 +1129,70 @@ export async function getTokenBalanceRemainingPostgres(userId: string): Promise<
   }
 }
 
+async function ensureDefaultProjectForUser(client: PoolClient, userId: string): Promise<string> {
+  const defaultProjectId = `proj_personal_${userId}`;
+  await client.query(
+    `
+      INSERT INTO projects (id, owner_user_id, slug, name, description)
+      VALUES ($1, $2, $3, 'Personal', 'Default personal project')
+      ON CONFLICT (id) DO NOTHING
+    `,
+    [defaultProjectId, userId, DEFAULT_PROJECT_ID]
+  );
+  await client.query(
+    `
+      INSERT INTO project_members (id, project_id, user_id, role)
+      VALUES ($1, $2, $3, 'owner')
+      ON CONFLICT (project_id, user_id) DO NOTHING
+    `,
+    [crypto.randomUUID(), defaultProjectId, userId]
+  );
+  return defaultProjectId;
+}
+
+async function resolveWritableProjectId(client: PoolClient, userId: string, projectId?: string): Promise<string> {
+  if (!projectId) {
+    return ensureDefaultProjectForUser(client, userId);
+  }
+  const access = await client.query(
+    `
+      SELECT 1
+      FROM projects p
+      LEFT JOIN project_members pm ON p.id = pm.project_id AND pm.user_id = $2
+      WHERE p.id = $1 AND (p.owner_user_id = $2 OR pm.user_id = $2)
+      LIMIT 1
+    `,
+    [projectId, userId]
+  );
+  if (access.rows.length > 0) {
+    return projectId;
+  }
+  return ensureDefaultProjectForUser(client, userId);
+}
+
 // Chat Management Functions
 export async function saveChatPostgres(userId: string, chatData: any): Promise<string | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   
   try {
-    const { id, urlId, url_id, description, messages, metadata } = chatData;
-    const resolvedUrlId = urlId ?? url_id;
+    const {
+      id,
+      urlId,
+      url_id: legacyUrlId,
+      description,
+      messages,
+      metadata,
+      projectId,
+      project_id: legacyProjectId,
+    } = chatData;
+    const resolvedUrlId = urlId ?? legacyUrlId;
+    const resolvedProjectId = await resolveWritableProjectId(client, userId, projectId ?? legacyProjectId);
     const query = `
-      INSERT INTO chats (id, user_id, url_id, description, messages, metadata, updated_at, last_activity)
-      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO chats (id, user_id, project_id, url_id, description, messages, metadata, updated_at, last_activity)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT (id) DO UPDATE SET
+        project_id = EXCLUDED.project_id,
         description = EXCLUDED.description,
         messages = EXCLUDED.messages,
         metadata = EXCLUDED.metadata,
@@ -1067,7 +1200,15 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
         last_activity = CURRENT_TIMESTAMP
       RETURNING id
     `;
-    const result = await client.query(query, [id, userId, resolvedUrlId, description, JSON.stringify(messages), JSON.stringify(metadata)]);
+    const result = await client.query(query, [
+      id,
+      userId,
+      resolvedProjectId,
+      resolvedUrlId,
+      description,
+      JSON.stringify(messages),
+      JSON.stringify(metadata),
+    ]);
     const savedId = result.rows[0]?.id || null;
 
     // Project creator is always the owner: add them to chat_members with role 'owner'
@@ -1151,7 +1292,10 @@ export async function getPromptsByChatIdPostgres(
     const accessCheck = await client.query(
       `SELECT 1 FROM chats c
        LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
-       WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)`,
+       LEFT JOIN projects p ON p.id = c.project_id
+       LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $2
+       WHERE (c.id = $1 OR c.url_id = $1)
+         AND (c.user_id = $2 OR cm.user_id = $2 OR p.owner_user_id = $2 OR pm.user_id = $2)`,
       [chatId, requestingUserId]
     );
     if (accessCheck.rows.length === 0 && !isModerator) return [];
@@ -1186,7 +1330,7 @@ export async function getChatsByUserPostgres(userId: string, isModerator?: boole
   try {
     if (isModerator) {
       const result = await client.query(`
-        SELECT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+        SELECT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
         FROM chats c
         ORDER BY c.updated_at DESC
       `);
@@ -1196,12 +1340,14 @@ export async function getChatsByUserPostgres(userId: string, isModerator?: boole
         metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
       }));
     }
-    // Include chats owned by user OR where user is a member (shared projects)
+    // Include chats where user can access the owning project
     const query = `
-      SELECT DISTINCT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+      SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
       FROM chats c
       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
-      WHERE c.user_id = $1 OR cm.user_id = $1
+      LEFT JOIN projects p ON p.id = c.project_id
+      LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
+      WHERE c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1
       ORDER BY c.updated_at DESC
     `;
     const result = await client.query(query, [userId]);
@@ -1218,17 +1364,23 @@ export async function getChatsByUserPostgres(userId: string, isModerator?: boole
   }
 }
 
-export async function getChatByIdPostgres(chatId: string, userId: string, isModerator?: boolean): Promise<any | null> {
+export async function getChatByIdPostgres(
+  chatId: string,
+  userId: string,
+  isModerator?: boolean,
+  projectId?: string
+): Promise<any | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   
   try {
     if (isModerator) {
       const result = await client.query(`
-        SELECT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
+        SELECT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
         FROM chats c
-        WHERE c.id = $1 OR c.url_id = $1
-      `, [chatId]);
+        WHERE (c.id = $1 OR c.url_id = $1)
+          AND ($2::text IS NULL OR c.project_id = $2)
+      `, [chatId, projectId ?? null]);
       if (result.rows.length === 0) return null;
       const row = result.rows[0];
       return {
@@ -1237,14 +1389,18 @@ export async function getChatByIdPostgres(chatId: string, userId: string, isMode
         metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
       };
     }
-    // Allow access if user is owner OR is a chat member (shared project)
+    // Allow access if user can access the chat or its owning project
     const query = `
-      SELECT c.id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
+      SELECT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
       FROM chats c
       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
-      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
+      LEFT JOIN projects p ON p.id = c.project_id
+      LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $2
+      WHERE (c.id = $1 OR c.url_id = $1)
+        AND ($3::text IS NULL OR c.project_id = $3)
+        AND (c.user_id = $2 OR cm.user_id = $2 OR p.owner_user_id = $2 OR pm.user_id = $2)
     `;
-    const result = await client.query(query, [chatId, userId]);
+    const result = await client.query(query, [chatId, userId, projectId ?? null]);
     if (result.rows.length === 0) {
       return null;
     }
@@ -1343,7 +1499,8 @@ export async function getUserActivityPostgres(userId: string, limit: number = 10
 export type ProjectOverviewRecentRun = {
   at: string;
   chatId: string;
-  /** Prefer this for `/chat/:id` links when present. */
+  projectId: string;
+  /** Prefer this for canonical chat links when present. */
   chatUrlId: string | null;
   projectTitle: string | null;
   totalTokens: number;
@@ -1385,28 +1542,25 @@ export async function getProjectOverviewPostgres(userId: string, isModerator?: b
   try {
     const now = new Date().toISOString();
 
-    const chatAgg = isModerator
+    const projectAgg = isModerator
       ? await client.query(
           `SELECT
              COUNT(*)::int AS project_count,
-             COUNT(*) FILTER (WHERE c.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
-           FROM chats c`
+             COUNT(*) FILTER (WHERE p.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
+           FROM projects p`
         )
       : await client.query(
           `SELECT
-             COUNT(*)::int AS project_count,
-             COUNT(*) FILTER (WHERE c.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
-           FROM chats c
-           WHERE c.user_id = $1
-              OR EXISTS (
-                SELECT 1 FROM chat_members cm
-                WHERE cm.chat_id = c.id AND cm.user_id = $1
-              )`,
+             COUNT(DISTINCT p.id)::int AS project_count,
+             COUNT(DISTINCT p.id) FILTER (WHERE p.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
+           FROM projects p
+           LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
+           WHERE p.owner_user_id = $1 OR pm.user_id = $1`,
           [userId]
         );
 
-    const projectCount = chatAgg.rows[0]?.project_count ?? 0;
-    const activeProjectsLast7Days = chatAgg.rows[0]?.active_7d ?? 0;
+    const projectCount = projectAgg.rows[0]?.project_count ?? 0;
+    const activeProjectsLast7Days = projectAgg.rows[0]?.active_7d ?? 0;
 
     const usageAgg = await client.query(
       `SELECT
@@ -1449,7 +1603,7 @@ export async function getProjectOverviewPostgres(userId: string, isModerator?: b
     const tokenBalanceRemaining = parseInt(String(balanceResult.rows[0]?.remaining ?? 0), 10);
 
     const recent = await client.query(
-      `SELECT tu.created_at, tu.chat_id, c.url_id AS chat_url_id, tu.total_tokens, tu.model, tu.provider, c.description
+      `SELECT tu.created_at, tu.chat_id, c.project_id, c.url_id AS chat_url_id, tu.total_tokens, tu.model, tu.provider, c.description
        FROM token_usage tu
        LEFT JOIN chats c ON c.id = tu.chat_id
        WHERE tu.user_id = $1
@@ -1460,6 +1614,7 @@ export async function getProjectOverviewPostgres(userId: string, isModerator?: b
     const recentRuns: ProjectOverviewRecentRun[] = recent.rows.map((r: any) => ({
       at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
       chatId: r.chat_id,
+      projectId: r.project_id ?? `proj_personal_${userId}`,
       chatUrlId: r.chat_url_id ?? null,
       projectTitle: r.description ?? null,
       totalTokens: parseInt(String(r.total_tokens ?? 0), 10),
@@ -1777,7 +1932,7 @@ export async function acceptInvitationByTokenPostgres(token: string, userId: str
     await client.query(`UPDATE chat_invitations SET status = 'accepted' WHERE id = $1`, [inv.id]);
     await addChatMemberPostgres(inv.chat_id, userId, inv.role);
 
-    return { success: true, chatUrl: `/chat/${inv.url_id || inv.chat_id}` };
+    return { success: true, chatUrl: buildProjectChatPath(DEFAULT_PROJECT_ID, inv.url_id || inv.chat_id) };
   } catch (error) {
     console.error('Error accepting invitation:', error);
     return { success: false, error: 'Failed to accept invitation' };

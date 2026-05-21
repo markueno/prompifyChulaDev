@@ -12,6 +12,26 @@ export interface User {
   accountTier?: string | null;
 }
 
+function readEnvValue(context: any, key: string): string | undefined {
+  const cloudflareEnv = context?.cloudflare?.env || {};
+  const processEnv = process.env || {};
+  return cloudflareEnv[key] || processEnv[key];
+}
+
+function parseBooleanEnv(value: string | undefined, defaultValue: boolean): boolean {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true' || normalized === '1') {
+    return true;
+  }
+  if (normalized === 'false' || normalized === '0') {
+    return false;
+  }
+  return defaultValue;
+}
+
 // Check if authentication is temporarily disabled
 export function isAuthDisabled(context: any): boolean {
   // Check multiple sources for the environment variable
@@ -43,6 +63,15 @@ export function isAuthDisabled(context: any): boolean {
   });
   
   return isDisabled;
+}
+
+/**
+ * Controls whether newly-registered users must verify email before login.
+ * Set EMAIL_VERIFICATION_REQUIRED=false (or 0) to disable verification.
+ */
+export function isEmailVerificationRequired(context: any): boolean {
+  const value = readEnvValue(context, 'EMAIL_VERIFICATION_REQUIRED');
+  return parseBooleanEnv(value, true);
 }
 
 // Get a mock admin user when authentication is disabled
