@@ -140,7 +140,11 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
             })
           : null}
         {isStreaming && (
-          <div className="text-center w-full text-bolt-elements-textSecondary i-svg-spinners:3-dots-fade text-4xl mt-4"></div>
+          <div className="mt-4 flex w-full items-center justify-center gap-2">
+            <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-accent-400/55 [animation-delay:-0.3s]" />
+            <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-accent-500/65 [animation-delay:-0.15s]" />
+            <span className="h-2.5 w-2.5 animate-bounce rounded-full bg-accent-600/75" />
+          </div>
         )}
       </div>
     );

@@ -782,37 +782,36 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           translate="no"
                         />
                       )}
-                    </div>
-
-                    {/* Send Button - show only when there's content or in chat mode */}
-                    <ClientOnly>
-                      {() => (
-                        <SendButton
-                          show={
-                            chatStarted
-                              ? Boolean(input.length > 0 || isStreaming || uploadedFiles.length > 0)
-                              : Boolean(selectedApplicationType && selectedBusinessType)
-                          }
-                          isStreaming={isStreaming}
-                          disabled={!providerList || providerList.length === 0}
-                          onClick={event => {
-                            if (isStreaming) {
-                              handleStop?.();
-                              return;
+                      {/* Send Button - keep inside prompt container bounds */}
+                      <ClientOnly>
+                        {() => (
+                          <SendButton
+                            show={
+                              chatStarted
+                                ? Boolean(input.length > 0 || isStreaming || uploadedFiles.length > 0)
+                                : Boolean(selectedApplicationType && selectedBusinessType)
                             }
-
-                            if (chatStarted) {
-                              if (input.length > 0 || uploadedFiles.length > 0) {
-                                handleSendMessage?.(event);
+                            isStreaming={isStreaming}
+                            disabled={!providerList || providerList.length === 0}
+                            onClick={event => {
+                              if (isStreaming) {
+                                handleStop?.();
+                                return;
                               }
-                            } else {
-                              // For guided form, proceed to solution design
-                              handleProceedToSolutionDesign();
-                            }
-                          }}
-                        />
-                      )}
-                    </ClientOnly>
+
+                              if (chatStarted) {
+                                if (input.length > 0 || uploadedFiles.length > 0) {
+                                  handleSendMessage?.(event);
+                                }
+                              } else {
+                                // For guided form, proceed to solution design
+                                handleProceedToSolutionDesign();
+                              }
+                            }}
+                          />
+                        )}
+                      </ClientOnly>
+                    </div>
 
                     {/* Action buttons - only show in chat mode */}
                     {chatStarted && (
