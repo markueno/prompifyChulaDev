@@ -36,48 +36,9 @@ import ProgressCompilation from './ProgressCompilation';
 import type { ProgressAnnotation } from '~/types/context';
 import type { ActionRunner } from '~/lib/runtime/action-runner';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
-import { SolutionDesign } from './SolutionDesign';
-import { ComboBox } from '../ui/ComboBox';
+import { PromptingMultipleChoice } from './PromptingMultipleChoice';
 
 const TEXTAREA_MIN_HEIGHT = 76;
-
-const APPLICATION_TYPES = [
-  { value: 'ecommerce site', label: 'E-commerce Site' },
-  { value: 'blog', label: 'Blog' },
-  { value: 'portfolio', label: 'Portfolio' },
-  { value: 'dashboard', label: 'Dashboard' },
-  { value: 'landing page', label: 'Landing Page' },
-  { value: 'social media platform', label: 'Social Media Platform' },
-  { value: 'learning management system', label: 'Learning Management System' },
-  { value: 'restaurant website', label: 'Restaurant Website' },
-  { value: 'real estate platform', label: 'Real Estate Platform' },
-  { value: 'healthcare portal', label: 'Healthcare Portal' },
-  { value: 'booking system', label: 'Booking System' },
-  { value: 'forum', label: 'Forum' },
-  { value: 'news website', label: 'News Website' },
-  { value: 'job board', label: 'Job Board' },
-  { value: 'marketplace', label: 'Marketplace' },
-];
-
-const BUSINESS_TYPES = [
-  { value: 'university', label: 'University' },
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'hospital', label: 'Hospital' },
-  { value: 'real estate agency', label: 'Real Estate Agency' },
-  { value: 'retail store', label: 'Retail Store' },
-  { value: 'consulting firm', label: 'Consulting Firm' },
-  { value: 'law firm', label: 'Law Firm' },
-  { value: 'accounting firm', label: 'Accounting Firm' },
-  { value: 'non-profit organization', label: 'Non-profit Organization' },
-  { value: 'startup', label: 'Startup' },
-  { value: 'corporate business', label: 'Corporate Business' },
-  { value: 'fitness center', label: 'Fitness Center' },
-  { value: 'salon/spa', label: 'Salon/Spa' },
-  { value: 'automotive dealership', label: 'Automotive Dealership' },
-  { value: 'travel agency', label: 'Travel Agency' },
-  { value: 'insurance company', label: 'Insurance Company' },
-  { value: 'bank/financial institution', label: 'Bank/Financial Institution' },
-];
 
 interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
@@ -165,35 +126,19 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     modelRef.current = model;
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
-    // Add state for guided form
-    const [selectedApplicationType, setSelectedApplicationType] = useState('');
-    const [selectedBusinessType, setSelectedBusinessType] = useState('');
+    // State for multi-step prompting flow
     const [customInput, setCustomInput] = useState('');
-
-    // Add state for solution design page
-    const [showSolutionDesign, setShowSolutionDesign] = useState(false);
-
-    // Construct the prompt from selections
-    const constructPrompt = () => {
-      if (selectedApplicationType && selectedBusinessType) {
-        return `Build me a ${selectedApplicationType} for ${selectedBusinessType}${customInput ? ` - ${customInput}` : ''}`;
-      }
-
-      return customInput;
-    };
 
     // Update the input when selections change
     useEffect(() => {
-      const newPrompt = constructPrompt();
-
-      if (handleInputChange && newPrompt !== input) {
+      if (handleInputChange && customInput !== input) {
         // Create a synthetic event to update the input
         const syntheticEvent = {
-          target: { value: newPrompt },
+          target: { value: customInput },
         } as React.ChangeEvent<HTMLTextAreaElement>;
         handleInputChange(syntheticEvent);
       }
-    }, [selectedApplicationType, selectedBusinessType, customInput]);
+    }, [customInput]);
 
     useEffect(() => {
       if (data) {
@@ -452,26 +397,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
     };
 
-    // Handle proceeding to solution design
-    const handleProceedToSolutionDesign = () => {
-      setShowSolutionDesign(true);
-    };
-
-    // Handle going back to form
-    const handleBackToForm = () => {
-      setShowSolutionDesign(false);
-    };
-
-    // Handle proceeding to code generation
-    const handleProceedToCode = (prompt: string) => {
-      setShowSolutionDesign(false);
-
-      // Send the provided prompt to start the chat
-      if (prompt && sendMessage) {
-        sendMessage({} as React.UIEvent, prompt);
-      }
-    };
-
     const baseChat = (
       <div
         ref={ref}
@@ -512,22 +437,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 }}
               </ClientOnly>
 
-              {/* Show Solution Design page */}
-              {!chatStarted && showSolutionDesign ? (
-                <SolutionDesign
-                  applicationType={selectedApplicationType}
-                  businessType={selectedBusinessType}
-                  additionalDetails={customInput}
-                  onProceedToCode={handleProceedToCode}
-                  onBackToForm={handleBackToForm}
-                />
-              ) : (
-                /* Show guided form or chat input */
-                <div
-                  className={classNames('flex flex-col gap-4 w-full max-w-chat mx-auto z-prompt mb-6', {
-                    'sticky bottom-2': chatStarted,
-                  })}
-                >
+              {/* Show guided form or chat input */}
+              <div
+                className={classNames('flex flex-col gap-4 w-full max-w-chat mx-auto z-prompt mb-6', {
+                  'sticky bottom-2': chatStarted,
+                })}
+              >
                   <div className="bg-bolt-elements-background-depth-2">
                     {actionAlert && (
                       <ChatAlert
@@ -644,71 +559,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       )}
                     >
                       {!chatStarted ? (
-                        // Guided form for landing page
-                        <div className="p-6">
-                          <div className="text-center mb-8">
-                            <h3 className="text-xl font-semibold text-bolt-elements-textPrimary mb-3">
-                              What would you like to build?
-                            </h3>
-                            <p className="text-sm text-bolt-elements-textSecondary">
-                              Select your options below to get started
-                            </p>
-                          </div>
-
-                          <div className="space-y-6">
-                            {/* Application Type ComboBox */}
-                            <ComboBox
-                              options={APPLICATION_TYPES}
-                              value={selectedApplicationType}
-                              onChange={setSelectedApplicationType}
-                              placeholder="Select or type an application type..."
-                              label="Application Type"
-                              allowCustomInput={true}
-                            />
-
-                            {/* Business Type ComboBox */}
-                            <ComboBox
-                              options={BUSINESS_TYPES}
-                              value={selectedBusinessType}
-                              onChange={setSelectedBusinessType}
-                              placeholder="Select or type a business type..."
-                              label="Business Type"
-                              allowCustomInput={true}
-                            />
-
-                            {/* Additional Details Input */}
-                            <div>
-                              <label className="block text-sm font-medium text-bolt-elements-textPrimary mb-3">
-                                Additional Details (Optional)
-                              </label>
-                              <textarea
-                                value={customInput}
-                                onChange={e => setCustomInput(e.target.value)}
-                                placeholder="Add any specific requirements or features you'd like..."
-                                className={classNames(
-                                  'w-full p-4 rounded-lg border border-bolt-elements-borderColor',
-                                  'bg-bolt-elements-background-depth-2 text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
-                                  'focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus',
-                                  'transition-all duration-200 resize-none text-base',
-                                  'min-h-[100px] max-h-[150px]',
-                                  'hover:border-bolt-elements-focus'
-                                )}
-                              />
-                            </div>
-
-                            {/* Generated Prompt Preview */}
-                            {selectedApplicationType && selectedBusinessType && (
-                              <div className="p-4 bg-bolt-elements-background-depth-3 rounded-lg border border-bolt-elements-borderColor">
-                                <p className="text-xs text-bolt-elements-textSecondary mb-2 font-medium">
-                                  Generated Prompt:
-                                </p>
-                                <p className="text-sm text-bolt-elements-textPrimary font-medium leading-relaxed">
-                                  {constructPrompt()}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                        <PromptingMultipleChoice
+                          onPromptChange={prompt => {
+                            setCustomInput(prompt);
+                          }}
+                        />
                       ) : (
                         // Original textarea for chat mode
                         <textarea
@@ -786,11 +641,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       <ClientOnly>
                         {() => (
                           <SendButton
-                            show={
-                              chatStarted
-                                ? Boolean(input.length > 0 || isStreaming || uploadedFiles.length > 0)
-                                : Boolean(selectedApplicationType && selectedBusinessType)
-                            }
+                            show={chatStarted ? Boolean(input.length > 0 || isStreaming || uploadedFiles.length > 0) : Boolean(input.length > 0)}
                             isStreaming={isStreaming}
                             disabled={!providerList || providerList.length === 0}
                             onClick={event => {
@@ -804,8 +655,9 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                                   handleSendMessage?.(event);
                                 }
                               } else {
-                                // For guided form, proceed to solution design
-                                handleProceedToSolutionDesign();
+                                if (input.length > 0) {
+                                  handleSendMessage?.(event);
+                                }
                               }
                             }}
                           />
@@ -872,7 +724,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     )}
                   </div>
                 </div>
-              )}
             </div>
             <div className="flex flex-col justify-center gap-5">
               {!chatStarted && (
