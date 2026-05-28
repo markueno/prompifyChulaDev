@@ -61,6 +61,7 @@ interface BaseChatProps {
   handleStop?: () => void;
   sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  setInput?: (value: string) => void;
   enhancePrompt?: () => void;
   importChat?: (description: string, messages: Message[]) => Promise<void>;
   exportChat?: () => void;
@@ -111,6 +112,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       data,
       actionRunner,
       isModerator = false,
+      setInput,
     },
     ref
   ) => {
@@ -126,19 +128,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     modelRef.current = model;
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
-    // State for multi-step prompting flow
-    const [customInput, setCustomInput] = useState('');
-
-    // Update the input when selections change
-    useEffect(() => {
-      if (handleInputChange && customInput !== input) {
-        // Create a synthetic event to update the input
-        const syntheticEvent = {
-          target: { value: customInput },
-        } as React.ChangeEvent<HTMLTextAreaElement>;
-        handleInputChange(syntheticEvent);
+    const setWizardPrompt = (prompt: string) => {
+      if (setInput) {
+        setInput(prompt);
+      } else if (handleInputChange) {
+        handleInputChange({ target: { value: prompt } } as React.ChangeEvent<HTMLTextAreaElement>);
       }
-    }, [customInput]);
+    };
 
     useEffect(() => {
       if (data) {
@@ -560,9 +556,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                     >
                       {!chatStarted ? (
                         <PromptingMultipleChoice
-                          onPromptChange={prompt => {
-                            setCustomInput(prompt);
-                          }}
+                          onPromptChange={setWizardPrompt}
                         />
                       ) : (
                         // Original textarea for chat mode

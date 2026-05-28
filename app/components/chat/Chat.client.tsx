@@ -880,6 +880,7 @@ export const ChatImpl = memo(
         isModerator={isModerator}
         messageRef={messageRef}
         scrollRef={scrollRef}
+        setInput={setInput}
         handleInputChange={e => {
           onTextareaChange(e);
           debouncedCachePrompt(e);
