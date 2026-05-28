@@ -70,6 +70,24 @@ export const Preview = memo(() => {
     setIframeUrl(baseUrl);
   }, [activePreview]);
 
+  // Auto-reload the iframe when a preview transitions from not-ready → ready
+  // (e.g. after a dev server restart or file change rebuild).
+  const prevReadyRef = useRef<boolean | undefined>(undefined);
+
+  useEffect(() => {
+    if (!activePreview) {
+      prevReadyRef.current = undefined;
+      return;
+    }
+
+    const wasNotReady = prevReadyRef.current === false;
+    prevReadyRef.current = activePreview.ready;
+
+    if (wasNotReady && activePreview.ready && iframeRef.current) {
+      iframeRef.current.src = iframeRef.current.src;
+    }
+  }, [activePreview]);
+
   const validateUrl = useCallback(
     (value: string) => {
       if (!activePreview) {

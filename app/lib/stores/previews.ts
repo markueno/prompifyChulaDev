@@ -23,7 +23,7 @@ export class PreviewsStore {
   #broadcastChannel: BroadcastChannel;
   #lastUpdate = new Map<string, number>();
   #refreshTimeouts = new Map<string, NodeJS.Timeout>();
-  #REFRESH_DELAY = 300;
+  #REFRESH_DELAY = 500;
 
   previews = atom<PreviewInfo[]>([]);
 
@@ -69,9 +69,18 @@ export class PreviewsStore {
     webcontainer.on('server-ready', (port, url) => {
       console.log('[Preview] Server ready on port:', port, url);
       console.log('[Preview] WebContainer workdir:', webcontainer.workdir);
-      console.log('[Preview] Session ID:', typeof window !== 'undefined' && window.sessionStorage 
-        ? window.sessionStorage.getItem('bolt-session-id') 
+      console.log('[Preview] Session ID:', typeof window !== 'undefined' && window.sessionStorage
+        ? window.sessionStorage.getItem('bolt-session-id')
         : 'N/A');
+
+      // BroadcastChannel.onmessage does NOT fire in the same tab that sent the message,
+      // so call refreshPreview directly for the current tab, then broadcast to others.
+      const previewId = this.getPreviewId(url);
+
+      if (previewId) {
+        this.refreshPreview(previewId);
+      }
+
       this.broadcastUpdate(url);
     });
 
@@ -87,6 +96,8 @@ export class PreviewsStore {
           const previewId = this.getPreviewId(preview.baseUrl);
 
           if (previewId) {
+            // Direct call for the current tab (BroadcastChannel won't self-deliver)
+            this.refreshPreview(previewId);
             this.broadcastFileChange(previewId);
           }
         }

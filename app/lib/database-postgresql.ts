@@ -443,6 +443,64 @@ export async function createPostgresTables() {
       'CREATE INDEX IF NOT EXISTS idx_contact_submissions_enquiry_type ON contact_submissions(enquiry_type)'
     );
 
+    // Phase 2: Companies (tenants)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS companies (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        slug TEXT UNIQUE NOT NULL,
+        plan TEXT NOT NULL DEFAULT 'starter',
+        github_org TEXT,
+        schema_name TEXT UNIQUE,
+        owner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Phase 2: Company membership + RBAC
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS company_members (
+        id TEXT PRIMARY KEY,
+        company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        role TEXT NOT NULL DEFAULT 'developer',
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(company_id, user_id)
+      )
+    `);
+
+    // Phase 2: Extend projects with company context + lifecycle columns
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS company_id TEXT REFERENCES companies(id) ON DELETE CASCADE`);
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft'`);
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS runtime_type TEXT NOT NULL DEFAULT 'static'`);
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_repo TEXT`);
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS deploy_url TEXT`);
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP`);
+    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS build_logs TEXT`);
+
+    // Phase 2: Audit log (append-only)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id TEXT PRIMARY KEY,
+        company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+        actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+        project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+        action TEXT NOT NULL,
+        payload JSONB,
+        ip_address TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await client.query('CREATE INDEX IF NOT EXISTS idx_companies_slug ON companies(slug)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_companies_owner ON companies(owner_user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_company_members_company ON company_members(company_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_company_members_user ON company_members(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_projects_company ON projects(company_id, status)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_company ON audit_logs(company_id, created_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_project ON audit_logs(project_id)');
+
     console.log('PostgreSQL tables created successfully');
   } catch (error) {
     console.error('Error creating PostgreSQL tables:', error);
@@ -1936,6 +1994,373 @@ export async function acceptInvitationByTokenPostgres(token: string, userId: str
   } catch (error) {
     console.error('Error accepting invitation:', error);
     return { success: false, error: 'Failed to accept invitation' };
+  } finally {
+    client.release();
+  }
+}
+
+// ============================================================
+// Phase 2: Company (Tenant) Functions
+// ============================================================
+
+export type CompanyRole = 'admin' | 'developer' | 'viewer';
+export type AppStatus = 'draft' | 'building' | 'active' | 'sleeping' | 'failed';
+export type RuntimeType = 'static' | 'worker' | 'container';
+
+export type Company = {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  github_org: string | null;
+  owner_user_id: string | null;
+  created_at: string;
+};
+
+export type CompanyApp = {
+  id: string;
+  name: string;
+  slug: string | null;
+  description: string | null;
+  status: AppStatus;
+  runtime_type: RuntimeType;
+  github_repo: string | null;
+  deploy_url: string | null;
+  last_active_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function createCompanyPostgres(
+  name: string,
+  slug: string,
+  ownerUserId: string,
+  githubOrg?: string
+): Promise<Company | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const companyId = crypto.randomUUID();
+    const result = await client.query(
+      `INSERT INTO companies (id, name, slug, owner_user_id, github_org)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [companyId, name, slug, ownerUserId, githubOrg ?? null]
+    );
+    await client.query(
+      `INSERT INTO company_members (id, company_id, user_id, role)
+       VALUES ($1, $2, $3, 'admin')`,
+      [crypto.randomUUID(), companyId, ownerUserId]
+    );
+    await client.query('COMMIT');
+    return result.rows[0] ?? null;
+  } catch (error) {
+    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    console.error('Error creating company:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getCompanyBySlugPostgres(slug: string): Promise<Company | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT * FROM companies WHERE slug = $1 LIMIT 1`,
+      [slug]
+    );
+    return result.rows[0] ?? null;
+  } catch (error) {
+    console.error('Error getting company by slug:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getUserCompaniesPostgres(userId: string): Promise<(Company & { role: CompanyRole })[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT c.*, cm.role
+       FROM companies c
+       JOIN company_members cm ON c.id = cm.company_id
+       WHERE cm.user_id = $1
+       ORDER BY c.created_at DESC`,
+      [userId]
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error getting user companies:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function getCompanyMemberPostgres(
+  companyId: string,
+  userId: string
+): Promise<{ role: CompanyRole } | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT role FROM company_members WHERE company_id = $1 AND user_id = $2 LIMIT 1`,
+      [companyId, userId]
+    );
+    return result.rows[0] ?? null;
+  } catch (error) {
+    console.error('Error getting company member:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getCompanyMembersPostgres(
+  companyId: string
+): Promise<{ user_id: string; email: string; role: CompanyRole; joined_at: string }[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT cm.user_id, u.email, cm.role, cm.joined_at
+       FROM company_members cm
+       JOIN users u ON cm.user_id = u.id
+       WHERE cm.company_id = $1
+       ORDER BY cm.joined_at ASC`,
+      [companyId]
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error getting company members:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function addCompanyMemberPostgres(
+  companyId: string,
+  userId: string,
+  role: CompanyRole
+): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO company_members (id, company_id, user_id, role)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (company_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+      [crypto.randomUUID(), companyId, userId, role]
+    );
+    return true;
+  } catch (error) {
+    console.error('Error adding company member:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function removeCompanyMemberPostgres(companyId: string, userId: string): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `DELETE FROM company_members WHERE company_id = $1 AND user_id = $2`,
+      [companyId, userId]
+    );
+    return true;
+  } catch (error) {
+    console.error('Error removing company member:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateCompanyPostgres(
+  companyId: string,
+  fields: { name?: string; github_org?: string; plan?: string }
+): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const setClauses: string[] = ['updated_at = CURRENT_TIMESTAMP'];
+    const values: unknown[] = [];
+    let idx = 1;
+    if (fields.name !== undefined) { setClauses.push(`name = $${idx++}`); values.push(fields.name); }
+    if (fields.github_org !== undefined) { setClauses.push(`github_org = $${idx++}`); values.push(fields.github_org); }
+    if (fields.plan !== undefined) { setClauses.push(`plan = $${idx++}`); values.push(fields.plan); }
+    if (values.length === 0) return true;
+    values.push(companyId);
+    await client.query(
+      `UPDATE companies SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+      values
+    );
+    return true;
+  } catch (error) {
+    console.error('Error updating company:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+// ============================================================
+// Phase 2: Company App Functions
+// ============================================================
+
+export async function getCompanyAppsPostgres(companyId: string): Promise<CompanyApp[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT id, name, slug, description, status, runtime_type, github_repo,
+              deploy_url, last_active_at, created_at, updated_at
+       FROM projects
+       WHERE company_id = $1 AND is_archived = FALSE
+       ORDER BY
+         CASE status
+           WHEN 'active'   THEN 1
+           WHEN 'building' THEN 2
+           WHEN 'sleeping' THEN 3
+           WHEN 'draft'    THEN 4
+           WHEN 'failed'   THEN 5
+         END,
+         updated_at DESC`,
+      [companyId]
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error getting company apps:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function updateAppStatusPostgres(
+  projectId: string,
+  status: AppStatus,
+  extra?: { deploy_url?: string; github_repo?: string; build_logs?: string }
+): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const setClauses = ['status = $1', 'updated_at = CURRENT_TIMESTAMP'];
+    const values: unknown[] = [status];
+    let idx = 2;
+    if (status === 'active') { setClauses.push(`last_active_at = CURRENT_TIMESTAMP`); }
+    if (extra?.deploy_url) { setClauses.push(`deploy_url = $${idx++}`); values.push(extra.deploy_url); }
+    if (extra?.github_repo) { setClauses.push(`github_repo = $${idx++}`); values.push(extra.github_repo); }
+    if (extra?.build_logs !== undefined) { setClauses.push(`build_logs = $${idx++}`); values.push(extra.build_logs); }
+    values.push(projectId);
+    await client.query(
+      `UPDATE projects SET ${setClauses.join(', ')} WHERE id = $${idx}`,
+      values
+    );
+    return true;
+  } catch (error) {
+    console.error('Error updating app status:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getInactiveAppsPostgres(thresholdMinutes = 15): Promise<{ id: string; company_id: string }[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT id, company_id FROM projects
+       WHERE status = 'active'
+         AND runtime_type = 'container'
+         AND last_active_at < NOW() - ($1 || ' minutes')::INTERVAL`,
+      [thresholdMinutes]
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error getting inactive apps:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+// ============================================================
+// Phase 2: Audit Log Functions
+// ============================================================
+
+export type AuditAction =
+  | 'CREATE_COMPANY' | 'UPDATE_COMPANY'
+  | 'MEMBER_ADD' | 'MEMBER_REMOVE' | 'MEMBER_ROLE_CHANGE'
+  | 'CREATE_APP' | 'DELETE_APP'
+  | 'BUILD' | 'DEPLOY' | 'PUSH_CODE'
+  | 'WAKE' | 'SLEEP';
+
+export async function addAuditLogPostgres(params: {
+  companyId: string;
+  actorId: string;
+  projectId?: string | null;
+  action: AuditAction;
+  payload?: Record<string, unknown>;
+  ipAddress?: string | null;
+}): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    await client.query(
+      `INSERT INTO audit_logs (id, company_id, actor_id, project_id, action, payload, ip_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        crypto.randomUUID(),
+        params.companyId,
+        params.actorId,
+        params.projectId ?? null,
+        params.action,
+        params.payload ? JSON.stringify(params.payload) : null,
+        params.ipAddress ?? null,
+      ]
+    );
+    return true;
+  } catch (error) {
+    console.error('Error adding audit log:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function getAuditLogsPostgres(
+  companyId: string,
+  limit = 50
+): Promise<{ id: string; actor_email: string; project_name: string | null; action: string; payload: unknown; created_at: string }[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `SELECT al.id, u.email as actor_email, p.name as project_name,
+              al.action, al.payload, al.created_at
+       FROM audit_logs al
+       LEFT JOIN users u ON al.actor_id = u.id
+       LEFT JOIN projects p ON al.project_id = p.id
+       WHERE al.company_id = $1
+       ORDER BY al.created_at DESC
+       LIMIT $2`,
+      [companyId, limit]
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error getting audit logs:', error);
+    return [];
   } finally {
     client.release();
   }

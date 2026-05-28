@@ -89,6 +89,7 @@ services:
       - KOOGALLERY_ACCESS_KEY=${KOOGALLERY_ACCESS_KEY}
       - KOOGALLERY_API_BASE_URL=${KOOGALLERY_API_BASE_URL}
       - KOOGALLERY_ENABLED=${KOOGALLERY_ENABLED:-true}
+      - CRON_SECRET=${CRON_SECRET}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
@@ -109,6 +110,28 @@ services:
       redis:
         condition: service_healthy
     command: pnpm run dev --host 0.0.0.0
+    profiles: ['production']
+
+  # Cron runner — sleeps inactive container apps every 15 minutes
+  cron:
+    image: curlimages/curl:latest
+    container_name: prompify-cron
+    environment:
+      - CRON_SECRET=${CRON_SECRET}
+    networks:
+      - prompify-network
+    depends_on:
+      - app
+    restart: unless-stopped
+    entrypoint: >
+      /bin/sh -c "
+        while true; do
+          sleep 900;
+          curl -s -X POST http://app:5173/api/cron/sleep-check
+            -H \"Authorization: Bearer $$CRON_SECRET\"
+            -H \"Content-Type: application/json\";
+        done
+      "
     profiles: ['production']
 
   # Nginx reverse proxy for HTTPS

@@ -323,3 +323,59 @@ CREATE INDEX IF NOT EXISTS idx_payments_type ON payments(type);
 CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments(created_at);
 CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON contact_submissions(created_at);
 CREATE INDEX IF NOT EXISTS idx_contact_submissions_enquiry_type ON contact_submissions(enquiry_type);
+
+-- ============================================================
+-- Phase 2: Multi-Tenant Enterprise Foundation
+-- ============================================================
+
+-- Companies (tenants) — one per enterprise customer
+CREATE TABLE IF NOT EXISTS companies (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT UNIQUE NOT NULL,
+    plan TEXT NOT NULL DEFAULT 'starter',
+    github_org TEXT,
+    schema_name TEXT UNIQUE,
+    owner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Company membership + RBAC
+CREATE TABLE IF NOT EXISTS company_members (
+    id TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'developer',
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(company_id, user_id)
+);
+
+-- Extend projects with company context + app lifecycle columns
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS company_id TEXT REFERENCES companies(id) ON DELETE CASCADE;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS runtime_type TEXT NOT NULL DEFAULT 'static';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_repo TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS deploy_url TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS build_logs TEXT;
+
+-- Audit log (append-only)
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id TEXT PRIMARY KEY,
+    company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+    actor_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+    action TEXT NOT NULL,
+    payload JSONB,
+    ip_address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_companies_slug ON companies(slug);
+CREATE INDEX IF NOT EXISTS idx_companies_owner ON companies(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_company_members_company ON company_members(company_id);
+CREATE INDEX IF NOT EXISTS idx_company_members_user ON company_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_company ON projects(company_id, status);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_company ON audit_logs(company_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_project ON audit_logs(project_id);

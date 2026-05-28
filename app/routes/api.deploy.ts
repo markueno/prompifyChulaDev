@@ -1,16 +1,21 @@
 import { type ActionFunctionArgs, json } from '@remix-run/cloudflare';
 import crypto from 'crypto';
 import type { NetlifySiteInfo } from '~/types/netlify';
+import { optionalAuth } from '~/lib/auth';
+import { updateAppStatus, addAuditLog } from '~/lib/database';
 
 interface DeployRequestBody {
   siteId?: string;
   files: Record<string, string>;
   chatId: string;
+  projectId?: string;
+  companyId?: string;
 }
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, context }: ActionFunctionArgs) {
   try {
-    const { siteId, files, token, chatId } = (await request.json()) as DeployRequestBody & { token: string };
+    const user = await optionalAuth(request, context);
+    const { siteId, files, token, chatId, projectId, companyId } = (await request.json()) as DeployRequestBody & { token: string };
 
     if (!token) {
       return json({ error: 'Not connected to Netlify' }, { status: 401 });
@@ -204,12 +209,26 @@ export async function action({ request }: ActionFunctionArgs) {
         // Only return after files are uploaded
         if (Object.keys(files).length === 0 || status.summary?.status === 'ready') {
           console.log('[Deploy] Deployment completed successfully');
+          const deployUrl = status.ssl_url || status.url;
+
+          if (projectId && companyId && user) {
+            await updateAppStatus(projectId, 'active', { deploy_url: deployUrl });
+            await addAuditLog({
+              companyId,
+              actorId: user.id,
+              projectId,
+              action: 'DEPLOY',
+              payload: { deploy_id: status.id, url: deployUrl },
+              ipAddress: request.headers.get('x-forwarded-for'),
+            });
+          }
+
           return json({
             success: true,
             deploy: {
               id: status.id,
               state: status.state,
-              url: status.ssl_url || status.url,
+              url: deployUrl,
             },
             site: siteInfo,
           });

@@ -46,9 +46,22 @@ import {
   getProjectOverviewPostgres,
   insertContactSubmissionPostgres,
   type ContactSubmissionInput,
+  createCompanyPostgres,
+  getCompanyBySlugPostgres,
+  getUserCompaniesPostgres,
+  getCompanyMemberPostgres,
+  getCompanyMembersPostgres,
+  addCompanyMemberPostgres,
+  removeCompanyMemberPostgres,
+  updateCompanyPostgres,
+  getCompanyAppsPostgres,
+  updateAppStatusPostgres,
+  getInactiveAppsPostgres,
+  addAuditLogPostgres,
+  getAuditLogsPostgres,
 } from './database-postgresql';
 
-export type { ProjectOverview, ProjectOverviewRecentRun } from './database-postgresql';
+export type { ProjectOverview, ProjectOverviewRecentRun, Company, CompanyApp, CompanyRole, AppStatus, RuntimeType, AuditAction } from './database-postgresql';
 
 // Database configuration
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -749,8 +762,8 @@ export async function getActiveSessionCount(userId: string) {
     } else {
       const db = getDatabase();
       const result = db.prepare(`
-        SELECT COUNT(*) as count 
-        FROM user_sessions 
+        SELECT COUNT(*) as count
+        FROM user_sessions
         WHERE user_id = ? AND expires_at > datetime('now')
       `).get(userId);
       return result.count;
@@ -759,4 +772,110 @@ export async function getActiveSessionCount(userId: string) {
     console.error('Error getting active session count:', error);
     return 0;
   }
+}
+
+// ============================================================
+// Phase 2: Company (Tenant) Functions
+// ============================================================
+
+export async function createCompany(name: string, slug: string, ownerUserId: string, githubOrg?: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return createCompanyPostgres(name, slug, ownerUserId, githubOrg);
+  }
+  return null;
+}
+
+export async function getCompanyBySlug(slug: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyBySlugPostgres(slug);
+  }
+  return null;
+}
+
+export async function getUserCompanies(userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getUserCompaniesPostgres(userId);
+  }
+  return [];
+}
+
+export async function getCompanyMember(companyId: string, userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyMemberPostgres(companyId, userId);
+  }
+  return null;
+}
+
+export async function getCompanyMembers(companyId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyMembersPostgres(companyId);
+  }
+  return [];
+}
+
+export async function addCompanyMember(companyId: string, userId: string, role: import('./database-postgresql').CompanyRole) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return addCompanyMemberPostgres(companyId, userId, role);
+  }
+  return false;
+}
+
+export async function removeCompanyMember(companyId: string, userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return removeCompanyMemberPostgres(companyId, userId);
+  }
+  return false;
+}
+
+export async function updateCompany(companyId: string, fields: { name?: string; github_org?: string; plan?: string }) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return updateCompanyPostgres(companyId, fields);
+  }
+  return false;
+}
+
+export async function getCompanyApps(companyId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyAppsPostgres(companyId);
+  }
+  return [];
+}
+
+export async function updateAppStatus(
+  projectId: string,
+  status: import('./database-postgresql').AppStatus,
+  extra?: { deploy_url?: string; github_repo?: string; build_logs?: string }
+) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return updateAppStatusPostgres(projectId, status, extra);
+  }
+  return false;
+}
+
+export async function getInactiveApps(thresholdMinutes = 15) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getInactiveAppsPostgres(thresholdMinutes);
+  }
+  return [];
+}
+
+export async function addAuditLog(params: {
+  companyId: string;
+  actorId: string;
+  projectId?: string | null;
+  action: import('./database-postgresql').AuditAction;
+  payload?: Record<string, unknown>;
+  ipAddress?: string | null;
+}) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return addAuditLogPostgres(params);
+  }
+  return false;
+}
+
+export async function getAuditLogs(companyId: string, limit = 50) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getAuditLogsPostgres(companyId, limit);
+  }
+  return [];
 } 
