@@ -145,14 +145,27 @@ export default defineConfig(config => {
   };
 });
 
-/** Prevents import-analysis from parsing .dockerignore, .gitignore, etc. by returning empty JS. */
+/**
+ * Prevents Vite's import-analysis from processing root-level files that are
+ * not part of the client bundle:
+ *  - dot-config files (.dockerignore, .gitignore, etc.)
+ *  - server.js  — a standalone Node.js HTTP server run via `pnpm run dev`
+ *                 inside Docker. Its `import * as build from "./build/server/index.js"`
+ *                 fails during `remix vite:dev` because that path only exists
+ *                 after a full `remix vite:build`.
+ *
+ * node_modules paths are explicitly excluded so that packages with their own
+ * server.js (e.g. express, fastify) are not accidentally silenced.
+ */
 function ignoreNonJsRootFilesPlugin() {
-  const ignorePattern = /[\/\\]\.(dockerignore|gitignore|prettierignore|editorconfig)(\?.*)?$/;
+  const ignorePattern =
+    /[\/\\](\.(?:dockerignore|gitignore|prettierignore|editorconfig)|server\.js)(\?.*)?$/;
   return {
     name: 'ignore-non-js-root-files',
-    enforce: 'pre',
+    enforce: 'pre' as const,
     load(id: string) {
-      if (ignorePattern.test(id)) {
+      const cleanId = id.split('?')[0];
+      if (ignorePattern.test(id) && !cleanId.includes('node_modules')) {
         return { code: 'export {}', map: null };
       }
     },

@@ -1,6 +1,7 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+// better-sqlite3 and drizzle-orm/better-sqlite3 are native addons — only loaded
+// when DATABASE_TYPE=sqlite. Dynamic require() instead of top-level import prevents
+// the binding from being resolved in environments without native .node support
+// (WebContainer, Cloudflare Workers, etc.).
 import crypto from 'crypto';
 import {
   getPostgresPool,
@@ -54,7 +55,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const DATABASE_TYPE = process.env.DATABASE_TYPE || 'postgresql'; // 'sqlite' or 'postgresql'
 
 // For SQLite (development)
-let sqliteDb: Database.Database;
+let sqliteDb: any;
 
 // For PostgreSQL (production)
 let postgresDb: any;
@@ -69,19 +70,25 @@ export function getDatabase() {
 
 export function getDrizzleDB() {
   if (DATABASE_TYPE === 'postgresql') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { drizzle } = require('drizzle-orm/node-postgres');
     return drizzle(getPostgresDatabase());
   } else {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { drizzle } = require('drizzle-orm/better-sqlite3');
     return drizzle(getSQLiteDatabase());
   }
 }
 
 function getSQLiteDatabase() {
   if (!sqliteDb) {
-    sqliteDb = new Database('./data/prompify.db');
-    
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const BetterSqlite3 = require('better-sqlite3');
+    sqliteDb = new BetterSqlite3('./data/prompify.db');
+
     // Enable foreign keys
     sqliteDb.pragma('foreign_keys = ON');
-    
+
     // Create tables if they don't exist
     createSQLiteTables(sqliteDb);
   }
@@ -97,7 +104,7 @@ function getPostgresDatabase() {
   return postgresDb;
 }
 
-function createSQLiteTables(db: Database.Database) {
+function createSQLiteTables(db: any) {
   // Users table
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (

@@ -72,18 +72,12 @@ export const Head = createHead(() => (
 ));
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const theme = useStore(themeStore);
-
-  useEffect(() => {
-    document.querySelector('html')?.setAttribute('data-theme', theme);
-  }, [theme]);
-
   return (
-    <DndProvider backend={HTML5Backend}>
+    <>
       {children}
       <ScrollRestoration />
       <Scripts />
-    </DndProvider>
+    </>
   );
 }
 
@@ -91,6 +85,11 @@ import { logStore } from './lib/stores/logs';
 
 export default function App() {
   const theme = useStore(themeStore);
+
+  useEffect(() => {
+    // Sync theme attribute after hydration — suppresses server/client mismatch
+    document.querySelector('html')?.setAttribute('data-theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     logStore.logSystem('Application initialized', {
@@ -102,8 +101,10 @@ export default function App() {
   }, []);
 
   return (
-    <Layout>
+    // DndProvider uses HTML5Backend which accesses browser globals (window, addEventListener).
+    // Must live in App (client-rendered) not Layout (SSR document shell) to avoid hydration crashes.
+    <DndProvider backend={HTML5Backend}>
       <Outlet />
-    </Layout>
+    </DndProvider>
   );
 }
