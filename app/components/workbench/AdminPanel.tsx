@@ -6,6 +6,7 @@ import { classNames } from '~/utils/classNames';
 import { chatId } from '~/lib/persistence';
 import { EventLogsTab } from '~/components/@settings/tabs/event-logs/EventLogsTab';
 import { AdminSecuritySection } from '~/components/workbench/AdminSecuritySection';
+import { AdminDataSection } from '~/components/workbench/AdminDataSection';
 import { workbenchStore } from '~/lib/stores/workbench';
 
 export type AdminSectionId =
@@ -623,6 +624,8 @@ export const AdminPanel = memo(() => {
             <UsersSection />
           ) : activeSection === 'logs' ? null : activeSection === 'security' ? (
             <AdminSecuritySection />
+          ) : activeSection === 'data' ? (
+            <AdminDataSection />
           ) : (
             <div className="rounded-lg border border-dashed border-bolt-elements-borderColor p-12 text-center">
               <div className="i-ph:folder-open text-4xl text-bolt-elements-textTertiary mx-auto mb-3" />
