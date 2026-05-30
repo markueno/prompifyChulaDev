@@ -204,6 +204,12 @@ export function buildPrimaryPrompt(answers: Answers, companyContext?: string): s
   lines.push('— ENV RULE: The app must start with zero errors using only .env.development values.');
   lines.push('   Every required secret (SESSION_SECRET, NEXTAUTH_SECRET, API keys, etc.) must have');
   lines.push('   a safe hardcoded dev default in .env.development. Never throw on missing env vars in dev.');
+  lines.push('   CRITICAL — All env reads in code must use a fallback, never a hard throw:');
+  lines.push('     WRONG:  if (!process.env.SESSION_SECRET) throw new Error("SESSION_SECRET must be set");');
+  lines.push('     WRONG:  const secret = process.env.SESSION_SECRET!;');
+  lines.push('     RIGHT:  const secret = process.env.SESSION_SECRET ?? "dev-secret-change-in-production-min-32-chars";');
+  lines.push('     RIGHT:  const secret = process.env.NEXTAUTH_SECRET ?? "dev-nextauth-secret-change-in-production";');
+  lines.push('   Apply this pattern everywhere: session.server.ts, auth config, cookie helpers, any util that reads an env var.');
   lines.push('— DATABASE RULE: All database code must use the DATABASE_URL env var only.');
   lines.push('   Dev = PGlite on port 5433 (via scripts/dev-db.js).');
   lines.push('   Production = Supabase PostgreSQL (DATABASE_URL injected by the platform).');

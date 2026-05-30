@@ -1088,6 +1088,115 @@ button.landing-cta-btn {
   }
 }
 
+/* ── Top navigation bar ─────────────────────────────────────────────────── */
+.landing-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  padding: 0.9rem 1.5rem;
+  pointer-events: none;
+  transition: background 0.35s ease, box-shadow 0.35s ease;
+}
+
+.landing-nav--over-light {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08), 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+.landing-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1280px;
+  margin: 0 auto;
+  pointer-events: auto;
+}
+
+.landing-nav-brand {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  user-select: none;
+  background: linear-gradient(
+    120deg,
+    #f97316 0%,
+    #ea580c 18%,
+    #fed7aa 38%,
+    #E2FFC7 50%,
+    #fed7aa 62%,
+    #ea580c 82%,
+    #f97316 100%
+  );
+  background-size: 220% 100%;
+  background-position: 0% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: landingHighlight 14s ease-in-out infinite alternate;
+}
+
+.landing-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.landing-nav-signin {
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.45rem 1.1rem;
+  border-radius: 9999px;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  font-family: inherit;
+}
+
+.landing-nav-signin:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: white;
+}
+
+/* On light background (pin cards / outro) */
+.landing-nav--over-light .landing-nav-signin {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+  color: #374151;
+}
+
+.landing-nav--over-light .landing-nav-signin:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #111827;
+}
+
+.landing-nav-signup {
+  border: none;
+  background: #f97316;
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0.5rem 1.3rem;
+  border-radius: 9999px;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  font-family: inherit;
+  box-shadow: 0 2px 16px rgba(249, 115, 22, 0.5);
+  letter-spacing: 0.01em;
+}
+
+.landing-nav-signup:hover {
+  background: #ea580c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 28px rgba(249, 115, 22, 0.65);
+}
+
 /* App builder (/app, /chat/:id) — align chrome with marketing home */
 .landing-app-root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

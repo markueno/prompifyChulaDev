@@ -9,6 +9,7 @@ import { ActionRunner } from '~/lib/runtime/action-runner';
 import { getLanguageFromExtension } from '~/utils/getLanguageFromExtension';
 import type { FileHistory } from '~/types/actions';
 import { AdminPanel } from './AdminPanel';
+import { StreamingBadge } from '~/components/ui/BuildingOverlay';
 import { DiffView } from './DiffView';
 import {
   type OnChangeCallback as OnEditorChange,
@@ -439,6 +440,7 @@ export const Workbench = memo(
                   />
                 </div>
                 <div className="relative flex-1 overflow-hidden">
+                  <StreamingBadge visible={!!isStreaming} />
                   <View initial={{ x: '-100%' }} animate={{ x: selectedView === 'admin' ? '0%' : '-100%' }}>
                     <AdminPanel />
                   </View>

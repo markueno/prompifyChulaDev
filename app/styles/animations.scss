@@ -1,3 +1,14 @@
+@keyframes buildingMsgIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .animated {
   animation-fill-mode: both;
   animation-duration: var(--animate-duration, 0.2s);

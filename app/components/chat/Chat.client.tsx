@@ -18,6 +18,7 @@ import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } fro
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
+import { BuildingOverlay } from '~/components/ui/BuildingOverlay';
 import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
@@ -452,6 +453,8 @@ export const ChatImpl = memo(
     const [imageDataList, setImageDataList] = useState<string[]>([]);
     const [searchParams, setSearchParams] = useSearchParams();
     const [fakeLoading, setFakeLoading] = useState(false);
+    const [isInitialBuild, setIsInitialBuild] = useState(false);
+    const showWorkbench = useStore(workbenchStore.showWorkbench);
     const files = useStore(workbenchStore.files);
     const actionAlert = useStore(workbenchStore.alert);
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
@@ -579,6 +582,24 @@ export const ChatImpl = memo(
       chatStore.setKey('started', initialMessages.length > 0);
     }, []);
 
+    // Hide the building overlay once the workbench becomes visible (code starts generating)
+    useEffect(() => {
+      if (!isInitialBuild) return;
+      if (showWorkbench) {
+        const t = setTimeout(() => setIsInitialBuild(false), 350);
+        return () => clearTimeout(t);
+      }
+    }, [showWorkbench, isInitialBuild]);
+
+    // Fallback: hide if loading ends without a workbench (e.g. error)
+    useEffect(() => {
+      if (!isInitialBuild) return;
+      if (!isLoading && !fakeLoading) {
+        const t = setTimeout(() => setIsInitialBuild(false), 600);
+        return () => clearTimeout(t);
+      }
+    }, [isLoading, fakeLoading, isInitialBuild]);
+
     useEffect(() => {
       processSampledMessages({
         messages,
@@ -656,6 +677,7 @@ export const ChatImpl = memo(
       runAnimation();
 
       if (!chatStarted) {
+        setIsInitialBuild(true);
         setFakeLoading(true);
 
         if (autoSelectTemplate) {
@@ -859,6 +881,8 @@ export const ChatImpl = memo(
     };
 
     return (
+      <>
+      <BuildingOverlay visible={isInitialBuild} />
       <BaseChat
         ref={animationScope}
         textareaRef={textareaRef}
@@ -919,6 +943,7 @@ export const ChatImpl = memo(
         clearAlert={() => workbenchStore.clearAlert()}
         data={chatData}
       />
+      </>
     );
   }
 );

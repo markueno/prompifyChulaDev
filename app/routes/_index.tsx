@@ -1,7 +1,7 @@
 import type { LinksFunction, LoaderFunctionArgs, MetaFunction } from '@remix-run/cloudflare';
 import { json, redirect } from '@remix-run/cloudflare';
 import { LandingPage } from '~/components/landing/LandingPage';
-import { isAuthDisabled } from '~/lib/auth';
+import { isAuthDisabled, optionalAuth } from '~/lib/auth';
 
 import landingStyles from '~/styles/landing.css?url';
 
@@ -18,8 +18,12 @@ export const meta: MetaFunction = () => {
   ];
 };
 
-export async function loader({ context }: LoaderFunctionArgs) {
+export async function loader({ request, context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
+    return redirect('/app/');
+  }
+  const user = await optionalAuth(request, context);
+  if (user) {
     return redirect('/app/');
   }
   return json({});

@@ -265,6 +265,33 @@ export class ActionRunner {
       unreachable('Shell terminal not found');
     }
 
+    // Safety net: if node_modules is missing, auto-install before starting.
+    // This catches cases where the AI forgot to include an `npm install` shell action.
+    const webcontainer = await this.#webcontainer;
+
+    let needsInstall = false;
+
+    try {
+      await webcontainer.fs.readdir('node_modules');
+    } catch {
+      needsInstall = true;
+    }
+
+    if (needsInstall) {
+      logger.debug('[start] node_modules missing — auto-running npm install');
+
+      const installResp = await shell.executeCommand(this.runnerId.get(), 'npm install', () => {
+        logger.debug('[start] Aborting auto-install');
+      });
+
+      if (installResp?.exitCode !== 0) {
+        throw new ActionCommandError(
+          'Dependency installation failed (auto-install before start)',
+          installResp?.output || 'No output available',
+        );
+      }
+    }
+
     const resp = await shell.executeCommand(this.runnerId.get(), action.content, () => {
       logger.debug(`[${action.type}]:Aborting Action\n\n`, action);
       action.abort();

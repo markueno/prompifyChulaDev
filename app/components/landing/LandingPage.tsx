@@ -389,12 +389,19 @@ export function LandingPage() {
     let cleanup: (() => void) | undefined;
 
     void (async () => {
-      const [{ default: gsap }, scrollTriggerMod, { default: Lenis }] = await Promise.all([
-        import('gsap'),
-        import('gsap/ScrollTrigger'),
-        import('lenis'),
-      ]);
-      const { ScrollTrigger } = scrollTriggerMod;
+      let gsap: any, ScrollTrigger: any, Lenis: any;
+      try {
+        const [gsapMod, scrollTriggerMod, lenisMod] = await Promise.all([
+          import('gsap'),
+          import('gsap/ScrollTrigger'),
+          import('lenis'),
+        ]);
+        gsap = gsapMod.default;
+        ScrollTrigger = scrollTriggerMod.ScrollTrigger;
+        Lenis = lenisMod.default;
+      } catch {
+        return;
+      }
       if (cancelled) return;
 
       gsap.registerPlugin(ScrollTrigger);
@@ -441,6 +448,12 @@ export function LandingPage() {
 
         if (floatingBar) {
           floatingBar.classList.toggle('visible', scrollTop > heroH * 0.55);
+        }
+
+        const navEl = container.querySelector('.landing-nav');
+
+        if (navEl) {
+          navEl.classList.toggle('landing-nav--over-light', scrollTop > heroH * 0.9);
         }
       };
 
@@ -498,7 +511,7 @@ export function LandingPage() {
       cleanup = () => {
         window.removeEventListener('scroll', handleScroll);
         gsap.ticker.remove(rafCb);
-        ScrollTrigger.getAll().forEach((t) => t.kill());
+        ScrollTrigger.getAll().forEach((t: any) => t.kill());
         lenis.destroy();
         lenisRef.current = null;
       };
@@ -512,6 +525,37 @@ export function LandingPage() {
 
   return (
     <div ref={containerRef} className="landing-page">
+      {/* Top nav */}
+      <nav className="landing-nav" aria-label="Site navigation">
+        <div className="landing-nav-inner">
+          <span className="landing-nav-brand">Prompify</span>
+          <div className="landing-nav-actions">
+            <button
+              type="button"
+              className="landing-nav-signin"
+              onClick={() => {
+                setShowContactModal(false);
+                setAuthModalMode('login');
+                setShowLoginModal(true);
+              }}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              className="landing-nav-signup"
+              onClick={() => {
+                setShowContactModal(false);
+                setAuthModalMode('register');
+                setShowLoginModal(true);
+              }}
+            >
+              Sign up free
+            </button>
+          </div>
+        </div>
+      </nav>
+
       {/* Hero background */}
       <div ref={heroBgRef} className="landing-hero-bg">
         <img src={`${PIC_BASE}/background1.jpeg`} alt="Background" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
