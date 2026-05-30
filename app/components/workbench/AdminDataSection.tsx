@@ -15,7 +15,7 @@ import {
   deleteSupabaseRow,
 } from '~/lib/stores/supabase-admin';
 
-type Step = 'connect' | 'tables' | 'data';
+type Step = 'loading' | 'connect' | 'tables' | 'data';
 
 const PAGE_SIZE = 50;
 
@@ -248,7 +248,8 @@ RowModal.displayName = 'RowModal';
 export const AdminDataSection = memo(() => {
   const currentChatId = useStore(chatId);
 
-  const [step, setStep] = useState<Step>('connect');
+  const [step, setStep] = useState<Step>('loading');
+  const [platformMode, setPlatformMode] = useState(false);
   const [savedConfig, setSavedConfig] = useState<SupabaseConfig | null>(null);
   const [tables, setTables] = useState<SupabaseTable[]>([]);
   const [selectedTable, setSelectedTable] = useState<SupabaseTable | null>(null);
@@ -270,20 +271,69 @@ export const AdminDataSection = memo(() => {
   const [deleteTarget, setDeleteTarget] = useState<SupabaseRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Auto-connect on mount if saved config exists
+  // On mount: 1) check if platform has Supabase configured (server),
+  //           2) fall back to user-saved config (localStorage),
+  //           3) show manual connect form.
   useEffect(() => {
-    if (!currentChatId) return;
-    const saved = getSupabaseConfig(currentChatId);
-    if (!saved) return;
-    setSavedConfig(saved);
-    setConnecting(true);
-    testSupabaseConnection(saved).then(result => {
-      setConnecting(false);
-      if (result.success && result.tables) {
-        setTables(result.tables);
-        setStep('tables');
+    if (!currentChatId) {
+      setStep('connect');
+      return;
+    }
+
+    const run = async () => {
+      // ── Priority 1: server-configured platform Supabase ─────────────────
+      try {
+        const res = await fetch(`/api/supabase/config?chatId=${encodeURIComponent(currentChatId)}`);
+        if (res.ok) {
+          const data = (await res.json()) as {
+            configured: boolean;
+            url?: string;
+            anonKey?: string;
+            schema?: string;
+          };
+
+          if (data.configured && data.url && data.anonKey) {
+            const cfg: SupabaseConfig = {
+              url: data.url,
+              anonKey: data.anonKey,
+              serviceRoleKey: '',        // service key stays server-side
+              projectName: data.schema,
+            };
+            setConnecting(true);
+            const result = await testSupabaseConnection(cfg);
+            setConnecting(false);
+            if (result.success && result.tables) {
+              setSavedConfig(cfg);
+              setTables(result.tables);
+              setPlatformMode(true);
+              setStep('tables');
+              return;
+            }
+          }
+        }
+      } catch {
+        // server not reachable — fall through to localStorage
       }
-    });
+
+      // ── Priority 2: user-saved config in localStorage ────────────────────
+      const saved = getSupabaseConfig(currentChatId);
+      if (saved) {
+        setSavedConfig(saved);
+        setConnecting(true);
+        const result = await testSupabaseConnection(saved);
+        setConnecting(false);
+        if (result.success && result.tables) {
+          setTables(result.tables);
+          setStep('tables');
+          return;
+        }
+      }
+
+      // ── Priority 3: show manual connect form ─────────────────────────────
+      setStep('connect');
+    };
+
+    run();
   }, [currentChatId]);
 
   const handleConnect = async (cfg: SupabaseConfig) => {
@@ -302,8 +352,9 @@ export const AdminDataSection = memo(() => {
   };
 
   const handleDisconnect = () => {
-    if (currentChatId) clearSupabaseConfig(currentChatId);
+    if (!platformMode && currentChatId) clearSupabaseConfig(currentChatId);
     setSavedConfig(null);
+    setPlatformMode(false);
     setTables([]);
     setSelectedTable(null);
     setRows([]);
@@ -435,7 +486,17 @@ export const AdminDataSection = memo(() => {
 
   const totalPages = Math.ceil(totalRows / PAGE_SIZE);
 
-  // ── Connect step ───────────────────────────────────────────────────────────
+  // ── Loading step (checking server config) ─────────────────────────────────
+  if (step === 'loading') {
+    return (
+      <div className="flex items-center gap-3 py-8 text-bolt-elements-textTertiary">
+        <div className="i-ph:circle-notch animate-spin w-5 h-5" />
+        <span className="text-sm">Connecting to database…</span>
+      </div>
+    );
+  }
+
+  // ── Connect step (manual form — fallback when platform has no Supabase) ───
   if (step === 'connect') {
     const initial: SupabaseConfig = savedConfig ?? { url: '', anonKey: '', serviceRoleKey: '' };
     return (
@@ -459,18 +520,28 @@ export const AdminDataSection = memo(() => {
         <div className="flex items-center justify-between mb-6 px-3 py-2 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor">
           <div className="flex items-center gap-2 min-w-0">
             <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-            <span className="text-sm text-bolt-elements-textSecondary truncate">
-              {savedConfig?.projectName || savedConfig?.url}
-            </span>
+            {platformMode ? (
+              <>
+                <span className="text-sm text-bolt-elements-textSecondary">Platform database</span>
+                <span className="text-xs px-1.5 py-0.5 rounded bg-accent-500/15 text-accent-500 font-medium shrink-0">
+                  auto
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-bolt-elements-textSecondary truncate">
+                {savedConfig?.projectName || savedConfig?.url}
+              </span>
+            )}
             <span className="text-xs text-bolt-elements-textTertiary shrink-0">
               {tables.length} table{tables.length !== 1 ? 's' : ''}
             </span>
           </div>
           <button
             onClick={handleDisconnect}
-            className="text-xs px-2 py-1 rounded text-bolt-elements-textTertiary hover:text-red-500 hover:bg-red-500/10 transition-colors shrink-0 ml-2"
+            className="text-xs px-2 py-1 rounded text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-2 transition-colors shrink-0 ml-2"
+            title={platformMode ? 'Connect to your own Supabase instead' : 'Disconnect'}
           >
-            Disconnect
+            {platformMode ? 'Use custom Supabase' : 'Disconnect'}
           </button>
         </div>
 

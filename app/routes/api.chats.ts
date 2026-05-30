@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
 import { saveChat, getChatsByUser, deleteChat, logUserActivity } from '~/lib/database';
+import { provisionAppSchema } from '~/lib/supabase-provision.server';
 
 // Get all chats for a user
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -55,6 +56,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
         if (chatId) {
           await logUserActivity(user.id, 'chat_saved', { chatId: chatData.id });
+          // Fire-and-forget: provision an isolated schema for this app in Supabase.
+          // No-op if SUPABASE_URL is not configured.
+          const cfEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
+          provisionAppSchema(chatData.id || chatId, cfEnv).catch(() => {});
           return json({ success: true, chatId });
         } else {
           return json({ error: 'Failed to save chat' }, { status: 500 });
