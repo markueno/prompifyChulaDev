@@ -492,6 +492,8 @@ export const Workbench = memo(
                     <div className="flex overflow-y-auto">
                       <PanelHeaderButton
                         className="mr-1 text-sm"
+                        disabled={isStreaming}
+                        title={isStreaming ? 'Wait for code generation to finish before downloading' : 'Download project as ZIP'}
                         onClick={() => {
                           workbenchStore.downloadZip();
                         }}
