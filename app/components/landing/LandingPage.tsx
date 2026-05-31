@@ -528,7 +528,7 @@ export function LandingPage() {
       {/* Top nav */}
       <nav className="landing-nav" aria-label="Site navigation">
         <div className="landing-nav-inner">
-          <span className="landing-nav-brand">Prompify</span>
+
           <div className="landing-nav-actions">
             <button
               type="button"
