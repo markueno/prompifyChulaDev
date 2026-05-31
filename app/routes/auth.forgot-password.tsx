@@ -15,12 +15,17 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
     return redirect('/app/');
   }
+
   try {
     const user = await optionalAuth(request, context);
-    if (user) return redirect('/app/');
+
+    if (user) {
+      return redirect('/app/');
+    }
   } catch {
     // not authenticated, show forgot-password page
   }
+
   return json({});
 }
 
@@ -33,6 +38,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   if (!emailRegex.test(email)) {
     return json<ActionData>({ error: 'Please enter a valid email address' });
   }
@@ -54,7 +60,9 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     return json<ActionData>({
-      success: (data as { message?: string })?.message ?? "If an account exists with that email, we've sent a password reset link. Please check your inbox and spam folder.",
+      success:
+        (data as { message?: string })?.message ??
+        "If an account exists with that email, we've sent a password reset link. Please check your inbox and spam folder.",
     });
   } catch (error) {
     console.error('Forgot password error:', error);
@@ -73,9 +81,7 @@ export default function ForgotPasswordPage() {
 
       <Card className="w-full max-w-md p-8 space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">
-            Forgot your password?
-          </h1>
+          <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">Forgot your password?</h1>
           <p className="text-bolt-elements-textSecondary">
             Enter your email and we&apos;ll send you a link to reset your password.
           </p>
@@ -87,10 +93,10 @@ export default function ForgotPasswordPage() {
               {actionData.success}
             </div>
             <div className="flex flex-col gap-2">
-              <Button asChild className="w-full">
+              <Button _asChild className="w-full">
                 <a href="/?login=1">Back to Sign In</a>
               </Button>
-              <Button variant="outline" asChild className="w-full">
+              <Button variant="outline" _asChild className="w-full">
                 <a href="/auth/forgot-password">Send another link</a>
               </Button>
             </div>

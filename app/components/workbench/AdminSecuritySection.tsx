@@ -16,7 +16,7 @@ export function AdminSecuritySection() {
 
   const cookieKeysHint =
     typeof document !== 'undefined'
-      ? [...document.cookie.split(';').map((c) => c.split('=')[0].trim())].filter(Boolean).length
+      ? [...document.cookie.split(';').map(c => c.split('=')[0].trim())].filter(Boolean).length
       : 0;
 
   return (
@@ -27,8 +27,8 @@ export function AdminSecuritySection() {
           Access & collaborators
         </h2>
         <p className="mb-3">
-          Use <strong className="text-bolt-elements-textPrimary">Admin → Users</strong> to manage who can access this chat
-          project (roles, invitations). That is your main access-control surface for shared chats.
+          Use <strong className="text-bolt-elements-textPrimary">Admin → Users</strong> to manage who can access this
+          chat project (roles, invitations). That is your main access-control surface for shared chats.
         </p>
         <button
           type="button"
@@ -51,15 +51,18 @@ export function AdminSecuritySection() {
         </h2>
         <ul className="list-disc pl-5 space-y-2">
           <li>
-            Provider API keys and related settings may be stored in <strong className="text-bolt-elements-textPrimary">cookies</strong>{' '}
-            (same pattern as Bolt OSS). Prefer env-based keys on your server where possible for production deployments.
+            Provider API keys and related settings may be stored in{' '}
+            <strong className="text-bolt-elements-textPrimary">cookies</strong> (same pattern as Bolt OSS). Prefer
+            env-based keys on your server where possible for production deployments.
           </li>
           <li>
-            <strong className="text-bolt-elements-textPrimary">Event logs</strong> live in-browser (cookie + memory). They help debug UX;
-            treat them as non-audit diagnostics, not tamper-proof security logs.
+            <strong className="text-bolt-elements-textPrimary">Event logs</strong> live in-browser (cookie + memory).
+            They help debug UX; treat them as non-audit diagnostics, not tamper-proof security logs.
           </li>
           {typeof cookieKeysHint === 'number' && cookieKeysHint > 0 ? (
-            <li className="text-bolt-elements-textTertiary">Approx. {cookieKeysHint} cookie name(s) set for this origin (values not shown).</li>
+            <li className="text-bolt-elements-textTertiary">
+              Approx. {cookieKeysHint} cookie name(s) set for this origin (values not shown).
+            </li>
           ) : null}
         </ul>
       </div>
@@ -70,8 +73,10 @@ export function AdminSecuritySection() {
           Diagnostics & audits
         </h2>
         <p className="mb-3">
-          Review client-side activity in <strong className="text-bolt-elements-textPrimary">Admin → Logs</strong> (Event Logs UI).
-          Enable <strong className="text-bolt-elements-textPrimary">Settings → Features → Event logging</strong> if you use Settings as a moderator.
+          Review client-side activity in <strong className="text-bolt-elements-textPrimary">Admin → Logs</strong> (Event
+          Logs UI). Enable{' '}
+          <strong className="text-bolt-elements-textPrimary">Settings → Features → Event logging</strong> if you use
+          Settings as a moderator.
         </p>
         <button
           type="button"
@@ -95,7 +100,8 @@ export function AdminSecuritySection() {
           </h2>
           <p className="mb-3">
             GitHub tokens and hosted provider configuration are edited in{' '}
-            <strong className="text-bolt-elements-textPrimary">Settings → Connections / Providers</strong> (Bolt-style panels).
+            <strong className="text-bolt-elements-textPrimary">Settings → Connections / Providers</strong> (Bolt-style
+            panels).
           </p>
           <button
             type="button"
@@ -115,7 +121,8 @@ export function AdminSecuritySection() {
         </div>
       ) : (
         <p className="text-xs text-bolt-elements-textTertiary px-1">
-          Moderators can open full Settings from the sidebar gear to configure API providers, Connections, and more detailed options.
+          Moderators can open full Settings from the sidebar gear to configure API providers, Connections, and more
+          detailed options.
         </p>
       )}
     </div>

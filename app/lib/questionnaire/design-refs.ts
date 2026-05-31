@@ -1,5 +1,7 @@
-// Eagerly imports all brand design-system markdown files at build time.
-// Vite bundles these as raw strings — no runtime file I/O needed.
+/*
+ * Eagerly imports all brand design-system markdown files at build time.
+ * Vite bundles these as raw strings — no runtime file I/O needed.
+ */
 const modules = import.meta.glob('./design-refs/*.md', {
   query: '?raw',
   import: 'default',
@@ -11,7 +13,7 @@ function brandKey(path: string): string {
 }
 
 export const designSystems: Record<string, string> = Object.fromEntries(
-  Object.entries(modules).map(([path, content]) => [brandKey(path), content]),
+  Object.entries(modules).map(([path, content]) => [brandKey(path), content])
 );
 
 export function getDesignSystem(brandId: string): string {

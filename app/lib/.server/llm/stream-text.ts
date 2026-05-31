@@ -9,6 +9,7 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import { createScopedLogger } from '~/utils/logger';
 import { createFilesContext, extractPropertiesFromMessage } from './utils';
 import { getFilePaths } from './select-context';
+import { getSchemaContext } from '~/lib/supabase-provision.server';
 
 export type Messages = Message[];
 
@@ -29,6 +30,7 @@ export async function streamText(props: {
   contextFiles?: FileMap;
   summary?: string;
   messageSliceId?: number;
+  chatId?: string;
 }) {
   const {
     messages,
@@ -42,6 +44,7 @@ export async function streamText(props: {
     contextOptimization,
     contextFiles,
     summary,
+    chatId,
   } = props;
   let currentModel = DEFAULT_MODEL;
   let currentProvider = DEFAULT_PROVIDER.name;
@@ -69,6 +72,7 @@ export async function streamText(props: {
 
   if (!modelDetails) {
     const matchingProvider = PROVIDER_LIST.find(p => (p.staticModels || []).some(m => m.name === currentModel));
+
     if (matchingProvider && matchingProvider.name !== provider.name) {
       logger.warn(
         `Provider mismatch detected. Requested provider=${provider.name}, model=${currentModel}, resolved provider=${matchingProvider.name}`
@@ -113,6 +117,16 @@ export async function streamText(props: {
       modificationTagName: MODIFICATIONS_TAG_NAME,
       customPrompt,
     }) ?? getSystemPrompt();
+
+  // Inject the app's database schema so the AI knows what tables exist
+  if (chatId) {
+    const cfEnv = (serverEnv as unknown as Record<string, unknown>) ?? {};
+    const schemaCtx = await getSchemaContext(chatId, cfEnv);
+
+    if (schemaCtx) {
+      systemPrompt = `${systemPrompt}\n\n${schemaCtx}`;
+    }
+  }
 
   if (files && contextFiles && contextOptimization) {
     const codeContext = createFilesContext(contextFiles, true);

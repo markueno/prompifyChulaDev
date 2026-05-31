@@ -114,18 +114,31 @@ const UsersSection = memo(() => {
   const [removing, setRemoving] = useState(false);
 
   const fetchData = useCallback(async () => {
-    if (!currentChatId) return;
+    if (!currentChatId) {
+      return;
+    }
+
     setLoading(true);
+
     try {
       const [membersRes, invitationsRes] = await Promise.all([
         fetch(`/api/chats/${currentChatId}/members`),
         fetch(`/api/chats/${currentChatId}/invitations`),
       ]);
-      const membersData = await membersRes.json();
-      const invitationsData = await invitationsRes.json();
-      if (membersData.members) setMembers(membersData.members);
-      if (membersData.currentUserRole) setCurrentUserRole(membersData.currentUserRole);
-      if (invitationsData.invitations) setInvitations(invitationsData.invitations);
+      const membersData = (await membersRes.json()) as any;
+      const invitationsData = (await invitationsRes.json()) as any;
+
+      if (membersData.members) {
+        setMembers(membersData.members);
+      }
+
+      if (membersData.currentUserRole) {
+        setCurrentUserRole(membersData.currentUserRole);
+      }
+
+      if (invitationsData.invitations) {
+        setInvitations(invitationsData.invitations);
+      }
     } catch (err) {
       toast.error('Failed to load users');
     } finally {
@@ -135,15 +148,21 @@ const UsersSection = memo(() => {
 
   const handleUpdateRole = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editMember || !currentChatId || updating) return;
+
+    if (!editMember || !currentChatId || updating) {
+      return;
+    }
+
     setUpdating(true);
+
     try {
       const res = await fetch(`/api/chats/${currentChatId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'updateRole', targetUserId: editMember.id, role: editRole }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as any;
+
       if (data.success) {
         toast.success('Role updated');
         setEditMember(null);
@@ -159,15 +178,20 @@ const UsersSection = memo(() => {
   };
 
   const handleRemove = async () => {
-    if (!removeConfirm || !currentChatId || removing) return;
+    if (!removeConfirm || !currentChatId || removing) {
+      return;
+    }
+
     setRemoving(true);
+
     try {
       const res = await fetch(`/api/chats/${currentChatId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'remove', targetUserId: removeConfirm.id }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as any;
+
       if (data.success) {
         toast.success('Member removed');
         setRemoveConfirm(null);
@@ -183,9 +207,18 @@ const UsersSection = memo(() => {
   };
 
   const canEditOrRemove = (member: ChatMember) => {
-    if (member.role === 'owner') return false;
-    if (currentUserRole === 'owner' || currentUserRole === 'moderator') return true;
-    if (currentUserRole === 'admin') return member.role === 'member'; // admin can only edit/remove members
+    if (member.role === 'owner') {
+      return false;
+    }
+
+    if (currentUserRole === 'owner' || currentUserRole === 'moderator') {
+      return true;
+    }
+
+    if (currentUserRole === 'admin') {
+      return member.role === 'member';
+    } // admin can only edit/remove members
+
     return false;
   };
 
@@ -195,8 +228,13 @@ const UsersSection = memo(() => {
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail.trim() || !currentChatId || inviting) return;
+
+    if (!inviteEmail.trim() || !currentChatId || inviting) {
+      return;
+    }
+
     setInviting(true);
+
     try {
       const res = await fetch(`/api/chats/${currentChatId}/invite`, {
         method: 'POST',
@@ -204,12 +242,16 @@ const UsersSection = memo(() => {
         credentials: 'same-origin',
         body: JSON.stringify({ email: inviteEmail.trim() }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as any;
+
       if (data.success) {
-        toast.success(data.alreadyMember ? (data.message || 'This person already has access to the project.') : 'Invitation sent');
+        toast.success(
+          data.alreadyMember ? data.message || 'This person already has access to the project.' : 'Invitation sent'
+        );
         setInviteEmail('');
         setInviteOpen(false);
         fetchData();
+
         if (data.token) {
           const base = typeof window !== 'undefined' ? window.location.origin : '';
           setLastInviteLink(`${base}/invite/accept?token=${data.token}`);
@@ -227,11 +269,12 @@ const UsersSection = memo(() => {
   const filteredMembers = members.filter(m => {
     const matchesSearch = !searchQuery || m.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === 'all' || m.role === roleFilter;
+
     return matchesSearch && matchesRole;
   });
 
-  const filteredInvitations = invitations.filter(inv =>
-    !searchQuery || inv.email.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredInvitations = invitations.filter(
+    inv => !searchQuery || inv.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (!currentChatId) {
@@ -308,8 +351,14 @@ const UsersSection = memo(() => {
       </div>
 
       {inviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => !inviting && setInviteOpen(false)}>
-          <div className="bg-bolt-elements-background-depth-2 rounded-xl shadow-xl border border-bolt-elements-borderColor p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => !inviting && setInviteOpen(false)}
+        >
+          <div
+            className="bg-bolt-elements-background-depth-2 rounded-xl shadow-xl border border-bolt-elements-borderColor p-6 w-full max-w-md"
+            onClick={e => e.stopPropagation()}
+          >
             <h3 className="text-lg font-semibold text-bolt-elements-textPrimary mb-4">Invite by email</h3>
             <form onSubmit={handleInvite}>
               <input
@@ -321,10 +370,18 @@ const UsersSection = memo(() => {
                 required
               />
               <div className="flex gap-2 justify-end">
-                <button type="button" onClick={() => !inviting && setInviteOpen(false)} className="px-3 py-1.5 text-sm rounded-lg hover:bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary">
+                <button
+                  type="button"
+                  onClick={() => !inviting && setInviteOpen(false)}
+                  className="px-3 py-1.5 text-sm rounded-lg hover:bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary"
+                >
                   Cancel
                 </button>
-                <button type="submit" disabled={inviting || !inviteEmail.trim()} className="px-4 py-1.5 text-sm font-medium rounded-lg bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50">
+                <button
+                  type="submit"
+                  disabled={inviting || !inviteEmail.trim()}
+                  className="px-4 py-1.5 text-sm font-medium rounded-lg bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-50"
+                >
                   {inviting ? 'Sending...' : 'Send Invite'}
                 </button>
               </div>
@@ -335,7 +392,9 @@ const UsersSection = memo(() => {
 
       {lastInviteLink && (
         <div className="mt-4 p-3 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor">
-          <p className="text-xs text-bolt-elements-textSecondary mb-2">Share this link with the invitee (they must be logged in with that email):</p>
+          <p className="text-xs text-bolt-elements-textSecondary mb-2">
+            Share this link with the invitee (they must be logged in with that email):
+          </p>
           <div className="flex gap-2">
             <input
               readOnly
@@ -357,11 +416,20 @@ const UsersSection = memo(() => {
       )}
 
       {editMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => !updating && setEditMember(null)}>
-          <div className="bg-bolt-elements-background-depth-2 rounded-xl shadow-xl border border-bolt-elements-borderColor p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => !updating && setEditMember(null)}
+        >
+          <div
+            className="bg-bolt-elements-background-depth-2 rounded-xl shadow-xl border border-bolt-elements-borderColor p-6 w-full max-w-md"
+            onClick={e => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-bolt-elements-textPrimary">Edit User</h3>
-              <button onClick={() => !updating && setEditMember(null)} className="p-2 rounded-lg hover:bg-bolt-elements-background-depth-3 text-bolt-elements-textTertiary">
+              <button
+                onClick={() => !updating && setEditMember(null)}
+                className="p-2 rounded-lg hover:bg-bolt-elements-background-depth-3 text-bolt-elements-textTertiary"
+              >
                 <div className="i-ph:x w-4 h-4" />
               </button>
             </div>
@@ -379,7 +447,11 @@ const UsersSection = memo(() => {
                   <option value="member">member</option>
                 </select>
               </div>
-              <button type="submit" disabled={updating} className="px-4 py-2 text-sm font-medium rounded-lg bg-bolt-elements-background-depth-4 text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 disabled:opacity-50">
+              <button
+                type="submit"
+                disabled={updating}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-bolt-elements-background-depth-4 text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3 disabled:opacity-50"
+              >
                 {updating ? 'Saving...' : 'Submit'}
               </button>
             </form>
@@ -388,17 +460,31 @@ const UsersSection = memo(() => {
       )}
 
       {removeConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => !removing && setRemoveConfirm(null)}>
-          <div className="bg-bolt-elements-background-depth-2 rounded-xl shadow-xl border border-bolt-elements-borderColor p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => !removing && setRemoveConfirm(null)}
+        >
+          <div
+            className="bg-bolt-elements-background-depth-2 rounded-xl shadow-xl border border-bolt-elements-borderColor p-6 w-full max-w-md"
+            onClick={e => e.stopPropagation()}
+          >
             <h3 className="text-lg font-semibold text-bolt-elements-textPrimary mb-2">Remove User</h3>
             <p className="text-sm text-bolt-elements-textSecondary mb-4">
-              Are you sure you want to remove {removeConfirm.email} from this project? They will lose access to the chat history, code, and preview.
+              Are you sure you want to remove {removeConfirm.email} from this project? They will lose access to the chat
+              history, code, and preview.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={() => !removing && setRemoveConfirm(null)} className="px-3 py-1.5 text-sm rounded-lg hover:bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary">
+              <button
+                onClick={() => !removing && setRemoveConfirm(null)}
+                className="px-3 py-1.5 text-sm rounded-lg hover:bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary"
+              >
                 Cancel
               </button>
-              <button onClick={handleRemove} disabled={removing} className="px-4 py-1.5 text-sm font-medium rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 disabled:opacity-50">
+              <button
+                onClick={handleRemove}
+                disabled={removing}
+                className="px-4 py-1.5 text-sm font-medium rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 disabled:opacity-50"
+              >
                 {removing ? 'Removing...' : 'Remove'}
               </button>
             </div>
@@ -431,10 +517,15 @@ const UsersSection = memo(() => {
                 </tr>
               ) : (
                 filteredMembers.map(m => (
-                  <tr key={m.id} className="border-b border-bolt-elements-borderColor last:border-0 hover:bg-bolt-elements-background-depth-1/50">
+                  <tr
+                    key={m.id}
+                    className="border-b border-bolt-elements-borderColor last:border-0 hover:bg-bolt-elements-background-depth-1/50"
+                  >
                     <td className="px-4 py-3 text-bolt-elements-textPrimary">
                       <span className="font-medium">{m.email.split('@')[0].replace(/[._]/g, ' ')}</span>
-                      {m.role === 'owner' && <span className="block text-xs text-bolt-elements-textTertiary">Owner</span>}
+                      {m.role === 'owner' && (
+                        <span className="block text-xs text-bolt-elements-textTertiary">Owner</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-bolt-elements-textSecondary">{m.role}</td>
                     <td className="px-4 py-3 text-bolt-elements-textSecondary">{m.email}</td>
@@ -497,7 +588,10 @@ const UsersSection = memo(() => {
                 </tr>
               ) : (
                 filteredInvitations.map(inv => (
-                  <tr key={inv.id} className="border-b border-bolt-elements-borderColor last:border-0 hover:bg-bolt-elements-background-depth-1/50">
+                  <tr
+                    key={inv.id}
+                    className="border-b border-bolt-elements-borderColor last:border-0 hover:bg-bolt-elements-background-depth-1/50"
+                  >
                     <td className="px-4 py-3 text-bolt-elements-textPrimary">{inv.email}</td>
                     <td className="px-4 py-3 text-bolt-elements-textSecondary">{inv.role}</td>
                     <td className="px-4 py-3 text-bolt-elements-textSecondary">{inv.status}</td>
@@ -521,8 +615,13 @@ export const AdminPanel = memo(() => {
   const toggleExpand = (id: AdminSectionId) => {
     setExpandedItems(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+
       return next;
     });
   };
@@ -539,6 +638,7 @@ export const AdminPanel = memo(() => {
                   if (item.expandable) {
                     toggleExpand(item.id);
                   }
+
                   workbenchStore.adminPanelSection.set(item.id);
                 }}
                 className={classNames(
@@ -589,9 +689,7 @@ export const AdminPanel = memo(() => {
       <main
         className={classNames(
           'flex-1 p-6',
-          activeSection === 'logs'
-            ? 'flex min-h-0 flex-col overflow-hidden'
-            : 'overflow-auto'
+          activeSection === 'logs' ? 'flex min-h-0 flex-col overflow-hidden' : 'overflow-auto'
         )}
       >
         <div
@@ -604,16 +702,14 @@ export const AdminPanel = memo(() => {
               <h1 className="text-xl font-semibold text-bolt-elements-textPrimary mb-1">
                 {SECTION_TITLES[activeSection]}
               </h1>
-              <p className="text-sm text-bolt-elements-textSecondary mb-6">
-                {SECTION_DESCRIPTIONS[activeSection]}
-              </p>
+              <p className="text-sm text-bolt-elements-textSecondary mb-6">{SECTION_DESCRIPTIONS[activeSection]}</p>
             </>
           ) : (
             <>
               <h1 className="text-xl font-semibold text-bolt-elements-textPrimary mb-1">{SECTION_TITLES.logs}</h1>
               <p className="text-sm text-bolt-elements-textSecondary mb-4">
-                Same as Settings → Event Logs (Bolt-style). Enable &quot;Event Logging&quot; under Settings → Features so
-                logs are recorded.
+                Same as Settings → Event Logs (Bolt-style). Enable &quot;Event Logging&quot; under Settings → Features
+                so logs are recorded.
               </p>
               <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1">
                 <EventLogsTab />

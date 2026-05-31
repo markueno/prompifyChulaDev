@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const MESSAGES = [
   'Building your application...',
@@ -19,12 +20,16 @@ function useColorCycle(active: boolean) {
   const [pulse, setPulse] = useState(false);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      return;
+    }
+
     const t = setInterval(() => {
       setColorIdx(i => (i + 1) % COLORS.length);
       setPulse(true);
       setTimeout(() => setPulse(false), 600);
     }, 1600);
+
     return () => clearInterval(t);
   }, [active]);
 
@@ -56,17 +61,28 @@ export function BuildingOverlay({ visible }: BuildingOverlayProps) {
   }, [visible]);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
     const t = setInterval(() => setMsgIdx(i => (i + 1) % MESSAGES.length), 2800);
+
     return () => clearInterval(t);
   }, [mounted]);
 
-  if (!mounted) return null;
+  if (!mounted || typeof document === 'undefined') {
+    return null;
+  }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[500] flex items-center justify-center"
       style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         backgroundColor: 'rgba(0,0,0,0.75)',
         backdropFilter: 'blur(8px)',
         opacity: visible ? 1 : 0,
@@ -74,7 +90,6 @@ export function BuildingOverlay({ visible }: BuildingOverlayProps) {
       }}
     >
       <div className="flex flex-col items-center gap-6 select-none">
-
         {/* Icon with glow */}
         <div className="relative flex items-center justify-center" style={{ width: 156, height: 156 }}>
           {/* Outer ambient ring */}
@@ -118,20 +133,6 @@ export function BuildingOverlay({ visible }: BuildingOverlayProps) {
           />
         </div>
 
-        {/* Brand name */}
-        <span
-          style={{
-            color: 'rgba(255,255,255,0.95)',
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            letterSpacing: '0.04em',
-            textShadow: `0 0 20px ${color.glow}80`,
-            transition: 'text-shadow 0.8s ease',
-          }}
-        >
-          Prompify
-        </span>
-
         {/* Rotating loading message */}
         <div style={{ height: 28, display: 'flex', alignItems: 'center' }}>
           <p
@@ -147,9 +148,9 @@ export function BuildingOverlay({ visible }: BuildingOverlayProps) {
             {MESSAGES[msgIdx]}
           </p>
         </div>
-
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -173,12 +174,18 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
   }, [visible]);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
     const t = setInterval(() => setDotCount(d => (d % 3) + 1), 500);
+
     return () => clearInterval(t);
   }, [mounted]);
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return null;
+  }
 
   const dots = '.'.repeat(dotCount);
 

@@ -18,8 +18,12 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
   const autoPromptedSignatureRef = useRef<string | null>(null);
 
   const [autoFixEnabled, setAutoFixEnabled] = useState(() => {
-    if (typeof window === 'undefined') return true;
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
     const stored = localStorage.getItem(AUTO_FIX_STORAGE_KEY);
+
     return stored === null ? true : stored === 'true';
   });
 
@@ -46,25 +50,37 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
 
   // Auto-prompt to LLM when error appears and auto-fix is enabled (stop after 3 consecutive)
   useEffect(() => {
-    if (!autoFixEnabled || !content || typeof window === 'undefined') return;
+    if (!autoFixEnabled || !content || typeof window === 'undefined') {
+      return;
+    }
 
     const signature = `${source ?? 'unknown'}::${description ?? ''}::${content}`;
+
     if (autoPromptedSignatureRef.current === signature) {
       return;
     }
 
     const count = parseInt(sessionStorage.getItem(consecutiveScopeKey) ?? '0', 10);
-    if (count >= AUTO_FIX_CONSECUTIVE_LIMIT) return;
+
+    if (count >= AUTO_FIX_CONSECUTIVE_LIMIT) {
+      return;
+    }
 
     const timer = setTimeout(() => {
       const currentCount = parseInt(sessionStorage.getItem(consecutiveScopeKey) ?? '0', 10);
-      if (currentCount >= AUTO_FIX_CONSECUTIVE_LIMIT) return;
+
+      if (currentCount >= AUTO_FIX_CONSECUTIVE_LIMIT) {
+        return;
+      }
 
       sessionStorage.setItem(consecutiveScopeKey, String(currentCount + 1));
       autoPromptedSignatureRef.current = signature;
 
-      postMessage(`*Fix this ${isPreview ? 'preview' : 'terminal'} error*\n\`\`\`${isPreview ? 'js' : 'sh'}\n${content}\n\`\`\`\n`);
+      postMessage(
+        `*Fix this ${isPreview ? 'preview' : 'terminal'} error*\n\`\`\`${isPreview ? 'js' : 'sh'}\n${content}\n\`\`\`\n`
+      );
     }, 1500);
+
     return () => clearTimeout(timer);
   }, [autoFixEnabled, consecutiveScopeKey, content, description, isPreview, postMessage, source]);
 

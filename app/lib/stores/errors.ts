@@ -43,9 +43,7 @@ export function addError(opts: {
   const current = errorsStore.get();
 
   // Skip if an active (unfixed) entry with the same fingerprint already exists
-  const alreadyTracked = current.some(
-    (e) => e.fingerprint === fp && e.status !== 'fixed' && e.status !== 'ignored',
-  );
+  const alreadyTracked = current.some(e => e.fingerprint === fp && e.status !== 'fixed' && e.status !== 'ignored');
 
   if (alreadyTracked) {
     return;
@@ -71,15 +69,15 @@ export function addError(opts: {
 }
 
 export function updateErrorStatus(id: string, status: AppError['status']): void {
-  errorsStore.set(errorsStore.get().map((e) => (e.id === id ? { ...e, status } : e)));
+  errorsStore.set(errorsStore.get().map(e => (e.id === id ? { ...e, status } : e)));
 }
 
 export function incrementFixAttempts(id: string): void {
-  errorsStore.set(errorsStore.get().map((e) => (e.id === id ? { ...e, fixAttempts: e.fixAttempts + 1 } : e)));
+  errorsStore.set(errorsStore.get().map(e => (e.id === id ? { ...e, fixAttempts: e.fixAttempts + 1 } : e)));
 }
 
 export function clearFixed(): void {
-  errorsStore.set(errorsStore.get().filter((e) => e.status !== 'fixed'));
+  errorsStore.set(errorsStore.get().filter(e => e.status !== 'fixed'));
 }
 
 export function clearAll(): void {
@@ -87,5 +85,5 @@ export function clearAll(): void {
 }
 
 export function getActiveErrors(): AppError[] {
-  return errorsStore.get().filter((e) => e.status === 'new' || e.status === 'fixing');
+  return errorsStore.get().filter(e => e.status === 'new' || e.status === 'fixing');
 }

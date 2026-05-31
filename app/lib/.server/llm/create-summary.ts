@@ -45,6 +45,7 @@ export async function createSummary(props: {
 
   if (!modelDetails) {
     const matchingProvider = PROVIDER_LIST.find(p => (p.staticModels || []).some(m => m.name === currentModel));
+
     if (matchingProvider && matchingProvider.name !== provider.name) {
       logger.warn(
         `Provider mismatch detected. Requested provider=${provider.name}, model=${currentModel}, resolved provider=${matchingProvider.name}`

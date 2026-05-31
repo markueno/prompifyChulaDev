@@ -49,10 +49,13 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       if (action.phase === 'primary') {
         const newAnswers = { ...state.primaryAnswers, [action.questionId]: action.optionId };
         let refineQuestions = state.refineQuestions;
+
         if (action.questionId === 'app_type') {
           refineQuestions = buildRefineQuestions(action.optionId);
         }
+
         const { nextStep, done } = advance(state.primaryStep, primaryQuestions.length);
+
         return {
           ...state,
           primaryAnswers: newAnswers,
@@ -64,6 +67,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       } else {
         const newAnswers = { ...state.secondaryAnswers, [action.questionId]: action.optionId };
         const { nextStep, done } = advance(state.secondaryStep, state.refineQuestions.length);
+
         return {
           ...state,
           secondaryAnswers: newAnswers,
@@ -76,6 +80,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
     case 'SET_COLORS': {
       const newAnswers = { ...state.primaryAnswers, colors: action.answer };
       const { nextStep, done } = advance(state.primaryStep, primaryQuestions.length);
+
       return {
         ...state,
         primaryAnswers: newAnswers,
@@ -90,6 +95,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       const currentQ = primaryQuestions[state.primaryStep];
       const newAnswers = { ...state.primaryAnswers, [currentQ.id]: action.text };
       const { nextStep, done } = advance(state.primaryStep, primaryQuestions.length);
+
       return {
         ...state,
         primaryAnswers: newAnswers,
@@ -103,6 +109,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       const currentQ = state.refineQuestions[state.secondaryStep];
       const newAnswers = { ...state.secondaryAnswers, [currentQ.id]: action.answer };
       const { nextStep, done } = advance(state.secondaryStep, state.refineQuestions.length);
+
       return {
         ...state,
         secondaryAnswers: newAnswers,
@@ -114,6 +121,7 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
     case 'SET_TEXT': {
       const newAnswers = { ...state.secondaryAnswers, [action.questionId]: action.text };
       const { nextStep, done } = advance(state.secondaryStep, state.refineQuestions.length);
+
       return {
         ...state,
         secondaryAnswers: newAnswers,
@@ -126,15 +134,19 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       if (state.phase === 'preview') {
         return { ...state, phase: 'secondary' };
       }
+
       if (state.phase === 'secondary') {
         if (state.secondaryStep > 0) {
           return { ...state, secondaryStep: state.secondaryStep - 1 };
         }
+
         return { ...state, phase: 'primary', primaryStep: primaryQuestions.length - 1 };
       }
+
       if (state.primaryStep > 0) {
         return { ...state, primaryStep: state.primaryStep - 1 };
       }
+
       return state;
     }
 
@@ -168,7 +180,7 @@ function TextQuestion({ placeholder, initialValue = '', onContinue }: TextQuesti
     <div className="space-y-4">
       <textarea
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={e => setValue(e.target.value)}
         placeholder={placeholder ?? 'Type your answer here…'}
         rows={5}
         className="w-full px-4 py-3 rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-bg-depth-2 text-bolt-elements-textPrimary text-sm placeholder:text-bolt-elements-textTertiary focus:outline-none focus:border-accent-500 resize-none leading-relaxed"
@@ -205,10 +217,7 @@ export function QuestionFlow() {
   const activeSecondaryQ: Question | undefined =
     state.phase === 'secondary' ? state.refineQuestions[state.secondaryStep] : undefined;
 
-  const canGoBack =
-    isPreview ||
-    state.phase === 'secondary' ||
-    (state.phase === 'primary' && state.primaryStep > 0);
+  const canGoBack = isPreview || state.phase === 'secondary' || (state.phase === 'primary' && state.primaryStep > 0);
 
   function handleReset() {
     dispatch({ type: 'RESET' });
@@ -219,6 +228,7 @@ export function QuestionFlow() {
     if (isPreview) {
       const primaryPrompt = buildPrimaryPrompt(state.primaryAnswers);
       const refinedPrompt = buildRefinedPrompt(state.primaryAnswers, state.secondaryAnswers);
+
       return (
         <PromptPreview
           primaryPrompt={primaryPrompt}
@@ -237,9 +247,7 @@ export function QuestionFlow() {
           <OptionGrid
             options={q.options ?? []}
             selectedId={state.primaryAnswers[q.id] as string | undefined}
-            onSelect={(optionId) =>
-              dispatch({ type: 'SELECT_OPTION', questionId: q.id, optionId, phase: 'primary' })
-            }
+            onSelect={optionId => dispatch({ type: 'SELECT_OPTION', questionId: q.id, optionId, phase: 'primary' })}
           />
         );
       }
@@ -258,14 +266,10 @@ export function QuestionFlow() {
       }
 
       if (q.type === 'fillblanks') {
-        const appType = (state.primaryAnswers['app_type'] as string) ?? '';
+        const appType = (state.primaryAnswers.app_type as string) ?? '';
         const template = q.templates?.[appType];
-        return (
-          <FillBlanks
-            template={template}
-            onContinue={(text) => dispatch({ type: 'SET_FILL_BLANKS', text })}
-          />
-        );
+
+        return <FillBlanks template={template} onContinue={text => dispatch({ type: 'SET_FILL_BLANKS', text })} />;
       }
     }
 
@@ -277,9 +281,7 @@ export function QuestionFlow() {
           <OptionGrid
             options={q.options ?? []}
             selectedId={state.secondaryAnswers[q.id] as string | undefined}
-            onSelect={(optionId) =>
-              dispatch({ type: 'SELECT_OPTION', questionId: q.id, optionId, phase: 'secondary' })
-            }
+            onSelect={optionId => dispatch({ type: 'SELECT_OPTION', questionId: q.id, optionId, phase: 'secondary' })}
           />
         );
       }
@@ -291,7 +293,7 @@ export function QuestionFlow() {
             brands={q.brands ?? []}
             maxSelect={q.maxSelect ?? 2}
             initialSelected={existing?.brands ?? []}
-            onContinue={(answer) => dispatch({ type: 'SET_DESIGN_INSPIRATION', answer })}
+            onContinue={answer => dispatch({ type: 'SET_DESIGN_INSPIRATION', answer })}
           />
         );
       }
@@ -303,7 +305,7 @@ export function QuestionFlow() {
             questionId={q.id}
             placeholder={q.placeholder}
             initialValue={(state.secondaryAnswers[q.id] as string) ?? ''}
-            onContinue={(text) => dispatch({ type: 'SET_TEXT', questionId: q.id, text })}
+            onContinue={text => dispatch({ type: 'SET_TEXT', questionId: q.id, text })}
           />
         );
       }
@@ -312,10 +314,9 @@ export function QuestionFlow() {
     return null;
   }
 
-  const currentLabel =
-    state.phase === 'primary' ? activePrimaryQ.label : activeSecondaryQ?.label ?? '';
+  const currentLabel = state.phase === 'primary' ? activePrimaryQ.label : (activeSecondaryQ?.label ?? '');
   const currentDescription =
-    state.phase === 'primary' ? activePrimaryQ.description : activeSecondaryQ?.description ?? '';
+    state.phase === 'primary' ? activePrimaryQ.description : (activeSecondaryQ?.description ?? '');
 
   return (
     <div className="flex flex-col h-full bg-bolt-elements-background-depth-1">
@@ -326,11 +327,7 @@ export function QuestionFlow() {
               ? Object.keys(state.primaryAnswers).length
               : Object.keys(state.secondaryAnswers).length
           }
-          total={
-            activePhase === 'primary'
-              ? primaryQuestions.length
-              : state.refineQuestions.length
-          }
+          total={activePhase === 'primary' ? primaryQuestions.length : state.refineQuestions.length}
           phase={activePhase}
         />
       )}
@@ -343,7 +340,13 @@ export function QuestionFlow() {
               className="mb-5 flex items-center gap-1.5 text-xs text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M7.5 2L3.5 6L7.5 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M7.5 2L3.5 6L7.5 10"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
               Back
             </button>
@@ -351,20 +354,14 @@ export function QuestionFlow() {
 
           {!isPreview && (
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-bolt-elements-textPrimary mb-1.5 leading-snug">
-                {currentLabel}
-              </h2>
-              <p className="text-sm text-bolt-elements-textSecondary leading-relaxed">
-                {currentDescription}
-              </p>
+              <h2 className="text-xl font-bold text-bolt-elements-textPrimary mb-1.5 leading-snug">{currentLabel}</h2>
+              <p className="text-sm text-bolt-elements-textSecondary leading-relaxed">{currentDescription}</p>
             </div>
           )}
 
           {isPreview && (
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-bolt-elements-textPrimary mb-1.5">
-                Your prompts are ready
-              </h2>
+              <h2 className="text-xl font-bold text-bolt-elements-textPrimary mb-1.5">Your prompts are ready</h2>
               <p className="text-sm text-bolt-elements-textSecondary">
                 Copy Prompt 1, paste it into any AI, then follow with Prompt 2.
               </p>
@@ -376,14 +373,10 @@ export function QuestionFlow() {
 
         {!isPreview && (
           <AnswerSidebar
-            questions={
-              activePhase === 'primary' ? primaryQuestions : state.refineQuestions
-            }
-            answers={
-              activePhase === 'primary' ? state.primaryAnswers : state.secondaryAnswers
-            }
+            questions={activePhase === 'primary' ? primaryQuestions : state.refineQuestions}
+            answers={activePhase === 'primary' ? state.primaryAnswers : state.secondaryAnswers}
             phase={activePhase}
-            onEdit={(index) => {
+            onEdit={index => {
               if (activePhase === 'primary') {
                 dispatch({ type: 'EDIT_PRIMARY', index });
               } else {

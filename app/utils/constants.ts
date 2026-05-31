@@ -6,12 +6,15 @@ const generateUniqueWorkdirName = () => {
   // Use sessionStorage to maintain the same ID within a browser session
   if (typeof window !== 'undefined' && window.sessionStorage) {
     let sessionId = window.sessionStorage.getItem('bolt-session-id');
+
     if (!sessionId) {
       sessionId = Math.random().toString(36).substring(2, 15);
       window.sessionStorage.setItem('bolt-session-id', sessionId);
     }
+
     return `project-${sessionId}`;
   }
+
   // Fallback for SSR or when sessionStorage is not available
   return `project-${Math.random().toString(36).substring(2, 15)}`;
 };
@@ -60,7 +63,7 @@ const llmManager = LLMManager.getInstance(import.meta.env);
 export const PROVIDER_LIST = llmManager.getAllProviders();
 /** Prefer the provider that actually defines DEFAULT_MODEL so first load matches Qwen + team key workflows. */
 export const DEFAULT_PROVIDER =
-  PROVIDER_LIST.find((p) => (p.staticModels ?? []).some((m) => m.name === DEFAULT_MODEL)) ??
+  PROVIDER_LIST.find(p => (p.staticModels ?? []).some(m => m.name === DEFAULT_MODEL)) ??
   llmManager.getDefaultProvider();
 
 export const providerBaseUrlEnvKeys: Record<string, { baseUrlKey?: string; apiTokenKey?: string }> = {};

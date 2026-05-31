@@ -101,7 +101,9 @@ export const FileBreadcrumb = memo<FileBreadcrumbProps>(({ files, pathSegments =
                   {segment}
                 </span>
               </DropdownMenu.Trigger>
-              {index > 0 && !isLast && <span className="i-ph:caret-right inline-block mx-1" />}
+              {index > 0 && !isLast && (
+                <span className="inline-block mx-1 text-bolt-elements-textTertiary select-none">\</span>
+              )}
               <AnimatePresence>
                 {isActive && (
                   <DropdownMenu.Portal>

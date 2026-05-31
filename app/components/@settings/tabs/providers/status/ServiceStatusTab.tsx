@@ -130,14 +130,16 @@ const PROVIDER_STATUS_URLS: Record<ProviderName, ProviderConfig> = {
     },
     testModel: 'mistralai/Mixtral-8x7B-Instruct-v0.1',
   },
-  // AmazonBedrock: {
-  //   statusUrl: 'https://health.aws.amazon.com/health/status',
-  //   apiUrl: 'https://bedrock.us-east-1.amazonaws.com/models',
-  //   headers: {
-  //     Authorization: 'Bearer $AWS_BEDROCK_CONFIG',
-  //   },
-  //   testModel: 'anthropic.claude-3-sonnet-20240229-v1:0',
-  // },
+  /*
+   * AmazonBedrock: {
+   *   statusUrl: 'https://health.aws.amazon.com/health/status',
+   *   apiUrl: 'https://bedrock.us-east-1.amazonaws.com/models',
+   *   headers: {
+   *     Authorization: 'Bearer $AWS_BEDROCK_CONFIG',
+   *   },
+   *   testModel: 'anthropic.claude-3-sonnet-20240229-v1:0',
+   * },
+   */
   Groq: {
     statusUrl: 'https://groqstatus.com/',
     apiUrl: 'https://api.groq.com/v1/models',

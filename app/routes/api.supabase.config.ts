@@ -10,16 +10,14 @@ import { isSupabaseConfigured, schemaForChat } from '~/lib/supabase-provision.se
  * and the Data section falls back to the manual connect form.
  */
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const cloudflareEnv = (context?.cloudflare?.env as Record<string, unknown>) ?? {};
+  const cloudflareEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
 
   if (!isSupabaseConfigured(cloudflareEnv)) {
     return json({ configured: false });
   }
 
-  const supabaseUrl =
-    (cloudflareEnv.SUPABASE_URL as string) || process.env.SUPABASE_URL || '';
-  const anonKey =
-    (cloudflareEnv.SUPABASE_ANON_KEY as string) || process.env.SUPABASE_ANON_KEY || '';
+  const supabaseUrl = (cloudflareEnv.SUPABASE_URL as string) || process.env.SUPABASE_URL || '';
+  const anonKey = (cloudflareEnv.SUPABASE_ANON_KEY as string) || process.env.SUPABASE_ANON_KEY || '';
 
   const { searchParams } = new URL(request.url);
   const chatId = searchParams.get('chatId') ?? '';

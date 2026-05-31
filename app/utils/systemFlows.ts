@@ -16,11 +16,11 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Order Confirmation',
       'Order Tracking',
       'User Profile Management',
-      'Customer Support'
-    ]
+      'Customer Support',
+    ],
   },
-  
-  'blog': {
+
+  blog: {
     description: 'Content-focused platform for articles and reader engagement',
     steps: [
       'User Registration/Login',
@@ -32,11 +32,11 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Subscribe to Newsletter',
       'Author Dashboard',
       'Content Management',
-      'Analytics & SEO'
-    ]
+      'Analytics & SEO',
+    ],
   },
-  
-  'portfolio': {
+
+  portfolio: {
     description: 'Personal showcase for skills, projects, and professional information',
     steps: [
       'Homepage Introduction',
@@ -48,11 +48,11 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Resume Download',
       'Testimonials',
       'Blog/Articles',
-      'Social Media Links'
-    ]
+      'Social Media Links',
+    ],
   },
-  
-  'dashboard': {
+
+  dashboard: {
     description: 'Data visualization and management interface',
     steps: [
       'User Authentication',
@@ -64,10 +64,10 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Reports Generation',
       'Notifications Center',
       'Search & Filter',
-      'Export/Import Data'
-    ]
+      'Export/Import Data',
+    ],
   },
-  
+
   'landing page': {
     description: 'Conversion-focused single page application',
     steps: [
@@ -80,10 +80,10 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'FAQ Section',
       'Footer Information',
       'Newsletter Signup',
-      'Analytics Tracking'
-    ]
+      'Analytics Tracking',
+    ],
   },
-  
+
   'social media platform': {
     description: 'Community-driven content sharing and networking',
     steps: [
@@ -96,10 +96,10 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Notifications',
       'Privacy Settings',
       'Content Moderation',
-      'Analytics Dashboard'
-    ]
+      'Analytics Dashboard',
+    ],
   },
-  
+
   'learning management system': {
     description: 'Educational platform for course delivery and student management',
     steps: [
@@ -112,10 +112,10 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Discussion Forums',
       'Grade Management',
       'Certificate Generation',
-      'Admin Panel'
-    ]
+      'Admin Panel',
+    ],
   },
-  
+
   'restaurant website': {
     description: 'Food service platform with ordering and reservation capabilities',
     steps: [
@@ -128,10 +128,10 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Delivery Tracking',
       'Customer Reviews',
       'Inventory Management',
-      'Staff Scheduling'
-    ]
+      'Staff Scheduling',
+    ],
   },
-  
+
   'real estate platform': {
     description: 'Property search and management system',
     steps: [
@@ -144,10 +144,10 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Mortgage Calculator',
       'Saved Properties',
       'Market Analysis',
-      'Agent Dashboard'
-    ]
+      'Agent Dashboard',
+    ],
   },
-  
+
   'healthcare portal': {
     description: 'Medical services and patient management system',
     steps: [
@@ -160,10 +160,10 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Lab Results',
       'Patient Portal',
       'Emergency Contacts',
-      'Reporting & Analytics'
-    ]
+      'Reporting & Analytics',
+    ],
   },
-  
+
   'booking system': {
     description: 'Appointment and reservation management platform',
     steps: [
@@ -176,11 +176,11 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Calendar Management',
       'Reminder Notifications',
       'Cancellation/Rescheduling',
-      'Review System'
-    ]
+      'Review System',
+    ],
   },
-  
-  'forum': {
+
+  forum: {
     description: 'Community discussion and knowledge sharing platform',
     steps: [
       'User Registration',
@@ -192,10 +192,10 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'User Profiles',
       'Moderation Tools',
       'Notifications',
-      'Analytics & Reports'
-    ]
+      'Analytics & Reports',
+    ],
   },
-  
+
   'news website': {
     description: 'Content publishing and news distribution platform',
     steps: [
@@ -208,10 +208,10 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Social Sharing',
       'Author Profiles',
       'Content Management',
-      'Analytics Dashboard'
-    ]
+      'Analytics Dashboard',
+    ],
   },
-  
+
   'job board': {
     description: 'Employment and recruitment platform',
     steps: [
@@ -224,11 +224,11 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Candidate Management',
       'Interview Scheduling',
       'Communication System',
-      'Analytics & Reports'
-    ]
+      'Analytics & Reports',
+    ],
   },
-  
-  'marketplace': {
+
+  marketplace: {
     description: 'Multi-vendor e-commerce and service platform',
     steps: [
       'User Registration',
@@ -240,18 +240,18 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
       'Payment Processing',
       'Order Management',
       'Review System',
-      'Dispute Resolution'
-    ]
-  }
+      'Dispute Resolution',
+    ],
+  },
 };
 
 export const generateSystemFlow = (appType: string, businessType: string): string => {
   const flow = SYSTEM_FLOWS[appType];
-  
+
   if (flow) {
     return flow.steps.map((step, index) => `${index + 1}. ${step}`).join('\n');
   }
-  
+
   // Fallback for unknown application types
   return `1. User Registration
 2. Main Dashboard
@@ -271,4 +271,4 @@ export const getSystemFlowDescription = (appType: string): string => {
 
 export const getAvailableApplicationTypes = (): string[] => {
   return Object.keys(SYSTEM_FLOWS);
-}; 
+};

@@ -126,6 +126,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [isModelLoading, setIsModelLoading] = useState<string | undefined>('all');
     const modelRef = React.useRef(model);
     modelRef.current = model;
+
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
     const setWizardPrompt = (prompt: string) => {
@@ -201,8 +202,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         const isOllamaSelected = provider?.name === 'Ollama';
 
         if (isOllamaSelected && ollamaProvider) {
-          // Only fetch Ollama when it's selected; fetch base list (excl. Ollama) + Ollama in parallel
-          // Uses server cache for Ollama (no cache buster)
+          /*
+           * Only fetch Ollama when it's selected; fetch base list (excl. Ollama) + Ollama in parallel
+           * Uses server cache for Ollama (no cache buster)
+           */
           setIsModelLoading('Ollama');
           Promise.all([
             fetch('/api/models?excludeProviders=Ollama').then(r => r.json()),
@@ -212,11 +215,14 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               const baseModels = (baseData as { modelList: ModelInfo[] }).modelList;
               const ollamaModels = (ollamaData as { modelList: ModelInfo[] }).modelList;
               setModelList([...baseModels, ...ollamaModels]);
+
               if (setModel) {
                 const currentModel = modelRef.current;
                 const currentInOllama = currentModel && ollamaModels.some(m => m.name === currentModel);
+
                 if (!currentInOllama && ollamaModels.length > 0) {
                   const modelToUse = ollamaModels[0].name;
+
                   if (modelToUse) {
                     setModel(modelToUse);
                     Cookies.set('selectedModel', modelToUse, { expires: 30 });
@@ -237,11 +243,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               const typedData = data as { modelList: ModelInfo[] };
               const allModels = typedData.modelList;
               setModelList(allModels);
+
               // When switching to non-Ollama, only set default if current model isn't valid for this provider
               if (provider && setModel) {
                 const currentModel = modelRef.current;
                 const modelsForProvider = allModels.filter(m => m.provider === provider.name);
                 const currentInProvider = currentModel && modelsForProvider.some(m => m.name === currentModel);
+
                 if (!currentInProvider && modelsForProvider.length > 0) {
                   const firstForProvider = modelsForProvider[0];
                   setModel(firstForProvider.name);
@@ -405,7 +413,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-chat mx-auto text-center px-4 lg:px-0">
                 <h1 className="text-3xl lg:text-6xl font-extrabold mb-4 animate-fade-in tracking-tight">
-                  <span className="landing-gradient-text" style={{ WebkitTextStroke: '0.6px rgba(255, 255, 255, 0.65)' }}>
+                  <span
+                    className="landing-gradient-text"
+                    style={{ WebkitTextStroke: '0.6px rgba(255, 255, 255, 0.65)' }}
+                  >
                     Where ideas begin
                   </span>
                 </h1>
@@ -439,298 +450,292 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   'sticky bottom-2': chatStarted,
                 })}
               >
-                  <div className="bg-bolt-elements-background-depth-2">
-                    {actionAlert && (
-                      <ChatAlert
-                        alert={actionAlert}
-                        clearAlert={() => clearAlert?.()}
-                        postMessage={message => {
-                          sendMessage?.({} as any, message);
-                          clearAlert?.();
-                        }}
-                      />
-                    )}
-                  </div>
-                  {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
-                  <div
-                    className={classNames(
-                      'bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full max-w-chat mx-auto z-prompt'
-
-                      /*
-                       * {
-                       *   'sticky bottom-2': chatStarted,
-                       * },
-                       */
-                    )}
-                  >
-                    <svg className={classNames(styles.PromptEffectContainer)}>
-                      <defs>
-                        <linearGradient
-                          id="line-gradient"
-                          x1="20%"
-                          y1="0%"
-                          x2="-14%"
-                          y2="10%"
-                          gradientUnits="userSpaceOnUse"
-                          gradientTransform="rotate(-45)"
-                        >
-                          <stop offset="0%" stopColor="#f97316" stopOpacity="0%"></stop>
-                          <stop offset="40%" stopColor="#f97316" stopOpacity="80%"></stop>
-                          <stop offset="50%" stopColor="#f97316" stopOpacity="80%"></stop>
-                          <stop offset="100%" stopColor="#f97316" stopOpacity="0%"></stop>
-                        </linearGradient>
-                        <linearGradient id="shine-gradient">
-                          <stop offset="0%" stopColor="#f97316" stopOpacity="0%"></stop>
-                          <stop offset="50%" stopColor="#f97316" stopOpacity="40%"></stop>
-                          <stop offset="100%" stopColor="#f97316" stopOpacity="0%"></stop>
-                        </linearGradient>
-                      </defs>
-                      <rect
-                        className={classNames(styles.PromptEffectLine)}
-                        pathLength="100"
-                        strokeLinecap="round"
-                      ></rect>
-                      <rect className={classNames(styles.PromptShine)} x="48" y="24" width="70" height="1"></rect>
-                    </svg>
-                    <div>
-                      <ClientOnly>
-                        {() => (
-                          <div className={!isModerator ? '' : isModelSettingsCollapsed ? 'hidden' : ''}>
-                            {isModerator ? (
-                              <>
-                                <ModelSelector
-                                  key={provider?.name + ':' + modelList.length}
-                                  model={model}
-                                  setModel={setModel}
-                                  modelList={modelList}
-                                  provider={provider}
-                                  setProvider={setProvider}
-                                  providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
-                                  apiKeys={apiKeys}
-                                  modelLoading={isModelLoading}
-                                  onRefreshModels={refreshOllamaModels}
-                                />
-                                {(providerList || []).length > 0 &&
-                                  provider &&
-                                  !LOCAL_PROVIDERS.includes(provider.name) && (
-                                    <APIKeyManager
-                                      provider={provider}
-                                      apiKey={apiKeys[provider.name] || ''}
-                                      setApiKey={key => {
-                                        onApiKeysChange(provider.name, key);
-                                      }}
-                                    />
-                                  )}
-                              </>
-                            ) : (
-                              <div className="mb-2 py-2 px-3 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textSecondary text-sm">
-                                Prompify 2.3 model
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </ClientOnly>
-                    </div>
-                    <FilePreview
-                      files={uploadedFiles}
-                      imageDataList={imageDataList}
-                      onRemove={index => {
-                        setUploadedFiles?.(uploadedFiles.filter((_, i) => i !== index));
-                        setImageDataList?.(imageDataList.filter((_, i) => i !== index));
+                <div className="bg-bolt-elements-background-depth-2">
+                  {actionAlert && (
+                    <ChatAlert
+                      alert={actionAlert}
+                      clearAlert={() => clearAlert?.()}
+                      postMessage={message => {
+                        sendMessage?.({} as any, message);
+                        clearAlert?.();
                       }}
                     />
+                  )}
+                </div>
+                {progressAnnotations && <ProgressCompilation data={progressAnnotations} />}
+                <div
+                  className={classNames(
+                    'bg-bolt-elements-background-depth-2 p-3 rounded-lg border border-bolt-elements-borderColor relative w-full max-w-chat mx-auto z-prompt'
+
+                    /*
+                     * {
+                     *   'sticky bottom-2': chatStarted,
+                     * },
+                     */
+                  )}
+                >
+                  <svg className={classNames(styles.PromptEffectContainer)}>
+                    <defs>
+                      <linearGradient
+                        id="line-gradient"
+                        x1="20%"
+                        y1="0%"
+                        x2="-14%"
+                        y2="10%"
+                        gradientUnits="userSpaceOnUse"
+                        gradientTransform="rotate(-45)"
+                      >
+                        <stop offset="0%" stopColor="#f97316" stopOpacity="0%"></stop>
+                        <stop offset="40%" stopColor="#f97316" stopOpacity="80%"></stop>
+                        <stop offset="50%" stopColor="#f97316" stopOpacity="80%"></stop>
+                        <stop offset="100%" stopColor="#f97316" stopOpacity="0%"></stop>
+                      </linearGradient>
+                      <linearGradient id="shine-gradient">
+                        <stop offset="0%" stopColor="#f97316" stopOpacity="0%"></stop>
+                        <stop offset="50%" stopColor="#f97316" stopOpacity="40%"></stop>
+                        <stop offset="100%" stopColor="#f97316" stopOpacity="0%"></stop>
+                      </linearGradient>
+                    </defs>
+                    <rect className={classNames(styles.PromptEffectLine)} pathLength="100" strokeLinecap="round"></rect>
+                    <rect className={classNames(styles.PromptShine)} x="48" y="24" width="70" height="1"></rect>
+                  </svg>
+                  <div>
                     <ClientOnly>
                       {() => (
-                        <ScreenshotStateManager
-                          setUploadedFiles={setUploadedFiles}
-                          setImageDataList={setImageDataList}
-                          uploadedFiles={uploadedFiles}
-                          imageDataList={imageDataList}
+                        <div className={!isModerator ? '' : isModelSettingsCollapsed ? 'hidden' : ''}>
+                          {isModerator ? (
+                            <>
+                              <ModelSelector
+                                key={provider?.name + ':' + modelList.length}
+                                model={model}
+                                setModel={setModel}
+                                modelList={modelList}
+                                provider={provider}
+                                setProvider={setProvider}
+                                providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
+                                apiKeys={apiKeys}
+                                modelLoading={isModelLoading}
+                                onRefreshModels={refreshOllamaModels}
+                              />
+                              {(providerList || []).length > 0 &&
+                                provider &&
+                                !LOCAL_PROVIDERS.includes(provider.name) && (
+                                  <APIKeyManager
+                                    provider={provider}
+                                    apiKey={apiKeys[provider.name] || ''}
+                                    setApiKey={key => {
+                                      onApiKeysChange(provider.name, key);
+                                    }}
+                                  />
+                                )}
+                            </>
+                          ) : (
+                            <div className="mb-2 py-2 px-3 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-prompt-background text-bolt-elements-textSecondary text-sm">
+                              Prompify 2.3 model
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </ClientOnly>
+                  </div>
+                  <FilePreview
+                    files={uploadedFiles}
+                    imageDataList={imageDataList}
+                    onRemove={index => {
+                      setUploadedFiles?.(uploadedFiles.filter((_, i) => i !== index));
+                      setImageDataList?.(imageDataList.filter((_, i) => i !== index));
+                    }}
+                  />
+                  <ClientOnly>
+                    {() => (
+                      <ScreenshotStateManager
+                        setUploadedFiles={setUploadedFiles}
+                        setImageDataList={setImageDataList}
+                        uploadedFiles={uploadedFiles}
+                        imageDataList={imageDataList}
+                      />
+                    )}
+                  </ClientOnly>
+                  <div
+                    className={classNames(
+                      'relative shadow-xs border border-bolt-elements-borderColor backdrop-blur rounded-lg'
+                    )}
+                  >
+                    {!chatStarted ? (
+                      <PromptingMultipleChoice onPromptChange={setWizardPrompt} />
+                    ) : (
+                      // Original textarea for chat mode
+                      <textarea
+                        ref={textareaRef}
+                        className={classNames(
+                          'w-full pl-4 pt-4 pr-16 outline-none resize-none text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent text-sm',
+                          'transition-all duration-200',
+                          'hover:border-bolt-elements-focus'
+                        )}
+                        onDragEnter={e => {
+                          e.preventDefault();
+                          e.currentTarget.style.border = '2px solid #1488fc';
+                        }}
+                        onDragOver={e => {
+                          e.preventDefault();
+                          e.currentTarget.style.border = '2px solid #1488fc';
+                        }}
+                        onDragLeave={e => {
+                          e.preventDefault();
+                          e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
+                        }}
+                        onDrop={e => {
+                          e.preventDefault();
+                          e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
+
+                          const files = Array.from(e.dataTransfer.files);
+                          files.forEach(file => {
+                            if (file.type.startsWith('image/')) {
+                              const reader = new FileReader();
+
+                              reader.onload = e => {
+                                const base64Image = e.target?.result as string;
+                                setUploadedFiles?.([...uploadedFiles, file]);
+                                setImageDataList?.([...imageDataList, base64Image]);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          });
+                        }}
+                        onKeyDown={event => {
+                          if (event.key === 'Enter') {
+                            if (event.shiftKey) {
+                              return;
+                            }
+
+                            event.preventDefault();
+
+                            if (isStreaming) {
+                              handleStop?.();
+                              return;
+                            }
+
+                            // ignore if using input method engine
+                            if (event.nativeEvent.isComposing) {
+                              return;
+                            }
+
+                            handleSendMessage?.(event);
+                          }
+                        }}
+                        value={input}
+                        onChange={event => {
+                          handleInputChange?.(event);
+                        }}
+                        onPaste={handlePaste}
+                        style={{
+                          minHeight: TEXTAREA_MIN_HEIGHT,
+                          maxHeight: TEXTAREA_MAX_HEIGHT,
+                        }}
+                        placeholder="Tell me your dream app idea"
+                        translate="no"
+                      />
+                    )}
+                    {/* Send Button - keep inside prompt container bounds */}
+                    <ClientOnly>
+                      {() => (
+                        <SendButton
+                          show={
+                            chatStarted
+                              ? Boolean(input.length > 0 || isStreaming || uploadedFiles.length > 0)
+                              : Boolean(input.length > 0)
+                          }
+                          isStreaming={isStreaming}
+                          disabled={!providerList || providerList.length === 0}
+                          onClick={event => {
+                            if (isStreaming) {
+                              handleStop?.();
+                              return;
+                            }
+
+                            if (chatStarted) {
+                              if (input.length > 0 || uploadedFiles.length > 0) {
+                                handleSendMessage?.(event);
+                              }
+                            } else {
+                              if (input.length > 0) {
+                                handleSendMessage?.(event);
+                              }
+                            }
+                          }}
                         />
                       )}
                     </ClientOnly>
-                    <div
-                      className={classNames(
-                        'relative shadow-xs border border-bolt-elements-borderColor backdrop-blur rounded-lg'
-                      )}
-                    >
-                      {!chatStarted ? (
-                        <PromptingMultipleChoice
-                          onPromptChange={setWizardPrompt}
-                        />
-                      ) : (
-                        // Original textarea for chat mode
-                        <textarea
-                          ref={textareaRef}
-                          className={classNames(
-                            'w-full pl-4 pt-4 pr-16 outline-none resize-none text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent text-sm',
-                            'transition-all duration-200',
-                            'hover:border-bolt-elements-focus'
-                          )}
-                          onDragEnter={e => {
-                            e.preventDefault();
-                            e.currentTarget.style.border = '2px solid #1488fc';
-                          }}
-                          onDragOver={e => {
-                            e.preventDefault();
-                            e.currentTarget.style.border = '2px solid #1488fc';
-                          }}
-                          onDragLeave={e => {
-                            e.preventDefault();
-                            e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
-                          }}
-                          onDrop={e => {
-                            e.preventDefault();
-                            e.currentTarget.style.border = '1px solid var(--bolt-elements-borderColor)';
-
-                            const files = Array.from(e.dataTransfer.files);
-                            files.forEach(file => {
-                              if (file.type.startsWith('image/')) {
-                                const reader = new FileReader();
-
-                                reader.onload = e => {
-                                  const base64Image = e.target?.result as string;
-                                  setUploadedFiles?.([...uploadedFiles, file]);
-                                  setImageDataList?.([...imageDataList, base64Image]);
-                                };
-                                reader.readAsDataURL(file);
-                              }
-                            });
-                          }}
-                          onKeyDown={event => {
-                            if (event.key === 'Enter') {
-                              if (event.shiftKey) {
-                                return;
-                              }
-
-                              event.preventDefault();
-
-                              if (isStreaming) {
-                                handleStop?.();
-                                return;
-                              }
-
-                              // ignore if using input method engine
-                              if (event.nativeEvent.isComposing) {
-                                return;
-                              }
-
-                              handleSendMessage?.(event);
-                            }
-                          }}
-                          value={input}
-                          onChange={event => {
-                            handleInputChange?.(event);
-                          }}
-                          onPaste={handlePaste}
-                          style={{
-                            minHeight: TEXTAREA_MIN_HEIGHT,
-                            maxHeight: TEXTAREA_MAX_HEIGHT,
-                          }}
-                          placeholder="Tell me your dream app idea"
-                          translate="no"
-                        />
-                      )}
-                      {/* Send Button - keep inside prompt container bounds */}
-                      <ClientOnly>
-                        {() => (
-                          <SendButton
-                            show={chatStarted ? Boolean(input.length > 0 || isStreaming || uploadedFiles.length > 0) : Boolean(input.length > 0)}
-                            isStreaming={isStreaming}
-                            disabled={!providerList || providerList.length === 0}
-                            onClick={event => {
-                              if (isStreaming) {
-                                handleStop?.();
-                                return;
-                              }
-
-                              if (chatStarted) {
-                                if (input.length > 0 || uploadedFiles.length > 0) {
-                                  handleSendMessage?.(event);
-                                }
-                              } else {
-                                if (input.length > 0) {
-                                  handleSendMessage?.(event);
-                                }
-                              }
-                            }}
-                          />
-                        )}
-                      </ClientOnly>
-                    </div>
-
-                    {/* Action buttons - only show in chat mode */}
-                    {chatStarted && (
-                      <div className="flex justify-between items-center text-sm p-4 pt-2">
-                        <div className="flex gap-1 items-center">
-                          <IconButton title="Upload file" className="transition-all" onClick={() => handleFileUpload()}>
-                            <div className="i-ph:paperclip text-xl"></div>
-                          </IconButton>
-                          <IconButton
-                            title="Enhance prompt"
-                            disabled={input.length === 0 || enhancingPrompt}
-                            className={classNames('transition-all', enhancingPrompt ? 'opacity-100' : '')}
-                            onClick={() => {
-                              enhancePrompt?.();
-                              toast.success('Prompt enhanced!');
-                            }}
-                          >
-                            {enhancingPrompt ? (
-                              <div className="i-svg-spinners:90-ring-with-bg text-bolt-elements-loader-progress text-xl animate-spin"></div>
-                            ) : (
-                              <div className="i-bolt:stars text-xl"></div>
-                            )}
-                          </IconButton>
-
-                          <SpeechRecognitionButton
-                            isListening={isListening}
-                            onStart={startListening}
-                            onStop={stopListening}
-                            disabled={isStreaming}
-                          />
-                          {chatStarted && <ClientOnly>{() => <ExportChatButton exportChat={exportChat} />}</ClientOnly>}
-                          {isModerator && (
-                            <IconButton
-                              title="Model Settings"
-                              className={classNames('transition-all flex items-center gap-1', {
-                                'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent':
-                                  isModelSettingsCollapsed,
-                                'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault':
-                                  !isModelSettingsCollapsed,
-                              })}
-                              onClick={() => setIsModelSettingsCollapsed(!isModelSettingsCollapsed)}
-                              disabled={!providerList || providerList.length === 0}
-                            >
-                              <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
-                              {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
-                            </IconButton>
-                          )}
-                        </div>
-                        {input.length > 3 ? (
-                          <div className="text-xs text-bolt-elements-textTertiary">
-                            Use{' '}
-                            <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd> +{' '}
-                            <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd>{' '}
-                            a new line
-                          </div>
-                        ) : null}
-                      </div>
-                    )}
                   </div>
+
+                  {/* Action buttons - only show in chat mode */}
+                  {chatStarted && (
+                    <div className="flex justify-between items-center text-sm p-4 pt-2">
+                      <div className="flex gap-1 items-center">
+                        <IconButton title="Upload file" className="transition-all" onClick={() => handleFileUpload()}>
+                          <div className="i-ph:paperclip text-xl"></div>
+                        </IconButton>
+                        <IconButton
+                          title="Enhance prompt"
+                          disabled={input.length === 0 || enhancingPrompt}
+                          className={classNames('transition-all', enhancingPrompt ? 'opacity-100' : '')}
+                          onClick={() => {
+                            enhancePrompt?.();
+                            toast.success('Prompt enhanced!');
+                          }}
+                        >
+                          {enhancingPrompt ? (
+                            <div className="i-svg-spinners:90-ring-with-bg text-bolt-elements-loader-progress text-xl animate-spin"></div>
+                          ) : (
+                            <div className="i-bolt:stars text-xl"></div>
+                          )}
+                        </IconButton>
+
+                        <SpeechRecognitionButton
+                          isListening={isListening}
+                          onStart={startListening}
+                          onStop={stopListening}
+                          disabled={isStreaming}
+                        />
+                        {chatStarted && <ClientOnly>{() => <ExportChatButton exportChat={exportChat} />}</ClientOnly>}
+                        {isModerator && (
+                          <IconButton
+                            title="Model Settings"
+                            className={classNames('transition-all flex items-center gap-1', {
+                              'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent':
+                                isModelSettingsCollapsed,
+                              'bg-bolt-elements-item-backgroundDefault text-bolt-elements-item-contentDefault':
+                                !isModelSettingsCollapsed,
+                            })}
+                            onClick={() => setIsModelSettingsCollapsed(!isModelSettingsCollapsed)}
+                            disabled={!providerList || providerList.length === 0}
+                          >
+                            <div className={`i-ph:caret-${isModelSettingsCollapsed ? 'right' : 'down'} text-lg`} />
+                            {isModelSettingsCollapsed ? <span className="text-xs">{model}</span> : <span />}
+                          </IconButton>
+                        )}
+                      </div>
+                      {input.length > 3 ? (
+                        <div className="text-xs text-bolt-elements-textTertiary">
+                          Use <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Shift</kbd>{' '}
+                          + <kbd className="kdb px-1.5 py-0.5 rounded bg-bolt-elements-background-depth-2">Return</kbd>{' '}
+                          a new line
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
+              </div>
             </div>
             <div className="flex flex-col justify-center gap-5">
               {!chatStarted && (
                 <div className="flex justify-center gap-2">
-                  <ImportButtons 
+                  <ImportButtons
                     importChat={importChat}
                     showImportChat={!isImportChatHidden()}
                     showImportFolder={!isImportFolderHidden()}
                   />
-                  <GitCloneButton 
-                    importChat={importChat} 
-                    show={!isGitCloneHidden()}
-                  />
+                  <GitCloneButton importChat={importChat} show={!isGitCloneHidden()} />
                 </div>
               )}
               {!chatStarted &&

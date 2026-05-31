@@ -1,13 +1,7 @@
 import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { Form, Link, useActionData, useLoaderData, useNavigation } from '@remix-run/react';
 import { requireAuth } from '~/lib/auth';
-import {
-  getCompanyBySlug,
-  getCompanyMember,
-  getCompanyMembers,
-  updateCompany,
-  getAuditLogs,
-} from '~/lib/database';
+import { getCompanyBySlug, getCompanyMember, getCompanyMembers, updateCompany, getAuditLogs } from '~/lib/database';
 import { Button } from '~/components/ui/Button';
 import { Input } from '~/components/ui/Input';
 import { Label } from '~/components/ui/Label';
@@ -18,7 +12,14 @@ import type { CompanyRole } from '~/lib/database';
 interface LoaderData {
   company: { id: string; name: string; slug: string; github_org: string | null; plan: string };
   members: { user_id: string; email: string; role: CompanyRole; joined_at: string }[];
-  auditLogs: { id: string; actor_email: string; project_name: string | null; action: string; payload: unknown; created_at: string }[];
+  auditLogs: {
+    id: string;
+    actor_email: string;
+    project_name: string | null;
+    action: string;
+    payload: unknown;
+    created_at: string;
+  }[];
   userRole: CompanyRole;
 }
 
@@ -32,15 +33,18 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   const slug = params.slug!;
 
   const company = await getCompanyBySlug(slug);
-  if (!company) throw redirect('/company/new');
+
+  if (!company) {
+    throw redirect('/company/new');
+  }
 
   const member = await getCompanyMember(company.id, user.id);
-  if (!member) throw new Response('Forbidden', { status: 403 });
 
-  const [members, auditLogs] = await Promise.all([
-    getCompanyMembers(company.id),
-    getAuditLogs(company.id, 50),
-  ]);
+  if (!member) {
+    throw new Response('Forbidden', { status: 403 });
+  }
+
+  const [members, auditLogs] = await Promise.all([getCompanyMembers(company.id), getAuditLogs(company.id, 50)]);
 
   return json<LoaderData>({
     company: {
@@ -61,9 +65,13 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   const slug = params.slug!;
 
   const company = await getCompanyBySlug(slug);
-  if (!company) throw new Response('Not found', { status: 404 });
+
+  if (!company) {
+    throw new Response('Not found', { status: 404 });
+  }
 
   const member = await getCompanyMember(company.id, user.id);
+
   if (!member || member.role !== 'admin') {
     return json<ActionData>({ error: 'Only admins can update company settings' });
   }
@@ -77,6 +85,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   }
 
   const success = await updateCompany(company.id, { name, github_org: githubOrg ?? '' });
+
   if (!success) {
     return json<ActionData>({ error: 'Failed to update settings' });
   }
@@ -99,7 +108,10 @@ export default function CompanySettings() {
     <div className="min-h-screen bg-bolt-elements-background-depth-1">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         <div className="flex items-center gap-3">
-          <Link to={`/c/${company.slug}`} className="text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary text-sm">
+          <Link
+            to={`/c/${company.slug}`}
+            className="text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary text-sm"
+          >
             ← {company.name}
           </Link>
           <span className="text-bolt-elements-textTertiary">/</span>
@@ -148,8 +160,11 @@ export default function CompanySettings() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {members.map((m) => (
-                <div key={m.user_id} className="flex items-center justify-between py-2 border-b border-bolt-elements-borderColor last:border-0">
+              {members.map(m => (
+                <div
+                  key={m.user_id}
+                  className="flex items-center justify-between py-2 border-b border-bolt-elements-borderColor last:border-0"
+                >
                   <div>
                     <p className="text-sm text-bolt-elements-textPrimary">{m.email}</p>
                     <p className="text-xs text-bolt-elements-textTertiary">Joined {formatDate(m.joined_at)}</p>
@@ -174,8 +189,11 @@ export default function CompanySettings() {
                 {auditLogs.length === 0 ? (
                   <p className="text-sm text-bolt-elements-textSecondary">No activity yet</p>
                 ) : (
-                  auditLogs.map((log) => (
-                    <div key={log.id} className="flex items-start justify-between gap-4 py-1.5 border-b border-bolt-elements-borderColor/50 last:border-0">
+                  auditLogs.map(log => (
+                    <div
+                      key={log.id}
+                      className="flex items-start justify-between gap-4 py-1.5 border-b border-bolt-elements-borderColor/50 last:border-0"
+                    >
                       <div className="min-w-0">
                         <span className="text-xs font-medium text-bolt-elements-textPrimary">{log.action}</span>
                         {log.project_name && (
@@ -183,7 +201,9 @@ export default function CompanySettings() {
                         )}
                         <span className="text-xs text-bolt-elements-textTertiary ml-1">by {log.actor_email}</span>
                       </div>
-                      <span className="text-xs text-bolt-elements-textTertiary shrink-0">{formatDate(log.created_at)}</span>
+                      <span className="text-xs text-bolt-elements-textTertiary shrink-0">
+                        {formatDate(log.created_at)}
+                      </span>
                     </div>
                   ))
                 )}

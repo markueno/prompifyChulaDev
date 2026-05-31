@@ -184,14 +184,21 @@ export default function FeaturesTab() {
   const handleUploadPromptTemplate = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file) return;
+
+      if (!file) {
+        return;
+      }
+
       const reader = new FileReader();
+
       reader.onload = () => {
         const content = reader.result as string;
+
         if (!content?.trim()) {
           toast.error('File is empty');
           return;
         }
+
         setCustomPromptTemplate(content);
         setPromptId('custom');
         toast.success('Prompt template uploaded. Select "Custom (uploaded)" to use it.');

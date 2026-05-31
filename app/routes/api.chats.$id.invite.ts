@@ -7,13 +7,21 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
     const chatId = params.id;
-    if (!chatId) return json({ success: false, error: 'Chat ID required' }, { status: 400 });
 
-    if (request.method !== 'POST') return json({ success: false, error: 'Method not allowed' }, { status: 405 });
+    if (!chatId) {
+      return json({ success: false, error: 'Chat ID required' }, { status: 400 });
+    }
 
-    const body = await request.json().catch(() => ({}));
+    if (request.method !== 'POST') {
+      return json({ success: false, error: 'Method not allowed' }, { status: 405 });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as any;
     const email = body?.email?.trim();
-    if (!email) return json({ success: false, error: 'Email is required' }, { status: 400 });
+
+    if (!email) {
+      return json({ success: false, error: 'Email is required' }, { status: 400 });
+    }
 
     const result = await inviteToChat(chatId, user.id, email, body?.role || 'member');
 
@@ -32,6 +40,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     const projectName = chat?.description || 'Untitled project';
 
     const emailSent = await sendInvitationEmail(email, user.email, projectName, acceptUrl);
+
     if (!emailSent) {
       console.warn('[Invite] Email could not be sent to', email, '- invite link created, inviter can share manually');
     }

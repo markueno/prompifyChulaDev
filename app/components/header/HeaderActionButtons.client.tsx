@@ -88,20 +88,24 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
       // Get the build path and ensure it's properly formatted
       const buildPath = artifact.runner.buildOutput.path;
-      
+
       console.log('[Deploy] Build path:', buildPath);
       console.log('[Deploy] Build output:', artifact.runner.buildOutput);
-      
+
       // Check if the build path exists and is accessible
       try {
         // Extract the relative path from the build path for webcontainer access
         const relativeBuildPath = buildPath.replace(container.workdir, '').replace(/^\/+/, '') || '.';
         console.log('[Deploy] Relative build path for webcontainer:', relativeBuildPath);
-        
+
         const buildDirContents = await container.fs.readdir(relativeBuildPath, { withFileTypes: true });
-        console.log('[Deploy] Build directory contents:', buildDirContents.map(entry => entry.name));
+        console.log(
+          '[Deploy] Build directory contents:',
+          buildDirContents.map(entry => entry.name)
+        );
       } catch (error) {
         console.error('[Deploy] Build path not accessible:', buildPath, error);
+
         const errorMessage = error instanceof Error ? error.message : String(error);
         throw new Error(`Build directory not found: ${buildPath}. Error: ${errorMessage}`);
       }
@@ -109,12 +113,12 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
       // Get all files recursively
       async function getAllFiles(dirPath: string): Promise<Record<string, string>> {
         const files: Record<string, string> = {};
-        
+
         try {
           // Convert absolute path to relative path for webcontainer
           const relativeDirPath = dirPath.replace(container.workdir, '').replace(/^\/+/, '') || '.';
           console.log('[Deploy] Reading directory (relative):', relativeDirPath);
-          
+
           const entries = await container.fs.readdir(relativeDirPath, { withFileTypes: true });
 
           for (const entry of entries) {
@@ -125,14 +129,17 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 // Use relative path for webcontainer file reading
                 const relativeFilePath = path.join(relativeDirPath, entry.name);
                 const content = await container.fs.readFile(relativeFilePath, 'utf-8');
-                
-                // Create a clean deployment path by removing the build directory prefix
-                // and ensuring it starts with a forward slash for Netlify
+
+                /*
+                 * Create a clean deployment path by removing the build directory prefix
+                 * and ensuring it starts with a forward slash for Netlify
+                 */
                 let deployPath = fullPath.replace(buildPath, '');
+
                 if (!deployPath.startsWith('/')) {
                   deployPath = '/' + deployPath;
                 }
-                
+
                 console.log('[Deploy] File path mapping:', fullPath, '->', deployPath);
                 files[deployPath] = content;
               } catch (error) {
@@ -152,7 +159,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
       }
 
       const fileContents = await getAllFiles(buildPath);
-      
+
       console.log('[Deploy] Total files to deploy:', Object.keys(fileContents).length);
       console.log('[Deploy] File paths:', Object.keys(fileContents).slice(0, 10)); // Log first 10 file paths
 
@@ -259,7 +266,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
             <div
               className={classNames(
                 'i-ph:caret-down w-4 h-4 transition-transform text-inherit',
-                isDropdownOpen ? 'rotate-180' : '',
+                isDropdownOpen ? 'rotate-180' : ''
               )}
             />
           </Button>
@@ -365,8 +372,7 @@ function Button({ active = false, disabled = false, children, onClick, className
       className={classNames(
         'flex items-center p-1.5',
         {
-          'bg-white hover:bg-gray-50 text-zinc-900 hover:text-black':
-            !active && !disabled,
+          'bg-white hover:bg-gray-50 text-zinc-900 hover:text-black': !active && !disabled,
           'bg-white text-zinc-900': active && !disabled,
           'bg-white text-zinc-400 cursor-not-allowed': disabled,
         },

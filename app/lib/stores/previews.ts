@@ -26,7 +26,7 @@ export class PreviewsStore {
   #broadcastChannel: BroadcastChannel;
   #lastUpdate = new Map<string, number>();
   #refreshTimeouts = new Map<string, NodeJS.Timeout>();
-  #REFRESH_DELAY = 500;          // file-change debounce
+  #REFRESH_DELAY = 500; // file-change debounce
   #SERVER_READY_DELAY = 30_000; // wait after server-ready before reloading iframe
   #projectBaseUrl: string | null = null; // e.g. https://abc123.local-credentialless.webcontainer-api.io
 
@@ -74,17 +74,22 @@ export class PreviewsStore {
     webcontainer.on('server-ready', (port, url) => {
       console.log('[Preview] Server ready on port:', port, url);
       console.log('[Preview] WebContainer workdir:', webcontainer.workdir);
-      console.log('[Preview] Session ID:', typeof window !== 'undefined' && window.sessionStorage
-        ? window.sessionStorage.getItem('bolt-session-id')
-        : 'N/A');
+      console.log(
+        '[Preview] Session ID:',
+        typeof window !== 'undefined' && window.sessionStorage
+          ? window.sessionStorage.getItem('bolt-session-id')
+          : 'N/A'
+      );
 
       // Persist base URL so port-polling can use it even after a page refresh
       this.#captureBaseUrl(url);
 
-      // BroadcastChannel.onmessage does NOT fire in the same tab that sent the message,
-      // so call refreshPreview directly for the current tab, then broadcast to others.
-      // Use the longer server-ready delay: the dev server reports "ready" before its
-      // initial build/compile pass finishes, so the iframe needs time before loading.
+      /*
+       * BroadcastChannel.onmessage does NOT fire in the same tab that sent the message,
+       * so call refreshPreview directly for the current tab, then broadcast to others.
+       * Use the longer server-ready delay: the dev server reports "ready" before its
+       * initial build/compile pass finishes, so the iframe needs time before loading.
+       */
       const previewId = this.getPreviewId(url);
 
       if (previewId) {
@@ -112,7 +117,6 @@ export class PreviewsStore {
           }
         }
       });
-
     } catch (error) {
       console.error('[Preview] Error setting up watchers:', error);
     }
@@ -147,17 +151,21 @@ export class PreviewsStore {
       }
     });
 
-    // Port-polling fallback: if the port/server-ready events never fire (e.g. the dev
-    // server started but WebContainer missed the event), probe common ports using the
-    // base URL from sessionStorage. Schedule several attempts to cover slow installs.
+    /*
+     * Port-polling fallback: if the port/server-ready events never fire (e.g. the dev
+     * server started but WebContainer missed the event), probe common ports using the
+     * base URL from sessionStorage. Schedule several attempts to cover slow installs.
+     */
     [45_000, 90_000, 135_000, 180_000].forEach(delay => {
       setTimeout(() => this.#pollCommonPorts(), delay);
     });
   }
 
-  // Strip the port suffix from a WebContainer URL to get the project base URL.
-  // https://abc123-5173.local-credentialless.webcontainer-api.io
-  //   → https://abc123.local-credentialless.webcontainer-api.io
+  /*
+   * Strip the port suffix from a WebContainer URL to get the project base URL.
+   * https://abc123-5173.local-credentialless.webcontainer-api.io
+   *   → https://abc123.local-credentialless.webcontainer-api.io
+   */
   #extractBaseUrl(portUrl: string): string | null {
     try {
       return portUrl.replace(/-\d+\.local-credentialless/, '.local-credentialless') || null;
@@ -168,7 +176,9 @@ export class PreviewsStore {
 
   // Capture and persist the base URL on the first successful port/server-ready event.
   #captureBaseUrl(portUrl: string) {
-    if (this.#projectBaseUrl) return;
+    if (this.#projectBaseUrl) {
+      return;
+    }
 
     const base = this.#extractBaseUrl(portUrl);
 
@@ -181,10 +191,14 @@ export class PreviewsStore {
     }
   }
 
-  // Probe common dev-server ports. Constructs URLs from the stored base URL so it
-  // works even when no port/server-ready event fired in this session.
+  /*
+   * Probe common dev-server ports. Constructs URLs from the stored base URL so it
+   * works even when no port/server-ready event fired in this session.
+   */
   async #pollCommonPorts() {
-    if (this.#availablePreviews.size > 0) return; // already have a preview
+    if (this.#availablePreviews.size > 0) {
+      return;
+    } // already have a preview
 
     // Recover base URL from last successful session if not yet seen this session
     if (!this.#projectBaseUrl) {
@@ -193,10 +207,14 @@ export class PreviewsStore {
       } catch {}
     }
 
-    if (!this.#projectBaseUrl) return; // can't construct URLs without a base
+    if (!this.#projectBaseUrl) {
+      return;
+    } // can't construct URLs without a base
 
     for (const port of PROBE_PORTS) {
-      if (this.#availablePreviews.has(port)) continue;
+      if (this.#availablePreviews.has(port)) {
+        continue;
+      }
 
       const url = this.#projectBaseUrl.replace('.local-credentialless', `-${port}.local-credentialless`);
 

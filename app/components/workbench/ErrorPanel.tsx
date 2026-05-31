@@ -25,9 +25,13 @@ const SOURCE_COLOR: Record<string, string> = {
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
 
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) {
+    return `${s}s ago`;
+  }
 
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 3600) {
+    return `${Math.floor(s / 60)}m ago`;
+  }
 
   return `${Math.floor(s / 3600)}h ago`;
 }
@@ -78,10 +82,10 @@ const ErrorRow = memo(({ error, onFix }: ErrorRowProps) => {
                 Fixed
               </span>
             )}
-            {error.status === 'ignored' && (
-              <span className="text-[10px] text-bolt-elements-textTertiary">Ignored</span>
-            )}
-            <span className="text-[10px] text-bolt-elements-textTertiary ml-auto shrink-0">{timeAgo(error.timestamp)}</span>
+            {error.status === 'ignored' && <span className="text-[10px] text-bolt-elements-textTertiary">Ignored</span>}
+            <span className="text-[10px] text-bolt-elements-textTertiary ml-auto shrink-0">
+              {timeAgo(error.timestamp)}
+            </span>
           </div>
 
           {/* Message */}
@@ -100,7 +104,7 @@ const ErrorRow = memo(({ error, onFix }: ErrorRowProps) => {
         {error.status === 'new' && (
           <button
             className="shrink-0 text-[11px] px-2 py-0.5 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 transition-colors"
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               onFix(error);
             }}
@@ -137,10 +141,10 @@ interface ErrorPanelProps {
 export const ErrorPanel = memo(({ onFixError, onFixAll }: ErrorPanelProps) => {
   const errors = useStore(errorsStore);
 
-  const activeErrors = errors.filter((e) => e.status === 'new');
-  const errorCount = activeErrors.filter((e) => e.level === 'error').length;
-  const warnCount = activeErrors.filter((e) => e.level === 'warn').length;
-  const hasFixed = errors.some((e) => e.status === 'fixed');
+  const activeErrors = errors.filter(e => e.status === 'new');
+  const errorCount = activeErrors.filter(e => e.level === 'error').length;
+  const warnCount = activeErrors.filter(e => e.level === 'warn').length;
+  const hasFixed = errors.some(e => e.status === 'fixed');
 
   return (
     <div className="h-full flex flex-col bg-bolt-elements-background-depth-2 overflow-hidden">
@@ -202,7 +206,7 @@ export const ErrorPanel = memo(({ onFixError, onFixAll }: ErrorPanelProps) => {
           errors
             .slice()
             .reverse()
-            .map((error) => <ErrorRow key={error.id} error={error} onFix={onFixError} />)
+            .map(error => <ErrorRow key={error.id} error={error} onFix={onFixError} />)
         )}
       </div>
     </div>
@@ -212,7 +216,7 @@ export const ErrorPanel = memo(({ onFixError, onFixAll }: ErrorPanelProps) => {
 // Standalone badge — used in the workbench header to show active error count
 export const ErrorBadge = memo(() => {
   const errors = useStore(errorsStore);
-  const count = errors.filter((e) => e.status === 'new' && e.level === 'error').length;
+  const count = errors.filter(e => e.status === 'new' && e.level === 'error').length;
 
   if (count === 0) {
     return null;

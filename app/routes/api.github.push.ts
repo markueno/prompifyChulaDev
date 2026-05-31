@@ -6,6 +6,7 @@ import type { FileMap } from '~/lib/stores/files';
 
 export async function action({ request, context }: ActionFunctionArgs) {
   const user = await requireAuth(request, context);
+
   if (!user) {
     return json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -32,16 +33,19 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 
   const company = await getCompanyBySlug(companySlug);
+
   if (!company) {
     return json({ error: 'Company not found' }, { status: 404 });
   }
 
   const member = await getCompanyMember(company.id, user.id);
+
   if (!member || member.role === 'viewer') {
     return json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const githubOrg = company.github_org;
+
   if (!githubOrg) {
     return json({ error: 'Company has no GitHub org configured' }, { status: 400 });
   }

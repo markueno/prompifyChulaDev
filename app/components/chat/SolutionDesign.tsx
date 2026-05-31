@@ -12,20 +12,13 @@ interface DraggableStepProps {
   isDragging: boolean;
 }
 
-const DraggableStep: React.FC<DraggableStepProps> = ({
-  step,
-  index,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  isDragging
-}) => {
+const DraggableStep: React.FC<DraggableStepProps> = ({ step, index, onDragStart, onDragOver, onDrop, isDragging }) => {
   return (
     <div
       draggable
-      onDragStart={(e) => onDragStart(e, index)}
+      onDragStart={e => onDragStart(e, index)}
       onDragOver={onDragOver}
-      onDrop={(e) => onDrop(e, index)}
+      onDrop={e => onDrop(e, index)}
       className={classNames(
         'flex items-center gap-3 p-3 bg-white border border-gray-300 rounded-lg cursor-move transition-all duration-200',
         isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md',
@@ -75,16 +68,14 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
     'Modern, responsive design',
     'User-friendly interface',
     'Industry-specific functionality',
-    'Scalable architecture'
+    'Scalable architecture',
   ]);
   const [targetUsers, setTargetUsers] = useState([
     `${businessType} staff and administrators`,
     'End users and customers',
     'Mobile and desktop users',
-    'Various technical skill levels'
+    'Various technical skill levels',
   ]);
-
-
 
   // State for editable fields in Section B
   const [systemFlowSteps, setSystemFlowSteps] = useState<string[]>([]);
@@ -110,7 +101,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
 
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault();
-    
+
     if (draggedIndex === null || draggedIndex === dropIndex) {
       setDraggedIndex(null);
       return;
@@ -118,13 +109,13 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
 
     const newSteps = [...systemFlowSteps];
     const draggedStep = newSteps[draggedIndex];
-    
+
     // Remove the dragged item
     newSteps.splice(draggedIndex, 1);
-    
+
     // Insert at the new position
     newSteps.splice(dropIndex, 0, draggedStep);
-    
+
     setSystemFlowSteps(newSteps);
     setDraggedIndex(null);
   };
@@ -136,10 +127,14 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
   const [database, setDatabase] = useState('SQLite');
 
   // Check environment variables for disabled components
-  const disableFramework = import.meta.env.VITE_DISABLE_FRAMEWORK === 'true' || import.meta.env.VITE_DISABLE_FRAMEWORK === '1';
-  const disableLanguage = import.meta.env.VITE_DISABLE_LANGUAGE === 'true' || import.meta.env.VITE_DISABLE_LANGUAGE === '1';
-  const disableCssFramework = import.meta.env.VITE_DISABLE_CSS_FRAMEWORK === 'true' || import.meta.env.VITE_DISABLE_CSS_FRAMEWORK === '1';
-  const disableDatabase = import.meta.env.VITE_DISABLE_DATABASE === 'true' || import.meta.env.VITE_DISABLE_DATABASE === '1';
+  const disableFramework =
+    import.meta.env.VITE_DISABLE_FRAMEWORK === 'true' || import.meta.env.VITE_DISABLE_FRAMEWORK === '1';
+  const disableLanguage =
+    import.meta.env.VITE_DISABLE_LANGUAGE === 'true' || import.meta.env.VITE_DISABLE_LANGUAGE === '1';
+  const disableCssFramework =
+    import.meta.env.VITE_DISABLE_CSS_FRAMEWORK === 'true' || import.meta.env.VITE_DISABLE_CSS_FRAMEWORK === '1';
+  const disableDatabase =
+    import.meta.env.VITE_DISABLE_DATABASE === 'true' || import.meta.env.VITE_DISABLE_DATABASE === '1';
 
   const displayPrompt = () => {
     return `Build me a ${applicationType} for ${businessType}${additionalDetails ? ` - ${additionalDetails}` : ''}`;
@@ -147,32 +142,31 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
 
   const constructPrompt = () => {
     const basePrompt = `Build me a ${applicationType} for ${businessType}${additionalDetails ? ` - ${additionalDetails}` : ''}`;
-    
+
     // Build technology stack array based on environment variables
     const techStackItems = [];
-    
+
     if (!disableFramework) {
       techStackItems.push(`Framework: ${framework}`);
     }
-    
+
     if (!disableLanguage) {
       techStackItems.push(`Language: ${useTypeScript ? 'TypeScript' : 'JavaScript'}`);
     }
-    
+
     if (!disableCssFramework) {
       techStackItems.push(`Style: ${cssFramework}`);
     }
-    
+
     if (!disableDatabase) {
       techStackItems.push(`DB: ${database}`);
     }
-    
-    
+
     // Only append tech stack if there are items to include
     if (techStackItems.length > 0) {
       return `${basePrompt}\n\n${techStackItems.join('\n')}`;
     }
-    
+
     return basePrompt;
   };
 
@@ -204,7 +198,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-2">Project Overview</h4>
             <textarea
               value={projectOverview}
-              onChange={(e) => setProjectOverview(e.target.value)}
+              onChange={e => setProjectOverview(e.target.value)}
               className="w-full p-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
               rows={4}
               placeholder="Enter project overview..."
@@ -220,7 +214,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                     <input
                       type="text"
                       value={feature}
-                      onChange={(e) => updateItem(keyFeatures, setKeyFeatures, index, e.target.value)}
+                      onChange={e => updateItem(keyFeatures, setKeyFeatures, index, e.target.value)}
                       className="flex-1 p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Enter feature..."
                     />
@@ -251,7 +245,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                     <input
                       type="text"
                       value={user}
-                      onChange={(e) => updateItem(targetUsers, setTargetUsers, index, e.target.value)}
+                      onChange={e => updateItem(targetUsers, setTargetUsers, index, e.target.value)}
                       className="flex-1 p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Enter target user..."
                     />
@@ -341,12 +335,12 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
           <div className="bg-white p-4 rounded-lg border border-gray-300">
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">Technology Stack</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className={classNames(
-                "text-center p-3 border rounded-lg transition-all duration-200",
-                disableFramework 
-                  ? "bg-gray-100 border-gray-200 opacity-60" 
-                  : "bg-white border-gray-300"
-              )}>
+              <div
+                className={classNames(
+                  'text-center p-3 border rounded-lg transition-all duration-200',
+                  disableFramework ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-gray-300'
+                )}
+              >
                 <div className="text-2xl mb-1">
                   {framework === 'React' && <div className="i-logos:react"></div>}
                   {framework === 'Vue' && <div className="i-logos:vue"></div>}
@@ -358,13 +352,11 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                 </div>
                 <select
                   value={framework}
-                  onChange={(e) => setFramework(e.target.value)}
+                  onChange={e => setFramework(e.target.value)}
                   disabled={disableFramework}
                   className={classNames(
-                    "w-full text-xs border-0 focus:ring-0 focus:outline-none text-center",
-                    disableFramework 
-                      ? "text-gray-500 bg-gray-100 cursor-not-allowed" 
-                      : "text-gray-900 bg-white"
+                    'w-full text-xs border-0 focus:ring-0 focus:outline-none text-center',
+                    disableFramework ? 'text-gray-500 bg-gray-100 cursor-not-allowed' : 'text-gray-900 bg-white'
                   )}
                 >
                   <option value="React">React</option>
@@ -375,71 +367,65 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   <option value="Nuxt.js">Nuxt.js</option>
                   <option value="Vanilla JavaScript">Vanilla JavaScript</option>
                 </select>
-                {disableFramework && (
-                  <div className="text-xs text-gray-500 mt-1">Disabled</div>
-                )}
+                {disableFramework && <div className="text-xs text-gray-500 mt-1">Disabled</div>}
               </div>
-              <div className={classNames(
-                "text-center p-3 border rounded-lg transition-all duration-200",
-                disableLanguage 
-                  ? "bg-gray-100 border-gray-200 opacity-60" 
-                  : "bg-white border-gray-300"
-              )}>
+              <div
+                className={classNames(
+                  'text-center p-3 border rounded-lg transition-all duration-200',
+                  disableLanguage ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-gray-300'
+                )}
+              >
                 <div className="text-2xl mb-1">
-                  {useTypeScript ? <div className="i-logos:typescript-icon"></div> : <div className="i-logos:javascript"></div>}
+                  {useTypeScript ? (
+                    <div className="i-logos:typescript-icon"></div>
+                  ) : (
+                    <div className="i-logos:javascript"></div>
+                  )}
                 </div>
                 <select
                   value={useTypeScript ? 'TypeScript' : 'JavaScript'}
-                  onChange={(e) => setUseTypeScript(e.target.value === 'TypeScript')}
+                  onChange={e => setUseTypeScript(e.target.value === 'TypeScript')}
                   disabled={disableLanguage}
                   className={classNames(
-                    "w-full text-xs border-0 focus:ring-0 focus:outline-none text-center",
-                    disableLanguage 
-                      ? "text-gray-500 bg-gray-100 cursor-not-allowed" 
-                      : "text-gray-900 bg-white"
+                    'w-full text-xs border-0 focus:ring-0 focus:outline-none text-center',
+                    disableLanguage ? 'text-gray-500 bg-gray-100 cursor-not-allowed' : 'text-gray-900 bg-white'
                   )}
                 >
                   <option value="TypeScript">TypeScript</option>
                   <option value="JavaScript">JavaScript</option>
                 </select>
-                {disableLanguage && (
-                  <div className="text-xs text-gray-500 mt-1">Disabled</div>
-                )}
+                {disableLanguage && <div className="text-xs text-gray-500 mt-1">Disabled</div>}
               </div>
-              <div className={classNames(
-                "text-center p-3 border rounded-lg transition-all duration-200",
-                disableCssFramework 
-                  ? "bg-gray-100 border-gray-200 opacity-60" 
-                  : "bg-white border-gray-300"
-              )}>
+              <div
+                className={classNames(
+                  'text-center p-3 border rounded-lg transition-all duration-200',
+                  disableCssFramework ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-gray-300'
+                )}
+              >
                 <div className="text-2xl mb-1">
                   {cssFramework === 'Tailwind CSS' && <div className="i-logos:tailwindcss-icon"></div>}
                   {cssFramework === 'Chakra UI' && <div className="i-logos:chakra-ui-icon"></div>}
                 </div>
                 <select
                   value={cssFramework}
-                  onChange={(e) => setCssFramework(e.target.value)}
+                  onChange={e => setCssFramework(e.target.value)}
                   disabled={disableCssFramework}
                   className={classNames(
-                    "w-full text-xs border-0 focus:ring-0 focus:outline-none text-center",
-                    disableCssFramework 
-                      ? "text-gray-500 bg-gray-100 cursor-not-allowed" 
-                      : "text-gray-900 bg-white"
+                    'w-full text-xs border-0 focus:ring-0 focus:outline-none text-center',
+                    disableCssFramework ? 'text-gray-500 bg-gray-100 cursor-not-allowed' : 'text-gray-900 bg-white'
                   )}
                 >
                   <option value="Tailwind CSS">Tailwind CSS</option>
                   <option value="Chakra UI">Chakra UI</option>
                 </select>
-                {disableCssFramework && (
-                  <div className="text-xs text-gray-500 mt-1">Disabled</div>
-                )}
+                {disableCssFramework && <div className="text-xs text-gray-500 mt-1">Disabled</div>}
               </div>
-              <div className={classNames(
-                "text-center p-3 border rounded-lg transition-all duration-200",
-                disableDatabase 
-                  ? "bg-gray-100 border-gray-200 opacity-60" 
-                  : "bg-white border-gray-300"
-              )}>
+              <div
+                className={classNames(
+                  'text-center p-3 border rounded-lg transition-all duration-200',
+                  disableDatabase ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-gray-300'
+                )}
+              >
                 <div className="text-2xl mb-1">
                   {database === 'SQLite' && <div className="i-logos:sqlite"></div>}
                   {database === 'PostgreSQL' && <div className="i-logos:postgresql"></div>}
@@ -450,13 +436,11 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                 </div>
                 <select
                   value={database}
-                  onChange={(e) => setDatabase(e.target.value)}
+                  onChange={e => setDatabase(e.target.value)}
                   disabled={disableDatabase}
                   className={classNames(
-                    "w-full text-xs border-0 focus:ring-0 focus:outline-none text-center",
-                    disableDatabase 
-                      ? "text-gray-500 bg-gray-100 cursor-not-allowed" 
-                      : "text-gray-900 bg-white"
+                    'w-full text-xs border-0 focus:ring-0 focus:outline-none text-center',
+                    disableDatabase ? 'text-gray-500 bg-gray-100 cursor-not-allowed' : 'text-gray-900 bg-white'
                   )}
                 >
                   <option value="SQLite">SQLite</option>
@@ -466,9 +450,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   <option value="Firebase">Firebase</option>
                   <option value="Supabase">Supabase</option>
                 </select>
-                {disableDatabase && (
-                  <div className="text-xs text-gray-500 mt-1">Disabled</div>
-                )}
+                {disableDatabase && <div className="text-xs text-gray-500 mt-1">Disabled</div>}
               </div>
             </div>
           </div>

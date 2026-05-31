@@ -64,6 +64,6 @@ export const CONTACT_COUNTRY_OPTIONS: ContactCountryOption[] = [
 
 /** Lookup ITU-T dial code for a stored ISO country value (empty string if none / Other). */
 export function getContactDialCodeForCountry(iso: string): string {
-  const o = CONTACT_COUNTRY_OPTIONS.find((x) => x.value === iso);
+  const o = CONTACT_COUNTRY_OPTIONS.find(x => x.value === iso);
   return o?.dialCode ?? '';
 }

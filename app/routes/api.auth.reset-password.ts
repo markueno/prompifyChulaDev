@@ -24,10 +24,7 @@ export async function action({ request }: ActionFunctionArgs) {
     const { token, newPassword } = body;
 
     if (!token) {
-      return json<ResetPasswordResponse>(
-        { success: false, message: 'Reset token is required' },
-        { status: 400 }
-      );
+      return json<ResetPasswordResponse>({ success: false, message: 'Reset token is required' }, { status: 400 });
     }
 
     if (!newPassword || newPassword.length < 8) {
@@ -43,18 +40,21 @@ export async function action({ request }: ActionFunctionArgs) {
         { status: 400 }
       );
     }
+
     if (!/(?=.*[A-Z])/.test(newPassword)) {
       return json<ResetPasswordResponse>(
         { success: false, message: 'Password must contain at least one uppercase letter' },
         { status: 400 }
       );
     }
+
     if (!/(?=.*\d)/.test(newPassword)) {
       return json<ResetPasswordResponse>(
         { success: false, message: 'Password must contain at least one number' },
         { status: 400 }
       );
     }
+
     if (!/(?=.*[!@#$%^&*])/.test(newPassword)) {
       return json<ResetPasswordResponse>(
         { success: false, message: 'Password must contain at least one special character (!@#$%^&*)' },
@@ -63,6 +63,7 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     const user = await getUserByResetToken(token);
+
     if (!user) {
       return json<ResetPasswordResponse>(
         { success: false, message: 'Invalid or expired reset link. Please request a new one.' },
@@ -71,6 +72,7 @@ export async function action({ request }: ActionFunctionArgs) {
     }
 
     const expires = user.reset_expires ? new Date(user.reset_expires) : null;
+
     if (expires && new Date() > expires) {
       return json<ResetPasswordResponse>(
         { success: false, message: 'This reset link has expired. Please request a new one.' },

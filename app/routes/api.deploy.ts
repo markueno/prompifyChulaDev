@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import type { NetlifySiteInfo } from '~/types/netlify';
 import { optionalAuth } from '~/lib/auth';
 import { updateAppStatus, addAuditLog } from '~/lib/database';
+import { isSupabaseConfigured, schemaForChat } from '~/lib/supabase-provision.server';
 
 interface DeployRequestBody {
   siteId?: string;
@@ -15,7 +16,9 @@ interface DeployRequestBody {
 export async function action({ request, context }: ActionFunctionArgs) {
   try {
     const user = await optionalAuth(request, context);
-    const { siteId, files, token, chatId, projectId, companyId } = (await request.json()) as DeployRequestBody & { token: string };
+    const { siteId, files, token, chatId, projectId, companyId } = (await request.json()) as DeployRequestBody & {
+      token: string;
+    };
 
     if (!token) {
       return json({ error: 'Not connected to Netlify' }, { status: 401 });
@@ -108,6 +111,31 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }
     }
 
+    // Inject Supabase env-config.js so deployed apps auto-connect to their schema
+    const cfEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
+
+    if (chatId && isSupabaseConfigured(cfEnv)) {
+      const supabaseUrl = (cfEnv.SUPABASE_URL as string) || process.env.SUPABASE_URL || '';
+      const anonKey = (cfEnv.SUPABASE_ANON_KEY as string) || process.env.SUPABASE_ANON_KEY || '';
+      const schema = schemaForChat(chatId);
+
+      // Inject env-config.js
+      const envConfigContent = `window.__PROMPIFY_CONFIG = ${JSON.stringify({
+        supabaseUrl,
+        supabaseAnonKey: anonKey,
+        supabaseSchema: schema,
+      })};`;
+      files['env-config.js'] = envConfigContent;
+      files['/env-config.js'] = envConfigContent;
+
+      // Patch index.html to load env-config.js before any other scripts
+      const indexKey = Object.keys(files).find(k => k === 'index.html' || k === '/index.html');
+
+      if (indexKey && !files[indexKey].includes('env-config.js')) {
+        files[indexKey] = files[indexKey].replace(/(<head[^>]*>)/i, '$1\n  <script src="/env-config.js"></script>');
+      }
+    }
+
     // Create file digests
     const fileDigests: Record<string, string> = {};
 
@@ -156,11 +184,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
       if (status.state === 'prepared' || status.state === 'uploaded') {
         console.log('[Deploy] Starting file uploads for deploy:', deploy.id);
-        
+
         // Upload all files regardless of required array
         for (const [filePath, content] of Object.entries(files)) {
           const normalizedPath = filePath.startsWith('/') ? filePath : '/' + filePath;
-          
+
           console.log('[Deploy] Uploading file:', normalizedPath, 'Size:', content.length);
 
           let uploadSuccess = false;
@@ -184,7 +212,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
               if (!uploadSuccess) {
                 const errorText = await uploadResponse.text();
-                console.error('[Deploy] Upload failed for:', normalizedPath, 'Status:', uploadResponse.status, 'Error:', errorText);
+                console.error(
+                  '[Deploy] Upload failed for:',
+                  normalizedPath,
+                  'Status:',
+                  uploadResponse.status,
+                  'Error:',
+                  errorText
+                );
                 uploadRetries++;
                 await new Promise(resolve => setTimeout(resolve, 2000));
               } else {
@@ -201,7 +236,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
             return json({ error: `Failed to upload file ${filePath} after ${uploadRetries} retries` }, { status: 500 });
           }
         }
-        
+
         console.log('[Deploy] All files uploaded successfully');
       }
 
@@ -209,6 +244,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         // Only return after files are uploaded
         if (Object.keys(files).length === 0 || status.summary?.status === 'ready') {
           console.log('[Deploy] Deployment completed successfully');
+
           const deployUrl = status.ssl_url || status.url;
 
           if (projectId && companyId && user) {
@@ -251,10 +287,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     // If we reach here, something went wrong
     console.error('[Deploy] Deployment loop ended unexpectedly');
+
     return json({ error: 'Deployment failed - unexpected state' }, { status: 500 });
   } catch (error) {
     console.error('[Deploy] Deployment error:', error);
+
     const errorMessage = error instanceof Error ? error.message : String(error);
+
     return json({ error: `Deployment failed: ${errorMessage}` }, { status: 500 });
   }
 }

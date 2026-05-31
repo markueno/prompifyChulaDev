@@ -51,11 +51,11 @@ export default class AnthropicProvider extends BaseProvider {
     serverEnv?: Record<string, string>
   ): Promise<ModelInfo[]> {
     // Check if dynamic models are disabled via environment variable
-    const disableDynamicModels = 
-      serverEnv?.['DISABLE_DYNAMIC_MODELS'] === 'true' ||
-      serverEnv?.['DISABLE_DYNAMIC_MODELS'] === '1' ||
-      process?.env?.['DISABLE_DYNAMIC_MODELS'] === 'true' ||
-      process?.env?.['DISABLE_DYNAMIC_MODELS'] === '1';
+    const disableDynamicModels =
+      serverEnv?.DISABLE_DYNAMIC_MODELS === 'true' ||
+      serverEnv?.DISABLE_DYNAMIC_MODELS === '1' ||
+      process?.env?.DISABLE_DYNAMIC_MODELS === 'true' ||
+      process?.env?.DISABLE_DYNAMIC_MODELS === '1';
 
     if (disableDynamicModels) {
       return []; // Return empty array if dynamic models are disabled

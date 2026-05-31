@@ -7,7 +7,11 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const user = await requireAuth(request, context);
   const url = new URL(request.url);
   const token = url.searchParams.get('token');
-  if (!token) return redirect('/app/');
+
+  if (!token) {
+    return redirect('/app/');
+  }
+
   return json({ token, user: { id: user.id, email: user.email } });
 }
 
@@ -15,12 +19,17 @@ export async function action({ request, context }: ActionFunctionArgs) {
   const user = await requireAuth(request, context);
   const formData = await request.formData();
   const token = formData.get('token') as string;
-  if (!token) return json({ success: false, error: 'Invalid invitation link' }, { status: 400 });
+
+  if (!token) {
+    return json({ success: false, error: 'Invalid invitation link' }, { status: 400 });
+  }
 
   const result = await acceptInvitationByToken(token, user.id, user.email);
+
   if (result.success && result.chatUrl) {
     throw redirect(result.chatUrl);
   }
+
   return json({ success: false, error: result.error });
 }
 
@@ -44,12 +53,8 @@ export default function AcceptInvitePage() {
             Accept Invitation
           </button>
         </form>
-        {actionData?.error && (
-          <p className="mt-4 text-sm text-red-500">{actionData.error}</p>
-        )}
-        <p className="mt-4 text-xs text-bolt-elements-textTertiary">
-          Logged in as {user.email}
-        </p>
+        {actionData?.error && <p className="mt-4 text-sm text-red-500">{actionData.error}</p>}
+        <p className="mt-4 text-xs text-bolt-elements-textTertiary">Logged in as {user.email}</p>
       </div>
     </div>
   );

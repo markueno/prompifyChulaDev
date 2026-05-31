@@ -12,26 +12,32 @@ interface VerifyResponse {
 
 /** Run verification logic; returns { success, message } or throws. */
 async function verifyToken(token: string): Promise<{ success: boolean; message: string }> {
-  const user = await getUserByVerificationToken(token) as {
-    id: string;
-    verification_expires: string | null;
-    is_verified?: number | boolean;
-  } | undefined;
+  const user = (await getUserByVerificationToken(token)) as
+    | {
+        id: string;
+        verification_expires: string | null;
+        is_verified?: number | boolean;
+      }
+    | undefined;
 
   if (!user) {
     return { success: false, message: 'Invalid verification token' };
   }
+
   if (user.verification_expires && new Date() > new Date(user.verification_expires)) {
     return { success: false, message: 'Verification token has expired. Please request a new one.' };
   }
+
   if (user.is_verified === 1 || user.is_verified === true) {
     return { success: false, message: 'Email is already verified' };
   }
 
   const success = await verifyUser(user.id || '');
+
   if (!success) {
     return { success: false, message: 'Failed to verify email. Please try again.' };
   }
+
   return { success: true, message: 'Email verified successfully!' };
 }
 
@@ -46,9 +52,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
   try {
     const result = await verifyToken(token);
+
     if (result.success) {
       return redirect('/?login=1&verified=1');
     }
+
     return redirect(`/auth/verify?error=${encodeURIComponent(result.message)}`);
   } catch (error) {
     console.error('Verification error (GET):', error);
@@ -66,24 +74,32 @@ export async function action({ request }: ActionFunctionArgs) {
     const token = body?.token?.trim();
 
     if (!token) {
-      return json<VerifyResponse>({
-        success: false,
-        message: 'Verification token is required'
-      }, { status: 400 });
+      return json<VerifyResponse>(
+        {
+          success: false,
+          message: 'Verification token is required',
+        },
+        { status: 400 }
+      );
     }
 
     const result = await verifyToken(token);
+
     if (result.success) {
       return json<VerifyResponse>({ success: true, message: result.message });
     }
+
     return json<VerifyResponse>({ success: false, message: result.message }, { status: 400 });
   } catch (error) {
     console.error('Verification error (POST):', error);
-    return json<VerifyResponse>({
-      success: false,
-      message: 'An unexpected error occurred'
-    }, { status: 500 });
+    return json<VerifyResponse>(
+      {
+        success: false,
+        message: 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
 }
 
-// Database functions are now imported from ~/lib/database 
+// Database functions are now imported from ~/lib/database

@@ -115,7 +115,10 @@ const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchP
         animate={{ x: checked ? 20 : 0 }}
       />
     </Switch>
-    <label htmlFor={id} className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer whitespace-nowrap select-none">
+    <label
+      htmlFor={id}
+      className="text-sm text-gray-500 dark:text-gray-400 cursor-pointer whitespace-nowrap select-none"
+    >
       {label}
     </label>
   </div>
@@ -247,6 +250,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
       setShowTabManagement(false);
     } else {
       const initialTab = controlPanelInitialTabStore.get();
+
       if (initialTab) {
         setActiveTab(initialTab as TabType);
         controlPanelInitialTabStore.set(null);
@@ -284,7 +288,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
 
     switch (tabId) {
       case 'profile':
-        return <ProfileTab user={user} />;
+        return <ProfileTab user={user as any} />;
       case 'settings':
         return <SettingsTab />;
       case 'notifications':
@@ -434,7 +438,13 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                       </button>
                     )}
                     <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
-                      {!isModerator ? 'Access denied' : showTabManagement ? 'Tab Management' : activeTab ? TAB_LABELS[activeTab] : 'Control Panel'}
+                      {!isModerator
+                        ? 'Access denied'
+                        : showTabManagement
+                          ? 'Tab Management'
+                          : activeTab
+                            ? TAB_LABELS[activeTab]
+                            : 'Control Panel'}
                     </DialogTitle>
                   </div>
 
@@ -454,7 +464,12 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                         )}
 
                         {/* Avatar and Dropdown (non-interactive on Profile tab) */}
-                        <div className={classNames('pl-6', activeTab !== 'profile' ? 'border-l border-gray-200 dark:border-gray-800' : '')}>
+                        <div
+                          className={classNames(
+                            'pl-6',
+                            activeTab !== 'profile' ? 'border-l border-gray-200 dark:border-gray-800' : ''
+                          )}
+                        >
                           <AvatarDropdown onSelectTab={handleTabClick} disabled={activeTab === 'profile'} />
                         </div>
                       </>
@@ -490,46 +505,46 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                       <p className="mt-2 text-sm">If you need access, contact your administrator.</p>
                     </div>
                   ) : (
-                  <motion.div
-                    key={activeTab || 'home'}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="p-6"
-                  >
-                    {showTabManagement ? (
-                      <TabManagement />
-                    ) : activeTab ? (
-                      getTabComponent(activeTab)
-                    ) : (
-                      <motion.div
-                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative"
-                        variants={gridLayoutVariants}
-                        initial="hidden"
-                        animate="visible"
-                      >
-                        <AnimatePresence mode="popLayout">
-                          {(visibleTabs as TabWithDevType[]).map((tab: TabWithDevType) => (
-                            <motion.div key={tab.id} layout variants={itemVariants} className="aspect-[1.5/1]">
-                              <TabTile
-                                tab={tab}
-                                onClick={() => handleTabClick(tab.id as TabType)}
-                                isActive={activeTab === tab.id}
-                                hasUpdate={getTabUpdateStatus(tab.id)}
-                                statusMessage={getStatusMessage(tab.id)}
-                                description={TAB_DESCRIPTIONS[tab.id]}
-                                isLoading={loadingTab === tab.id}
-                                className="h-full relative"
-                              >
-                                {BETA_TABS.has(tab.id) && <BetaLabel />}
-                              </TabTile>
-                            </motion.div>
-                          ))}
-                        </AnimatePresence>
-                      </motion.div>
-                    )}
-                  </motion.div>
+                    <motion.div
+                      key={activeTab || 'home'}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="p-6"
+                    >
+                      {showTabManagement ? (
+                        <TabManagement />
+                      ) : activeTab ? (
+                        getTabComponent(activeTab)
+                      ) : (
+                        <motion.div
+                          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 relative"
+                          variants={gridLayoutVariants}
+                          initial="hidden"
+                          animate="visible"
+                        >
+                          <AnimatePresence mode="popLayout">
+                            {(visibleTabs as TabWithDevType[]).map((tab: TabWithDevType) => (
+                              <motion.div key={tab.id} layout variants={itemVariants} className="aspect-[1.5/1]">
+                                <TabTile
+                                  tab={tab}
+                                  onClick={() => handleTabClick(tab.id as TabType)}
+                                  isActive={activeTab === tab.id}
+                                  hasUpdate={getTabUpdateStatus(tab.id)}
+                                  statusMessage={getStatusMessage(tab.id)}
+                                  description={TAB_DESCRIPTIONS[tab.id]}
+                                  isLoading={loadingTab === tab.id}
+                                  className="h-full relative"
+                                >
+                                  {BETA_TABS.has(tab.id) && <BetaLabel />}
+                                </TabTile>
+                              </motion.div>
+                            ))}
+                          </AnimatePresence>
+                        </motion.div>
+                      )}
+                    </motion.div>
                   )}
                 </div>
               </div>

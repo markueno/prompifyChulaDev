@@ -139,18 +139,17 @@ export async function getNextId(db: IDBDatabase): Promise<string> {
 
 export async function getUrlId(db: IDBDatabase, id: string): Promise<string> {
   const idList = await getUrlIds(db);
+  const randomSuffix = () =>
+    (Math.random() + 1).toString(36).slice(2, 7) + (Math.random() + 1).toString(36).slice(2, 7);
 
-  if (!idList.includes(id)) {
-    return id;
-  } else {
-    let i = 2;
+  // Always append a random suffix so URLs are unguessable
+  let candidate = `${id}-${randomSuffix()}`;
 
-    while (idList.includes(`${id}-${i}`)) {
-      i++;
-    }
-
-    return `${id}-${i}`;
+  while (idList.includes(candidate)) {
+    candidate = `${id}-${randomSuffix()}`;
   }
+
+  return candidate;
 }
 
 async function getUrlIds(db: IDBDatabase): Promise<string[]> {

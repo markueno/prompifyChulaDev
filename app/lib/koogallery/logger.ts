@@ -28,61 +28,70 @@ export async function logKooGalleryRequest(
     message?: string;
     requestData?: Record<string, any>;
     responseData?: Record<string, any>;
+    timestamp?: string;
     ipAddress?: string;
     userAgent?: string;
+    orderLineId?: string;
+    error?: string;
+    [key: string]: unknown;
   }
 ): Promise<void> {
   try {
     const DATABASE_TYPE = process.env.DATABASE_TYPE || 'postgresql';
-    
+
     if (DATABASE_TYPE === 'postgresql') {
       // Use PostgreSQL connection
       const { getPostgresPool } = await import('~/lib/database-postgresql');
       const pool = getPostgresPool();
-      
-      await pool.query(`
+
+      await pool.query(
+        `
         INSERT INTO koogallery_logs (
           id, endpoint, method, order_id, instance_id, status, 
           message, request_data, response_data, timestamp, ip_address, user_agent
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      `, [
-        crypto.randomUUID(),
-        endpoint,
-        data.requestData?.method || 'POST',
-        data.orderId || null,
-        data.instanceId || null,
-        data.status || 'success',
-        data.message || '',
-        data.requestData ? JSON.stringify(data.requestData) : null,
-        data.responseData ? JSON.stringify(data.responseData) : null,
-        data.timestamp || new Date().toISOString(),
-        data.ipAddress || null,
-        data.userAgent || null
-      ]);
+      `,
+        [
+          crypto.randomUUID(),
+          endpoint,
+          data.requestData?.method || 'POST',
+          data.orderId || null,
+          data.instanceId || null,
+          data.status || 'success',
+          data.message || '',
+          data.requestData ? JSON.stringify(data.requestData) : null,
+          data.responseData ? JSON.stringify(data.responseData) : null,
+          data.timestamp || new Date().toISOString(),
+          data.ipAddress || null,
+          data.userAgent || null,
+        ]
+      );
     } else {
       // Use SQLite connection
       const db = getDatabase();
-      await db.run(`
+      await db.run(
+        `
         INSERT INTO koogallery_logs (
           id, endpoint, method, order_id, instance_id, status, 
           message, request_data, response_data, timestamp, ip_address, user_agent
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        crypto.randomUUID(),
-        endpoint,
-        data.requestData?.method || 'POST',
-        data.orderId || null,
-        data.instanceId || null,
-        data.status || 'success',
-        data.message || '',
-        data.requestData ? JSON.stringify(data.requestData) : null,
-        data.responseData ? JSON.stringify(data.responseData) : null,
-        data.timestamp || new Date().toISOString(),
-        data.ipAddress || null,
-        data.userAgent || null
-      ]);
+      `,
+        [
+          crypto.randomUUID(),
+          endpoint,
+          data.requestData?.method || 'POST',
+          data.orderId || null,
+          data.instanceId || null,
+          data.status || 'success',
+          data.message || '',
+          data.requestData ? JSON.stringify(data.requestData) : null,
+          data.responseData ? JSON.stringify(data.responseData) : null,
+          data.timestamp || new Date().toISOString(),
+          data.ipAddress || null,
+          data.userAgent || null,
+        ]
+      );
     }
-
   } catch (error) {
     console.error('Error logging KooGallery request:', error);
     // Don't throw error to avoid breaking the main flow
@@ -99,12 +108,12 @@ export async function getKooGalleryLogs(
 ): Promise<KooGalleryLogEntry[]> {
   try {
     const DATABASE_TYPE = process.env.DATABASE_TYPE || 'postgresql';
-    
+
     if (DATABASE_TYPE === 'postgresql') {
       // Use PostgreSQL connection
       const { getPostgresPool } = await import('~/lib/database-postgresql');
       const pool = getPostgresPool();
-      
+
       let query = `
         SELECT * FROM koogallery_logs 
         WHERE 1=1
@@ -139,12 +148,12 @@ export async function getKooGalleryLogs(
         responseData: row.response_data ? JSON.parse(row.response_data) : undefined,
         timestamp: row.timestamp,
         ipAddress: row.ip_address,
-        userAgent: row.user_agent
+        userAgent: row.user_agent,
       }));
     } else {
       // Use SQLite connection
       const db = getDatabase();
-      
+
       let query = `
         SELECT * FROM koogallery_logs 
         WHERE 1=1
@@ -178,10 +187,9 @@ export async function getKooGalleryLogs(
         responseData: row.response_data ? JSON.parse(row.response_data) : undefined,
         timestamp: row.timestamp,
         ipAddress: row.ip_address,
-        userAgent: row.user_agent
+        userAgent: row.user_agent,
       }));
     }
-
   } catch (error) {
     console.error('Error getting KooGallery logs:', error);
     return [];

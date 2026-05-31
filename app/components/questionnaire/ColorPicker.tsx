@@ -2,12 +2,30 @@ import { useState } from 'react';
 import type { ColorSlot, ColorsAnswer } from '~/lib/questionnaire/types';
 
 const COLOR_PRESETS = [
-  '#EF4444', '#F97316', '#F59E0B', '#EAB308',
-  '#84CC16', '#22C55E', '#10B981', '#14B8A6',
-  '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6',
-  '#A855F7', '#EC4899', '#F43F5E', '#BE123C',
-  '#111827', '#374151', '#6B7280', '#D1D5DB',
-  '#FFFFFF', '#1E3A5F', '#064E3B', '#78350F',
+  '#EF4444',
+  '#F97316',
+  '#F59E0B',
+  '#EAB308',
+  '#84CC16',
+  '#22C55E',
+  '#10B981',
+  '#14B8A6',
+  '#06B6D4',
+  '#3B82F6',
+  '#6366F1',
+  '#8B5CF6',
+  '#A855F7',
+  '#EC4899',
+  '#F43F5E',
+  '#BE123C',
+  '#111827',
+  '#374151',
+  '#6B7280',
+  '#D1D5DB',
+  '#FFFFFF',
+  '#1E3A5F',
+  '#064E3B',
+  '#78350F',
 ];
 
 interface SwatchPopupProps {
@@ -21,20 +39,17 @@ function SwatchPopup({ role, onPick, onClose }: SwatchPopupProps) {
   const preview = hexInput.length === 6 ? `#${hexInput}` : null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
         className="bg-bolt-elements-bg-depth-1 rounded-2xl p-5 w-80 shadow-xl border border-bolt-elements-borderColor"
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
         <p className="text-sm font-semibold text-bolt-elements-textPrimary mb-3">
           Choose color for <span className="text-accent-500">{role}</span>
         </p>
 
         <div className="grid grid-cols-8 gap-1.5 mb-4">
-          {COLOR_PRESETS.map((hex) => (
+          {COLOR_PRESETS.map(hex => (
             <button
               key={hex}
               title={hex}
@@ -52,9 +67,11 @@ function SwatchPopup({ role, onPick, onClose }: SwatchPopupProps) {
             maxLength={6}
             placeholder="e.g. 3B82F6"
             value={hexInput}
-            onChange={(e) => setHexInput(e.target.value.replace(/[^0-9a-fA-F]/g, ''))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && hexInput.length === 6) onPick(`#${hexInput.toUpperCase()}`);
+            onChange={e => setHexInput(e.target.value.replace(/[^0-9a-fA-F]/g, ''))}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && hexInput.length === 6) {
+                onPick(`#${hexInput.toUpperCase()}`);
+              }
             }}
             className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-bg-depth-2 text-bolt-elements-textPrimary font-mono focus:outline-none focus:border-accent-500"
           />
@@ -103,11 +120,11 @@ export function ColorPicker({ slots, onSlotsChange, onContinue }: ColorPickerPro
   }
 
   function handleContinue() {
-    const filled = slots.filter((s) => s.hex);
+    const filled = slots.filter(s => s.hex);
     onContinue(filled.length === 0 ? { noPreference: true, slots: [] } : { noPreference: false, slots });
   }
 
-  const hasAny = slots.some((s) => s.hex);
+  const hasAny = slots.some(s => s.hex);
 
   return (
     <div className="space-y-6">
@@ -118,20 +135,17 @@ export function ColorPicker({ slots, onSlotsChange, onContinue }: ColorPickerPro
             onClick={() => setActiveSlot(i)}
             className="flex flex-col rounded-xl border border-bolt-elements-borderColor overflow-hidden hover:border-accent-500 transition-colors w-32"
           >
-            <div
-              className="h-20 w-full flex items-center justify-center"
-              style={{ background: slot.hex ?? '#f5f5f5' }}
-            >
-              {!slot.hex && (
-                <span className="text-2xl text-bolt-elements-textTertiary">+</span>
-              )}
+            <div className="h-20 w-full flex items-center justify-center" style={{ background: slot.hex ?? '#f5f5f5' }}>
+              {!slot.hex && <span className="text-2xl text-bolt-elements-textTertiary">+</span>}
             </div>
             <div className="px-2 py-1.5 bg-bolt-elements-bg-depth-2 text-left">
               <p className="text-xs font-semibold text-bolt-elements-textPrimary">{slot.role}</p>
               {slot.hex ? (
                 <p className="text-[11px] font-mono text-bolt-elements-textSecondary">{slot.hex}</p>
               ) : (
-                <p className="text-[11px] text-bolt-elements-textTertiary">{roleHints[slot.role] ?? 'Click to choose'}</p>
+                <p className="text-[11px] text-bolt-elements-textTertiary">
+                  {roleHints[slot.role] ?? 'Click to choose'}
+                </p>
               )}
             </div>
           </button>
@@ -164,7 +178,7 @@ export function ColorPicker({ slots, onSlotsChange, onContinue }: ColorPickerPro
       {activeSlot !== null && (
         <SwatchPopup
           role={slots[activeSlot]?.role ?? 'Color'}
-          onPick={(hex) => applyColor(activeSlot, hex)}
+          onPick={hex => applyColor(activeSlot, hex)}
           onClose={() => setActiveSlot(null)}
         />
       )}

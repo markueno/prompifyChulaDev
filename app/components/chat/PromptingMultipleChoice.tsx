@@ -161,12 +161,14 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
     setPalette(prev => {
       const next = [...prev];
       next[index] = value;
+
       return next;
     });
   };
 
   const completeFlow = () => {
     setComplete(true);
+
     const nextPrompt = [
       'You are an expert full-stack engineer.',
       '',
@@ -198,6 +200,7 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
       setComplete(false);
       updatePrompt('');
       setStep(totalSteps - 1);
+
       return;
     }
 
@@ -228,7 +231,9 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
                 className={classNames(
                   'rounded-lg border p-4 text-left transition-colors',
                   'border-bolt-elements-borderColor hover:border-accent-500',
-                  answers[currentQuestion.id] === option.id ? 'bg-accent-500/10 border-accent-500' : 'bg-bolt-elements-background-depth-2'
+                  answers[currentQuestion.id] === option.id
+                    ? 'bg-accent-500/10 border-accent-500'
+                    : 'bg-bolt-elements-background-depth-2'
                 )}
               >
                 <div className="text-sm font-medium text-bolt-elements-textPrimary">{option.label}</div>
@@ -242,19 +247,32 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
       {!complete && step === QUESTIONS.length && (
         <div className="space-y-4">
           <h3 className="text-xl font-semibold text-bolt-elements-textPrimary">Choose your color palette</h3>
-          <p className="text-sm text-bolt-elements-textSecondary">Pick three colors for primary, secondary, and accent.</p>
+          <p className="text-sm text-bolt-elements-textSecondary">
+            Pick three colors for primary, secondary, and accent.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {['Primary', 'Secondary', 'Accent'].map((label, index) => (
-              <label key={label} className="rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-3">
+              <label
+                key={label}
+                className="rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-3"
+              >
                 <span className="mb-2 block text-xs font-medium text-bolt-elements-textPrimary">{label}</span>
                 <div className="flex items-center gap-2">
-                  <input type="color" value={palette[index]} onChange={e => handleColorChange(index, e.target.value)} className="h-8 w-10 rounded border border-bolt-elements-borderColor" />
+                  <input
+                    type="color"
+                    value={palette[index]}
+                    onChange={e => handleColorChange(index, e.target.value)}
+                    className="h-8 w-10 rounded border border-bolt-elements-borderColor"
+                  />
                   <span className="text-xs text-bolt-elements-textSecondary">{palette[index]}</span>
                 </div>
               </label>
             ))}
           </div>
-          <button onClick={() => setStep(QUESTIONS.length + 1)} className="rounded-lg bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-600">
+          <button
+            onClick={() => setStep(QUESTIONS.length + 1)}
+            className="rounded-lg bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-600"
+          >
             Continue
           </button>
         </div>
@@ -270,7 +288,10 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
             placeholder="Example: Multi-tenant dashboard, role-based access, English + Japanese support, mobile-first."
             className="min-h-[120px] w-full rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-4 text-sm text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary"
           />
-          <button onClick={completeFlow} className="rounded-lg bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-600">
+          <button
+            onClick={completeFlow}
+            className="rounded-lg bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-600"
+          >
             Get my prompt
           </button>
         </div>

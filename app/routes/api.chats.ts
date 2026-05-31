@@ -56,10 +56,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
         if (chatId) {
           await logUserActivity(user.id, 'chat_saved', { chatId: chatData.id });
-          // Fire-and-forget: provision an isolated schema for this app in Supabase.
-          // No-op if SUPABASE_URL is not configured.
+
+          /*
+           * Fire-and-forget: provision an isolated schema for this app in Supabase.
+           * No-op if SUPABASE_URL is not configured.
+           */
           const cfEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
           provisionAppSchema(chatData.id || chatId, cfEnv).catch(() => {});
+
           return json({ success: true, chatId });
         } else {
           return json({ error: 'Failed to save chat' }, { status: 500 });

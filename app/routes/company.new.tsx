@@ -33,11 +33,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 
   const existing = await getCompanyBySlug(slug);
+
   if (existing) {
     return json<ActionData>({ error: 'A company with that slug already exists. Please choose another.' });
   }
 
   const company = await createCompany(name, slug, user.id, githubOrg);
+
   if (!company) {
     return json<ActionData>({ error: 'Failed to create company. Please try again.' });
   }
@@ -106,7 +108,7 @@ export default function NewCompanyPage() {
                   name="slug"
                   placeholder="acme-corp"
                   value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
+                  onChange={e => setSlug(e.target.value)}
                   required
                   pattern="[a-z0-9-]+"
                 />
@@ -116,19 +118,13 @@ export default function NewCompanyPage() {
 
             <div className="space-y-1">
               <Label htmlFor="githubOrg">GitHub organization (optional)</Label>
-              <Input
-                id="githubOrg"
-                name="githubOrg"
-                placeholder="acme-corp"
-              />
+              <Input id="githubOrg" name="githubOrg" placeholder="acme-corp" />
               <p className="text-xs text-bolt-elements-textTertiary">
                 Generated app code will be pushed to repos in this org
               </p>
             </div>
 
-            {actionData?.error && (
-              <p className="text-sm text-red-500">{actionData.error}</p>
-            )}
+            {actionData?.error && <p className="text-sm text-red-500">{actionData.error}</p>}
 
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? 'Creating workspace…' : 'Create workspace'}

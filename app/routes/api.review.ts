@@ -64,7 +64,7 @@ async function reviewAction({ context, request }: ActionFunctionArgs) {
   // Build the compact file listing (max 80 lines per file, max 3 files)
   const fileBlocks = files
     .slice(0, 3)
-    .map((f) => {
+    .map(f => {
       const lines = f.content.split('\n').slice(0, 80);
       return `// === ${f.path} ===\n${lines.join('\n')}`;
     })
@@ -74,9 +74,13 @@ async function reviewAction({ context, request }: ActionFunctionArgs) {
 
   try {
     const llmManager = LLMManager.getInstance(import.meta.env);
-    const allModels = await llmManager.updateModelList({ apiKeys, providerSettings, serverEnv: context.cloudflare?.env as any });
+    const allModels = await llmManager.updateModelList({
+      apiKeys,
+      providerSettings,
+      serverEnv: context.cloudflare?.env as any,
+    });
 
-    let modelDetails: ModelInfo | undefined = allModels.find((m) => m.name === model);
+    let modelDetails: ModelInfo | undefined = allModels.find(m => m.name === model);
 
     if (!modelDetails) {
       modelDetails = allModels[0];
@@ -87,7 +91,7 @@ async function reviewAction({ context, request }: ActionFunctionArgs) {
     }
 
     const resolvedProviderName = modelDetails.provider || provider.name;
-    const providerInfo = PROVIDER_LIST.find((p) => p.name === resolvedProviderName) ?? PROVIDER_LIST[0];
+    const providerInfo = PROVIDER_LIST.find(p => p.name === resolvedProviderName) ?? PROVIDER_LIST[0];
 
     if (!providerInfo) {
       throw new Error('Provider not found');
@@ -114,14 +118,17 @@ async function reviewAction({ context, request }: ActionFunctionArgs) {
 
     try {
       // Strip any accidental markdown fences the model may have added
-      const raw = result.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+      const raw = result.text
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/\s*```$/, '');
       const parsed = JSON.parse(raw);
 
       if (Array.isArray(parsed)) {
         issues = parsed
-          .filter((item) => item && typeof item.file === 'string' && typeof item.message === 'string')
+          .filter(item => item && typeof item.file === 'string' && typeof item.message === 'string')
           .slice(0, 5)
-          .map((item) => ({
+          .map(item => ({
             file: String(item.file),
             line: Number(item.line) || 0,
             message: String(item.message).slice(0, 200),

@@ -10,10 +10,14 @@ export function FillBlanks({ template, onContinue }: FillBlanksProps) {
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   function buildSentence(): string {
-    if (!template) return 'My app is something unique and specific.';
+    if (!template) {
+      return 'My app is something unique and specific.';
+    }
+
     let sentence = '';
     template.parts.forEach((part, i) => {
       sentence += part;
+
       if (i < template.blanks.length) {
         const blank = template.blanks[i];
         const el = inputRefs.current[blank.id];
@@ -21,6 +25,7 @@ export function FillBlanks({ template, onContinue }: FillBlanksProps) {
         sentence += val;
       }
     });
+
     return sentence.trim();
   }
 
@@ -47,7 +52,9 @@ export function FillBlanks({ template, onContinue }: FillBlanksProps) {
             {i < template.blanks.length && (
               <span className="inline-block mx-1 relative">
                 <input
-                  ref={(el) => { inputRefs.current[template.blanks[i].id] = el; }}
+                  ref={el => {
+                    inputRefs.current[template.blanks[i].id] = el;
+                  }}
                   type="text"
                   defaultValue={template.blanks[i].options[0] ?? ''}
                   list={`list-${template.blanks[i].id}`}
@@ -57,7 +64,7 @@ export function FillBlanks({ template, onContinue }: FillBlanksProps) {
                   style={{ width: `${Math.max(template.blanks[i].options[0]?.length ?? 8, 8) + 2}ch` }}
                 />
                 <datalist id={`list-${template.blanks[i].id}`}>
-                  {template.blanks[i].options.map((opt) => (
+                  {template.blanks[i].options.map(opt => (
                     <option key={opt} value={opt} />
                   ))}
                 </datalist>

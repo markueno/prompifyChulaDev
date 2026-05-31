@@ -94,43 +94,45 @@ export class LLMManager {
     }
 
     // Check if dynamic models are disabled globally
-    const disableDynamicModels = 
-      serverEnv?.['DISABLE_DYNAMIC_MODELS'] === 'true' ||
-      serverEnv?.['DISABLE_DYNAMIC_MODELS'] === '1' ||
-      process?.env?.['DISABLE_DYNAMIC_MODELS'] === 'true' ||
-      process?.env?.['DISABLE_DYNAMIC_MODELS'] === '1';
+    const disableDynamicModels =
+      serverEnv?.DISABLE_DYNAMIC_MODELS === 'true' ||
+      serverEnv?.DISABLE_DYNAMIC_MODELS === '1' ||
+      process?.env?.DISABLE_DYNAMIC_MODELS === 'true' ||
+      process?.env?.DISABLE_DYNAMIC_MODELS === '1';
 
     // Get dynamic models from all providers that support them (only if not disabled)
-    const dynamicModels = disableDynamicModels ? Promise.resolve([]) : Promise.all(
-      Array.from(this._providers.values())
-        .filter(provider => enabledProviders.includes(provider.name))
-        .filter(
-          (provider): provider is BaseProvider & Required<Pick<ProviderInfo, 'getDynamicModels'>> =>
-            !!provider.getDynamicModels
-        )
-        .map(async provider => {
-          const cachedModels = provider.getModelsFromCache(options);
+    const dynamicModels = disableDynamicModels
+      ? Promise.resolve([])
+      : Promise.all(
+          Array.from(this._providers.values())
+            .filter(provider => enabledProviders.includes(provider.name))
+            .filter(
+              (provider): provider is BaseProvider & Required<Pick<ProviderInfo, 'getDynamicModels'>> =>
+                !!provider.getDynamicModels
+            )
+            .map(async provider => {
+              const cachedModels = provider.getModelsFromCache(options);
 
-          if (cachedModels) {
-            return cachedModels;
-          }
+              if (cachedModels) {
+                return cachedModels;
+              }
 
-          const dynamicModels = await provider
-            .getDynamicModels(apiKeys, providerSettings?.[provider.name], serverEnv)
-            .then(models => {
-              logger.info(`Caching ${models.length} dynamic models for ${provider.name}`);
-              provider.storeDynamicModels(options, models);
+              const dynamicModels = await provider
+                .getDynamicModels(apiKeys, providerSettings?.[provider.name], serverEnv)
+                .then(models => {
+                  logger.info(`Caching ${models.length} dynamic models for ${provider.name}`);
+                  provider.storeDynamicModels(options, models);
 
-              return models;
+                  return models;
+                })
+                .catch(err => {
+                  logger.error(`Error getting dynamic models ${provider.name} :`, err);
+                  return [];
+                });
+
+              return dynamicModels;
             })
-            .catch(err => {
-              logger.error(`Error getting dynamic models ${provider.name} :`, err);
-              return [];
-            });
-
-          return dynamicModels;
-        })
-    );
+        );
     const staticModels = Array.from(this._providers.values()).flatMap(p => p.staticModels || []);
     const dynamicModelsFlat = (await dynamicModels).flat();
     const dynamicModelKeys = dynamicModelsFlat.map(d => `${d.name}-${d.provider}`);

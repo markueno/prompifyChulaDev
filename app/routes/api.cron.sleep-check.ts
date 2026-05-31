@@ -5,6 +5,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
   const cronSecret = (context?.cloudflare as any)?.env?.CRON_SECRET ?? process.env.CRON_SECRET;
 
   const authHeader = request.headers.get('Authorization');
+
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return json({ error: 'Unauthorized' }, { status: 401 });
   }

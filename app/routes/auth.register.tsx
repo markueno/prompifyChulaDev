@@ -15,11 +15,11 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // Check if user is already authenticated
   const url = new URL(request.url);
   const token = url.searchParams.get('token');
-  
+
   if (token) {
     return redirect('/app/');
   }
-  
+
   return json({});
 }
 
@@ -36,6 +36,7 @@ export async function action({ request }: ActionFunctionArgs) {
 
   // Email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   if (!emailRegex.test(email)) {
     return json<ActionData>({ error: 'Please enter a valid email address' });
   }
@@ -84,8 +85,8 @@ export async function action({ request }: ActionFunctionArgs) {
         return json<ActionData>({ error: (data as any)?.message || 'Registration failed' });
       }
 
-      return json<ActionData>({ 
-        success: (data as any)?.message || 'Registration successful!'
+      return json<ActionData>({
+        success: (data as any)?.message || 'Registration successful!',
       });
     }
   } catch (error) {
@@ -123,32 +124,21 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bolt-elements-background-depth-1">
       <BackgroundRays />
-      
+
       <Card className="w-full max-w-md p-8 space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">
-            Create Account
-          </h1>
-          <p className="text-bolt-elements-textSecondary">
-            Join Prompify and start building amazing AI applications
-          </p>
+          <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">Create Account</h1>
+          <p className="text-bolt-elements-textSecondary">Join Prompify and start building amazing AI applications</p>
         </div>
 
         <Form method="post" className="space-y-4">
           <input type="hidden" name="intent" value="register" />
-          
+
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-bolt-elements-textPrimary mb-2">
               Email Address
             </label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              required
-              placeholder="Enter your email"
-              className="w-full"
-            />
+            <Input id="email" name="email" type="email" required placeholder="Enter your email" className="w-full" />
           </div>
 
           <div>
@@ -163,41 +153,57 @@ export default function RegisterPage() {
                 required
                 placeholder="Create a strong password"
                 className="w-full pr-10"
-                onChange={(e) => handlePasswordChange(e.target.value)}
+                onChange={e => handlePasswordChange(e.target.value)}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary"
               >
-                {showPassword ? (
-                  <div className="i-ph:eye-slash text-lg" />
-                ) : (
-                  <div className="i-ph:eye text-lg" />
-                )}
+                {showPassword ? <div className="i-ph:eye-slash text-lg" /> : <div className="i-ph:eye text-lg" />}
               </button>
             </div>
-            
+
             {/* Password strength indicator */}
             <div className="mt-2 space-y-1">
-              <div className={`flex items-center text-xs ${passwordStrength.length ? 'text-green-600' : 'text-gray-500'}`}>
-                <div className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.length ? 'bg-green-600' : 'bg-gray-400'}`} />
+              <div
+                className={`flex items-center text-xs ${passwordStrength.length ? 'text-green-600' : 'text-gray-500'}`}
+              >
+                <div
+                  className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.length ? 'bg-green-600' : 'bg-gray-400'}`}
+                />
                 At least 8 characters
               </div>
-              <div className={`flex items-center text-xs ${passwordStrength.lowercase ? 'text-green-600' : 'text-gray-500'}`}>
-                <div className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.lowercase ? 'bg-green-600' : 'bg-gray-400'}`} />
+              <div
+                className={`flex items-center text-xs ${passwordStrength.lowercase ? 'text-green-600' : 'text-gray-500'}`}
+              >
+                <div
+                  className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.lowercase ? 'bg-green-600' : 'bg-gray-400'}`}
+                />
                 One lowercase letter
               </div>
-              <div className={`flex items-center text-xs ${passwordStrength.uppercase ? 'text-green-600' : 'text-gray-500'}`}>
-                <div className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.uppercase ? 'bg-green-600' : 'bg-gray-400'}`} />
+              <div
+                className={`flex items-center text-xs ${passwordStrength.uppercase ? 'text-green-600' : 'text-gray-500'}`}
+              >
+                <div
+                  className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.uppercase ? 'bg-green-600' : 'bg-gray-400'}`}
+                />
                 One uppercase letter
               </div>
-              <div className={`flex items-center text-xs ${passwordStrength.number ? 'text-green-600' : 'text-gray-500'}`}>
-                <div className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.number ? 'bg-green-600' : 'bg-gray-400'}`} />
+              <div
+                className={`flex items-center text-xs ${passwordStrength.number ? 'text-green-600' : 'text-gray-500'}`}
+              >
+                <div
+                  className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.number ? 'bg-green-600' : 'bg-gray-400'}`}
+                />
                 One number
               </div>
-              <div className={`flex items-center text-xs ${passwordStrength.special ? 'text-green-600' : 'text-gray-500'}`}>
-                <div className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.special ? 'bg-green-600' : 'bg-gray-400'}`} />
+              <div
+                className={`flex items-center text-xs ${passwordStrength.special ? 'text-green-600' : 'text-gray-500'}`}
+              >
+                <div
+                  className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.special ? 'bg-green-600' : 'bg-gray-400'}`}
+                />
                 One special character (!@#$%^&*)
               </div>
             </div>
@@ -242,11 +248,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full"
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? 'Creating Account...' : 'Create Account'}
           </Button>
         </Form>
@@ -262,4 +264,4 @@ export default function RegisterPage() {
       </Card>
     </div>
   );
-} 
+}

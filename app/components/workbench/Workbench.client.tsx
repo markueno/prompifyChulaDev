@@ -294,6 +294,7 @@ export const Workbench = memo(
     const [isPushDialogOpen, setIsPushDialogOpen] = useState(false);
     const [isReviewing, setIsReviewing] = useState(false);
     const [fileHistory, setFileHistory] = useState<Record<string, FileHistory>>({});
+    const [showShareMenu, setShowShareMenu] = useState(false);
 
     // const modifiedFiles = Array.from(useStore(workbenchStore.unsavedFiles).keys());
 
@@ -313,11 +314,14 @@ export const Workbench = memo(
 
     const prevHasPreview = useRef(hasPreview);
     useEffect(() => {
-      // Only auto-switch to preview when it *first* becomes available (false → true).
-      // This prevents overriding the user's manual tab selection after follow-up responses.
+      /*
+       * Only auto-switch to preview when it *first* becomes available (false → true).
+       * This prevents overriding the user's manual tab selection after follow-up responses.
+       */
       if (hasPreview && !prevHasPreview.current) {
         setSelectedView('preview');
       }
+
       prevHasPreview.current = hasPreview;
     }, [hasPreview]);
 
@@ -348,7 +352,9 @@ export const Workbench = memo(
     }, []);
 
     const handleReview = useCallback(async () => {
-      if (isReviewing) return;
+      if (isReviewing) {
+        return;
+      }
 
       setIsReviewing(true);
 
@@ -357,16 +363,18 @@ export const Workbench = memo(
 
         // Prefer modified files; fall back to all source files
         const modifiedPaths = Array.from(workbenchStore.modifiedFiles);
-        const sourcePaths = Object.keys(allFiles).filter((p) =>
-          /\.(tsx?|jsx?)$/.test(p) && !p.includes('node_modules'),
-        );
+        const sourcePaths = Object.keys(allFiles).filter(p => /\.(tsx?|jsx?)$/.test(p) && !p.includes('node_modules'));
         const candidatePaths = modifiedPaths.length > 0 ? modifiedPaths : sourcePaths;
 
         const reviewFiles: ReviewFile[] = candidatePaths
           .slice(0, 3)
-          .map((p) => {
+          .map(p => {
             const dirent = allFiles[p];
-            if (!dirent || dirent.type !== 'file' || !('content' in dirent)) return null;
+
+            if (!dirent || dirent.type !== 'file' || !('content' in dirent)) {
+              return null;
+            }
+
             return { path: p.replace(/^\/home\/project\//, ''), content: (dirent as any).content as string };
           })
           .filter((f): f is ReviewFile => f !== null);
@@ -378,7 +386,8 @@ export const Workbench = memo(
 
         const model = Cookies.get('selectedModel') || DEFAULT_MODEL;
         const providerName = Cookies.get('selectedProvider');
-        const provider = (PROVIDER_LIST.find((p) => p.name === providerName) || DEFAULT_PROVIDER) as typeof DEFAULT_PROVIDER;
+        const provider = (PROVIDER_LIST.find(p => p.name === providerName) ||
+          DEFAULT_PROVIDER) as typeof DEFAULT_PROVIDER;
 
         const res = await fetch('/api/review', {
           method: 'POST',
@@ -397,7 +406,7 @@ export const Workbench = memo(
           return;
         }
 
-        issues.forEach((issue) => {
+        issues.forEach(issue => {
           addError({
             source: 'review',
             level: 'warn',
@@ -408,7 +417,9 @@ export const Workbench = memo(
         });
 
         setSelectedView('problems');
-        toast.info(`Review found ${issues.length} potential issue${issues.length !== 1 ? 's' : ''}. Check the Problems panel.`);
+        toast.info(
+          `Review found ${issues.length} potential issue${issues.length !== 1 ? 's' : ''}. Check the Problems panel.`
+        );
       } catch (err) {
         console.error('Review error:', err);
         toast.error('Review failed. Check your AI provider settings.');
@@ -487,39 +498,73 @@ export const Workbench = memo(
                     )}
                     {isReviewing ? 'Reviewing…' : 'Review'}
                   </button>
-                  <div className="ml-auto" />
+
+                  {/* Share button — expands export options inline */}
                   {selectedView === 'code' && (
-                    <div className="flex overflow-y-auto">
+                    <>
                       <PanelHeaderButton
-                        className="mr-1 text-sm"
-                        disabled={isStreaming}
-                        title={isStreaming ? 'Wait for code generation to finish before downloading' : 'Download project as ZIP'}
-                        onClick={() => {
-                          workbenchStore.downloadZip();
-                        }}
+                        className="ml-1 text-sm"
+                        onClick={() => setShowShareMenu(v => !v)}
+                        title="Share / export options"
                       >
-                        <div className="i-ph:code" />
-                        Download Code
+                        <div className={showShareMenu ? 'i-ph:x' : 'i-ph:share-network'} />
+                        Share
+                        <div
+                          className={classNames(
+                            'i-ph:caret-right text-xs transition-transform duration-200',
+                            showShareMenu ? 'rotate-180' : ''
+                          )}
+                        />
                       </PanelHeaderButton>
-                      <PanelHeaderButton className="mr-1 text-sm" onClick={handleSyncFiles} disabled={isSyncing}>
-                        {isSyncing ? <div className="i-ph:spinner" /> : <div className="i-ph:cloud-arrow-down" />}
-                        {isSyncing ? 'Syncing...' : 'Sync Files'}
-                      </PanelHeaderButton>
-                      <PanelHeaderButton
-                        className="mr-1 text-sm"
-                        onClick={() => {
-                          workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get());
+
+                      <motion.div
+                        className="flex items-center overflow-hidden"
+                        initial={false}
+                        animate={{
+                          maxWidth: showShareMenu ? 600 : 0,
+                          opacity: showShareMenu ? 1 : 0,
                         }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
                       >
-                        <div className="i-ph:terminal" />
-                        Toggle Terminal
-                      </PanelHeaderButton>
-                      <PanelHeaderButton className="mr-1 text-sm" onClick={() => setIsPushDialogOpen(true)}>
-                        <div className="i-ph:git-branch" />
-                        Push to GitHub
-                      </PanelHeaderButton>
-                    </div>
+                        <PanelHeaderButton
+                          className="mr-1 text-sm whitespace-nowrap"
+                          disabled={isStreaming}
+                          title={
+                            isStreaming
+                              ? 'Wait for code generation to finish before downloading'
+                              : 'Download project as ZIP'
+                          }
+                          onClick={() => workbenchStore.downloadZip()}
+                        >
+                          <div className="i-ph:code" />
+                          Download Code
+                        </PanelHeaderButton>
+                        <PanelHeaderButton
+                          className="mr-1 text-sm whitespace-nowrap"
+                          onClick={handleSyncFiles}
+                          disabled={isSyncing}
+                        >
+                          {isSyncing ? <div className="i-ph:spinner" /> : <div className="i-ph:cloud-arrow-down" />}
+                          {isSyncing ? 'Syncing...' : 'Sync Files'}
+                        </PanelHeaderButton>
+                        <PanelHeaderButton
+                          className="mr-1 text-sm whitespace-nowrap"
+                          onClick={() => workbenchStore.toggleTerminal(!workbenchStore.showTerminal.get())}
+                        >
+                          <div className="i-ph:terminal" />
+                          Toggle Terminal
+                        </PanelHeaderButton>
+                        <PanelHeaderButton
+                          className="mr-1 text-sm whitespace-nowrap"
+                          onClick={() => setIsPushDialogOpen(true)}
+                        >
+                          <div className="i-ph:git-branch" />
+                          Push to GitHub
+                        </PanelHeaderButton>
+                      </motion.div>
+                    </>
                   )}
+                  <div className="ml-auto" />
                   {selectedView === 'admin' && (
                     <div className="ml-auto flex items-center shrink-0">
                       <PanelHeaderButton
@@ -549,7 +594,10 @@ export const Workbench = memo(
                   <View initial={{ x: '-100%' }} animate={{ x: selectedView === 'admin' ? '0%' : '-100%' }}>
                     <AdminPanel />
                   </View>
-                  <View initial={{ x: '0%' }} animate={{ x: selectedView === 'code' ? '0%' : selectedView === 'admin' ? '100%' : '-100%' }}>
+                  <View
+                    initial={{ x: '0%' }}
+                    animate={{ x: selectedView === 'code' ? '0%' : selectedView === 'admin' ? '100%' : '-100%' }}
+                  >
                     <EditorPanel
                       editorDocument={currentDocument}
                       isStreaming={isStreaming}
@@ -582,12 +630,12 @@ export const Workbench = memo(
                   </View>
                   <View initial={{ x: '100%' }} animate={{ x: selectedView === 'problems' ? '0%' : '100%' }}>
                     <ErrorPanel
-                      onFixError={(error) => {
+                      onFixError={error => {
                         requestFixForError(error);
                         setSelectedView('preview');
                       }}
                       onFixAll={() => {
-                        getActiveErrors().forEach((e) => {
+                        getActiveErrors().forEach(e => {
                           requestFixForError(e);
                           updateErrorStatus(e.id, 'fixing');
                         });

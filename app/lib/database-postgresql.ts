@@ -11,6 +11,7 @@ let pool: InstanceType<typeof Pool>;
 export function getPostgresPool(): InstanceType<typeof Pool> {
   if (!pool) {
     const databaseUrl = process.env.DATABASE_URL;
+
     if (!databaseUrl) {
       throw new Error('DATABASE_URL environment variable is required for PostgreSQL');
     }
@@ -27,13 +28,14 @@ export function getPostgresPool(): InstanceType<typeof Pool> {
       console.error('Unexpected error on idle client', err);
     });
   }
+
   return pool;
 }
 
 export async function createPostgresTables() {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
     // Users table
     await client.query(`
@@ -332,7 +334,8 @@ export async function createPostgresTables() {
 
     // Backward-compatible migration: enforce project-scoped chats
     await client.query(`ALTER TABLE chats ADD COLUMN IF NOT EXISTS project_id TEXT`);
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO projects (id, owner_user_id, slug, name, description)
       SELECT
         'proj_personal_' || u.id,
@@ -342,7 +345,9 @@ export async function createPostgresTables() {
         'Default personal project'
       FROM users u
       ON CONFLICT (id) DO NOTHING
-    `, [DEFAULT_PROJECT_ID]);
+    `,
+      [DEFAULT_PROJECT_ID]
+    );
     await client.query(`
       INSERT INTO project_members (id, project_id, user_id, role)
       SELECT
@@ -412,7 +417,9 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_user_id ON token_usage(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_user_created ON token_usage(user_id, created_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_token_balances_user_id ON token_balances(user_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_token_balances_user_effective ON token_balances(user_id, effective_start, effective_end)');
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_token_balances_user_effective ON token_balances(user_id, effective_start, effective_end)'
+    );
     await client.query(
       'CREATE INDEX IF NOT EXISTS idx_token_consumption_alloc_usage ON token_consumption_allocations(token_usage_id)'
     );
@@ -471,7 +478,9 @@ export async function createPostgresTables() {
     `);
 
     // Phase 2: Extend projects with company context + lifecycle columns
-    await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS company_id TEXT REFERENCES companies(id) ON DELETE CASCADE`);
+    await client.query(
+      `ALTER TABLE projects ADD COLUMN IF NOT EXISTS company_id TEXT REFERENCES companies(id) ON DELETE CASCADE`
+    );
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft'`);
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS runtime_type TEXT NOT NULL DEFAULT 'static'`);
     await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS github_repo TEXT`);
@@ -527,6 +536,7 @@ export type ContactSubmissionInput = {
 export async function insertContactSubmissionPostgres(row: ContactSubmissionInput): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const result = await client.query(
       `INSERT INTO contact_submissions (
@@ -557,27 +567,30 @@ export async function insertContactSubmissionPostgres(row: ContactSubmissionInpu
 export async function getUserByEmailPostgres(email: string) {
   const pool = getPostgresPool();
   let client;
-  
+
   try {
     client = await pool.connect();
-    const result = await client.query(
-      'SELECT * FROM users WHERE email = $1',
-      [email]
-    );
+
+    const result = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+
     return result.rows[0] || null;
   } catch (error: any) {
     console.error('❌ Error getting user by email:', error);
+
     // Re-throw connection errors so they can be handled upstream
-    if (error.message?.includes('timeout') || 
-        error.message?.includes('Connection terminated') || 
-        error.message?.includes('ECONNREFUSED') ||
-        error.message?.includes('ENOTFOUND')) {
+    if (
+      error.message?.includes('timeout') ||
+      error.message?.includes('Connection terminated') ||
+      error.message?.includes('ECONNREFUSED') ||
+      error.message?.includes('ENOTFOUND')
+    ) {
       throw error; // Let the caller handle connection errors
     }
+
     return null;
   } finally {
     if (client) {
-    client.release();
+      client.release();
     }
   }
 }
@@ -597,11 +610,11 @@ async function createSubscriptionForUserWithClient(client: PoolClient, userId: s
     [subId, userId, now.toISOString(), periodEnd.toISOString()]
   );
 
-  if (insertResult.rows.length === 0) return;
+  if (insertResult.rows.length === 0) {
+    return;
+  }
 
-  const tierResult = await client.query(
-    `SELECT limits FROM subscription_tiers WHERE id = 'tier_trial'`
-  );
+  const tierResult = await client.query(`SELECT limits FROM subscription_tiers WHERE id = 'tier_trial'`);
   const limits = tierResult.rows[0]?.limits;
   const tokens = limits?.tokens ?? 150000;
 
@@ -617,13 +630,17 @@ async function createSubscriptionForUserWithClient(client: PoolClient, userId: s
 export async function getSubscriptionByUserIdPostgres(userId: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
-    const result = await client.query(`
+    const result = await client.query(
+      `
       SELECT s.*, st.name as tier_name, st.display_name as tier_display_name, st.price_cents, st.limits
       FROM subscriptions s
       JOIN subscription_tiers st ON s.tier_id = st.id
       WHERE s.user_id = $1
-    `, [userId]);
+    `,
+      [userId]
+    );
     return result.rows[0] || null;
   } catch (error: any) {
     console.error('Error getting subscription by user:', error);
@@ -636,35 +653,49 @@ export async function getSubscriptionByUserIdPostgres(userId: string) {
 export async function createUserPostgres(user: any) {
   const pool = getPostgresPool();
   let client;
-  
+
   try {
     client = await pool.connect();
-    const result = await client.query(`
+
+    const result = await client.query(
+      `
       INSERT INTO users (id, email, password_hash, is_verified, verification_token, verification_expires, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
-    `, [
-      user.id,
-      user.email,
-      user.passwordHash,
-      user.isVerified,
-      user.verificationToken,
-      user.verificationExpires,
-      user.createdAt
-    ]);
+    `,
+      [
+        user.id,
+        user.email,
+        user.passwordHash,
+        user.isVerified,
+        user.verificationToken,
+        user.verificationExpires,
+        user.createdAt,
+      ]
+    );
+
     return result.rowCount !== null && result.rowCount > 0;
   } catch (error: any) {
     console.error('❌ Error creating user:', error);
+
     // Re-throw connection errors so they can be handled upstream
-    if (error.message?.includes('timeout') ||
-        error.message?.includes('Connection terminated') ||
-        error.message?.includes('ECONNREFUSED') ||
-        error.message?.includes('ENOTFOUND')) {
+    if (
+      error.message?.includes('timeout') ||
+      error.message?.includes('Connection terminated') ||
+      error.message?.includes('ECONNREFUSED') ||
+      error.message?.includes('ENOTFOUND')
+    ) {
       throw error;
     }
+
     // Re-throw duplicate key errors
-    if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+    if (
+      error.code === '23505' ||
+      error.message?.includes('duplicate key') ||
+      error.message?.includes('unique constraint')
+    ) {
       throw error;
     }
+
     return false;
   } finally {
     if (client) {
@@ -676,12 +707,9 @@ export async function createUserPostgres(user: any) {
 export async function getUserByVerificationTokenPostgres(token: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
-    const result = await client.query(
-      'SELECT * FROM users WHERE verification_token = $1',
-      [token]
-    );
+    const result = await client.query('SELECT * FROM users WHERE verification_token = $1', [token]);
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error getting user by verification token:', error);
@@ -694,28 +722,38 @@ export async function getUserByVerificationTokenPostgres(token: string) {
 export async function verifyUserPostgres(userId: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
     await client.query('BEGIN');
-    const result = await client.query(`
+
+    const result = await client.query(
+      `
       UPDATE users 
       SET is_verified = TRUE, verification_token = NULL, verification_expires = NULL 
       WHERE id = $1
-    `, [userId]);
+    `,
+      [userId]
+    );
+
     if (result.rowCount === 0) {
       await client.query('ROLLBACK');
       return false;
     }
+
     try {
       await createSubscriptionForUserWithClient(client, userId);
     } catch (subErr: any) {
       console.warn('Could not create subscription (table may not exist):', subErr?.message ?? subErr);
     }
     await client.query('COMMIT');
+
     return true;
   } catch (error: any) {
-    try { await client.query('ROLLBACK'); } catch (_) {}
+    try {
+      await client.query('ROLLBACK');
+    } catch (_) {}
     console.error('Error verifying user:', error);
+
     return false;
   } finally {
     client.release();
@@ -725,24 +763,29 @@ export async function verifyUserPostgres(userId: string) {
 const RESET_TOKEN_EXPIRY_HOURS = 1;
 
 /** Create a password reset token for the user with the given email. Returns the token and user, or null. */
-export async function createPasswordResetTokenPostgres(email: string): Promise<{ token: string; user: { id: string; email: string } } | null> {
+export async function createPasswordResetTokenPostgres(
+  email: string
+): Promise<{ token: string; user: { id: string; email: string } } | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
-    const userResult = await client.query(
-      'SELECT id, email FROM users WHERE email = $1',
-      [email]
-    );
+    const userResult = await client.query('SELECT id, email FROM users WHERE email = $1', [email]);
     const user = userResult.rows[0];
-    if (!user) return null;
+
+    if (!user) {
+      return null;
+    }
 
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
 
-    await client.query(
-      'UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3',
-      [token, expires, user.id]
-    );
+    await client.query('UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3', [
+      token,
+      expires,
+      user.id,
+    ]);
+
     return { token, user: { id: user.id, email: user.email } };
   } catch (error) {
     console.error('Error creating password reset token:', error);
@@ -756,11 +799,9 @@ export async function createPasswordResetTokenPostgres(email: string): Promise<{
 export async function getUserByResetTokenPostgres(token: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
-    const result = await client.query(
-      'SELECT * FROM users WHERE reset_token = $1',
-      [token]
-    );
+    const result = await client.query('SELECT * FROM users WHERE reset_token = $1', [token]);
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error getting user by reset token:', error);
@@ -774,12 +815,16 @@ export async function getUserByResetTokenPostgres(token: string) {
 export async function setPasswordFromResetTokenPostgres(token: string, passwordHash: string): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
-    const result = await client.query(`
+    const result = await client.query(
+      `
       UPDATE users
       SET password_hash = $1, reset_token = NULL, reset_expires = NULL, updated_at = CURRENT_TIMESTAMP
       WHERE reset_token = $2 AND reset_expires > CURRENT_TIMESTAMP
-    `, [passwordHash, token]);
+    `,
+      [passwordHash, token]
+    );
     return (result.rowCount ?? 0) > 0;
   } catch (error) {
     console.error('Error setting password from reset token:', error);
@@ -792,13 +837,16 @@ export async function setPasswordFromResetTokenPostgres(token: string, passwordH
 export async function updateLoginAttemptsPostgres(email: string, attempts: number) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
-    await client.query(`
+    await client.query(
+      `
       UPDATE users 
       SET login_attempts = $1, last_login = CURRENT_TIMESTAMP 
       WHERE email = $2
-    `, [attempts, email]);
+    `,
+      [attempts, email]
+    );
     return true;
   } catch (error) {
     console.error('Error updating login attempts:', error);
@@ -811,13 +859,16 @@ export async function updateLoginAttemptsPostgres(email: string, attempts: numbe
 export async function resetLoginAttemptsPostgres(userId: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
-    await client.query(`
+    await client.query(
+      `
       UPDATE users 
       SET login_attempts = 0, last_login = CURRENT_TIMESTAMP 
       WHERE id = $1
-    `, [userId]);
+    `,
+      [userId]
+    );
     return true;
   } catch (error) {
     console.error('Error resetting login attempts:', error);
@@ -830,18 +881,15 @@ export async function resetLoginAttemptsPostgres(userId: string) {
 export async function logEmailPostgres(userId: string, emailType: string, delivered: boolean, errorMessage?: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO email_logs (id, user_id, email_type, delivered, error_message)
       VALUES ($1, $2, $3, $4, $5)
-    `, [
-      crypto.randomUUID(),
-      userId,
-      emailType,
-      delivered,
-      errorMessage
-    ]);
+    `,
+      [crypto.randomUUID(), userId, emailType, delivered, errorMessage]
+    );
     return true;
   } catch (error) {
     console.error('Error logging email:', error);
@@ -851,27 +899,30 @@ export async function logEmailPostgres(userId: string, emailType: string, delive
   }
 }
 
-export async function createUserSessionPostgres(userId: string, tokenHash: string, expiresAt: string, ipAddress?: string, userAgent?: string) {
+export async function createUserSessionPostgres(
+  userId: string,
+  tokenHash: string,
+  expiresAt: string,
+  ipAddress?: string,
+  userAgent?: string
+) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
     // First, invalidate any existing sessions for this user (single session enforcement)
     await invalidateUserSessionsPostgres(userId);
-    
+
     // Create new session
-    const result = await client.query(`
+    const result = await client.query(
+      `
       INSERT INTO user_sessions (id, user_id, token_hash, expires_at, ip_address, user_agent)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [
-      crypto.randomUUID(),
-      userId,
-      tokenHash,
-      expiresAt,
-      ipAddress || null,
-      userAgent || null
-    ]);
-    return result.rowCount > 0;
+    `,
+      [crypto.randomUUID(), userId, tokenHash, expiresAt, ipAddress || null, userAgent || null]
+    );
+
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     console.error('Error creating user session:', error);
     return false;
@@ -883,12 +934,9 @@ export async function createUserSessionPostgres(userId: string, tokenHash: strin
 export async function invalidateUserSessionsPostgres(userId: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
-    await client.query(
-      'DELETE FROM user_sessions WHERE user_id = $1',
-      [userId]
-    );
+    await client.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
     return true;
   } catch (error) {
     console.error('Error invalidating user sessions:', error);
@@ -901,15 +949,18 @@ export async function invalidateUserSessionsPostgres(userId: string) {
 export async function validateSessionPostgres(tokenHash: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
-    const result = await client.query(`
+    const result = await client.query(
+      `
       SELECT us.*, u.email, u.is_verified 
       FROM user_sessions us
       JOIN users u ON us.user_id = u.id
       WHERE us.token_hash = $1 AND us.expires_at > NOW()
-    `, [tokenHash]);
-    
+    `,
+      [tokenHash]
+    );
+
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error validating session:', error);
@@ -922,13 +973,16 @@ export async function validateSessionPostgres(tokenHash: string) {
 export async function updateSessionActivityPostgres(tokenHash: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
-    await client.query(`
+    await client.query(
+      `
       UPDATE user_sessions 
       SET last_used = NOW()
       WHERE token_hash = $1
-    `, [tokenHash]);
+    `,
+      [tokenHash]
+    );
     return true;
   } catch (error) {
     console.error('Error updating session activity:', error);
@@ -941,12 +995,9 @@ export async function updateSessionActivityPostgres(tokenHash: string) {
 export async function logoutUserPostgres(tokenHash: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
-    await client.query(
-      'DELETE FROM user_sessions WHERE token_hash = $1',
-      [tokenHash]
-    );
+    await client.query('DELETE FROM user_sessions WHERE token_hash = $1', [tokenHash]);
     return true;
   } catch (error) {
     console.error('Error logging out user:', error);
@@ -959,13 +1010,16 @@ export async function logoutUserPostgres(tokenHash: string) {
 export async function getActiveSessionCountPostgres(userId: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
-    const result = await client.query(`
+    const result = await client.query(
+      `
       SELECT COUNT(*) as count 
       FROM user_sessions 
       WHERE user_id = $1 AND expires_at > NOW()
-    `, [userId]);
+    `,
+      [userId]
+    );
     return parseInt(result.rows[0].count);
   } catch (error) {
     console.error('Error getting active session count:', error);
@@ -999,6 +1053,7 @@ async function applyTokenConsumptionInTransaction(
     if (!tokenUsageId || tokens <= 0) {
       return;
     }
+
     await client.query(
       `INSERT INTO token_consumption_allocations (id, token_usage_id, token_balance_id, tokens)
        VALUES ($1, $2, $3, $4)`,
@@ -1012,12 +1067,15 @@ async function applyTokenConsumptionInTransaction(
     if (remaining <= 0) {
       break;
     }
+
     const allocated = Number(row.tokens_allocated);
     const used = Number(row.tokens_used);
     const available = allocated - used;
+
     if (available <= 0) {
       continue;
     }
+
     const deduct = Math.min(remaining, available);
     await client.query(
       `UPDATE token_balances SET tokens_used = tokens_used + $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
@@ -1029,6 +1087,7 @@ async function applyTokenConsumptionInTransaction(
 
   if (remaining > 0) {
     const rows = balances.rows as { id: string }[];
+
     if (rows.length > 0) {
       const sinkId = rows[rows.length - 1].id as string;
       await client.query(
@@ -1060,14 +1119,17 @@ export async function insertTokenUsageAndConsumePostgres(params: {
   provider?: string;
 }): Promise<boolean> {
   const n = Math.floor(Number(params.totalTokens));
+
   if (!Number.isFinite(n) || n <= 0) {
     return false;
   }
 
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     await client.query('BEGIN');
+
     const tokenUsageId = crypto.randomUUID();
     await client.query(
       `INSERT INTO token_usage (id, chat_id, message_id, user_id, prompt_tokens, completion_tokens, total_tokens, model, provider)
@@ -1086,6 +1148,7 @@ export async function insertTokenUsageAndConsumePostgres(params: {
     );
     await applyTokenConsumptionInTransaction(client, params.userId, n, tokenUsageId);
     await client.query('COMMIT');
+
     return true;
   } catch (error) {
     try {
@@ -1094,6 +1157,7 @@ export async function insertTokenUsageAndConsumePostgres(params: {
       /* ignore rollback errors */
     }
     console.error('Error in insertTokenUsageAndConsumePostgres:', error);
+
     return false;
   } finally {
     client.release();
@@ -1112,6 +1176,7 @@ export async function insertTokenUsagePostgres(params: {
 }): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const id = crypto.randomUUID();
     await client.query(
@@ -1129,6 +1194,7 @@ export async function insertTokenUsagePostgres(params: {
         params.provider ?? null,
       ]
     );
+
     return true;
   } catch (error) {
     console.error('Error inserting token usage:', error);
@@ -1142,8 +1208,10 @@ export async function insertTokenUsagePostgres(params: {
 export async function consumeTokenBalancePostgres(userId: string, tokensToConsume: number): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const n = Math.floor(Number(tokensToConsume));
+
     if (!Number.isFinite(n) || n <= 0) {
       return true;
     }
@@ -1151,6 +1219,7 @@ export async function consumeTokenBalancePostgres(userId: string, tokensToConsum
     await client.query('BEGIN');
     await applyTokenConsumptionInTransaction(client, userId, n, null);
     await client.query('COMMIT');
+
     return true;
   } catch (error) {
     try {
@@ -1159,6 +1228,7 @@ export async function consumeTokenBalancePostgres(userId: string, tokensToConsum
       /* ignore */
     }
     console.error('Error consuming token balance:', error);
+
     return false;
   } finally {
     client.release();
@@ -1168,6 +1238,7 @@ export async function consumeTokenBalancePostgres(userId: string, tokensToConsum
 export async function getTokenBalanceRemainingPostgres(userId: string): Promise<number> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const now = new Date().toISOString();
     const result = await client.query(
@@ -1178,6 +1249,7 @@ export async function getTokenBalanceRemainingPostgres(userId: string): Promise<
          AND (effective_end IS NULL OR effective_end >= $2)`,
       [userId, now]
     );
+
     return parseInt(String(result.rows[0]?.remaining ?? 0), 10);
   } catch (error) {
     console.error('Error getting token balance:', error);
@@ -1205,6 +1277,7 @@ async function ensureDefaultProjectForUser(client: PoolClient, userId: string): 
     `,
     [crypto.randomUUID(), defaultProjectId, userId]
   );
+
   return defaultProjectId;
 }
 
@@ -1212,6 +1285,7 @@ async function resolveWritableProjectId(client: PoolClient, userId: string, proj
   if (!projectId) {
     return ensureDefaultProjectForUser(client, userId);
   }
+
   const access = await client.query(
     `
       SELECT 1
@@ -1222,9 +1296,11 @@ async function resolveWritableProjectId(client: PoolClient, userId: string, proj
     `,
     [projectId, userId]
   );
+
   if (access.rows.length > 0) {
     return projectId;
   }
+
   return ensureDefaultProjectForUser(client, userId);
 }
 
@@ -1232,7 +1308,7 @@ async function resolveWritableProjectId(client: PoolClient, userId: string, proj
 export async function saveChatPostgres(userId: string, chatData: any): Promise<string | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
     const {
       id,
@@ -1271,11 +1347,14 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
 
     // Project creator is always the owner: add them to chat_members with role 'owner'
     if (savedId) {
-      await client.query(`
+      await client.query(
+        `
         INSERT INTO chat_members (id, chat_id, user_id, role)
         VALUES ($1, $2, $3, 'owner')
         ON CONFLICT (chat_id, user_id) DO NOTHING
-      `, [crypto.randomUUID(), id, userId]);
+      `,
+        [crypto.randomUUID(), id, userId]
+      );
     }
 
     // Sync prompts table from user messages (record account + chat per prompt)
@@ -1300,9 +1379,16 @@ async function syncPromptsFromChatMessagesPostgres(
   defaultUserId: string
 ): Promise<void> {
   for (const msg of messages) {
-    if (msg?.role !== 'user') continue;
+    if (msg?.role !== 'user') {
+      continue;
+    }
+
     const messageId = msg.id;
-    if (!messageId || typeof messageId !== 'string') continue;
+
+    if (!messageId || typeof messageId !== 'string') {
+      continue;
+    }
+
     const authorId = msg?.author?.id;
     const userId = authorId && typeof authorId === 'string' ? authorId : defaultUserId;
     await client.query(
@@ -1321,6 +1407,7 @@ export async function insertPromptPostgres(params: {
 }): Promise<string | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const id = crypto.randomUUID();
     await client.query(
@@ -1329,6 +1416,7 @@ export async function insertPromptPostgres(params: {
        ON CONFLICT (chat_id, message_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
       [id, params.chatId, params.userId, params.messageId]
     );
+
     return id;
   } catch (error) {
     console.error('Error inserting prompt:', error);
@@ -1345,6 +1433,7 @@ export async function getPromptsByChatIdPostgres(
 ): Promise<{ id: string; message_id: string; user_id: string; email: string; created_at: string }[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     // Ensure requester has access to the chat
     const accessCheck = await client.query(
@@ -1356,7 +1445,10 @@ export async function getPromptsByChatIdPostgres(
          AND (c.user_id = $2 OR cm.user_id = $2 OR p.owner_user_id = $2 OR pm.user_id = $2)`,
       [chatId, requestingUserId]
     );
-    if (accessCheck.rows.length === 0 && !isModerator) return [];
+
+    if (accessCheck.rows.length === 0 && !isModerator) {
+      return [];
+    }
 
     const result = await client.query(
       `SELECT p.id, p.message_id, p.user_id, p.created_at, u.email
@@ -1366,6 +1458,7 @@ export async function getPromptsByChatIdPostgres(
        ORDER BY p.created_at ASC`,
       [chatId]
     );
+
     return result.rows.map((r: any) => ({
       id: r.id,
       message_id: r.message_id,
@@ -1384,7 +1477,7 @@ export async function getPromptsByChatIdPostgres(
 export async function getChatsByUserPostgres(userId: string, isModerator?: boolean): Promise<any[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
     if (isModerator) {
       const result = await client.query(`
@@ -1395,9 +1488,10 @@ export async function getChatsByUserPostgres(userId: string, isModerator?: boole
       return result.rows.map(row => ({
         ...row,
         messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
-        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
       }));
     }
+
     // Include chats where user can access the owning project
     const query = `
       SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
@@ -1409,10 +1503,11 @@ export async function getChatsByUserPostgres(userId: string, isModerator?: boole
       ORDER BY c.updated_at DESC
     `;
     const result = await client.query(query, [userId]);
+
     return result.rows.map(row => ({
       ...row,
       messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
-      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
     }));
   } catch (error) {
     console.error('Error fetching chats from PostgreSQL:', error);
@@ -1430,23 +1525,32 @@ export async function getChatByIdPostgres(
 ): Promise<any | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
     if (isModerator) {
-      const result = await client.query(`
+      const result = await client.query(
+        `
         SELECT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
         FROM chats c
         WHERE (c.id = $1 OR c.url_id = $1)
           AND ($2::text IS NULL OR c.project_id = $2)
-      `, [chatId, projectId ?? null]);
-      if (result.rows.length === 0) return null;
+      `,
+        [chatId, projectId ?? null]
+      );
+
+      if (result.rows.length === 0) {
+        return null;
+      }
+
       const row = result.rows[0];
+
       return {
         ...row,
         messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
-        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
       };
     }
+
     // Allow access if user can access the chat or its owning project
     const query = `
       SELECT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
@@ -1459,14 +1563,17 @@ export async function getChatByIdPostgres(
         AND (c.user_id = $2 OR cm.user_id = $2 OR p.owner_user_id = $2 OR pm.user_id = $2)
     `;
     const result = await client.query(query, [chatId, userId, projectId ?? null]);
+
     if (result.rows.length === 0) {
       return null;
     }
+
     const row = result.rows[0];
+
     return {
       ...row,
       messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
-      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
     };
   } catch (error) {
     console.error('Error fetching chat by ID from PostgreSQL:', error);
@@ -1479,14 +1586,15 @@ export async function getChatByIdPostgres(
 export async function deleteChatPostgres(chatId: string, userId: string): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
     const query = `
       DELETE FROM chats 
       WHERE id = $1 AND user_id = $2
     `;
     const result = await client.query(query, [chatId, userId]);
-    return result.rowCount > 0;
+
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     console.error('Error deleting chat from PostgreSQL:', error);
     return false;
@@ -1497,15 +1605,15 @@ export async function deleteChatPostgres(chatId: string, userId: string): Promis
 
 // User Activity Functions
 export async function logUserActivityPostgres(
-  userId: string, 
-  actionType: string, 
-  actionDetails: any = {}, 
-  ipAddress?: string, 
+  userId: string,
+  actionType: string,
+  actionDetails: any = {},
+  ipAddress?: string,
   userAgent?: string
 ): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
     const query = `
       INSERT INTO user_activity (id, user_id, action_type, action_details, ip_address, user_agent, created_at)
@@ -1513,14 +1621,15 @@ export async function logUserActivityPostgres(
     `;
     const activityId = crypto.randomUUID();
     const result = await client.query(query, [
-      activityId, 
-      userId, 
-      actionType, 
-      JSON.stringify(actionDetails), 
-      ipAddress, 
-      userAgent
+      activityId,
+      userId,
+      actionType,
+      JSON.stringify(actionDetails),
+      ipAddress,
+      userAgent,
     ]);
-    return result.rowCount > 0;
+
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     console.error('Error logging user activity to PostgreSQL:', error);
     return false;
@@ -1532,7 +1641,7 @@ export async function logUserActivityPostgres(
 export async function getUserActivityPostgres(userId: string, limit: number = 100): Promise<any[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  
+
   try {
     const query = `
       SELECT id, action_type, action_details, ip_address, user_agent, created_at
@@ -1542,9 +1651,10 @@ export async function getUserActivityPostgres(userId: string, limit: number = 10
       LIMIT $2
     `;
     const result = await client.query(query, [userId, limit]);
+
     return result.rows.map(row => ({
       ...row,
-      action_details: typeof row.action_details === 'string' ? JSON.parse(row.action_details) : row.action_details
+      action_details: typeof row.action_details === 'string' ? JSON.parse(row.action_details) : row.action_details,
     }));
   } catch (error) {
     console.error('Error fetching user activity from PostgreSQL:', error);
@@ -1647,8 +1757,7 @@ export async function getProjectOverviewPostgres(userId: string, isModerator?: b
     const failuresLast7Days = failAgg.rows[0]?.n ?? 0;
 
     const denom = failuresLast7Days + runsLast7Days;
-    const errorRatePercent =
-      denom > 0 ? Math.round((1000 * failuresLast7Days) / denom) / 10 : null;
+    const errorRatePercent = denom > 0 ? Math.round((1000 * failuresLast7Days) / denom) / 10 : null;
 
     const balanceResult = await client.query(
       `SELECT COALESCE(SUM(tokens_allocated - tokens_used), 0)::bigint AS remaining
@@ -1682,10 +1791,12 @@ export async function getProjectOverviewPostgres(userId: string, isModerator?: b
 
     let healthStatus: 'healthy' | 'attention' = 'healthy';
     const healthReasons: string[] = [];
+
     if (tokenBalanceRemaining === 0 && runsLast7Days > 0) {
       healthStatus = 'attention';
       healthReasons.push('Token balance is empty; add credits or a subscription to continue.');
     }
+
     if (errorRatePercent !== null && errorRatePercent >= 20) {
       healthStatus = 'attention';
       healthReasons.push(
@@ -1714,44 +1825,67 @@ export async function getProjectOverviewPostgres(userId: string, isModerator?: b
 }
 
 // Chat members and invitations (multi-user project sharing)
-export async function getChatMembersPostgres(chatId: string, requestingUserId: string, isModerator?: boolean): Promise<{ members: { id: string; email: string; role: string }[]; currentUserRole: string }> {
+export async function getChatMembersPostgres(
+  chatId: string,
+  requestingUserId: string,
+  isModerator?: boolean
+): Promise<{ members: { id: string; email: string; role: string }[]; currentUserRole: string }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     let currentUserRole: string;
+
     if (isModerator) {
       currentUserRole = 'moderator';
     } else {
-      const accessCheck = await client.query(`
+      const accessCheck = await client.query(
+        `
         SELECT c.user_id as owner_id, cm.role as member_role FROM chats c
         LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
         WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-      `, [chatId, requestingUserId]);
-      if (accessCheck.rows.length === 0) return { members: [], currentUserRole: '' };
-      currentUserRole = accessCheck.rows[0].owner_id === requestingUserId ? 'owner' : (accessCheck.rows[0].member_role || 'member');
+      `,
+        [chatId, requestingUserId]
+      );
+
+      if (accessCheck.rows.length === 0) {
+        return { members: [], currentUserRole: '' };
+      }
+
+      currentUserRole =
+        accessCheck.rows[0].owner_id === requestingUserId ? 'owner' : accessCheck.rows[0].member_role || 'member';
     }
 
     // Get owner from chats
     const chatRow = await client.query(`SELECT user_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const ownerId = chatRow.rows[0]?.user_id;
-    if (!ownerId) return { members: [], currentUserRole: '' };
+
+    if (!ownerId) {
+      return { members: [], currentUserRole: '' };
+    }
 
     const ownerUser = await client.query(`SELECT id, email FROM users WHERE id = $1`, [ownerId]);
     const members: { id: string; email: string; role: string }[] = [];
+
     if (ownerUser.rows[0]) {
       members.push({ id: ownerUser.rows[0].id, email: ownerUser.rows[0].email, role: 'owner' });
     }
 
-    const memberRows = await client.query(`
+    const memberRows = await client.query(
+      `
       SELECT u.id, u.email, cm.role
       FROM chat_members cm
       JOIN users u ON cm.user_id = u.id
       JOIN chats c ON cm.chat_id = c.id
       WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id != $2
-    `, [chatId, ownerId]);
+    `,
+      [chatId, ownerId]
+    );
+
     for (const row of memberRows.rows) {
       members.push({ id: row.id, email: row.email, role: row.role });
     }
+
     return { members, currentUserRole };
   } catch (error) {
     console.error('Error getting chat members:', error);
@@ -1761,48 +1895,85 @@ export async function getChatMembersPostgres(chatId: string, requestingUserId: s
   }
 }
 
-export async function inviteToChatPostgres(chatId: string, invitingUserId: string, email: string, role: string = 'member'): Promise<{ success: boolean; error?: string; token?: string; alreadyMember?: boolean }> {
+export async function inviteToChatPostgres(
+  chatId: string,
+  invitingUserId: string,
+  email: string,
+  role: string = 'member'
+): Promise<{ success: boolean; error?: string; token?: string; alreadyMember?: boolean }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail) return { success: false, error: 'Email is required' };
+
+    if (!normalizedEmail) {
+      return { success: false, error: 'Email is required' };
+    }
 
     // Check if chat exists first (so we can give a clear error when project hasn't been saved yet)
     const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const resolvedChatId = chatRow.rows[0]?.id;
+
     if (!resolvedChatId) {
-      return { success: false, error: 'Chat not found. Save your project first (send at least one message) before inviting others.' };
+      return {
+        success: false,
+        error: 'Chat not found. Save your project first (send at least one message) before inviting others.',
+      };
     }
 
     // Check inviter has access (owner or admin)
-    const accessCheck = await client.query(`
+    const accessCheck = await client.query(
+      `
       SELECT cm.role, c.user_id FROM chats c
       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
       WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-    `, [chatId, invitingUserId]);
-    if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied to this project.' };
+    `,
+      [chatId, invitingUserId]
+    );
+
+    if (accessCheck.rows.length === 0) {
+      return { success: false, error: 'Access denied to this project.' };
+    }
+
     const inviterRole = accessCheck.rows[0].user_id === invitingUserId ? 'owner' : accessCheck.rows[0].role;
-    if (inviterRole !== 'owner' && inviterRole !== 'admin') return { success: false, error: 'Only owners and admins can invite' };
+
+    if (inviterRole !== 'owner' && inviterRole !== 'admin') {
+      return { success: false, error: 'Only owners and admins can invite' };
+    }
 
     const invitee = await client.query(`SELECT id FROM users WHERE email = $1`, [normalizedEmail]);
+
     if (invitee.rows[0]) {
-      const existingMember = await client.query(`SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`, [resolvedChatId, invitee.rows[0].id]);
+      const existingMember = await client.query(`SELECT 1 FROM chat_members WHERE chat_id = $1 AND user_id = $2`, [
+        resolvedChatId,
+        invitee.rows[0].id,
+      ]);
+
       if (existingMember.rows.length > 0) {
         return { success: true, alreadyMember: true };
       }
     }
 
-    const existingInvite = await client.query(`SELECT token FROM chat_invitations WHERE chat_id = $1 AND LOWER(email) = $2 AND status = 'pending' AND expires_at > NOW()`, [resolvedChatId, normalizedEmail]);
-    if (existingInvite.rows.length > 0) return { success: false, error: 'Invitation already sent to this email' };
+    const existingInvite = await client.query(
+      `SELECT token FROM chat_invitations WHERE chat_id = $1 AND LOWER(email) = $2 AND status = 'pending' AND expires_at > NOW()`,
+      [resolvedChatId, normalizedEmail]
+    );
+
+    if (existingInvite.rows.length > 0) {
+      return { success: false, error: 'Invitation already sent to this email' };
+    }
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    await client.query(`
+    await client.query(
+      `
       INSERT INTO chat_invitations (id, chat_id, email, invited_by_user_id, role, status, token, expires_at)
       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7)
       ON CONFLICT (chat_id, email) DO UPDATE SET token = $6, expires_at = $7, status = 'pending', invited_by_user_id = $4
-    `, [crypto.randomUUID(), resolvedChatId, normalizedEmail, invitingUserId, role, token, expiresAt]);
+    `,
+      [crypto.randomUUID(), resolvedChatId, normalizedEmail, invitingUserId, role, token, expiresAt]
+    );
 
     return { success: true, token };
   } catch (error) {
@@ -1813,12 +1984,24 @@ export async function inviteToChatPostgres(chatId: string, invitingUserId: strin
   }
 }
 
-export async function getPendingInvitationsForUserPostgres(userEmail: string): Promise<{ id: string; chat_id: string; token: string; role: string; created_at: string; project_name: string; inviter_email: string }[]> {
+export async function getPendingInvitationsForUserPostgres(userEmail: string): Promise<
+  {
+    id: string;
+    chat_id: string;
+    token: string;
+    role: string;
+    created_at: string;
+    project_name: string;
+    inviter_email: string;
+  }[]
+> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const normalizedEmail = userEmail.trim().toLowerCase();
-    const result = await client.query(`
+    const result = await client.query(
+      `
       SELECT ci.id, ci.chat_id, ci.token, ci.role, ci.created_at,
              COALESCE(c.description, 'Untitled project') as project_name,
              u.email as inviter_email
@@ -1827,7 +2010,10 @@ export async function getPendingInvitationsForUserPostgres(userEmail: string): P
       JOIN users u ON ci.invited_by_user_id = u.id
       WHERE LOWER(ci.email) = $1 AND ci.status = 'pending' AND ci.expires_at > NOW()
       ORDER BY ci.created_at DESC
-    `, [normalizedEmail]);
+    `,
+      [normalizedEmail]
+    );
+
     return result.rows;
   } catch (error) {
     console.error('Error getting pending invitations for user:', error);
@@ -1837,27 +2023,44 @@ export async function getPendingInvitationsForUserPostgres(userEmail: string): P
   }
 }
 
-export async function getChatInvitationsPostgres(chatId: string, requestingUserId: string): Promise<{ id: string; email: string; role: string; status: string; created_at: string }[]> {
+export async function getChatInvitationsPostgres(
+  chatId: string,
+  requestingUserId: string
+): Promise<{ id: string; email: string; role: string; status: string; created_at: string }[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
-    const accessCheck = await client.query(`
+    const accessCheck = await client.query(
+      `
       SELECT 1 FROM chats c
       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
       WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-    `, [chatId, requestingUserId]);
-    if (accessCheck.rows.length === 0) return [];
+    `,
+      [chatId, requestingUserId]
+    );
+
+    if (accessCheck.rows.length === 0) {
+      return [];
+    }
 
     const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const resolvedChatId = chatRow.rows[0]?.id;
-    if (!resolvedChatId) return [];
 
-    const result = await client.query(`
+    if (!resolvedChatId) {
+      return [];
+    }
+
+    const result = await client.query(
+      `
       SELECT id, email, role, status, created_at
       FROM chat_invitations
       WHERE chat_id = $1 AND status = 'pending' AND expires_at > NOW()
       ORDER BY created_at DESC
-    `, [resolvedChatId]);
+    `,
+      [resolvedChatId]
+    );
+
     return result.rows;
   } catch (error) {
     console.error('Error getting chat invitations:', error);
@@ -1870,16 +2073,24 @@ export async function getChatInvitationsPostgres(chatId: string, requestingUserI
 export async function addChatMemberPostgres(chatId: string, userId: string, role: string = 'member'): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const chatRow = await client.query(`SELECT id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
     const resolvedChatId = chatRow.rows[0]?.id;
-    if (!resolvedChatId) return false;
 
-    await client.query(`
+    if (!resolvedChatId) {
+      return false;
+    }
+
+    await client.query(
+      `
       INSERT INTO chat_members (id, chat_id, user_id, role)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (chat_id, user_id) DO UPDATE SET role = $4
-    `, [crypto.randomUUID(), resolvedChatId, userId, role]);
+    `,
+      [crypto.randomUUID(), resolvedChatId, userId, role]
+    );
+
     return true;
   } catch (error) {
     console.error('Error adding chat member:', error);
@@ -1889,40 +2100,82 @@ export async function addChatMemberPostgres(chatId: string, userId: string, role
   }
 }
 
-export async function updateChatMemberRolePostgres(chatId: string, requestingUserId: string, targetUserId: string, newRole: string, isModerator?: boolean): Promise<{ success: boolean; error?: string }> {
+export async function updateChatMemberRolePostgres(
+  chatId: string,
+  requestingUserId: string,
+  targetUserId: string,
+  newRole: string,
+  isModerator?: boolean
+): Promise<{ success: boolean; error?: string }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
-  try {
-    if (!['admin', 'member'].includes(newRole)) return { success: false, error: 'Invalid role' };
 
-    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
+  try {
+    if (!['admin', 'member'].includes(newRole)) {
+      return { success: false, error: 'Invalid role' };
+    }
+
+    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [
+      chatId,
+    ]);
     const ownerId = chatRow.rows[0]?.owner_id;
-    if (!ownerId) return { success: false, error: 'Chat not found' };
-    if (targetUserId === ownerId) return { success: false, error: 'Cannot change owner role' };
+
+    if (!ownerId) {
+      return { success: false, error: 'Chat not found' };
+    }
+
+    if (targetUserId === ownerId) {
+      return { success: false, error: 'Cannot change owner role' };
+    }
 
     let requesterRole: string;
+
     if (isModerator) {
       requesterRole = 'owner';
     } else {
-      const accessCheck = await client.query(`
+      const accessCheck = await client.query(
+        `
         SELECT c.user_id, cm.role FROM chats c
         LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
         WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-      `, [chatId, requestingUserId]);
-      if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied' };
-      requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : (accessCheck.rows[0].role || 'member');
+      `,
+        [chatId, requestingUserId]
+      );
+
+      if (accessCheck.rows.length === 0) {
+        return { success: false, error: 'Access denied' };
+      }
+
+      requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : accessCheck.rows[0].role || 'member';
     }
 
-    if (requesterRole === 'member') return { success: false, error: 'Only owners and admins can edit roles' };
+    if (requesterRole === 'member') {
+      return { success: false, error: 'Only owners and admins can edit roles' };
+    }
+
     if (requesterRole === 'admin') {
-      const targetMember = await client.query(`SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`, [chatId, targetUserId]);
-      if (targetMember.rows[0]?.role === 'admin') return { success: false, error: 'Only the owner can change an admin\'s role' };
+      const targetMember = await client.query(
+        `SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`,
+        [chatId, targetUserId]
+      );
+
+      if (targetMember.rows[0]?.role === 'admin') {
+        return { success: false, error: "Only the owner can change an admin's role" };
+      }
     }
 
     const resolvedChatId = chatRow.rows[0]?.id;
-    if (!resolvedChatId) return { success: false, error: 'Chat not found' };
 
-    await client.query(`UPDATE chat_members SET role = $3 WHERE chat_id = $1 AND user_id = $2`, [resolvedChatId, targetUserId, newRole]);
+    if (!resolvedChatId) {
+      return { success: false, error: 'Chat not found' };
+    }
+
+    await client.query(`UPDATE chat_members SET role = $3 WHERE chat_id = $1 AND user_id = $2`, [
+      resolvedChatId,
+      targetUserId,
+      newRole,
+    ]);
+
     return { success: true };
   } catch (error) {
     console.error('Error updating member role:', error);
@@ -1932,36 +2185,68 @@ export async function updateChatMemberRolePostgres(chatId: string, requestingUse
   }
 }
 
-export async function removeChatMemberPostgres(chatId: string, requestingUserId: string, targetUserId: string, isModerator?: boolean): Promise<{ success: boolean; error?: string }> {
+export async function removeChatMemberPostgres(
+  chatId: string,
+  requestingUserId: string,
+  targetUserId: string,
+  isModerator?: boolean
+): Promise<{ success: boolean; error?: string }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
-    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [chatId]);
+    const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [
+      chatId,
+    ]);
     const ownerId = chatRow.rows[0]?.owner_id;
     const resolvedChatId = chatRow.rows[0]?.id;
-    if (!ownerId || !resolvedChatId) return { success: false, error: 'Chat not found' };
-    if (targetUserId === ownerId) return { success: false, error: 'Cannot remove the project owner' };
+
+    if (!ownerId || !resolvedChatId) {
+      return { success: false, error: 'Chat not found' };
+    }
+
+    if (targetUserId === ownerId) {
+      return { success: false, error: 'Cannot remove the project owner' };
+    }
 
     let requesterRole: string;
+
     if (isModerator) {
       requesterRole = 'owner';
     } else {
-      const accessCheck = await client.query(`
+      const accessCheck = await client.query(
+        `
         SELECT c.user_id, cm.role FROM chats c
         LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
         WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-      `, [chatId, requestingUserId]);
-      if (accessCheck.rows.length === 0) return { success: false, error: 'Access denied' };
-      requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : (accessCheck.rows[0].role || 'member');
+      `,
+        [chatId, requestingUserId]
+      );
+
+      if (accessCheck.rows.length === 0) {
+        return { success: false, error: 'Access denied' };
+      }
+
+      requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : accessCheck.rows[0].role || 'member';
     }
 
-    if (requesterRole === 'member') return { success: false, error: 'Only owners and admins can remove members' };
+    if (requesterRole === 'member') {
+      return { success: false, error: 'Only owners and admins can remove members' };
+    }
+
     if (requesterRole === 'admin') {
-      const targetMember = await client.query(`SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`, [chatId, targetUserId]);
-      if (targetMember.rows[0]?.role === 'admin') return { success: false, error: 'Only the owner can remove an admin' };
+      const targetMember = await client.query(
+        `SELECT role FROM chat_members cm JOIN chats c ON cm.chat_id = c.id WHERE (c.id = $1 OR c.url_id = $1) AND cm.user_id = $2`,
+        [chatId, targetUserId]
+      );
+
+      if (targetMember.rows[0]?.role === 'admin') {
+        return { success: false, error: 'Only the owner can remove an admin' };
+      }
     }
 
     await client.query(`DELETE FROM chat_members WHERE chat_id = $1 AND user_id = $2`, [resolvedChatId, targetUserId]);
+
     return { success: true };
   } catch (error) {
     console.error('Error removing member:', error);
@@ -1971,21 +2256,35 @@ export async function removeChatMemberPostgres(chatId: string, requestingUserId:
   }
 }
 
-export async function acceptInvitationByTokenPostgres(token: string, userId: string, userEmail: string): Promise<{ success: boolean; chatUrl?: string; error?: string }> {
+export async function acceptInvitationByTokenPostgres(
+  token: string,
+  userId: string,
+  userEmail: string
+): Promise<{ success: boolean; chatUrl?: string; error?: string }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const normalizedEmail = userEmail.trim().toLowerCase();
-    const invResult = await client.query(`
+    const invResult = await client.query(
+      `
       SELECT ci.id, ci.chat_id, ci.email, ci.role, c.url_id
       FROM chat_invitations ci
       JOIN chats c ON ci.chat_id = c.id
       WHERE ci.token = $1 AND ci.status = 'pending' AND ci.expires_at > NOW()
-    `, [token]);
-    if (invResult.rows.length === 0) return { success: false, error: 'Invitation not found or expired' };
+    `,
+      [token]
+    );
+
+    if (invResult.rows.length === 0) {
+      return { success: false, error: 'Invitation not found or expired' };
+    }
 
     const inv = invResult.rows[0];
-    if (inv.email.toLowerCase() !== normalizedEmail) return { success: false, error: 'This invitation was sent to a different email address' };
+
+    if (inv.email.toLowerCase() !== normalizedEmail) {
+      return { success: false, error: 'This invitation was sent to a different email address' };
+    }
 
     await client.query(`UPDATE chat_invitations SET status = 'accepted' WHERE id = $1`, [inv.id]);
     await addChatMemberPostgres(inv.chat_id, userId, inv.role);
@@ -1999,9 +2298,11 @@ export async function acceptInvitationByTokenPostgres(token: string, userId: str
   }
 }
 
-// ============================================================
-// Phase 2: Company (Tenant) Functions
-// ============================================================
+/*
+ * ============================================================
+ * Phase 2: Company (Tenant) Functions
+ * ============================================================
+ */
 
 export type CompanyRole = 'admin' | 'developer' | 'viewer';
 export type AppStatus = 'draft' | 'building' | 'active' | 'sleeping' | 'failed';
@@ -2039,8 +2340,10 @@ export async function createCompanyPostgres(
 ): Promise<Company | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     await client.query('BEGIN');
+
     const companyId = crypto.randomUUID();
     const result = await client.query(
       `INSERT INTO companies (id, name, slug, owner_user_id, github_org)
@@ -2054,10 +2357,16 @@ export async function createCompanyPostgres(
       [crypto.randomUUID(), companyId, ownerUserId]
     );
     await client.query('COMMIT');
+
     return result.rows[0] ?? null;
   } catch (error) {
-    try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
     console.error('Error creating company:', error);
+
     return null;
   } finally {
     client.release();
@@ -2067,11 +2376,9 @@ export async function createCompanyPostgres(
 export async function getCompanyBySlugPostgres(slug: string): Promise<Company | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
-    const result = await client.query(
-      `SELECT * FROM companies WHERE slug = $1 LIMIT 1`,
-      [slug]
-    );
+    const result = await client.query(`SELECT * FROM companies WHERE slug = $1 LIMIT 1`, [slug]);
     return result.rows[0] ?? null;
   } catch (error) {
     console.error('Error getting company by slug:', error);
@@ -2084,6 +2391,7 @@ export async function getCompanyBySlugPostgres(slug: string): Promise<Company | 
 export async function getUserCompaniesPostgres(userId: string): Promise<(Company & { role: CompanyRole })[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const result = await client.query(
       `SELECT c.*, cm.role
@@ -2108,6 +2416,7 @@ export async function getCompanyMemberPostgres(
 ): Promise<{ role: CompanyRole } | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const result = await client.query(
       `SELECT role FROM company_members WHERE company_id = $1 AND user_id = $2 LIMIT 1`,
@@ -2127,6 +2436,7 @@ export async function getCompanyMembersPostgres(
 ): Promise<{ user_id: string; email: string; role: CompanyRole; joined_at: string }[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const result = await client.query(
       `SELECT cm.user_id, u.email, cm.role, cm.joined_at
@@ -2145,13 +2455,10 @@ export async function getCompanyMembersPostgres(
   }
 }
 
-export async function addCompanyMemberPostgres(
-  companyId: string,
-  userId: string,
-  role: CompanyRole
-): Promise<boolean> {
+export async function addCompanyMemberPostgres(companyId: string, userId: string, role: CompanyRole): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     await client.query(
       `INSERT INTO company_members (id, company_id, user_id, role)
@@ -2171,11 +2478,9 @@ export async function addCompanyMemberPostgres(
 export async function removeCompanyMemberPostgres(companyId: string, userId: string): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
-    await client.query(
-      `DELETE FROM company_members WHERE company_id = $1 AND user_id = $2`,
-      [companyId, userId]
-    );
+    await client.query(`DELETE FROM company_members WHERE company_id = $1 AND user_id = $2`, [companyId, userId]);
     return true;
   } catch (error) {
     console.error('Error removing company member:', error);
@@ -2191,19 +2496,34 @@ export async function updateCompanyPostgres(
 ): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const setClauses: string[] = ['updated_at = CURRENT_TIMESTAMP'];
     const values: unknown[] = [];
     let idx = 1;
-    if (fields.name !== undefined) { setClauses.push(`name = $${idx++}`); values.push(fields.name); }
-    if (fields.github_org !== undefined) { setClauses.push(`github_org = $${idx++}`); values.push(fields.github_org); }
-    if (fields.plan !== undefined) { setClauses.push(`plan = $${idx++}`); values.push(fields.plan); }
-    if (values.length === 0) return true;
+
+    if (fields.name !== undefined) {
+      setClauses.push(`name = $${idx++}`);
+      values.push(fields.name);
+    }
+
+    if (fields.github_org !== undefined) {
+      setClauses.push(`github_org = $${idx++}`);
+      values.push(fields.github_org);
+    }
+
+    if (fields.plan !== undefined) {
+      setClauses.push(`plan = $${idx++}`);
+      values.push(fields.plan);
+    }
+
+    if (values.length === 0) {
+      return true;
+    }
+
     values.push(companyId);
-    await client.query(
-      `UPDATE companies SET ${setClauses.join(', ')} WHERE id = $${idx}`,
-      values
-    );
+    await client.query(`UPDATE companies SET ${setClauses.join(', ')} WHERE id = $${idx}`, values);
+
     return true;
   } catch (error) {
     console.error('Error updating company:', error);
@@ -2213,13 +2533,16 @@ export async function updateCompanyPostgres(
   }
 }
 
-// ============================================================
-// Phase 2: Company App Functions
-// ============================================================
+/*
+ * ============================================================
+ * Phase 2: Company App Functions
+ * ============================================================
+ */
 
 export async function getCompanyAppsPostgres(companyId: string): Promise<CompanyApp[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const result = await client.query(
       `SELECT id, name, slug, description, status, runtime_type, github_repo,
@@ -2253,19 +2576,34 @@ export async function updateAppStatusPostgres(
 ): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const setClauses = ['status = $1', 'updated_at = CURRENT_TIMESTAMP'];
     const values: unknown[] = [status];
     let idx = 2;
-    if (status === 'active') { setClauses.push(`last_active_at = CURRENT_TIMESTAMP`); }
-    if (extra?.deploy_url) { setClauses.push(`deploy_url = $${idx++}`); values.push(extra.deploy_url); }
-    if (extra?.github_repo) { setClauses.push(`github_repo = $${idx++}`); values.push(extra.github_repo); }
-    if (extra?.build_logs !== undefined) { setClauses.push(`build_logs = $${idx++}`); values.push(extra.build_logs); }
+
+    if (status === 'active') {
+      setClauses.push(`last_active_at = CURRENT_TIMESTAMP`);
+    }
+
+    if (extra?.deploy_url) {
+      setClauses.push(`deploy_url = $${idx++}`);
+      values.push(extra.deploy_url);
+    }
+
+    if (extra?.github_repo) {
+      setClauses.push(`github_repo = $${idx++}`);
+      values.push(extra.github_repo);
+    }
+
+    if (extra?.build_logs !== undefined) {
+      setClauses.push(`build_logs = $${idx++}`);
+      values.push(extra.build_logs);
+    }
+
     values.push(projectId);
-    await client.query(
-      `UPDATE projects SET ${setClauses.join(', ')} WHERE id = $${idx}`,
-      values
-    );
+    await client.query(`UPDATE projects SET ${setClauses.join(', ')} WHERE id = $${idx}`, values);
+
     return true;
   } catch (error) {
     console.error('Error updating app status:', error);
@@ -2278,6 +2616,7 @@ export async function updateAppStatusPostgres(
 export async function getInactiveAppsPostgres(thresholdMinutes = 15): Promise<{ id: string; company_id: string }[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const result = await client.query(
       `SELECT id, company_id FROM projects
@@ -2295,16 +2634,25 @@ export async function getInactiveAppsPostgres(thresholdMinutes = 15): Promise<{ 
   }
 }
 
-// ============================================================
-// Phase 2: Audit Log Functions
-// ============================================================
+/*
+ * ============================================================
+ * Phase 2: Audit Log Functions
+ * ============================================================
+ */
 
 export type AuditAction =
-  | 'CREATE_COMPANY' | 'UPDATE_COMPANY'
-  | 'MEMBER_ADD' | 'MEMBER_REMOVE' | 'MEMBER_ROLE_CHANGE'
-  | 'CREATE_APP' | 'DELETE_APP'
-  | 'BUILD' | 'DEPLOY' | 'PUSH_CODE'
-  | 'WAKE' | 'SLEEP';
+  | 'CREATE_COMPANY'
+  | 'UPDATE_COMPANY'
+  | 'MEMBER_ADD'
+  | 'MEMBER_REMOVE'
+  | 'MEMBER_ROLE_CHANGE'
+  | 'CREATE_APP'
+  | 'DELETE_APP'
+  | 'BUILD'
+  | 'DEPLOY'
+  | 'PUSH_CODE'
+  | 'WAKE'
+  | 'SLEEP';
 
 export async function addAuditLogPostgres(params: {
   companyId: string;
@@ -2316,6 +2664,7 @@ export async function addAuditLogPostgres(params: {
 }): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     await client.query(
       `INSERT INTO audit_logs (id, company_id, actor_id, project_id, action, payload, ip_address)
@@ -2342,9 +2691,19 @@ export async function addAuditLogPostgres(params: {
 export async function getAuditLogsPostgres(
   companyId: string,
   limit = 50
-): Promise<{ id: string; actor_email: string; project_name: string | null; action: string; payload: unknown; created_at: string }[]> {
+): Promise<
+  {
+    id: string;
+    actor_email: string;
+    project_name: string | null;
+    action: string;
+    payload: unknown;
+    created_at: string;
+  }[]
+> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const result = await client.query(
       `SELECT al.id, u.email as actor_email, p.name as project_name,
@@ -2364,4 +2723,4 @@ export async function getAuditLogsPostgres(
   } finally {
     client.release();
   }
-} 
+}

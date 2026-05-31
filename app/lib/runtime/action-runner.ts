@@ -265,8 +265,10 @@ export class ActionRunner {
       unreachable('Shell terminal not found');
     }
 
-    // Safety net: if node_modules is missing, auto-install before starting.
-    // This catches cases where the AI forgot to include an `npm install` shell action.
+    /*
+     * Safety net: if node_modules is missing, auto-install before starting.
+     * This catches cases where the AI forgot to include an `npm install` shell action.
+     */
     const webcontainer = await this.#webcontainer;
 
     let needsInstall = false;
@@ -287,7 +289,7 @@ export class ActionRunner {
       if (installResp?.exitCode !== 0) {
         throw new ActionCommandError(
           'Dependency installation failed (auto-install before start)',
-          installResp?.output || 'No output available',
+          installResp?.output || 'No output available'
         );
       }
     }
@@ -405,39 +407,50 @@ export class ActionRunner {
 
     // Get the build output directory path
     const buildDir = nodePath.join(webcontainer.workdir, 'dist');
-    
+
     console.log('[ActionRunner] Expected build directory:', buildDir);
     console.log('[ActionRunner] WebContainer workdir type:', typeof webcontainer.workdir);
     console.log('[ActionRunner] WebContainer workdir length:', webcontainer.workdir.length);
     console.log('[ActionRunner] Is workdir absolute?', nodePath.isAbsolute(webcontainer.workdir));
     console.log('[ActionRunner] Workdir starts with /home?', webcontainer.workdir.startsWith('/home'));
-    
+
     // Try to list the root directory to see what's available
     try {
       const rootContents = await webcontainer.fs.readdir('/', { withFileTypes: true });
-      console.log('[ActionRunner] Root directory contents:', rootContents.map(entry => entry.name));
+      console.log(
+        '[ActionRunner] Root directory contents:',
+        rootContents.map(entry => entry.name)
+      );
     } catch (error) {
       console.log('[ActionRunner] Cannot access root directory:', error);
     }
-    
+
     // Try to list the workdir to see what's available
     try {
       const workdirContents = await webcontainer.fs.readdir('.', { withFileTypes: true });
-      console.log('[ActionRunner] Workdir contents (using .):', workdirContents.map(entry => entry.name));
+      console.log(
+        '[ActionRunner] Workdir contents (using .):',
+        workdirContents.map(entry => entry.name)
+      );
     } catch (error) {
       console.log('[ActionRunner] Cannot access workdir using .:', error);
     }
-    
-    // The key insight: webcontainer.fs methods expect RELATIVE paths, not absolute paths
-    // So we need to use 'dist' instead of '/home/project-m9jw7fwv2t/dist'
+
+    /*
+     * The key insight: webcontainer.fs methods expect RELATIVE paths, not absolute paths
+     * So we need to use 'dist' instead of '/home/project-m9jw7fwv2t/dist'
+     */
     const relativeBuildDir = 'dist';
     console.log('[ActionRunner] Using relative build directory:', relativeBuildDir);
-    
+
     // Try to access the dist directory using relative path
     try {
       const buildDirContents = await webcontainer.fs.readdir(relativeBuildDir, { withFileTypes: true });
-      console.log('[ActionRunner] Build directory contents (using relative path):', buildDirContents.map(entry => entry.name));
-      
+      console.log(
+        '[ActionRunner] Build directory contents (using relative path):',
+        buildDirContents.map(entry => entry.name)
+      );
+
       // Success! Return the full path for the caller
       return {
         path: buildDir, // Return the full path for external use
@@ -447,21 +460,28 @@ export class ActionRunner {
     } catch (error) {
       console.log('[ActionRunner] Cannot access dist using relative path:', error);
     }
-    
+
     // If the expected dist directory doesn't exist, try alternative build directories
     console.log('[ActionRunner] Expected build directory not accessible, trying alternatives...');
+
     const possibleBuildDirs = ['build', 'dist', 'out', '.output'];
+
     for (const dir of possibleBuildDirs) {
       try {
         console.log(`[ActionRunner] Trying alternative directory: ${dir}`);
+
         const altContents = await webcontainer.fs.readdir(dir, { withFileTypes: true });
         console.log(`[ActionRunner] Found alternative build directory: ${dir}`);
-        console.log(`[ActionRunner] Contents:`, altContents.map(entry => entry.name));
-        
+        console.log(
+          `[ActionRunner] Contents:`,
+          altContents.map(entry => entry.name)
+        );
+
         // Use the first alternative directory that exists and has content
         if (altContents.length > 0) {
           const altBuildDir = nodePath.join(webcontainer.workdir, dir);
           console.log(`[ActionRunner] Using alternative build directory: ${altBuildDir}`);
+
           return {
             path: altBuildDir,
             exitCode,
@@ -473,9 +493,11 @@ export class ActionRunner {
         // Continue checking other directories
       }
     }
-    
+
     // If no alternative directories found, throw error
-    throw new ActionCommandError('Build Failed - No build output directory found', 
-      `Expected build directory ${buildDir} not found. Build output: ${output}`);
+    throw new ActionCommandError(
+      'Build Failed - No build output directory found',
+      `Expected build directory ${buildDir} not found. Build output: ${output}`
+    );
   }
 }

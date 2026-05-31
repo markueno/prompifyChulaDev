@@ -14,31 +14,71 @@ import {
   updateSupabaseRow,
   deleteSupabaseRow,
 } from '~/lib/stores/supabase-admin';
+import { CreateTableModal } from './CreateTableModal';
 
 type Step = 'loading' | 'connect' | 'tables' | 'data';
 
 const PAGE_SIZE = 50;
 
-const NUMERIC_TYPES = new Set(['integer', 'bigint', 'smallint', 'numeric', 'real', 'double precision', 'float4', 'float8', 'int2', 'int4', 'int8']);
+const NUMERIC_TYPES = new Set([
+  'integer',
+  'bigint',
+  'smallint',
+  'numeric',
+  'real',
+  'double precision',
+  'float4',
+  'float8',
+  'int2',
+  'int4',
+  'int8',
+]);
 
 function isAutoColumn(col: SupabaseColumn): boolean {
-  if (col.name === 'id' && (NUMERIC_TYPES.has(col.type) || col.format === 'bigint' || col.format === 'integer')) return true;
-  if ((col.name === 'created_at' || col.name === 'updated_at') && col.type.includes('timestamp')) return true;
+  if (col.name === 'id' && (NUMERIC_TYPES.has(col.type) || col.format === 'bigint' || col.format === 'integer')) {
+    return true;
+  }
+
+  if ((col.name === 'created_at' || col.name === 'updated_at') && col.type.includes('timestamp')) {
+    return true;
+  }
+
   return false;
 }
 
 function inputTypeFor(col: SupabaseColumn): 'number' | 'checkbox' | 'date' | 'datetime-local' | 'textarea' | 'text' {
-  if (NUMERIC_TYPES.has(col.type) || NUMERIC_TYPES.has(col.format ?? '')) return 'number';
-  if (col.type === 'boolean') return 'checkbox';
-  if (col.type === 'date') return 'date';
-  if (col.type.includes('timestamp')) return 'datetime-local';
-  if (col.type === 'json' || col.type === 'jsonb' || col.type === 'ARRAY') return 'textarea';
+  if (NUMERIC_TYPES.has(col.type) || NUMERIC_TYPES.has(col.format ?? '')) {
+    return 'number';
+  }
+
+  if (col.type === 'boolean') {
+    return 'checkbox';
+  }
+
+  if (col.type === 'date') {
+    return 'date';
+  }
+
+  if (col.type.includes('timestamp')) {
+    return 'datetime-local';
+  }
+
+  if (col.type === 'json' || col.type === 'jsonb' || col.type === 'ARRAY') {
+    return 'textarea';
+  }
+
   return 'text';
 }
 
 function cellDisplay(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'object') return JSON.stringify(value);
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+
   return String(value);
 }
 
@@ -152,8 +192,7 @@ interface RowModalProps {
 }
 
 const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClose }: RowModalProps) => {
-  const visibleCols: SupabaseColumn[] =
-    mode === 'add' ? table.columns.filter(c => !isAutoColumn(c)) : table.columns;
+  const visibleCols: SupabaseColumn[] = mode === 'add' ? table.columns.filter(c => !isAutoColumn(c)) : table.columns;
 
   return (
     <div
@@ -165,9 +204,7 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-bolt-elements-borderColor">
-          <h3 className="font-semibold text-bolt-elements-textPrimary">
-            {mode === 'add' ? 'Add Row' : 'Edit Row'}
-          </h3>
+          <h3 className="font-semibold text-bolt-elements-textPrimary">{mode === 'add' ? 'Add Row' : 'Edit Row'}</h3>
           <button
             onClick={() => !saving && onClose()}
             className="p-1 rounded hover:bg-bolt-elements-background-depth-3 text-bolt-elements-textTertiary"
@@ -180,14 +217,13 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
           {visibleCols.map(col => {
             const readonly = mode === 'edit' && isAutoColumn(col);
             const itype = inputTypeFor(col);
+
             return (
               <div key={col.name}>
                 <label className="flex items-center gap-1.5 text-xs font-medium text-bolt-elements-textSecondary mb-1">
                   {col.name}
                   <span className="text-bolt-elements-textTertiary font-normal">{col.format ?? col.type}</span>
-                  {isAutoColumn(col) && (
-                    <span className="text-bolt-elements-textTertiary italic">auto</span>
-                  )}
+                  {isAutoColumn(col) && <span className="text-bolt-elements-textTertiary italic">auto</span>}
                 </label>
 
                 {itype === 'checkbox' ? (
@@ -253,6 +289,7 @@ export const AdminDataSection = memo(() => {
   const [savedConfig, setSavedConfig] = useState<SupabaseConfig | null>(null);
   const [tables, setTables] = useState<SupabaseTable[]>([]);
   const [selectedTable, setSelectedTable] = useState<SupabaseTable | null>(null);
+  const [showCreateTable, setShowCreateTable] = useState(false);
 
   const [rows, setRows] = useState<SupabaseRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
@@ -271,9 +308,11 @@ export const AdminDataSection = memo(() => {
   const [deleteTarget, setDeleteTarget] = useState<SupabaseRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // On mount: 1) check if platform has Supabase configured (server),
-  //           2) fall back to user-saved config (localStorage),
-  //           3) show manual connect form.
+  /*
+   * On mount: 1) check if platform has Supabase configured (server),
+   *           2) fall back to user-saved config (localStorage),
+   *           3) show manual connect form.
+   */
   useEffect(() => {
     if (!currentChatId) {
       setStep('connect');
@@ -284,6 +323,7 @@ export const AdminDataSection = memo(() => {
       // ── Priority 1: server-configured platform Supabase ─────────────────
       try {
         const res = await fetch(`/api/supabase/config?chatId=${encodeURIComponent(currentChatId)}`);
+
         if (res.ok) {
           const data = (await res.json()) as {
             configured: boolean;
@@ -296,17 +336,20 @@ export const AdminDataSection = memo(() => {
             const cfg: SupabaseConfig = {
               url: data.url,
               anonKey: data.anonKey,
-              serviceRoleKey: '',        // service key stays server-side
+              serviceRoleKey: '', // service key stays server-side
               projectName: data.schema,
             };
             setConnecting(true);
+
             const result = await testSupabaseConnection(cfg);
             setConnecting(false);
+
             if (result.success && result.tables) {
               setSavedConfig(cfg);
               setTables(result.tables);
               setPlatformMode(true);
               setStep('tables');
+
               return;
             }
           }
@@ -317,14 +360,18 @@ export const AdminDataSection = memo(() => {
 
       // ── Priority 2: user-saved config in localStorage ────────────────────
       const saved = getSupabaseConfig(currentChatId);
+
       if (saved) {
         setSavedConfig(saved);
         setConnecting(true);
+
         const result = await testSupabaseConnection(saved);
         setConnecting(false);
+
         if (result.success && result.tables) {
           setTables(result.tables);
           setStep('tables');
+
           return;
         }
       }
@@ -338,12 +385,18 @@ export const AdminDataSection = memo(() => {
 
   const handleConnect = async (cfg: SupabaseConfig) => {
     setConnecting(true);
+
     const result = await testSupabaseConnection(cfg);
     setConnecting(false);
+
     if (result.success && result.tables) {
       setSavedConfig(cfg);
       setTables(result.tables);
-      if (currentChatId) saveSupabaseConfig(currentChatId, cfg);
+
+      if (currentChatId) {
+        saveSupabaseConfig(currentChatId, cfg);
+      }
+
       setStep('tables');
       toast.success(`Connected — ${result.tables.length} table${result.tables.length !== 1 ? 's' : ''} found`);
     } else {
@@ -352,7 +405,10 @@ export const AdminDataSection = memo(() => {
   };
 
   const handleDisconnect = () => {
-    if (!platformMode && currentChatId) clearSupabaseConfig(currentChatId);
+    if (!platformMode && currentChatId) {
+      clearSupabaseConfig(currentChatId);
+    }
+
     setSavedConfig(null);
     setPlatformMode(false);
     setTables([]);
@@ -361,12 +417,33 @@ export const AdminDataSection = memo(() => {
     setStep('connect');
   };
 
+  const handleTableCreated = useCallback(
+    async (tableName: string) => {
+      setShowCreateTable(false);
+      toast.success(`Table "${tableName}" created`);
+
+      if (savedConfig) {
+        const result = await testSupabaseConnection(savedConfig);
+
+        if (result.success && result.tables) {
+          setTables(result.tables);
+        }
+      }
+    },
+    [savedConfig]
+  );
+
   const doLoadData = useCallback(
     async (table: SupabaseTable, pg: number, sc?: string, sa?: boolean) => {
-      if (!savedConfig) return;
+      if (!savedConfig) {
+        return;
+      }
+
       setLoading(true);
+
       const result = await fetchTableData(savedConfig, table.name, pg, PAGE_SIZE, sc, sa);
       setLoading(false);
+
       if (result.error) {
         toast.error(result.error);
       } else {
@@ -374,7 +451,7 @@ export const AdminDataSection = memo(() => {
         setTotalRows(result.count);
       }
     },
-    [savedConfig],
+    [savedConfig]
   );
 
   const handleSelectTable = (table: SupabaseTable) => {
@@ -390,27 +467,45 @@ export const AdminDataSection = memo(() => {
     const newAsc = sortColumn === colName ? !sortAsc : true;
     setSortColumn(colName);
     setSortAsc(newAsc);
-    if (selectedTable) doLoadData(selectedTable, page, colName, newAsc);
+
+    if (selectedTable) {
+      doLoadData(selectedTable, page, colName, newAsc);
+    }
   };
 
   const handlePage = (next: number) => {
     setPage(next);
-    if (selectedTable) doLoadData(selectedTable, next, sortColumn, sortAsc);
+
+    if (selectedTable) {
+      doLoadData(selectedTable, next, sortColumn, sortAsc);
+    }
   };
 
   const openAddModal = () => {
-    if (!selectedTable) return;
+    if (!selectedTable) {
+      return;
+    }
+
     const init: Record<string, string> = {};
-    selectedTable.columns.filter(c => !isAutoColumn(c)).forEach(c => { init[c.name] = ''; });
+    selectedTable.columns
+      .filter(c => !isAutoColumn(c))
+      .forEach(c => {
+        init[c.name] = '';
+      });
     setFormValues(init);
     setEditingRow(null);
     setRowModalMode('add');
   };
 
   const openEditModal = (row: SupabaseRow) => {
-    if (!selectedTable) return;
+    if (!selectedTable) {
+      return;
+    }
+
     const vals: Record<string, string> = {};
-    selectedTable.columns.forEach(c => { vals[c.name] = cellDisplay(row[c.name]); });
+    selectedTable.columns.forEach(c => {
+      vals[c.name] = cellDisplay(row[c.name]);
+    });
     setFormValues(vals);
     setEditingRow(row);
     setRowModalMode('edit');
@@ -418,7 +513,11 @@ export const AdminDataSection = memo(() => {
 
   const handleSaveRow = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!savedConfig || !selectedTable) return;
+
+    if (!savedConfig || !selectedTable) {
+      return;
+    }
+
     setSaving(true);
 
     const payload: SupabaseRow = {};
@@ -429,23 +528,31 @@ export const AdminDataSection = memo(() => {
 
     for (const col of targetCols) {
       const raw = formValues[col.name];
+
       if (raw === '' || raw === undefined) {
         payload[col.name] = null;
         continue;
       }
+
       const itype = inputTypeFor(col);
+
       if (itype === 'number') {
         payload[col.name] = Number(raw);
       } else if (itype === 'checkbox') {
         payload[col.name] = raw === 'true';
       } else if (col.type === 'json' || col.type === 'jsonb') {
-        try { payload[col.name] = JSON.parse(raw); } catch { payload[col.name] = raw; }
+        try {
+          payload[col.name] = JSON.parse(raw);
+        } catch {
+          payload[col.name] = raw;
+        }
       } else {
         payload[col.name] = raw;
       }
     }
 
     let error: string | undefined;
+
     if (rowModalMode === 'add') {
       const res = await insertSupabaseRow(savedConfig, selectedTable.name, payload);
       error = res.error;
@@ -456,6 +563,7 @@ export const AdminDataSection = memo(() => {
     }
 
     setSaving(false);
+
     if (error) {
       toast.error(error);
     } else {
@@ -466,15 +574,20 @@ export const AdminDataSection = memo(() => {
   };
 
   const handleDelete = async () => {
-    if (!savedConfig || !selectedTable || !deleteTarget) return;
+    if (!savedConfig || !selectedTable || !deleteTarget) {
+      return;
+    }
+
     setDeleting(true);
+
     const res = await deleteSupabaseRow(
       savedConfig,
       selectedTable.name,
       selectedTable.primaryKey,
-      deleteTarget[selectedTable.primaryKey],
+      deleteTarget[selectedTable.primaryKey]
     );
     setDeleting(false);
+
     if (res.error) {
       toast.error(res.error);
     } else {
@@ -536,19 +649,35 @@ export const AdminDataSection = memo(() => {
               {tables.length} table{tables.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <button
-            onClick={handleDisconnect}
-            className="text-xs px-2 py-1 rounded text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-2 transition-colors shrink-0 ml-2"
-            title={platformMode ? 'Connect to your own Supabase instead' : 'Disconnect'}
-          >
-            {platformMode ? 'Use custom Supabase' : 'Disconnect'}
-          </button>
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            <button
+              onClick={() => setShowCreateTable(true)}
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
+            >
+              <span className="i-ph:plus text-sm" />
+              New Table
+            </button>
+            <button
+              onClick={handleDisconnect}
+              className="text-xs px-2 py-1 rounded text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-2 transition-colors"
+              title={platformMode ? 'Connect to your own Supabase instead' : 'Disconnect'}
+            >
+              {platformMode ? 'Use custom Supabase' : 'Disconnect'}
+            </button>
+          </div>
         </div>
 
         {tables.length === 0 ? (
           <div className="rounded-lg border border-dashed border-bolt-elements-borderColor p-12 text-center">
             <div className="i-ph:database text-4xl text-bolt-elements-textTertiary mx-auto mb-3" />
-            <p className="text-sm text-bolt-elements-textTertiary">No tables found in the public schema.</p>
+            <p className="text-sm text-bolt-elements-textTertiary mb-4">No tables yet.</p>
+            <button
+              onClick={() => setShowCreateTable(true)}
+              className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
+            >
+              <span className="i-ph:plus" />
+              Create your first table
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -571,12 +700,22 @@ export const AdminDataSection = memo(() => {
             ))}
           </div>
         )}
+
+        {showCreateTable && currentChatId && (
+          <CreateTableModal
+            chatId={currentChatId}
+            onClose={() => setShowCreateTable(false)}
+            onCreated={handleTableCreated}
+          />
+        )}
       </div>
     );
   }
 
   // ── Data table step ────────────────────────────────────────────────────────
-  if (!selectedTable) return null;
+  if (!selectedTable) {
+    return null;
+  }
 
   return (
     <>
@@ -584,7 +723,10 @@ export const AdminDataSection = memo(() => {
       <div className="flex items-center justify-between -mx-6 -mt-6 mb-0 px-6 py-3 border-b border-bolt-elements-borderColor bg-bolt-elements-background-depth-1">
         <div className="flex items-center gap-1.5 text-sm">
           <button
-            onClick={() => { setStep('tables'); setSelectedTable(null); }}
+            onClick={() => {
+              setStep('tables');
+              setSelectedTable(null);
+            }}
             className="flex items-center gap-1 text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary transition-colors"
           >
             <div className="i-ph:caret-left w-4 h-4" />
@@ -665,7 +807,10 @@ export const AdminDataSection = memo(() => {
                   ))}
                   <td className="px-3 py-2.5">
                     <button
-                      onClick={e => { e.stopPropagation(); setDeleteTarget(row); }}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setDeleteTarget(row);
+                      }}
                       title="Delete row"
                       className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/10 text-bolt-elements-textTertiary hover:text-red-500 transition-all"
                     >

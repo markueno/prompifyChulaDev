@@ -25,16 +25,19 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
   // Show error message when redirected from GET /api/auth/verify?token=... with error
   if (errorFromQuery) {
-    const message = errorFromQuery === 'missing' || errorFromQuery === 'unexpected'
-      ? (errorFromQuery === 'missing' ? 'Invalid verification link. Please check your email and try again.' : 'An unexpected error occurred during verification.')
-      : decodeURIComponent(errorFromQuery);
+    const message =
+      errorFromQuery === 'missing' || errorFromQuery === 'unexpected'
+        ? errorFromQuery === 'missing'
+          ? 'Invalid verification link. Please check your email and try again.'
+          : 'An unexpected error occurred during verification.'
+        : decodeURIComponent(errorFromQuery);
     return json<LoaderData>({ success: false, message });
   }
 
   if (!token) {
     return json<LoaderData>({
       success: false,
-      message: 'Invalid verification link. Please check your email and try again.'
+      message: 'Invalid verification link. Please check your email and try again.',
     });
   }
 
@@ -54,21 +57,20 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     if (!response.ok) {
       return json<LoaderData>({
         success: false,
-        message: (data as any)?.message || 'Verification failed. Please try again.'
+        message: (data as any)?.message || 'Verification failed. Please try again.',
       });
     }
 
     return json<LoaderData>({
       success: true,
       message: 'Email verified successfully! You can now sign in to your account.',
-      token
+      token,
     });
-
   } catch (error) {
     console.error('Verification error:', error);
     return json<LoaderData>({
       success: false,
-      message: 'An unexpected error occurred during verification.'
+      message: 'An unexpected error occurred during verification.',
     });
   }
 }
@@ -92,7 +94,7 @@ export default function VerifyPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bolt-elements-background-depth-1">
       <BackgroundRays />
-      
+
       <Card className="w-full max-w-md p-8 space-y-6">
         <div className="text-center">
           {loaderData.success ? (
@@ -100,54 +102,32 @@ export default function VerifyPage() {
               <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
                 <div className="i-ph:check-circle text-3xl text-green-600" />
               </div>
-              <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">
-                Email Verified!
-              </h1>
-              <p className="text-bolt-elements-textSecondary">
-                {loaderData.message}
-              </p>
-              {isRedirecting && (
-                <p className="text-sm text-bolt-elements-textTertiary mt-2">
-                  Redirecting to login...
-                </p>
-              )}
+              <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">Email Verified!</h1>
+              <p className="text-bolt-elements-textSecondary">{loaderData.message}</p>
+              {isRedirecting && <p className="text-sm text-bolt-elements-textTertiary mt-2">Redirecting to login...</p>}
             </>
           ) : (
             <>
               <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
                 <div className="i-ph:x-circle text-3xl text-red-600" />
               </div>
-              <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">
-                Verification Failed
-              </h1>
-              <p className="text-bolt-elements-textSecondary">
-                {loaderData.message}
-              </p>
+              <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">Verification Failed</h1>
+              <p className="text-bolt-elements-textSecondary">{loaderData.message}</p>
             </>
           )}
         </div>
 
         <div className="space-y-3">
           {loaderData.success ? (
-            <Button
-              onClick={() => window.location.href = '/?login=1'}
-              className="w-full"
-            >
+            <Button onClick={() => (window.location.href = '/?login=1')} className="w-full">
               Sign In Now
             </Button>
           ) : (
             <>
-              <Button
-                onClick={() => window.location.href = '/auth/register'}
-                className="w-full"
-              >
+              <Button onClick={() => (window.location.href = '/auth/register')} className="w-full">
                 Create New Account
               </Button>
-              <Button
-                onClick={() => window.location.href = '/?login=1'}
-                variant="outline"
-                className="w-full"
-              >
+              <Button onClick={() => (window.location.href = '/?login=1')} variant="outline" className="w-full">
                 Back to Sign In
               </Button>
             </>
@@ -156,4 +136,4 @@ export default function VerifyPage() {
       </Card>
     </div>
   );
-} 
+}

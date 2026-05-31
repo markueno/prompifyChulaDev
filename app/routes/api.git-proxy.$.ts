@@ -18,7 +18,7 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
 
     // Extract hostname from path (everything before the first '/')
     const hostname = path.split('/')[0];
-    
+
     // ✅ SSRF FIX: List of allowed Git provider hosts
     const allowedHosts = [
       'github.com',
@@ -27,21 +27,22 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
       'gitlab.com',
       'api.gitlab.com',
       'bitbucket.org',
-      'api.bitbucket.org'
+      'api.bitbucket.org',
     ];
-    
+
     // ✅ SSRF FIX: Check if hostname is in allowed list
-    const isAllowedHost = allowedHosts.some(
-      host => hostname === host || hostname.endsWith('.' + host)
-    );
-    
+    const isAllowedHost = allowedHosts.some(host => hostname === host || hostname.endsWith('.' + host));
+
     if (!isAllowedHost) {
       console.warn(`[SSRF Protection] Blocked unauthorized host: ${hostname}`);
-      return json({ 
-        error: 'Invalid host. Only GitHub, GitLab, and Bitbucket are allowed.' 
-      }, { status: 403 });
+      return json(
+        {
+          error: 'Invalid host. Only GitHub, GitLab, and Bitbucket are allowed.',
+        },
+        { status: 403 }
+      );
     }
-    
+
     // ✅ SSRF FIX: Block private IPs and localhost attempts
     const blockedPatterns = [
       'localhost',
@@ -49,7 +50,7 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
       '0.0.0.0',
       '::1',
       '169.254', // AWS/Huawei Cloud metadata service
-      '10.',     // Private IP range
+      '10.', // Private IP range
       '172.16.', // Private IP range
       '172.17.', // Private IP range
       '172.18.', // Private IP range
@@ -68,16 +69,17 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
       '172.31.', // Private IP range
       '192.168.', // Private IP range
     ];
-    
-    const isBlockedPattern = blockedPatterns.some(
-      pattern => hostname === pattern || hostname.startsWith(pattern)
-    );
-    
+
+    const isBlockedPattern = blockedPatterns.some(pattern => hostname === pattern || hostname.startsWith(pattern));
+
     if (isBlockedPattern) {
       console.warn(`[SSRF Protection] Blocked private/localhost IP: ${hostname}`);
-      return json({ 
-        error: 'Private IPs and localhost are not allowed for security reasons.' 
-      }, { status: 403 });
+      return json(
+        {
+          error: 'Private IPs and localhost are not allowed for security reasons.',
+        },
+        { status: 403 }
+      );
     }
 
     const url = new URL(request.url);
@@ -87,20 +89,22 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
 
     // ✅ SSRF FIX: Additional validation - parse URL to verify hostname matches
     let parsedURL: URL;
+
     try {
       parsedURL = new URL(targetURL);
     } catch (error) {
       return json({ error: 'Invalid URL format' }, { status: 400 });
     }
-    
+
     // Double-check the parsed hostname matches our validation
-    if (!allowedHosts.some(
-      host => parsedURL.hostname === host || parsedURL.hostname.endsWith('.' + host)
-    )) {
+    if (!allowedHosts.some(host => parsedURL.hostname === host || parsedURL.hostname.endsWith('.' + host))) {
       console.warn(`[SSRF Protection] URL parsing revealed blocked hostname: ${parsedURL.hostname}`);
-      return json({ 
-        error: 'Invalid host after URL parsing' 
-      }, { status: 403 });
+      return json(
+        {
+          error: 'Invalid host after URL parsing',
+        },
+        { status: 403 }
+      );
     }
 
     // Forward the request to the target URL

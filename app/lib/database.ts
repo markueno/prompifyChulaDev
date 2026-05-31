@@ -1,7 +1,9 @@
-// better-sqlite3 and drizzle-orm/better-sqlite3 are native addons — only loaded
-// when DATABASE_TYPE=sqlite. Dynamic require() instead of top-level import prevents
-// the binding from being resolved in environments without native .node support
-// (WebContainer, Cloudflare Workers, etc.).
+/*
+ * better-sqlite3 and drizzle-orm/better-sqlite3 are native addons — only loaded
+ * when DATABASE_TYPE=sqlite. Dynamic require() instead of top-level import prevents
+ * the binding from being resolved in environments without native .node support
+ * (WebContainer, Cloudflare Workers, etc.).
+ */
 import crypto from 'crypto';
 import {
   getPostgresPool,
@@ -61,7 +63,16 @@ import {
   getAuditLogsPostgres,
 } from './database-postgresql';
 
-export type { ProjectOverview, ProjectOverviewRecentRun, Company, CompanyApp, CompanyRole, AppStatus, RuntimeType, AuditAction } from './database-postgresql';
+export type {
+  ProjectOverview,
+  ProjectOverviewRecentRun,
+  Company,
+  CompanyApp,
+  CompanyRole,
+  AppStatus,
+  RuntimeType,
+  AuditAction,
+} from './database-postgresql';
 
 // Database configuration
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -105,6 +116,7 @@ function getSQLiteDatabase() {
     // Create tables if they don't exist
     createSQLiteTables(sqliteDb);
   }
+
   return sqliteDb;
 }
 
@@ -114,6 +126,7 @@ function getPostgresDatabase() {
     createPostgresTables().catch(console.error);
     postgresDb = getPostgresPool();
   }
+
   return postgresDb;
 }
 
@@ -228,6 +241,7 @@ export async function insertContactSubmission(
       const ok = await insertContactSubmissionPostgres(full);
       return ok ? id : null;
     }
+
     const db = getDatabase();
     const result = db
       .prepare(
@@ -247,6 +261,7 @@ export async function insertContactSubmission(
         full.ipAddress ?? null,
         full.userAgent ?? null
       );
+
     return result.changes > 0 ? id : null;
   } catch (error) {
     console.error('Error inserting contact submission:', error);
@@ -270,18 +285,23 @@ export async function createUser(user: any) {
       return createUserPostgres(user);
     } else {
       const db = getDatabase();
-      const result = db.prepare(`
+      const result = db
+        .prepare(
+          `
         INSERT INTO users (id, email, password_hash, is_verified, verification_token, verification_expires, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        user.id,
-        user.email,
-        user.passwordHash,
-        user.isVerified ? 1 : 0,
-        user.verificationToken,
-        user.verificationExpires,
-        user.createdAt
-      );
+      `
+        )
+        .run(
+          user.id,
+          user.email,
+          user.passwordHash,
+          user.isVerified ? 1 : 0,
+          user.verificationToken,
+          user.verificationExpires,
+          user.createdAt
+        );
+
       return result.changes > 0;
     }
   } catch (error) {
@@ -305,11 +325,16 @@ export async function verifyUser(userId: string) {
       return verifyUserPostgres(userId);
     } else {
       const db = getDatabase();
-      const result = db.prepare(`
+      const result = db
+        .prepare(
+          `
         UPDATE users 
         SET is_verified = 1, verification_token = NULL, verification_expires = NULL 
         WHERE id = ?
-      `).run(userId);
+      `
+        )
+        .run(userId);
+
       return result.changes > 0;
     }
   } catch (error) {
@@ -322,6 +347,7 @@ export async function createPasswordResetToken(email: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return createPasswordResetTokenPostgres(email);
   }
+
   return null;
 }
 
@@ -329,6 +355,7 @@ export async function getUserByResetToken(token: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getUserByResetTokenPostgres(token);
   }
+
   return null;
 }
 
@@ -336,6 +363,7 @@ export async function setPasswordFromResetToken(token: string, passwordHash: str
   if (DATABASE_TYPE === 'postgresql') {
     return setPasswordFromResetTokenPostgres(token, passwordHash);
   }
+
   return false;
 }
 
@@ -344,6 +372,7 @@ export async function getSubscriptionByUserId(userId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getSubscriptionByUserIdPostgres(userId);
   }
+
   return null;
 }
 
@@ -353,11 +382,14 @@ export async function updateLoginAttempts(email: string, attempts: number) {
       return updateLoginAttemptsPostgres(email, attempts);
     } else {
       const db = getDatabase();
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE users 
         SET login_attempts = ?, last_login = CURRENT_TIMESTAMP 
         WHERE email = ?
-      `).run(attempts, email);
+      `
+      ).run(attempts, email);
+
       return true;
     }
   } catch (error) {
@@ -372,11 +404,14 @@ export async function resetLoginAttempts(userId: string) {
       return resetLoginAttemptsPostgres(userId);
     } else {
       const db = getDatabase();
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE users 
         SET login_attempts = 0, last_login = CURRENT_TIMESTAMP 
         WHERE id = ?
-      `).run(userId);
+      `
+      ).run(userId);
+
       return true;
     }
   } catch (error) {
@@ -391,25 +426,28 @@ export async function logEmail(userId: string, emailType: string, delivered: boo
       return logEmailPostgres(userId, emailType, delivered, errorMessage);
     } else {
       const db = getDatabase();
-      db.prepare(`
+      db.prepare(
+        `
         INSERT INTO email_logs (id, user_id, email_type, delivered, error_message)
         VALUES (?, ?, ?, ?, ?)
-      `).run(
-        crypto.randomUUID(),
-        userId,
-        emailType,
-        delivered ? 1 : 0,
-        errorMessage
-      );
+      `
+      ).run(crypto.randomUUID(), userId, emailType, delivered ? 1 : 0, errorMessage);
+
       return true;
     }
   } catch (error) {
     console.error('Error logging email:', error);
     return false;
   }
-} 
+}
 
-export async function createUserSession(userId: string, tokenHash: string, expiresAt: string, ipAddress?: string, userAgent?: string) {
+export async function createUserSession(
+  userId: string,
+  tokenHash: string,
+  expiresAt: string,
+  ipAddress?: string,
+  userAgent?: string
+) {
   try {
     if (DATABASE_TYPE === 'postgresql') {
       return createUserSessionPostgres(userId, tokenHash, expiresAt, ipAddress, userAgent);
@@ -417,19 +455,17 @@ export async function createUserSession(userId: string, tokenHash: string, expir
       const db = getDatabase();
       // First, invalidate any existing sessions for this user (single session enforcement)
       await invalidateUserSessions(userId);
-      
+
       // Create new session
-      const result = db.prepare(`
+      const result = db
+        .prepare(
+          `
         INSERT INTO user_sessions (id, user_id, token_hash, expires_at, ip_address, user_agent)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(
-        crypto.randomUUID(),
-        userId,
-        tokenHash,
-        expiresAt,
-        ipAddress || null,
-        userAgent || null
-      );
+      `
+        )
+        .run(crypto.randomUUID(), userId, tokenHash, expiresAt, ipAddress || null, userAgent || null);
+
       return result.changes > 0;
     }
   } catch (error) {
@@ -444,10 +480,13 @@ export async function invalidateUserSessions(userId: string) {
       return invalidateUserSessionsPostgres(userId);
     } else {
       const db = getDatabase();
-      db.prepare(`
+      db.prepare(
+        `
         DELETE FROM user_sessions 
         WHERE user_id = ?
-      `).run(userId);
+      `
+      ).run(userId);
+
       return true;
     }
   } catch (error) {
@@ -462,13 +501,17 @@ export async function validateSession(tokenHash: string) {
       return validateSessionPostgres(tokenHash);
     } else {
       const db = getDatabase();
-      const session = db.prepare(`
+      const session = db
+        .prepare(
+          `
         SELECT us.*, u.email, u.is_verified 
         FROM user_sessions us
         JOIN users u ON us.user_id = u.id
         WHERE us.token_hash = ? AND us.expires_at > datetime('now')
-      `).get(tokenHash);
-      
+      `
+        )
+        .get(tokenHash);
+
       return session;
     }
   } catch (error) {
@@ -483,11 +526,14 @@ export async function updateSessionActivity(tokenHash: string) {
       return updateSessionActivityPostgres(tokenHash);
     } else {
       const db = getDatabase();
-      db.prepare(`
+      db.prepare(
+        `
         UPDATE user_sessions 
         SET last_used = datetime('now')
         WHERE token_hash = ?
-      `).run(tokenHash);
+      `
+      ).run(tokenHash);
+
       return true;
     }
   } catch (error) {
@@ -497,14 +543,17 @@ export async function updateSessionActivity(tokenHash: string) {
 }
 
 // Chat management functions
-export async function saveChat(userId: string, chatData: {
-  id: string;
-  urlId?: string;
-  projectId?: string;
-  description?: string;
-  messages: any[];
-  metadata?: any;
-}) {
+export async function saveChat(
+  userId: string,
+  chatData: {
+    id: string;
+    urlId?: string;
+    projectId?: string;
+    description?: string;
+    messages: any[];
+    metadata?: any;
+  }
+) {
   try {
     if (DATABASE_TYPE === 'postgresql') {
       return saveChatPostgres(userId, chatData);
@@ -568,6 +617,7 @@ export async function insertPrompt(params: { chatId: string; userId: string; mes
   if (DATABASE_TYPE === 'postgresql') {
     return insertPromptPostgres(params);
   }
+
   return null;
 }
 
@@ -575,6 +625,7 @@ export async function getPromptsByChatId(chatId: string, userId: string, isModer
   if (DATABASE_TYPE === 'postgresql') {
     return getPromptsByChatIdPostgres(chatId, userId, isModerator);
   }
+
   return [];
 }
 
@@ -582,13 +633,21 @@ export async function getChatMembers(chatId: string, userId: string, isModerator
   if (DATABASE_TYPE === 'postgresql') {
     return getChatMembersPostgres(chatId, userId, isModerator);
   }
+
   return { members: [], currentUserRole: '' };
 }
 
-export async function updateChatMemberRole(chatId: string, userId: string, targetUserId: string, newRole: string, isModerator?: boolean) {
+export async function updateChatMemberRole(
+  chatId: string,
+  userId: string,
+  targetUserId: string,
+  newRole: string,
+  isModerator?: boolean
+) {
   if (DATABASE_TYPE === 'postgresql') {
     return updateChatMemberRolePostgres(chatId, userId, targetUserId, newRole, isModerator);
   }
+
   return { success: false, error: 'Not supported' };
 }
 
@@ -596,6 +655,7 @@ export async function removeChatMember(chatId: string, userId: string, targetUse
   if (DATABASE_TYPE === 'postgresql') {
     return removeChatMemberPostgres(chatId, userId, targetUserId, isModerator);
   }
+
   return { success: false, error: 'Not supported' };
 }
 
@@ -612,6 +672,7 @@ export async function insertTokenUsage(params: {
   if (DATABASE_TYPE === 'postgresql') {
     return insertTokenUsagePostgres(params);
   }
+
   return false;
 }
 
@@ -629,6 +690,7 @@ export async function insertTokenUsageAndConsume(params: {
   if (DATABASE_TYPE === 'postgresql') {
     return insertTokenUsageAndConsumePostgres(params);
   }
+
   return false;
 }
 
@@ -636,6 +698,7 @@ export async function consumeTokenBalance(userId: string, tokensToConsume: numbe
   if (DATABASE_TYPE === 'postgresql') {
     return consumeTokenBalancePostgres(userId, tokensToConsume);
   }
+
   return false;
 }
 
@@ -643,6 +706,7 @@ export async function getTokenBalanceRemaining(userId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getTokenBalanceRemainingPostgres(userId);
   }
+
   return 0;
 }
 
@@ -663,6 +727,7 @@ export async function getProjectOverview(userId: string, isModerator?: boolean) 
   if (DATABASE_TYPE !== 'postgresql') {
     return emptyProjectOverview;
   }
+
   try {
     return await getProjectOverviewPostgres(userId, isModerator);
   } catch (error) {
@@ -675,6 +740,7 @@ export async function inviteToChat(chatId: string, userId: string, email: string
   if (DATABASE_TYPE === 'postgresql') {
     return inviteToChatPostgres(chatId, userId, email, role);
   }
+
   return { success: false, error: 'Not supported' };
 }
 
@@ -682,6 +748,7 @@ export async function getPendingInvitationsForUser(userEmail: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getPendingInvitationsForUserPostgres(userEmail);
   }
+
   return [];
 }
 
@@ -689,6 +756,7 @@ export async function getChatInvitations(chatId: string, userId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getChatInvitationsPostgres(chatId, userId);
   }
+
   return [];
 }
 
@@ -696,6 +764,7 @@ export async function addChatMember(chatId: string, userId: string, role?: strin
   if (DATABASE_TYPE === 'postgresql') {
     return addChatMemberPostgres(chatId, userId, role);
   }
+
   return false;
 }
 
@@ -703,11 +772,18 @@ export async function acceptInvitationByToken(token: string, userId: string, use
   if (DATABASE_TYPE === 'postgresql') {
     return acceptInvitationByTokenPostgres(token, userId, userEmail);
   }
+
   return { success: false, error: 'Not supported' };
 }
 
 // User activity tracking functions
-export async function logUserActivity(userId: string, actionType: string, actionDetails: any = {}, ipAddress?: string, userAgent?: string) {
+export async function logUserActivity(
+  userId: string,
+  actionType: string,
+  actionDetails: any = {},
+  ipAddress?: string,
+  userAgent?: string
+) {
   try {
     if (DATABASE_TYPE === 'postgresql') {
       return logUserActivityPostgres(userId, actionType, actionDetails, ipAddress, userAgent);
@@ -743,10 +819,13 @@ export async function logoutUser(tokenHash: string) {
       return logoutUserPostgres(tokenHash);
     } else {
       const db = getDatabase();
-      db.prepare(`
+      db.prepare(
+        `
         DELETE FROM user_sessions 
         WHERE token_hash = ?
-      `).run(tokenHash);
+      `
+      ).run(tokenHash);
+
       return true;
     }
   } catch (error) {
@@ -761,11 +840,16 @@ export async function getActiveSessionCount(userId: string) {
       return getActiveSessionCountPostgres(userId);
     } else {
       const db = getDatabase();
-      const result = db.prepare(`
+      const result = db
+        .prepare(
+          `
         SELECT COUNT(*) as count
         FROM user_sessions
         WHERE user_id = ? AND expires_at > datetime('now')
-      `).get(userId);
+      `
+        )
+        .get(userId);
+
       return result.count;
     }
   } catch (error) {
@@ -774,14 +858,17 @@ export async function getActiveSessionCount(userId: string) {
   }
 }
 
-// ============================================================
-// Phase 2: Company (Tenant) Functions
-// ============================================================
+/*
+ * ============================================================
+ * Phase 2: Company (Tenant) Functions
+ * ============================================================
+ */
 
 export async function createCompany(name: string, slug: string, ownerUserId: string, githubOrg?: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return createCompanyPostgres(name, slug, ownerUserId, githubOrg);
   }
+
   return null;
 }
 
@@ -789,6 +876,7 @@ export async function getCompanyBySlug(slug: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getCompanyBySlugPostgres(slug);
   }
+
   return null;
 }
 
@@ -796,6 +884,7 @@ export async function getUserCompanies(userId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getUserCompaniesPostgres(userId);
   }
+
   return [];
 }
 
@@ -803,6 +892,7 @@ export async function getCompanyMember(companyId: string, userId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getCompanyMemberPostgres(companyId, userId);
   }
+
   return null;
 }
 
@@ -810,13 +900,19 @@ export async function getCompanyMembers(companyId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getCompanyMembersPostgres(companyId);
   }
+
   return [];
 }
 
-export async function addCompanyMember(companyId: string, userId: string, role: import('./database-postgresql').CompanyRole) {
+export async function addCompanyMember(
+  companyId: string,
+  userId: string,
+  role: import('./database-postgresql').CompanyRole
+) {
   if (DATABASE_TYPE === 'postgresql') {
     return addCompanyMemberPostgres(companyId, userId, role);
   }
+
   return false;
 }
 
@@ -824,6 +920,7 @@ export async function removeCompanyMember(companyId: string, userId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return removeCompanyMemberPostgres(companyId, userId);
   }
+
   return false;
 }
 
@@ -831,6 +928,7 @@ export async function updateCompany(companyId: string, fields: { name?: string; 
   if (DATABASE_TYPE === 'postgresql') {
     return updateCompanyPostgres(companyId, fields);
   }
+
   return false;
 }
 
@@ -838,6 +936,7 @@ export async function getCompanyApps(companyId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getCompanyAppsPostgres(companyId);
   }
+
   return [];
 }
 
@@ -849,6 +948,7 @@ export async function updateAppStatus(
   if (DATABASE_TYPE === 'postgresql') {
     return updateAppStatusPostgres(projectId, status, extra);
   }
+
   return false;
 }
 
@@ -856,6 +956,7 @@ export async function getInactiveApps(thresholdMinutes = 15) {
   if (DATABASE_TYPE === 'postgresql') {
     return getInactiveAppsPostgres(thresholdMinutes);
   }
+
   return [];
 }
 
@@ -870,6 +971,7 @@ export async function addAuditLog(params: {
   if (DATABASE_TYPE === 'postgresql') {
     return addAuditLogPostgres(params);
   }
+
   return false;
 }
 
@@ -877,5 +979,6 @@ export async function getAuditLogs(companyId: string, limit = 50) {
   if (DATABASE_TYPE === 'postgresql') {
     return getAuditLogsPostgres(companyId, limit);
   }
+
   return [];
-} 
+}

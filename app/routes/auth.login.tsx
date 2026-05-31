@@ -23,6 +23,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   // Check if user is already authenticated
   try {
     const user = await optionalAuth(request, context);
+
     if (user) {
       console.log('✅ User already authenticated, redirecting to app');
       return redirect('/app/');
@@ -90,7 +91,7 @@ export default function LoginPage() {
   const navigation = useNavigation();
   const [showPassword, setShowPassword] = useState(false);
   const isSubmitting = navigation.state === 'submitting';
-  
+
   // Check for session conflict message using Remix's useSearchParams
   const [searchParams] = useSearchParams();
   const sessionMessage = searchParams.get('message');
@@ -98,32 +99,21 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-bolt-elements-background-depth-1">
       <BackgroundRays />
-      
+
       <Card className="w-full max-w-md p-8 space-y-6">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">
-            Welcome Back
-          </h1>
-          <p className="text-bolt-elements-textSecondary">
-            Sign in to your Prompify account
-          </p>
+          <h1 className="text-3xl font-bold text-bolt-elements-textPrimary mb-2">Welcome Back</h1>
+          <p className="text-bolt-elements-textSecondary">Sign in to your Prompify account</p>
         </div>
 
         <Form method="post" className="space-y-4">
           <input type="hidden" name="intent" value="login" />
-          
+
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-bolt-elements-textPrimary mb-2">
               Email Address
             </label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              required
-              placeholder="Enter your email"
-              className="w-full"
-            />
+            <Input id="email" name="email" type="email" required placeholder="Enter your email" className="w-full" />
           </div>
 
           <div>
@@ -144,11 +134,7 @@ export default function LoginPage() {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary"
               >
-                {showPassword ? (
-                  <div className="i-ph:eye-slash text-lg" />
-                ) : (
-                  <div className="i-ph:eye text-lg" />
-                )}
+                {showPassword ? <div className="i-ph:eye-slash text-lg" /> : <div className="i-ph:eye text-lg" />}
               </button>
             </div>
           </div>
@@ -165,11 +151,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full"
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? 'Signing in...' : 'Sign In'}
           </Button>
         </Form>
@@ -184,11 +166,14 @@ export default function LoginPage() {
         </div>
 
         <div className="text-center">
-          <a href="/auth/forgot-password" className="text-sm text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary">
+          <a
+            href="/auth/forgot-password"
+            className="text-sm text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary"
+          >
             Forgot your password?
           </a>
         </div>
       </Card>
     </div>
   );
-} 
+}

@@ -34,56 +34,78 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     // Input validation
     if (!email || !password) {
-      return json<RegisterResponse>({
-        success: false,
-        message: 'Email and password are required'
-      }, { status: 400 });
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'Email and password are required',
+        },
+        { status: 400 }
+      );
     }
 
     // Email validation and normalize (case-insensitive)
     const emailNormalized = (email ?? '').trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     if (!emailRegex.test(emailNormalized)) {
-      return json<RegisterResponse>({
-        success: false,
-        message: 'Invalid email format'
-      }, { status: 400 });
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'Invalid email format',
+        },
+        { status: 400 }
+      );
     }
 
     // Password strength validation
     if (password.length < 8) {
-      return json<RegisterResponse>({
-        success: false,
-        message: 'Password must be at least 8 characters long'
-      }, { status: 400 });
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'Password must be at least 8 characters long',
+        },
+        { status: 400 }
+      );
     }
 
     if (!/(?=.*[a-z])/.test(password)) {
-      return json<RegisterResponse>({
-        success: false,
-        message: 'Password must contain at least one lowercase letter'
-      }, { status: 400 });
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'Password must contain at least one lowercase letter',
+        },
+        { status: 400 }
+      );
     }
 
     if (!/(?=.*[A-Z])/.test(password)) {
-      return json<RegisterResponse>({
-        success: false,
-        message: 'Password must contain at least one uppercase letter'
-      }, { status: 400 });
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'Password must contain at least one uppercase letter',
+        },
+        { status: 400 }
+      );
     }
 
     if (!/(?=.*\d)/.test(password)) {
-      return json<RegisterResponse>({
-        success: false,
-        message: 'Password must contain at least one number'
-      }, { status: 400 });
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'Password must contain at least one number',
+        },
+        { status: 400 }
+      );
     }
 
     if (!/(?=.*[!@#$%^&*])/.test(password)) {
-      return json<RegisterResponse>({
-        success: false,
-        message: 'Password must contain at least one special character (!@#$%^&*)'
-      }, { status: 400 });
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'Password must contain at least one special character (!@#$%^&*)',
+        },
+        { status: 400 }
+      );
     }
 
     // Rate limiting check
@@ -94,10 +116,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
     if (attempts) {
       if (now - attempts.lastAttempt < RATE_LIMIT_WINDOW) {
         if (attempts.count >= MAX_REGISTRATION_ATTEMPTS) {
-          return json<RegisterResponse>({
-            success: false,
-            message: 'Too many registration attempts. Please try again in 1 hour.'
-          }, { status: 429 });
+          return json<RegisterResponse>(
+            {
+              success: false,
+              message: 'Too many registration attempts. Please try again in 1 hour.',
+            },
+            { status: 429 }
+          );
         }
       } else {
         // Reset counter if window has passed
@@ -113,11 +138,15 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     // Check if user already exists
     const existingUser = await getUserByEmail(emailNormalized);
+
     if (existingUser) {
-      return json<RegisterResponse>({
-        success: false,
-        message: 'An account with this email already exists'
-      }, { status: 409 });
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'An account with this email already exists',
+        },
+        { status: 409 }
+      );
     }
 
     // Hash password
@@ -126,9 +155,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     // Generate verification token only when verification is required
     const verificationToken = emailVerificationRequired ? crypto.randomBytes(32).toString('hex') : null;
-    const verificationExpires = emailVerificationRequired
-      ? new Date(Date.now() + 24 * 60 * 60 * 1000)
-      : null;
+    const verificationExpires = emailVerificationRequired ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
 
     // Create user in database
     const userId = crypto.randomUUID();
@@ -139,44 +166,59 @@ export async function action({ request, context }: ActionFunctionArgs) {
       isVerified: !emailVerificationRequired,
       verificationToken,
       verificationExpires: verificationExpires?.toISOString() || null,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
     try {
       const success = await createUser(user);
-      
+
       if (!success) {
         console.error('❌ createUser returned false');
-        return json<RegisterResponse>({
-          success: false,
-          message: 'Failed to create account. Please check database connection and try again.'
-        }, { status: 500 });
+        return json<RegisterResponse>(
+          {
+            success: false,
+            message: 'Failed to create account. Please check database connection and try again.',
+          },
+          { status: 500 }
+        );
       }
     } catch (error: any) {
       console.error('❌ Error during user creation:', error);
+
       // Check for specific database errors
       if (error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
-        return json<RegisterResponse>({
-          success: false,
-          message: 'An account with this email already exists'
-        }, { status: 409 });
+        return json<RegisterResponse>(
+          {
+            success: false,
+            message: 'An account with this email already exists',
+          },
+          { status: 409 }
+        );
       }
+
       if (error.message?.includes('connection') || error.message?.includes('ECONNREFUSED')) {
-        return json<RegisterResponse>({
-          success: false,
-          message: 'Database connection failed. Please check your DATABASE_URL configuration.'
-        }, { status: 500 });
+        return json<RegisterResponse>(
+          {
+            success: false,
+            message: 'Database connection failed. Please check your DATABASE_URL configuration.',
+          },
+          { status: 500 }
+        );
       }
-      return json<RegisterResponse>({
-        success: false,
-        message: `Failed to create account: ${error.message || 'Unknown error'}`
-      }, { status: 500 });
+
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: `Failed to create account: ${error.message || 'Unknown error'}`,
+        },
+        { status: 500 }
+      );
     }
 
     if (emailVerificationRequired && verificationToken) {
       // Send verification email
       const emailSent = await sendVerificationEmail(emailNormalized, verificationToken);
-      
+
       // Log email attempt
       await logEmail(userId, 'verification', emailSent, emailSent ? undefined : 'Email service not configured');
     }
@@ -188,16 +230,18 @@ export async function action({ request, context }: ActionFunctionArgs) {
       success: true,
       message: emailVerificationRequired
         ? 'Account created successfully. Please check your email to verify your account.'
-        : 'Account created successfully. You can log in immediately.'
+        : 'Account created successfully. You can log in immediately.',
     });
-
   } catch (error) {
     console.error('Registration error:', error);
-    return json<RegisterResponse>({
-      success: false,
-      message: 'An unexpected error occurred'
-    }, { status: 500 });
+    return json<RegisterResponse>(
+      {
+        success: false,
+        message: 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
 }
 
-// Email service is now imported from ~/lib/email 
+// Email service is now imported from ~/lib/email

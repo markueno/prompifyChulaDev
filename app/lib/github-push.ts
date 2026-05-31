@@ -23,11 +23,13 @@ export async function createAppRepo(orgName: string, repoName: string, token: st
     if (res.status === 422) {
       return getRepoUrl(orgName, repoName);
     }
+
     const err = await res.text();
     throw new Error(`Failed to create repo: ${res.status} ${err}`);
   }
 
   const data = (await res.json()) as { html_url: string };
+
   return data.html_url;
 }
 
@@ -35,20 +37,20 @@ export function getRepoUrl(owner: string, repo: string): string {
   return `https://github.com/${owner}/${repo}`;
 }
 
-export async function getFileSha(
-  owner: string,
-  repo: string,
-  path: string,
-  token: string
-): Promise<string | null> {
+export async function getFileSha(owner: string, repo: string, path: string, token: string): Promise<string | null> {
   const res = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/contents/${path}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',
     },
   });
-  if (!res.ok) return null;
+
+  if (!res.ok) {
+    return null;
+  }
+
   const data = (await res.json()) as { sha?: string };
+
   return data.sha ?? null;
 }
 
@@ -63,7 +65,9 @@ export async function pushGeneratedFiles(
   let pushed = 0;
 
   for (const [rawPath, dirent] of Object.entries(files)) {
-    if (!dirent || dirent.type === 'folder') continue;
+    if (!dirent || dirent.type === 'folder') {
+      continue;
+    }
 
     const content = dirent.content ?? '';
     const filePath = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath;
@@ -75,7 +79,10 @@ export async function pushGeneratedFiles(
       message: commitMessage,
       content: encoded,
     };
-    if (sha) body.sha = sha;
+
+    if (sha) {
+      body.sha = sha;
+    }
 
     const res = await fetch(`${GITHUB_API}/repos/${owner}/${repo}/contents/${filePath}`, {
       method: 'PUT',
@@ -97,13 +104,20 @@ export async function pushGeneratedFiles(
   return { pushed, failed };
 }
 
-export async function getOrgRepos(orgName: string, token: string): Promise<{ name: string; html_url: string; updated_at: string }[]> {
+export async function getOrgRepos(
+  orgName: string,
+  token: string
+): Promise<{ name: string; html_url: string; updated_at: string }[]> {
   const res = await fetch(`${GITHUB_API}/orgs/${orgName}/repos?type=private&sort=updated&per_page=50`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/vnd.github+json',
     },
   });
-  if (!res.ok) return [];
+
+  if (!res.ok) {
+    return [];
+  }
+
   return res.json();
 }

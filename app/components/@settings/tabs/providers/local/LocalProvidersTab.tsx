@@ -310,10 +310,10 @@ export default function LocalProvidersTab() {
       }
 
       setOllamaModels(current => current.filter(m => m.name !== modelName));
-      
+
       // Pre-cache updated models in the system after deletion
       await preCacheOllamaModels();
-      
+
       toast(`Deleted ${modelName}`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';

@@ -13,18 +13,28 @@ export function DesignInspiration({ brands, maxSelect, initialSelected = [], onC
   const [selected, setSelected] = useState<string[]>(initialSelected);
 
   function toggle(id: string) {
-    setSelected((prev) => {
-      if (prev.includes(id)) return prev.filter((b) => b !== id);
-      if (prev.length >= maxSelect) return [...prev.slice(1), id];
+    setSelected(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(b => b !== id);
+      }
+
+      if (prev.length >= maxSelect) {
+        return [...prev.slice(1), id];
+      }
+
       return [...prev, id];
     });
   }
 
   function handleContinue() {
     const content: Record<string, string> = {};
+
     for (const id of selected) {
       const md = getDesignSystem(id);
-      if (md) content[id] = md;
+
+      if (md) {
+        content[id] = md;
+      }
     }
     onContinue({ brands: selected, content });
   }
@@ -40,7 +50,7 @@ export function DesignInspiration({ brands, maxSelect, initialSelected = [], onC
       </p>
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-        {brands.map((brand) => {
+        {brands.map(brand => {
           const isSelected = selected.includes(brand.id);
           return (
             <button
@@ -55,20 +65,26 @@ export function DesignInspiration({ brands, maxSelect, initialSelected = [], onC
               ].join(' ')}
             >
               <div className="flex items-start justify-between gap-2">
-                <p className={`font-semibold text-sm leading-snug ${isSelected ? 'text-accent-600' : 'text-bolt-elements-textPrimary'}`}>
+                <p
+                  className={`font-semibold text-sm leading-snug ${isSelected ? 'text-accent-600' : 'text-bolt-elements-textPrimary'}`}
+                >
                   {brand.label}
                 </p>
                 {isSelected && (
                   <span className="shrink-0 w-4 h-4 rounded-full bg-accent-500 flex items-center justify-center mt-0.5">
                     <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                      <path d="M1.5 4L3.5 6L6.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path
+                        d="M1.5 4L3.5 6L6.5 2"
+                        stroke="white"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                   </span>
                 )}
               </div>
-              <p className="text-xs text-bolt-elements-textSecondary mt-1 leading-relaxed">
-                {brand.tagline}
-              </p>
+              <p className="text-xs text-bolt-elements-textSecondary mt-1 leading-relaxed">{brand.tagline}</p>
             </button>
           );
         })}
@@ -85,7 +101,9 @@ export function DesignInspiration({ brands, maxSelect, initialSelected = [], onC
           onClick={handleContinue}
           className="ml-auto px-5 py-2.5 rounded-xl bg-accent-500 text-white text-sm font-semibold hover:bg-accent-600 transition-colors"
         >
-          {selected.length > 0 ? `Use ${selected.length === 1 ? '1 brand' : `${selected.length} brands`} →` : 'Continue →'}
+          {selected.length > 0
+            ? `Use ${selected.length === 1 ? '1 brand' : `${selected.length} brands`} →`
+            : 'Continue →'}
         </button>
       </div>
     </div>

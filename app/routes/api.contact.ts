@@ -14,7 +14,7 @@ type ContactResponse = { error?: string; success?: string };
 const CONTACT_TEXT_MAX = 125;
 const MESSAGE_MIN = 10;
 const MAX_PHONE = 40;
-const ALLOWED_COUNTRIES = new Set(CONTACT_COUNTRY_OPTIONS.map((o) => o.value).filter(Boolean));
+const ALLOWED_COUNTRIES = new Set(CONTACT_COUNTRY_OPTIONS.map(o => o.value).filter(Boolean));
 
 function isContactEnquiryValue(v: string): v is ContactEnquiryValue {
   return (CONTACT_ENQUIRY_VALUES as readonly string[]).includes(v);
@@ -28,7 +28,9 @@ export async function action({ request }: ActionFunctionArgs) {
   const formData = await request.formData();
   const enquiryTypeRaw = String(formData.get('enquiryType') ?? '').trim();
   const name = normalizeContactPlainText(String(formData.get('name') ?? ''), false);
-  const email = String(formData.get('email') ?? '').trim().toLowerCase();
+  const email = String(formData.get('email') ?? '')
+    .trim()
+    .toLowerCase();
   const phoneRaw = normalizeContactPlainText(String(formData.get('phone') ?? ''), false);
   const countryRaw = String(formData.get('country') ?? '').trim();
   const message = normalizeContactPlainText(String(formData.get('message') ?? ''), true);
@@ -46,10 +48,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   if (message.length < MESSAGE_MIN) {
-    return json<ContactResponse>(
-      { error: `Message must be at least ${MESSAGE_MIN} characters.` },
-      { status: 400 }
-    );
+    return json<ContactResponse>({ error: `Message must be at least ${MESSAGE_MIN} characters.` }, { status: 400 });
   }
 
   if (message.length > CONTACT_TEXT_MAX) {
@@ -60,6 +59,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   if (!emailRegex.test(email)) {
     return json<ContactResponse>({ error: 'Please enter a valid email address.' }, { status: 400 });
   }
@@ -69,10 +69,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   if (!countryRaw || !ALLOWED_COUNTRIES.has(countryRaw)) {
-    return json<ContactResponse>(
-      { error: 'Please select the country for your phone (dial code).' },
-      { status: 400 }
-    );
+    return json<ContactResponse>({ error: 'Please select the country for your phone (dial code).' }, { status: 400 });
   }
 
   if (!phoneRaw) {
@@ -91,9 +88,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const countryCodeDb = dial.length > 0 ? dial : null;
 
   const ip =
-    request.headers.get('CF-Connecting-IP') ??
-    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ??
-    null;
+    request.headers.get('CF-Connecting-IP') ?? request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ?? null;
   const userAgent = request.headers.get('User-Agent');
 
   const insertedId = await insertContactSubmission({
@@ -109,10 +104,7 @@ export async function action({ request }: ActionFunctionArgs) {
   });
 
   if (!insertedId) {
-    return json<ContactResponse>(
-      { error: 'Could not save your message. Please try again later.' },
-      { status: 500 }
-    );
+    return json<ContactResponse>({ error: 'Could not save your message. Please try again later.' }, { status: 500 });
   }
 
   console.log('[contact form] saved', { id: insertedId, enquiryType: enquiryTypeRaw });

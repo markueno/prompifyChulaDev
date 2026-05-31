@@ -94,7 +94,22 @@ export function ErrorBoundary() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{is404 ? 'Page not found' : 'Something went wrong'}</title>
       </head>
-      <body style={{ fontFamily: 'Inter, sans-serif', background: '#1a1a1a', color: '#f5f5f5', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', margin: 0, gap: '1rem', textAlign: 'center', padding: '2rem' }}>
+      <body
+        style={{
+          fontFamily: 'Inter, sans-serif',
+          background: '#1a1a1a',
+          color: '#f5f5f5',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          margin: 0,
+          gap: '1rem',
+          textAlign: 'center',
+          padding: '2rem',
+        }}
+      >
         <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: 0 }}>
           {is404 ? '404 — Page not found' : 'Something went wrong'}
         </h1>
@@ -128,8 +143,10 @@ export default function App() {
   }, []);
 
   return (
-    // DndProvider uses HTML5Backend which accesses browser globals (window, addEventListener).
-    // Must live in App (client-rendered) not Layout (SSR document shell) to avoid hydration crashes.
+    /*
+     * DndProvider uses HTML5Backend which accesses browser globals (window, addEventListener).
+     * Must live in App (client-rendered) not Layout (SSR document shell) to avoid hydration crashes.
+     */
     <DndProvider backend={HTML5Backend}>
       <Outlet />
     </DndProvider>

@@ -1,5 +1,7 @@
-// Email service for Prompify
-// Sends real emails via SendGrid when SENDGRID_API_KEY is set; otherwise logs to console (dev).
+/*
+ * Email service for Prompify
+ * Sends real emails via SendGrid when SENDGRID_API_KEY is set; otherwise logs to console (dev).
+ */
 
 import sgMail from '@sendgrid/mail';
 
@@ -25,6 +27,7 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
         text: options.text,
       });
       console.log('[Email] Sent via SendGrid to:', options.to, 'Subject:', options.subject);
+
       return true;
     }
 
@@ -34,11 +37,16 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     console.log('Subject:', options.subject);
     console.log('HTML:', options.html);
     console.log('==================');
+
     return true;
   } catch (error: unknown) {
     const err = error as { response?: { body?: unknown }; message?: string };
     console.error('Email sending failed:', err.message ?? error);
-    if (err.response?.body) console.error('SendGrid response:', err.response.body);
+
+    if (err.response?.body) {
+      console.error('SendGrid response:', err.response.body);
+    }
+
     return false;
   }
 }
@@ -46,7 +54,7 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
 export async function sendVerificationEmail(email: string, token: string): Promise<boolean> {
   // Use /api/auth/verify?token=... so a single GET verifies and redirects (no loader POST needed)
   const verificationUrl = `${process.env.APP_URL || 'http://localhost:5173'}/api/auth/verify?token=${token}`;
-  
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -85,7 +93,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
     </body>
     </html>
   `;
-  
+
   const textContent = `
     Welcome to Prompify!
     
@@ -99,18 +107,18 @@ export async function sendVerificationEmail(email: string, token: string): Promi
     
     If you didn't create a Prompify account, you can safely ignore this email.
   `;
-  
+
   return await sendEmail({
     to: email,
     subject: 'Verify your Prompify account',
     html: htmlContent,
-    text: textContent
+    text: textContent,
   });
 }
 
 export async function sendPasswordResetEmail(email: string, token: string): Promise<boolean> {
   const resetUrl = `${process.env.APP_URL || 'http://localhost:5173'}/auth/reset-password?token=${token}`;
-  
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
@@ -149,7 +157,7 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     </body>
     </html>
   `;
-  
+
   const textContent = `
     Reset your Prompify password
     
@@ -163,12 +171,12 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     
     If you didn't request a password reset, you can safely ignore this email.
   `;
-  
+
   return await sendEmail({
     to: email,
     subject: 'Reset your Prompify password',
     html: htmlContent,
-    text: textContent
+    text: textContent,
   });
 }
 
@@ -243,4 +251,4 @@ export async function sendInvitationEmail(
     html: htmlContent,
     text: textContent,
   });
-} 
+}

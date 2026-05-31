@@ -6,6 +6,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
     const companies = await getUserCompanies(user.id);
+
     return json({ companies });
   } catch (error) {
     console.error('Error loading companies:', error);
@@ -34,11 +35,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }
 
       const existing = await getCompanyBySlug(slug);
+
       if (existing) {
         return json({ error: 'A company with that slug already exists' }, { status: 409 });
       }
 
       const company = await createCompany(name, slug, user.id, githubOrg);
+
       if (!company) {
         return json({ error: 'Failed to create company' }, { status: 500 });
       }
@@ -59,6 +62,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }
 
       const success = await updateCompany(companyId, { name, github_org: githubOrg, plan });
+
       return json({ success });
     }
 

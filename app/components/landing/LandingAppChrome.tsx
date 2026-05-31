@@ -8,7 +8,7 @@ export function LandingAppChrome({ children }: { children: React.ReactNode }) {
         <img
           src={`${PIC_BASE}/background1.jpeg`}
           alt=""
-          onError={(e) => {
+          onError={e => {
             (e.target as HTMLImageElement).style.display = 'none';
           }}
         />

@@ -10,8 +10,10 @@ export async function wakeApp(
   try {
     await updateAppStatus(projectId, 'active');
 
-    // For container runtime apps, container start logic goes here in Phase 3
-    // e.g. await startContainer(projectId);
+    /*
+     * For container runtime apps, container start logic goes here in Phase 3
+     * e.g. await startContainer(projectId);
+     */
 
     await addAuditLog({
       companyId,
@@ -37,8 +39,10 @@ export async function sleepApp(
   try {
     await updateAppStatus(projectId, 'sleeping');
 
-    // For container runtime apps, container stop logic goes here in Phase 3
-    // e.g. await stopContainer(projectId);
+    /*
+     * For container runtime apps, container stop logic goes here in Phase 3
+     * e.g. await stopContainer(projectId);
+     */
 
     await addAuditLog({
       companyId,
@@ -61,7 +65,10 @@ export async function markInactiveAppsSleeping(thresholdMinutes = 15): Promise<n
 
   for (const app of inactiveApps) {
     const result = await sleepApp(app.id, app.company_id, 'system');
-    if (result.success) count++;
+
+    if (result.success) {
+      count++;
+    }
   }
 
   return count;

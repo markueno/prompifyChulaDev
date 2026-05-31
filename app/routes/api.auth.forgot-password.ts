@@ -25,18 +25,13 @@ export async function action({ request }: ActionFunctionArgs) {
     const email = (body?.email ?? '').trim().toLowerCase();
 
     if (!email) {
-      return json<ForgotPasswordResponse>(
-        { success: false, message: 'Email is required' },
-        { status: 400 }
-      );
+      return json<ForgotPasswordResponse>({ success: false, message: 'Email is required' }, { status: 400 });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     if (!emailRegex.test(email)) {
-      return json<ForgotPasswordResponse>(
-        { success: false, message: 'Invalid email format' },
-        { status: 400 }
-      );
+      return json<ForgotPasswordResponse>({ success: false, message: 'Invalid email format' }, { status: 400 });
     }
 
     const result = await createPasswordResetToken(email);

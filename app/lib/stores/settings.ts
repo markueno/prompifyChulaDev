@@ -210,13 +210,17 @@ export const updatePromptId = (id: string) => {
 
 export const setCustomPromptTemplate = (content: string) => {
   customPromptTemplateStore.set(content);
+
   if (isBrowser) {
     localStorage.setItem(SETTINGS_KEYS.CUSTOM_PROMPT_TEMPLATE, content);
   }
 };
 
 export const getCustomPromptTemplate = (): string => {
-  if (!isBrowser) return '';
+  if (!isBrowser) {
+    return '';
+  }
+
   return localStorage.getItem(SETTINGS_KEYS.CUSTOM_PROMPT_TEMPLATE) || '';
 };
 

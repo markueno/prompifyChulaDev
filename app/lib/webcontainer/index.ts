@@ -19,22 +19,24 @@ export let webcontainer: Promise<WebContainer> = new Promise(() => {
 });
 
 if (!import.meta.env.SSR) {
-  // Check if we need to clear the cached WebContainer instance
-  // This happens when the session ID changes (different browser session)
-  const currentSessionId = typeof window !== 'undefined' && window.sessionStorage 
-    ? window.sessionStorage.getItem('bolt-session-id') 
-    : null;
-  
+  /*
+   * Check if we need to clear the cached WebContainer instance
+   * This happens when the session ID changes (different browser session)
+   */
+  const currentSessionId =
+    typeof window !== 'undefined' && window.sessionStorage ? window.sessionStorage.getItem('bolt-session-id') : null;
+
   const cachedSessionId = import.meta.hot?.data.cachedSessionId;
-  
+
   if (cachedSessionId && cachedSessionId !== currentSessionId) {
     console.log('[WebContainer] Session changed, clearing cached instance');
+
     if (import.meta.hot?.data) {
       import.meta.hot.data.webcontainer = undefined;
       import.meta.hot.data.webcontainerContext = undefined;
     }
   }
-  
+
   // Store the current session ID
   if (import.meta.hot?.data) {
     import.meta.hot.data.cachedSessionId = currentSessionId;
@@ -74,7 +76,11 @@ if (!import.meta.env.SSR) {
               const args = (message as { args?: unknown[] }).args ?? [];
               const formattedArgs = args
                 .map(a =>
-                  typeof a === 'string' ? a : typeof a === 'object' && a !== null ? JSON.stringify(a, null, 2) : String(a)
+                  typeof a === 'string'
+                    ? a
+                    : typeof a === 'object' && a !== null
+                      ? JSON.stringify(a, null, 2)
+                      : String(a)
                 )
                 .join('\n');
               const stack = (message as { stack?: string }).stack ?? '';
@@ -87,7 +93,11 @@ if (!import.meta.env.SSR) {
 
             workbenchStore.enqueueAlert({
               type: 'preview',
-              title: isConsoleError ? 'Preview Build/Compile Error' : isRejection ? 'Unhandled Promise Rejection' : 'Uncaught Exception',
+              title: isConsoleError
+                ? 'Preview Build/Compile Error'
+                : isRejection
+                  ? 'Unhandled Promise Rejection'
+                  : 'Uncaught Exception',
               description,
               content,
               source: 'preview',

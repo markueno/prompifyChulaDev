@@ -53,6 +53,7 @@ export async function selectContext(props: {
 
   if (!modelDetails) {
     const matchingProvider = PROVIDER_LIST.find(p => (p.staticModels || []).some(m => m.name === currentModel));
+
     if (matchingProvider && matchingProvider.name !== provider.name) {
       logger.warn(
         `Provider mismatch detected. Requested provider=${provider.name}, model=${currentModel}, resolved provider=${matchingProvider.name}`
@@ -214,10 +215,13 @@ export async function selectContext(props: {
     let fullPath = path;
 
     if (!path.match(/^\/home\/project-[^\/]+\//)) {
-      // Handle dynamic workdir paths - we need to construct the full path
-      // Since we don't know the exact workdir here, we'll use a pattern that matches
+      /*
+       * Handle dynamic workdir paths - we need to construct the full path
+       * Since we don't know the exact workdir here, we'll use a pattern that matches
+       */
       const workdirPattern = /^\/home\/project-[^\/]+\//;
       const existingPath = Object.keys(files).find(p => workdirPattern.test(p));
+
       if (existingPath) {
         const workdir = existingPath.match(workdirPattern)?.[0];
         fullPath = workdir ? `${workdir}${path}` : path;

@@ -7,9 +7,13 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
     const chatId = params.id;
-    if (!chatId) return json({ error: 'Chat ID required' }, { status: 400 });
+
+    if (!chatId) {
+      return json({ error: 'Chat ID required' }, { status: 400 });
+    }
 
     const prompts = await getPromptsByChatId(chatId, user.id, user.isModerator);
+
     return json({ prompts });
   } catch (error) {
     console.error('Error loading prompts:', error);

@@ -6,21 +6,35 @@ import { classNames } from '~/utils/classNames';
 import type { CompanyApp, CompanyRole } from '~/lib/database';
 
 const STATUS_CONFIG = {
-  active:   { label: 'Active',    color: 'bg-green-500/10  text-green-500  border-green-500/20'  },
-  sleeping: { label: 'Sleeping',  color: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' },
-  building: { label: 'Building',  color: 'bg-blue-500/10   text-blue-500   border-blue-500/20'   },
-  draft:    { label: 'Draft',     color: 'bg-gray-500/10   text-gray-400   border-gray-500/20'   },
-  failed:   { label: 'Failed',    color: 'bg-red-500/10    text-red-500    border-red-500/20'     },
+  active: { label: 'Active', color: 'bg-green-500/10  text-green-500  border-green-500/20' },
+  sleeping: { label: 'Sleeping', color: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' },
+  building: { label: 'Building', color: 'bg-blue-500/10   text-blue-500   border-blue-500/20' },
+  draft: { label: 'Draft', color: 'bg-gray-500/10   text-gray-400   border-gray-500/20' },
+  failed: { label: 'Failed', color: 'bg-red-500/10    text-red-500    border-red-500/20' },
 } as const;
 
 function formatRelativeTime(dateStr: string | null): string {
-  if (!dateStr) return 'Never';
+  if (!dateStr) {
+    return 'Never';
+  }
+
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
+
+  if (mins < 1) {
+    return 'Just now';
+  }
+
+  if (mins < 60) {
+    return `${mins}m ago`;
+  }
+
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+
+  if (hrs < 24) {
+    return `${hrs}h ago`;
+  }
+
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
@@ -96,7 +110,9 @@ export function AppStatusCard({ app, companySlug, userRole }: AppStatusCardProps
           )}
           {app.status === 'draft' && (
             <Link to={`/app?companyId=${companySlug}&projectId=${app.id}`}>
-              <Button size="sm" variant="outline">Build</Button>
+              <Button size="sm" variant="outline">
+                Build
+              </Button>
             </Link>
           )}
         </div>

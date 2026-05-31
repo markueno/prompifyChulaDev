@@ -101,27 +101,22 @@ export function NotificationBell() {
 
           <div className="max-h-[320px] overflow-y-auto p-2">
             {activeTab === 'news' ? (
-              <div className="py-8 text-center text-sm text-bolt-elements-textSecondary">
-                No news at the moment
-              </div>
+              <div className="py-8 text-center text-sm text-bolt-elements-textSecondary">No news at the moment</div>
             ) : fetcher.state === 'loading' && invitations.length === 0 ? (
-              <div className="py-8 text-center text-sm text-bolt-elements-textSecondary">
-                Loading...
-              </div>
+              <div className="py-8 text-center text-sm text-bolt-elements-textSecondary">Loading...</div>
             ) : invitations.length === 0 ? (
-              <div className="py-8 text-center text-sm text-bolt-elements-textSecondary">
-                No invitations
-              </div>
+              <div className="py-8 text-center text-sm text-bolt-elements-textSecondary">No invitations</div>
             ) : (
               <div className="space-y-1">
-                {invitations.map((inv) => (
+                {invitations.map(inv => (
                   <a
                     key={inv.id}
                     href={`/invite/accept?token=${inv.token}`}
                     className="block p-3 rounded-lg hover:bg-bolt-elements-background-depth-3 transition-colors text-left"
                   >
                     <p className="text-sm font-medium text-bolt-elements-textPrimary">
-                      You're Invited to {inv.project_name} as {inv.role === 'admin' ? 'an Admin' : inv.role === 'member' ? 'a Member' : `a ${inv.role}`}
+                      You're Invited to {inv.project_name} as{' '}
+                      {inv.role === 'admin' ? 'an Admin' : inv.role === 'member' ? 'a Member' : `a ${inv.role}`}
                     </p>
                     <p className="text-xs text-bolt-elements-textSecondary mt-0.5">
                       Accept the invitation whenever you're ready.

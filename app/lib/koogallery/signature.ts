@@ -4,10 +4,7 @@ import crypto from 'crypto';
  * Verify KooGallery HTTP Body Signature
  * Based on KooGallery SaaS 2.0 documentation
  */
-export async function verifyKooGallerySignature(
-  request: Request, 
-  requestBody: any
-): Promise<boolean> {
+export async function verifyKooGallerySignature(request: Request, requestBody: any): Promise<boolean> {
   try {
     const url = new URL(request.url);
     const signature = url.searchParams.get('signature');
@@ -19,30 +16,33 @@ export async function verifyKooGallerySignature(
       return false;
     }
 
-    // Check timestamp (must be within 60 seconds)
-    // KooGallery sends timestamps in milliseconds, so convert to seconds
+    /*
+     * Check timestamp (must be within 60 seconds)
+     * KooGallery sends timestamps in milliseconds, so convert to seconds
+     */
     const currentTime = Math.floor(Date.now() / 1000);
     const requestTime = Math.floor(parseInt(timestamp) / 1000);
-    
+
     console.log('Timestamp validation:', {
       currentTime,
       requestTime,
       difference: Math.abs(currentTime - requestTime),
-      timestamp: timestamp
+      timestamp,
     });
-    
+
     if (Math.abs(currentTime - requestTime) > 60) {
       console.error('Request timestamp expired', {
         currentTime,
         requestTime,
         difference: Math.abs(currentTime - requestTime),
-        timestamp: timestamp
+        timestamp,
       });
       return false;
     }
 
     // Get access key from environment
     const accessKey = process.env.KOOGALLERY_ACCESS_KEY;
+
     if (!accessKey) {
       console.error('KooGallery access key not configured');
       return false;
@@ -50,13 +50,9 @@ export async function verifyKooGallerySignature(
 
     // Generate canonical request string
     const requestPayload = JSON.stringify(requestBody);
-    
+
     // According to KooGallery docs: Lowercase(HexEncode(HMAC_SHA256(RequestPayload)))
-    const payloadHash = crypto
-      .createHmac('sha256', accessKey)
-      .update(requestPayload)
-      .digest('hex')
-      .toLowerCase();
+    const payloadHash = crypto.createHmac('sha256', accessKey).update(requestPayload).digest('hex').toLowerCase();
 
     const canonicalRequest = accessKey + nonce + timestamp + payloadHash;
 
@@ -74,12 +70,11 @@ export async function verifyKooGallerySignature(
       console.error('Signature verification failed', {
         provided: signature,
         expected: expectedSignature,
-        canonicalRequest
+        canonicalRequest,
       });
     }
 
     return isValid;
-
   } catch (error) {
     console.error('Signature verification error:', error);
     return false;
@@ -96,18 +91,9 @@ export function generateKooGallerySignature(
   requestBody: any
 ): string {
   const requestPayload = JSON.stringify(requestBody);
-  const payloadHash = crypto
-    .createHash('sha256')
-    .update(requestPayload)
-    .digest('hex')
-    .toLowerCase();
+  const payloadHash = crypto.createHash('sha256').update(requestPayload).digest('hex').toLowerCase();
 
   const canonicalRequest = accessKey + nonce + timestamp + payloadHash;
 
-  return crypto
-    .createHmac('sha256', accessKey)
-    .update(canonicalRequest)
-    .digest('hex')
-    .toUpperCase();
+  return crypto.createHmac('sha256', accessKey).update(canonicalRequest).digest('hex').toUpperCase();
 }
-

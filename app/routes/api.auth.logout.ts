@@ -15,7 +15,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   try {
     const token = getAuthToken(request);
-    
+
     if (token) {
       // Invalidate session in database
       const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -26,16 +26,21 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const headers = new Headers();
     headers.append('Set-Cookie', clearAuthCookie(request));
 
-    return json<LogoutResponse>({
-      success: true,
-      message: 'Logged out successfully'
-    }, { headers });
-
+    return json<LogoutResponse>(
+      {
+        success: true,
+        message: 'Logged out successfully',
+      },
+      { headers }
+    );
   } catch (error) {
     console.error('Logout error:', error);
-    return json<LogoutResponse>({
-      success: false,
-      message: 'An unexpected error occurred'
-    }, { status: 500 });
+    return json<LogoutResponse>(
+      {
+        success: false,
+        message: 'An unexpected error occurred',
+      },
+      { status: 500 }
+    );
   }
-} 
+}

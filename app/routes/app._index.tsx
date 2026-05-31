@@ -13,22 +13,33 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     const mockUser = getMockAdminUser();
     return json({ user: mockUser });
   }
+
   const user = await requireAuth(request, context);
   const sub = await getSubscriptionByUserId(user.id);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
+
   return json({ user: userWithTier });
 }
 
 export const links: LinksFunction = () => [
-  { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap' },
-  { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap' },
+  {
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap',
+  },
+  {
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap',
+  },
   { rel: 'stylesheet', href: landingStyles },
 ];
 
 export const meta: MetaFunction = () => {
   return [
     { title: 'Prompify - App Builder' },
-    { name: 'description', content: 'Describe what you need in plain English and get a working, live app in your screen.' },
+    {
+      name: 'description',
+      content: 'Describe what you need in plain English and get a working, live app in your screen.',
+    },
   ];
 };
 

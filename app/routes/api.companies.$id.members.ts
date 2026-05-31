@@ -15,11 +15,13 @@ export async function loader({ request, context, params }: ActionFunctionArgs) {
     const companyId = params.id!;
 
     const member = await getCompanyMember(companyId, user.id);
+
     if (!member) {
       return json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const members = await getCompanyMembers(companyId);
+
     return json({ members });
   } catch (error) {
     console.error('Error loading members:', error);
@@ -34,16 +36,20 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
     const method = request.method.toUpperCase();
 
     const requester = await getCompanyMember(companyId, user.id);
+
     if (!requester || requester.role !== 'admin') {
       return json({ error: 'Only company admins can manage members' }, { status: 403 });
     }
 
     if (method === 'POST') {
       const { userId, role } = (await request.json()) as { userId: string; role: CompanyRole };
+
       if (!userId || !role) {
         return json({ error: 'userId and role are required' }, { status: 400 });
       }
+
       const success = await addCompanyMember(companyId, userId, role);
+
       if (success) {
         await addAuditLog({
           companyId,
@@ -53,15 +59,19 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
           ipAddress: request.headers.get('x-forwarded-for'),
         });
       }
+
       return json({ success });
     }
 
     if (method === 'PATCH') {
       const { userId, role } = (await request.json()) as { userId: string; role: CompanyRole };
+
       if (!userId || !role) {
         return json({ error: 'userId and role are required' }, { status: 400 });
       }
+
       const success = await addCompanyMember(companyId, userId, role);
+
       if (success) {
         await addAuditLog({
           companyId,
@@ -71,18 +81,23 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
           ipAddress: request.headers.get('x-forwarded-for'),
         });
       }
+
       return json({ success });
     }
 
     if (method === 'DELETE') {
       const { userId } = (await request.json()) as { userId: string };
+
       if (!userId) {
         return json({ error: 'userId is required' }, { status: 400 });
       }
+
       if (userId === user.id) {
         return json({ error: 'You cannot remove yourself' }, { status: 400 });
       }
+
       const success = await removeCompanyMember(companyId, userId);
+
       if (success) {
         await addAuditLog({
           companyId,
@@ -92,6 +107,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
           ipAddress: request.headers.get('x-forwarded-for'),
         });
       }
+
       return json({ success });
     }
 

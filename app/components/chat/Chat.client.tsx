@@ -57,13 +57,16 @@ interface RecoveryHistoryEntry {
   attempts: number;
   endedAt: number;
 }
+
 const MAX_RECOVERY_HISTORY = 100;
 
 function getAssistantPlainText(message: Message): string {
   const c = message.content;
+
   if (typeof c === 'string') {
     return c;
   }
+
   if (Array.isArray(c)) {
     for (const item of c as ReadonlyArray<{ type?: string; text?: string }>) {
       if (item?.type === 'text' && typeof item.text === 'string') {
@@ -71,6 +74,7 @@ function getAssistantPlainText(message: Message): string {
       }
     }
   }
+
   return '';
 }
 
@@ -80,13 +84,17 @@ const RECOVERY_CANDIDATE_TIMEOUT_MS = 10_000;
 /** Surface Remix JSON error bodies (e.g. 402 token balance) in the same toast format as other chat errors. */
 function getChatRequestErrorMessage(error: unknown): string {
   const fallback = 'No details were returned';
+
   if (error && typeof error === 'object' && 'message' in error) {
     const message = (error as { message?: string }).message;
+
     if (typeof message === 'string' && message.length > 0) {
       const trimmed = message.trim();
+
       if (trimmed.startsWith('{')) {
         try {
           const data = JSON.parse(trimmed) as { message?: string };
+
           if (typeof data.message === 'string' && data.message.length > 0) {
             return data.message;
           }
@@ -94,14 +102,19 @@ function getChatRequestErrorMessage(error: unknown): string {
           /* use raw message */
         }
       }
+
       return message;
     }
   }
+
   return fallback;
 }
 
 /** Build author info for multi-account prompt history display */
-function getMessageAuthor(user: { id?: string; email?: string } | undefined, profile: { nickname?: string; username?: string; avatar?: string } | undefined) {
+function getMessageAuthor(
+  user: { id?: string; email?: string } | undefined,
+  profile: { nickname?: string; username?: string; avatar?: string } | undefined
+) {
   const name = (profile?.nickname?.trim() || profile?.username?.trim() || user?.email || 'Anonymous').trim();
   return { id: user?.id || 'anonymous', name, avatar: profile?.avatar };
 }
@@ -191,12 +204,19 @@ export const ChatImpl = memo(
   ({ description, initialMessages, storeMessageHistory, importChat, exportChat, ensureChatId }: ChatProps) => {
     useShortcuts();
 
-    const appIndexData = useRouteLoaderData('routes/app._index') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
-    const appLayoutData = useRouteLoaderData('routes/app') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
-    const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { id?: string; email?: string; isModerator?: boolean } } | undefined;
+    const appIndexData = useRouteLoaderData('routes/app._index') as
+      | { user?: { id?: string; email?: string; isModerator?: boolean } }
+      | undefined;
+    const appLayoutData = useRouteLoaderData('routes/app') as
+      | { user?: { id?: string; email?: string; isModerator?: boolean } }
+      | undefined;
+    const chatIdData = useRouteLoaderData('routes/chat.$id') as
+      | { user?: { id?: string; email?: string; isModerator?: boolean } }
+      | undefined;
     const user = appIndexData?.user ?? appLayoutData?.user ?? chatIdData?.user;
     const profile = useStore(profileStore);
     useStore(chatId);
+
     const isModerator = user?.isModerator === true;
     const messageAuthor = getMessageAuthor(user, profile);
 
@@ -227,11 +247,13 @@ export const ChatImpl = memo(
         status: 'active',
       };
       states.set(messageId, created);
+
       return created;
     }, []);
 
     const stopRecovery = useCallback((messageId: string, status: RecoveryStatus = 'cancelled') => {
       const state = recoveryStatesByMessageIdRef.current.get(messageId);
+
       if (!state) {
         return;
       }
@@ -264,15 +286,20 @@ export const ChatImpl = memo(
       }
     }, []);
 
-    const stopAllRecoveries = useCallback((status: RecoveryStatus = 'cancelled') => {
-      for (const messageId of Array.from(recoveryStatesByMessageIdRef.current.keys())) {
-        stopRecovery(messageId, status);
-      }
-    }, [stopRecovery]);
+    const stopAllRecoveries = useCallback(
+      (status: RecoveryStatus = 'cancelled') => {
+        for (const messageId of Array.from(recoveryStatesByMessageIdRef.current.keys())) {
+          stopRecovery(messageId, status);
+        }
+      },
+      [stopRecovery]
+    );
 
     const clearPendingRecoveryCandidate = useCallback((messageId: string) => {
       pendingRecoveryCandidatesRef.current.delete(messageId);
+
       const timeout = pendingRecoveryTimeoutsRef.current.get(messageId);
+
       if (timeout != null) {
         clearTimeout(timeout);
         pendingRecoveryTimeoutsRef.current.delete(messageId);
@@ -286,6 +313,7 @@ export const ChatImpl = memo(
         }
 
         pendingRecoveryCandidatesRef.current.add(messageId);
+
         const timeout = setTimeout(() => {
           clearPendingRecoveryCandidate(messageId);
         }, RECOVERY_CANDIDATE_TIMEOUT_MS);
@@ -296,6 +324,7 @@ export const ChatImpl = memo(
 
     const hasBlockingErrorAlert = useCallback(() => {
       const alert = workbenchStore.alert.get();
+
       if (!alert) {
         return false;
       }
@@ -304,69 +333,75 @@ export const ChatImpl = memo(
       return alert.source === 'preview' || alert.source === 'terminal' || alert.type === 'error';
     }, []);
 
-    const runRecoveryFire = useCallback((messageId: string) => {
-      const state = recoveryStatesByMessageIdRef.current.get(messageId);
-      if (!state) {
-        return;
-      }
+    const runRecoveryFire = useCallback(
+      (messageId: string) => {
+        const state = recoveryStatesByMessageIdRef.current.get(messageId);
 
-      if (hasBlockingErrorAlert()) {
-        state.status = 'active';
-        return;
-      }
+        if (!state) {
+          return;
+        }
 
-      if (chatStore.get().aborted) {
-        stopRecovery(messageId, 'cancelled');
-        return;
-      }
+        if (hasBlockingErrorAlert()) {
+          state.status = 'active';
+          return;
+        }
 
-      if (state.attempts >= MAX_PREVIEW_RECOVERY_ATTEMPTS) {
-        stopRecovery(messageId, 'done');
-        return;
-      }
+        if (chatStore.get().aborted) {
+          stopRecovery(messageId, 'cancelled');
+          return;
+        }
 
-      if (workbenchStore.previews.get().length > 0) {
-        stopRecovery(messageId, 'done');
-        return;
-      }
+        if (state.attempts >= MAX_PREVIEW_RECOVERY_ATTEMPTS) {
+          stopRecovery(messageId, 'done');
+          return;
+        }
 
-      if (!workbenchStore.showWorkbench.get() || workbenchStore.filesCount === 0) {
-        stopRecovery(messageId, 'cancelled');
-        return;
-      }
+        if (workbenchStore.previews.get().length > 0) {
+          stopRecovery(messageId, 'done');
+          return;
+        }
 
-      const { append: appendFn, model: m, provider: p, messageAuthor: author } = chatUiRef.current;
-      if (!appendFn) {
-        return;
-      }
+        if (!workbenchStore.showWorkbench.get() || workbenchStore.filesCount === 0) {
+          stopRecovery(messageId, 'cancelled');
+          return;
+        }
 
-      state.attempts += 1;
-      state.status = 'recovering';
-      workbenchStore.showWorkbench.set(true);
-      workbenchStore.currentView.set('preview');
+        const { append: appendFn, model: m, provider: p, messageAuthor: author } = chatUiRef.current;
 
-      logger.info('Preview missing after artifact; auto follow-up to restore dev server / preview', {
-        attempt: state.attempts,
-        messageId,
-      });
+        if (!appendFn) {
+          return;
+        }
 
-      toast.info('Preview did not load. Asking the assistant to fix it…');
+        state.attempts += 1;
+        state.status = 'recovering';
+        workbenchStore.showWorkbench.set(true);
+        workbenchStore.currentView.set('preview');
 
-      appendFn({
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: `[Model: ${m}]\n\n[Provider: ${p.name}]\n\n${PREVIEW_RECOVERY_MARKER} The WebContainer preview did not become available after your last response (no preview was registered). Please: (1) Ensure package.json has a working "dev" script suitable for StackBlitz WebContainers; (2) Run npm/pnpm install if dependencies are missing; (3) Start the dev server with boltArtifact shell/start actions so the preview panel receives a server URL. Fix any errors preventing the dev server from listening. Do not ask the user to open localhost in an external browser—the app must show inside Prompify preview.`,
-          },
-        ] as any,
-        author: author,
-      } as any);
-    }, [hasBlockingErrorAlert, stopRecovery]);
+        logger.info('Preview missing after artifact; auto follow-up to restore dev server / preview', {
+          attempt: state.attempts,
+          messageId,
+        });
+
+        toast.info('Preview did not load. Asking the assistant to fix it…');
+
+        appendFn({
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: `[Model: ${m}]\n\n[Provider: ${p.name}]\n\n${PREVIEW_RECOVERY_MARKER} The WebContainer preview did not become available after your last response (no preview was registered). Please: (1) Ensure package.json has a working "dev" script suitable for StackBlitz WebContainers; (2) Run npm/pnpm install if dependencies are missing; (3) Start the dev server with boltArtifact shell/start actions so the preview panel receives a server URL. Fix any errors preventing the dev server from listening. Do not ask the user to open localhost in an external browser—the app must show inside Prompify preview.`,
+            },
+          ] as any,
+          author,
+        } as any);
+      },
+      [hasBlockingErrorAlert, stopRecovery]
+    );
 
     const tickRecovery = useCallback(
       (messageId: string) => {
         const state = recoveryStatesByMessageIdRef.current.get(messageId);
+
         if (!state) {
           return;
         }
@@ -376,7 +411,9 @@ export const ChatImpl = memo(
             clearTimeout(state.idleTimer);
             state.idleTimer = null;
           }
+
           state.status = 'active';
+
           return;
         }
 
@@ -395,7 +432,9 @@ export const ChatImpl = memo(
             clearTimeout(state.idleTimer);
             state.idleTimer = null;
           }
+
           state.status = 'active';
+
           return;
         }
 
@@ -403,6 +442,7 @@ export const ChatImpl = memo(
           state.status = 'waiting-idle';
           state.idleTimer = setTimeout(() => {
             const latest = recoveryStatesByMessageIdRef.current.get(messageId);
+
             if (!latest) {
               return;
             }
@@ -418,6 +458,7 @@ export const ChatImpl = memo(
     const startRecovery = useCallback(
       (messageId: string) => {
         stopRecovery(messageId, 'active');
+
         const state = getOrCreateRecoveryState(messageId);
         state.status = 'active';
 
@@ -437,12 +478,14 @@ export const ChatImpl = memo(
         }
 
         const artifact = workbenchStore.artifacts.get()[messageId];
+
         if (!artifact) {
           return false;
         }
 
         clearPendingRecoveryCandidate(messageId);
         startRecovery(messageId);
+
         return true;
       },
       [clearPendingRecoveryCandidate, startRecovery]
@@ -514,15 +557,17 @@ export const ChatImpl = memo(
             ? (() => {
                 const segments = new URL(window.location.href).pathname.split('/').filter(Boolean);
                 const last = segments[segments.length - 1];
+
                 return last && last !== 'chat' ? last : undefined;
               })()
             : undefined,
-        description: description,
+        description,
         metadata: chatMetadata.get(),
       },
       sendExtraMessageFields: true,
       onError: e => {
         logger.error('Request failed\n\n', e, error);
+
         const detail = getChatRequestErrorMessage(e);
         logStore.logError('Chat request failed', e, {
           component: 'Chat',
@@ -559,7 +604,11 @@ export const ChatImpl = memo(
 
     useEffect(() => {
       const prompt = searchParams.get('prompt');
-      if (!prompt) return;
+
+      if (!prompt) {
+        return;
+      }
+
       (async () => {
         setSearchParams({});
         await ensureChatId();
@@ -594,7 +643,10 @@ export const ChatImpl = memo(
 
     // Hide the building overlay once the workbench becomes visible (code starts generating)
     useEffect(() => {
-      if (!isInitialBuild) return;
+      if (!isInitialBuild) {
+        return;
+      }
+
       if (showWorkbench) {
         const t = setTimeout(() => setIsInitialBuild(false), 350);
         return () => clearTimeout(t);
@@ -603,16 +655,21 @@ export const ChatImpl = memo(
 
     // Fallback: hide if loading ends without a workbench (e.g. error)
     useEffect(() => {
-      if (!isInitialBuild) return;
+      if (!isInitialBuild) {
+        return;
+      }
+
       if (!isLoading && !fakeLoading) {
         const t = setTimeout(() => setIsInitialBuild(false), 600);
         return () => clearTimeout(t);
       }
     }, [isLoading, fakeLoading, isInitialBuild]);
 
-    // Auto-fix: when a new error alert fires, debounce 1.5 s then ask the AI to fix it.
-    // Guards: max 2 consecutive auto-fix attempts (resets after 30 s idle), prompt injection
-    // sanitization, and file-context enrichment from the stack trace.
+    /*
+     * Auto-fix: when a new error alert fires, debounce 1.5 s then ask the AI to fix it.
+     * Guards: max 2 consecutive auto-fix attempts (resets after 30 s idle), prompt injection
+     * sanitization, and file-context enrichment from the stack trace.
+     */
     const MAX_CONSECUTIVE_AUTO_FIX = 2;
     const AUTO_FIX_COOLDOWN_MS = 30_000;
     const AUTO_FIX_DEBOUNCE_MS = 1_500;
@@ -662,9 +719,10 @@ export const ChatImpl = memo(
 
         if (autoFixAttemptsRef.current >= MAX_CONSECUTIVE_AUTO_FIX) {
           toast.warn(
-            `Auto-fix limit reached (${MAX_CONSECUTIVE_AUTO_FIX} attempts). Check the Problems panel and fix manually.`,
+            `Auto-fix limit reached (${MAX_CONSECUTIVE_AUTO_FIX} attempts). Check the Problems panel and fix manually.`
           );
           workbenchStore.clearAlert();
+
           return;
         }
 
@@ -701,7 +759,7 @@ export const ChatImpl = memo(
         }
 
         toast.info(
-          `${source === 'preview' ? 'Preview' : 'Terminal'} error detected — asking the assistant to fix it… (attempt ${autoFixAttemptsRef.current}/${MAX_CONSECUTIVE_AUTO_FIX})`,
+          `${source === 'preview' ? 'Preview' : 'Terminal'} error detected — asking the assistant to fix it… (attempt ${autoFixAttemptsRef.current}/${MAX_CONSECUTIVE_AUTO_FIX})`
         );
 
         appendFn({
@@ -917,8 +975,8 @@ export const ChatImpl = memo(
               image: imageData,
             })),
           ] as any,
-                  author: messageAuthor,
-                } as any);
+          author: messageAuthor,
+        } as any);
       }
 
       setInput('');
@@ -968,6 +1026,7 @@ export const ChatImpl = memo(
           stopAllRecoveries('done');
         }
       });
+
       return () => {
         unsub();
         stopAllRecoveries('cancelled');
@@ -985,6 +1044,7 @@ export const ChatImpl = memo(
 
       return () => {
         unsub();
+
         for (const timeout of pendingRecoveryTimeoutsRef.current.values()) {
           clearTimeout(timeout);
         }
@@ -994,13 +1054,19 @@ export const ChatImpl = memo(
     }, [maybeStartRecoveryFromArtifact]);
 
     const handleModelChange = (newModel: string) => {
-      if (!isModerator) return;
+      if (!isModerator) {
+        return;
+      }
+
       setModel(newModel);
       Cookies.set('selectedModel', newModel, { expires: 30 });
     };
 
     const handleProviderChange = (newProvider: ProviderInfo) => {
-      if (!isModerator) return;
+      if (!isModerator) {
+        return;
+      }
+
       setProvider(newProvider);
       Cookies.set('selectedProvider', newProvider.name, { expires: 30 });
       // Ollama models are fetched in BaseChat when provider changes; model is set there
@@ -1008,67 +1074,67 @@ export const ChatImpl = memo(
 
     return (
       <>
-      <BuildingOverlay visible={isInitialBuild} />
-      <BaseChat
-        ref={animationScope}
-        textareaRef={textareaRef}
-        input={input}
-        showChat={showChat}
-        chatStarted={chatStarted}
-        isStreaming={isLoading || fakeLoading}
-        onStreamingChange={streaming => {
-          streamingState.set(streaming);
-        }}
-        enhancingPrompt={enhancingPrompt}
-        promptEnhanced={promptEnhanced}
-        sendMessage={sendMessage}
-        model={model}
-        setModel={handleModelChange}
-        provider={provider}
-        setProvider={handleProviderChange}
-        providerList={activeProviders}
-        isModerator={isModerator}
-        messageRef={messageRef}
-        scrollRef={scrollRef}
-        setInput={setInput}
-        handleInputChange={e => {
-          onTextareaChange(e);
-          debouncedCachePrompt(e);
-        }}
-        handleStop={abort}
-        description={description}
-        importChat={importChat}
-        exportChat={exportChat}
-        messages={messages.map((message, i) => {
-          if (message.role === 'user') {
-            return message;
-          }
+        <BuildingOverlay visible={isInitialBuild} />
+        <BaseChat
+          ref={animationScope}
+          textareaRef={textareaRef}
+          input={input}
+          showChat={showChat}
+          chatStarted={chatStarted}
+          isStreaming={isLoading || fakeLoading}
+          onStreamingChange={streaming => {
+            streamingState.set(streaming);
+          }}
+          enhancingPrompt={enhancingPrompt}
+          promptEnhanced={promptEnhanced}
+          sendMessage={sendMessage}
+          model={model}
+          setModel={handleModelChange}
+          provider={provider}
+          setProvider={handleProviderChange}
+          providerList={activeProviders}
+          isModerator={isModerator}
+          messageRef={messageRef}
+          scrollRef={scrollRef}
+          setInput={setInput}
+          handleInputChange={e => {
+            onTextareaChange(e);
+            debouncedCachePrompt(e);
+          }}
+          handleStop={abort}
+          description={description}
+          importChat={importChat}
+          exportChat={exportChat}
+          messages={messages.map((message, i) => {
+            if (message.role === 'user') {
+              return message;
+            }
 
-          return {
-            ...message,
-            content: parsedMessages[i] || '',
-          };
-        })}
-        enhancePrompt={() => {
-          enhancePrompt(
-            input,
-            input => {
-              setInput(input);
-              scrollTextArea();
-            },
-            model,
-            provider,
-            apiKeys
-          );
-        }}
-        uploadedFiles={uploadedFiles}
-        setUploadedFiles={setUploadedFiles}
-        imageDataList={imageDataList}
-        setImageDataList={setImageDataList}
-        actionAlert={actionAlert}
-        clearAlert={() => workbenchStore.clearAlert()}
-        data={chatData}
-      />
+            return {
+              ...message,
+              content: parsedMessages[i] || '',
+            };
+          })}
+          enhancePrompt={() => {
+            enhancePrompt(
+              input,
+              input => {
+                setInput(input);
+                scrollTextArea();
+              },
+              model,
+              provider,
+              apiKeys
+            );
+          }}
+          uploadedFiles={uploadedFiles}
+          setUploadedFiles={setUploadedFiles}
+          imageDataList={imageDataList}
+          setImageDataList={setImageDataList}
+          actionAlert={actionAlert}
+          clearAlert={() => workbenchStore.clearAlert()}
+          data={chatData}
+        />
       </>
     );
   }

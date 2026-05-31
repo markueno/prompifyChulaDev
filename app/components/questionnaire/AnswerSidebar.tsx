@@ -7,16 +7,30 @@ interface AnswerSidebarProps {
   onEdit: (index: number) => void;
 }
 
-function getAnswerDisplay(q: Question, answers: Answers): { text: string; colorSlots?: Array<{ hex: string; role: string }> } | null {
+function getAnswerDisplay(
+  q: Question,
+  answers: Answers
+): { text: string; colorSlots?: Array<{ hex: string; role: string }> } | null {
   const ans = answers[q.id];
-  if (ans === undefined || ans === null) return null;
+
+  if (ans === undefined || ans === null) {
+    return null;
+  }
 
   if (q.type === 'color') {
     const c = ans as ColorsAnswer;
-    if (c.noPreference) return { text: 'No preference' };
-    const filled = (c.slots ?? []).filter((s) => s.hex);
-    if (filled.length === 0) return { text: 'No preference' };
-    return { text: filled.map((s) => s.hex).join(', '), colorSlots: filled as Array<{ hex: string; role: string }> };
+
+    if (c.noPreference) {
+      return { text: 'No preference' };
+    }
+
+    const filled = (c.slots ?? []).filter(s => s.hex);
+
+    if (filled.length === 0) {
+      return { text: 'No preference' };
+    }
+
+    return { text: filled.map(s => s.hex).join(', '), colorSlots: filled as Array<{ hex: string; role: string }> };
   }
 
   if (q.type === 'fillblanks') {
@@ -26,17 +40,26 @@ function getAnswerDisplay(q: Question, answers: Answers): { text: string; colorS
 
   if (q.type === 'designInspiration') {
     const d = ans as { brands: string[] };
-    if (!d.brands?.length) return null;
-    return { text: d.brands.map((b) => b.charAt(0).toUpperCase() + b.slice(1)).join(', ') };
+
+    if (!d.brands?.length) {
+      return null;
+    }
+
+    return { text: d.brands.map(b => b.charAt(0).toUpperCase() + b.slice(1)).join(', ') };
   }
 
   if (q.type === 'text') {
     const text = ans as string;
-    if (!text) return null;
+
+    if (!text) {
+      return null;
+    }
+
     return { text: text.length > 50 ? text.slice(0, 47) + '…' : text };
   }
 
-  const opt = q.options?.find((o) => o.id === ans);
+  const opt = q.options?.find(o => o.id === ans);
+
   return opt ? { text: opt.label } : null;
 }
 
@@ -49,12 +72,8 @@ export function AnswerSidebar({ questions, answers, phase, onEdit }: AnswerSideb
   return (
     <aside className="w-64 shrink-0 border-l border-bolt-elements-borderColor bg-bolt-elements-bg-depth-2 flex flex-col">
       <div className="px-4 py-3 border-b border-bolt-elements-borderColor">
-        <p className="text-xs font-semibold text-bolt-elements-textSecondary uppercase tracking-wide">
-          Your choices
-        </p>
-        <p className="text-xs text-bolt-elements-textTertiary mt-0.5">
-          {phase === 'primary' ? 'Part 1' : 'Part 2'}
-        </p>
+        <p className="text-xs font-semibold text-bolt-elements-textSecondary uppercase tracking-wide">Your choices</p>
+        <p className="text-xs text-bolt-elements-textTertiary mt-0.5">{phase === 'primary' ? 'Part 1' : 'Part 2'}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto py-2">
@@ -65,7 +84,11 @@ export function AnswerSidebar({ questions, answers, phase, onEdit }: AnswerSideb
         ) : (
           answered.map((q, _) => {
             const display = getAnswerDisplay(q, answers);
-            if (!display) return null;
+
+            if (!display) {
+              return null;
+            }
+
             const idx = questions.indexOf(q);
 
             return (
@@ -78,7 +101,7 @@ export function AnswerSidebar({ questions, answers, phase, onEdit }: AnswerSideb
 
                 {display.colorSlots ? (
                   <div className="flex items-center gap-1.5 mt-1">
-                    {display.colorSlots.map((s) => (
+                    {display.colorSlots.map(s => (
                       <span
                         key={s.role}
                         title={`${s.role}: ${s.hex}`}

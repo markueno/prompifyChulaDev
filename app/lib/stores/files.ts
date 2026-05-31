@@ -109,7 +109,7 @@ export class FilesStore {
     try {
       // Handle both absolute and relative paths
       let relativePath: string;
-      
+
       if (path.isAbsolute(filePath)) {
         // If it's an absolute path, convert it to relative using the workdir
         relativePath = path.relative(webcontainer.workdir, filePath);

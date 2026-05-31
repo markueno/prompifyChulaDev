@@ -21,9 +21,7 @@ function PromptBlock({ label, prompt }: PromptBlockProps) {
   return (
     <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-bg-depth-2 overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-bolt-elements-borderColor bg-bolt-elements-bg-depth-3">
-        <span className="text-xs font-semibold text-bolt-elements-textSecondary uppercase tracking-wide">
-          {label}
-        </span>
+        <span className="text-xs font-semibold text-bolt-elements-textSecondary uppercase tracking-wide">{label}</span>
         <button
           onClick={handleCopy}
           className="flex items-center gap-1.5 text-xs text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary transition-colors"
@@ -31,7 +29,13 @@ function PromptBlock({ label, prompt }: PromptBlockProps) {
           {copied ? (
             <>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M2 6L5 9L10 3"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
               Copied!
             </>
@@ -39,7 +43,12 @@ function PromptBlock({ label, prompt }: PromptBlockProps) {
             <>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <rect x="4" y="4" width="7" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M8 4V2.5A1.5 1.5 0 006.5 1H2.5A1.5 1.5 0 001 2.5V6.5A1.5 1.5 0 002.5 8H4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <path
+                  d="M8 4V2.5A1.5 1.5 0 006.5 1H2.5A1.5 1.5 0 001 2.5V6.5A1.5 1.5 0 002.5 8H4"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
               </svg>
               Copy
             </>
@@ -65,6 +74,7 @@ export function PromptPreview({ primaryPrompt, refinedPrompt, onStartBuilding, o
 
   async function copyAll() {
     const combined = `=== PROMPT 1 — SCAFFOLD ===\n\n${primaryPrompt}\n\n\n=== PROMPT 2 — REFINE ===\n\n${refinedPrompt}`;
+
     try {
       await navigator.clipboard.writeText(combined);
       setAllCopied(true);

@@ -5,16 +5,26 @@ import type { Question } from './types';
 // ── Helpers ───────────────────────────────────────────────────
 
 function getPromptData(questionList: Question[], questionId: string, answerId: string): PromptData {
-  const q = questionList.find((q) => q.id === questionId);
-  if (!q || !q.options) return {};
-  const opt = q.options.find((o) => o.id === answerId);
+  const q = questionList.find(q => q.id === questionId);
+
+  if (!q || !q.options) {
+    return {};
+  }
+
+  const opt = q.options.find(o => o.id === answerId);
+
   return opt?.prompt ?? {};
 }
 
 function getOptionLabel(questionList: Question[], questionId: string, answerId: string): string {
-  const q = questionList.find((q) => q.id === questionId);
-  if (!q || !q.options) return answerId ?? '';
-  const opt = q.options.find((o) => o.id === answerId);
+  const q = questionList.find(q => q.id === questionId);
+
+  if (!q || !q.options) {
+    return answerId ?? '';
+  }
+
+  const opt = q.options.find(o => o.id === answerId);
+
   return opt ? opt.label : (answerId ?? '');
 }
 
@@ -27,9 +37,15 @@ function divider(): string {
 }
 
 function buildColorBlock(colorsAnswer: ColorsAnswer | undefined): string | null {
-  if (!colorsAnswer || colorsAnswer.noPreference) return null;
+  if (!colorsAnswer || colorsAnswer.noPreference) {
+    return null;
+  }
+
   const slots = (colorsAnswer.slots ?? []).filter((s: ColorSlot) => s.hex);
-  if (slots.length === 0) return null;
+
+  if (slots.length === 0) {
+    return null;
+  }
 
   const lines: string[] = [];
   lines.push('Color palette (apply exactly — these are hard requirements):');
@@ -41,10 +57,13 @@ function buildColorBlock(colorsAnswer: ColorsAnswer | undefined): string | null 
   lines.push('  — Primary color: main CTAs, navigation active states, key interactive elements');
   lines.push('  — Secondary color: backgrounds, card surfaces, sidebar fills');
   lines.push('  — Accent color: highlights, badges, notifications, calls to attention');
+
   if (slots.length > 3) {
     lines.push('  — Additional colors: use as supporting tones for data visualisation or section dividers');
   }
+
   lines.push('  Do not introduce any other brand colors. These are the only colors in the palette.');
+
   return lines.join('\n');
 }
 
@@ -85,12 +104,14 @@ export function buildPrimaryPrompt(answers: Answers, companyContext?: string): s
 
   lines.push('App type:  ' + (appTypeData.archetype ?? 'Web application'));
   lines.push('');
+
   if (appTypeData.archetypeNotes) {
     lines.push(appTypeData.archetypeNotes);
     lines.push('');
   }
 
   const colorBlock = buildColorBlock(colorsAnswer);
+
   if (colorBlock) {
     lines.push(divider());
     lines.push('VISUAL DESIGN — COLOR PALETTE');
@@ -116,9 +137,11 @@ export function buildPrimaryPrompt(answers: Answers, companyContext?: string): s
   const payments = paymentsData.payments ?? 'None';
   lines.push('Payments');
   lines.push('  ' + payments);
+
   if (paymentsData.paymentNotes && payments !== 'None') {
     lines.push('  ' + paymentsData.paymentNotes);
   }
+
   lines.push('');
 
   lines.push(divider());
@@ -176,16 +199,21 @@ export function buildPrimaryPrompt(answers: Answers, companyContext?: string): s
   }
 
   lines.push('');
+
   const coreStep = payments !== 'None' ? '8' : '7';
   lines.push(`${coreStep}. Core pages and routes for the main user flow`);
   lines.push('   (the 3–5 screens a user must interact with to get value from the app)');
+
   if (colorBlock) {
     lines.push('   Apply the specified color palette to all UI components and pages');
   }
+
   lines.push('');
+
   const crudStep = payments !== 'None' ? '9' : '8';
   lines.push(`${crudStep}. Basic CRUD API endpoints for the core data models`);
   lines.push('');
+
   const readmeStep = payments !== 'None' ? '10' : '9';
   lines.push(`${readmeStep}. README.md covering:`);
   lines.push('   — Prerequisites and tech stack');
@@ -207,17 +235,23 @@ export function buildPrimaryPrompt(answers: Answers, companyContext?: string): s
   lines.push('   CRITICAL — All env reads in code must use a fallback, never a hard throw:');
   lines.push('     WRONG:  if (!process.env.SESSION_SECRET) throw new Error("SESSION_SECRET must be set");');
   lines.push('     WRONG:  const secret = process.env.SESSION_SECRET!;');
-  lines.push('     RIGHT:  const secret = process.env.SESSION_SECRET ?? "dev-secret-change-in-production-min-32-chars";');
+  lines.push(
+    '     RIGHT:  const secret = process.env.SESSION_SECRET ?? "dev-secret-change-in-production-min-32-chars";'
+  );
   lines.push('     RIGHT:  const secret = process.env.NEXTAUTH_SECRET ?? "dev-nextauth-secret-change-in-production";');
-  lines.push('   Apply this pattern everywhere: session.server.ts, auth config, cookie helpers, any util that reads an env var.');
+  lines.push(
+    '   Apply this pattern everywhere: session.server.ts, auth config, cookie helpers, any util that reads an env var.'
+  );
   lines.push('— DATABASE RULE: All database code must use the DATABASE_URL env var only.');
   lines.push('   Dev = PGlite on port 5433 (via scripts/dev-db.js).');
   lines.push('   Production = Supabase PostgreSQL (DATABASE_URL injected by the platform).');
   lines.push('   The app code must be identical in both environments — no environment conditionals in DB code.');
   lines.push('— Do NOT use better-sqlite3, native SQLite, or any package requiring native .node binaries.');
+
   if (colorBlock) {
     lines.push('— The color palette above is a hard requirement. Use only those hex values for brand colors.');
   }
+
   lines.push('— After this, I will send a follow-up prompt with refinements and additional features.');
   lines.push('');
   lines.push('Start with the full directory tree, then implement each section step by step.');
@@ -230,7 +264,7 @@ export function buildPrimaryPrompt(answers: Answers, companyContext?: string): s
 export function buildRefinedPrompt(
   primaryAnswers: Answers,
   secondaryAnswers: Answers,
-  companyContext?: string,
+  companyContext?: string
 ): string {
   const appType = (primaryAnswers.app_type as string) ?? 'landing';
   const condList = secondaryConditional[appType] ?? [];
@@ -287,15 +321,19 @@ export function buildRefinedPrompt(
   lines.push('');
 
   lines.push(pad('Email:', 16) + (emailData.email ?? 'None'));
+
   if (emailData.emailDetail && emailData.email !== 'None') {
     lines.push(pad('', 16) + emailData.emailDetail);
   }
+
   lines.push('');
 
   lines.push(pad('File uploads:', 16) + (uploadsData.uploads ?? 'None'));
+
   if (uploadsData.uploadsDetail && uploadsData.uploads !== 'None') {
     lines.push(pad('', 16) + uploadsData.uploadsDetail);
   }
+
   lines.push('');
 
   lines.push(pad('Search:', 16) + (searchData.search ?? ''));
@@ -307,14 +345,20 @@ export function buildRefinedPrompt(
   lines.push('');
 
   lines.push(pad('Auth extras:', 16) + (authExtrasData.authExtras ?? ''));
+
   if (authExtrasData.authExtrasDetail && authExtrasData.authExtras !== 'Basic auth only') {
     lines.push(pad('', 16) + authExtrasData.authExtrasDetail);
   }
+
   lines.push('');
 
   if (securityData.security) {
     lines.push(pad('Access / Security:', 18) + securityData.security);
-    if (securityData.securityDetail) lines.push(pad('', 18) + securityData.securityDetail);
+
+    if (securityData.securityDetail) {
+      lines.push(pad('', 18) + securityData.securityDetail);
+    }
+
     lines.push('');
   }
 
@@ -335,9 +379,13 @@ export function buildRefinedPrompt(
     lines.push('Use them as binding reference for component structure, spacing, typography,');
     lines.push('color usage, and interaction patterns when building all UI.');
     lines.push('');
-    designInspiration.brands.forEach((brandId) => {
+    designInspiration.brands.forEach(brandId => {
       const mdContent = designInspiration.content[brandId];
-      if (!mdContent) return;
+
+      if (!mdContent) {
+        return;
+      }
+
       lines.push('━━━ ' + brandId.toUpperCase() + ' DESIGN SYSTEM ━━━');
       lines.push('');
       lines.push(mdContent.trim());
@@ -351,17 +399,30 @@ export function buildRefinedPrompt(
     lines.push(appTypeLabel.toUpperCase() + ' — SPECIFIC REQUIREMENTS');
     lines.push(divider());
 
-    condList.forEach((q) => {
+    condList.forEach(q => {
       const answerId = secondaryAnswers[q.id] as string;
-      if (!answerId) return;
-      const opt = q.options?.find((o) => o.id === answerId);
-      if (!opt?.prompt) return;
+
+      if (!answerId) {
+        return;
+      }
+
+      const opt = q.options?.find(o => o.id === answerId);
+
+      if (!opt?.prompt) {
+        return;
+      }
+
       const p = opt.prompt;
       Object.entries(p).forEach(([key, val]) => {
-        if (key.toLowerCase().endsWith('detail')) return;
-        const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase());
+        if (key.toLowerCase().endsWith('detail')) {
+          return;
+        }
+
+        const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
         lines.push(pad(label + ':', 20) + val);
+
         const detailKey = key + 'Detail';
+
         if (p[detailKey]) {
           lines.push(pad('', 20) + p[detailKey]);
         }
@@ -371,6 +432,7 @@ export function buildRefinedPrompt(
   }
 
   const customFeatures = secondaryAnswers.custom_features as string | undefined;
+
   if (!condList.length && customFeatures?.trim()) {
     lines.push(divider());
     lines.push('ADDITIONAL FEATURES & CUSTOM REQUIREMENTS');
@@ -432,10 +494,7 @@ export function buildRefinedPrompt(
     lines.push('');
   }
 
-  if (
-    securityData.security &&
-    securityData.security !== 'Publicly accessible — no access restrictions'
-  ) {
+  if (securityData.security && securityData.security !== 'Publicly accessible — no access restrictions') {
     lines.push(`${stepNum++}. Implement access control: ${securityData.security}`);
     lines.push('   ' + (securityData.securityDetail ?? ''));
     lines.push('');
@@ -449,15 +508,13 @@ export function buildRefinedPrompt(
   }
 
   if (designInspiration?.brands?.length) {
-    const brandNames = designInspiration.brands
-      .map((b) => b.charAt(0).toUpperCase() + b.slice(1))
-      .join(' + ');
+    const brandNames = designInspiration.brands.map(b => b.charAt(0).toUpperCase() + b.slice(1)).join(' + ');
     lines.push(`${stepNum++}. Apply the ${brandNames} design system(s) to all UI`);
     lines.push(
-      '   Follow the VISUAL DESIGN INSPIRATION section above for typography, spacing, components, and motion.',
+      '   Follow the VISUAL DESIGN INSPIRATION section above for typography, spacing, components, and motion.'
     );
     lines.push(
-      "   Adapt the aesthetic — do not copy brand identity. The goal is the visual language, not the product.",
+      '   Adapt the aesthetic — do not copy brand identity. The goal is the visual language, not the product.'
     );
     lines.push('');
   }
@@ -495,12 +552,14 @@ export function buildRefinedPrompt(
   lines.push('— DATABASE RULE: All DB code must use DATABASE_URL only.');
   lines.push('   Dev = PGlite (scripts/dev-db.js, port 5433). Production = Supabase (injected).');
   lines.push('   Do NOT use better-sqlite3 or any package requiring native .node binaries.');
+
   if (colorBlock) {
     lines.push('— The color palette is a hard requirement. Do not deviate from the specified hex values.');
   }
+
   if (designInspiration?.brands?.length) {
     lines.push(
-      '— The design system files are a visual reference, not brand guidelines. Adapt the aesthetic to fit this app.',
+      '— The design system files are a visual reference, not brand guidelines. Adapt the aesthetic to fit this app.'
     );
   }
 

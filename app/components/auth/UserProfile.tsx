@@ -13,7 +13,9 @@ export function UserProfile({ user }: UserProfileProps) {
   const profile = useStore(profileStore);
   // Display name: nickname if set, otherwise auth email
   const displayName = (profile?.nickname?.trim() || user?.email || '').trim();
-  const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : (user?.email?.charAt(0).toUpperCase() ?? '');
+  const displayInitial = displayName
+    ? displayName.charAt(0).toUpperCase()
+    : (user?.email?.charAt(0).toUpperCase() ?? '');
 
   if (!user || !user.email) {
     return null;
@@ -33,13 +35,9 @@ export function UserProfile({ user }: UserProfileProps) {
     <Dropdown trigger={trigger}>
       <div className="w-56">
         <div className="p-3 border-b border-bolt-elements-borderColor flex items-start justify-between gap-2">
-          <p className="text-sm font-medium text-bolt-elements-textPrimary">
-            {displayName || user.email}
-          </p>
+          <p className="text-sm font-medium text-bolt-elements-textPrimary">{displayName || user.email}</p>
           {user.accountTier ? (
-            <span className="text-xs font-medium text-bolt-elements-textSecondary shrink-0">
-              {user.accountTier}
-            </span>
+            <span className="text-xs font-medium text-bolt-elements-textSecondary shrink-0">{user.accountTier}</span>
           ) : null}
         </div>
 
@@ -74,7 +72,12 @@ export function UserProfile({ user }: UserProfileProps) {
 
         <DropdownSeparator />
 
-        <DropdownItem asChild onSelect={(e) => e.preventDefault()}>
+        <DropdownItem
+          asChild
+          onSelect={() => {
+            /* keep menu open for form submit */
+          }}
+        >
           <form action="/auth/logout" method="post" className="w-full">
             <button
               type="submit"
@@ -88,4 +91,4 @@ export function UserProfile({ user }: UserProfileProps) {
       </div>
     </Dropdown>
   );
-} 
+}

@@ -1,4 +1,10 @@
-import { json, redirect, type ActionFunctionArgs, type LinksFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import {
+  json,
+  redirect,
+  type ActionFunctionArgs,
+  type LinksFunction,
+  type LoaderFunctionArgs,
+} from '@remix-run/cloudflare';
 import { Form, useActionData, useLoaderData, useNavigation } from '@remix-run/react';
 import { useState } from 'react';
 import { isAuthDisabled, optionalAuth } from '~/lib/auth';
@@ -15,8 +21,14 @@ interface ActionData {
 }
 
 export const links: LinksFunction = () => [
-  { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap' },
-  { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap' },
+  {
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap',
+  },
+  {
+    rel: 'stylesheet',
+    href: 'https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap',
+  },
   { rel: 'stylesheet', href: landingStyles },
 ];
 
@@ -24,9 +36,13 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
     return redirect('/app/');
   }
+
   try {
     const user = await optionalAuth(request, context);
-    if (user) return redirect('/app/');
+
+    if (user) {
+      return redirect('/app/');
+    }
   } catch {
     // not authenticated
   }
@@ -63,12 +79,15 @@ export async function action({ request }: ActionFunctionArgs) {
   if (!/(?=.*[a-z])/.test(newPassword)) {
     return json<ActionData>({ error: 'Password must contain at least one lowercase letter.' });
   }
+
   if (!/(?=.*[A-Z])/.test(newPassword)) {
     return json<ActionData>({ error: 'Password must contain at least one uppercase letter.' });
   }
+
   if (!/(?=.*\d)/.test(newPassword)) {
     return json<ActionData>({ error: 'Password must contain at least one number.' });
   }
+
   if (!/(?=.*[!@#$%^&*])/.test(newPassword)) {
     return json<ActionData>({ error: 'Password must contain at least one special character (!@#$%^&*).' });
   }
@@ -180,8 +199,8 @@ export default function ResetPasswordPage() {
           <div className="landing-login-modal-header">
             <h2>Set new password</h2>
             <p>
-              Enter your new password below. Use at least 8 characters with uppercase, lowercase, a number, and a special
-              character.
+              Enter your new password below. Use at least 8 characters with uppercase, lowercase, a number, and a
+              special character.
             </p>
           </div>
 

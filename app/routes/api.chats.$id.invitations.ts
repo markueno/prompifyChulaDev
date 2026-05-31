@@ -6,9 +6,13 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
     const chatId = params.id;
-    if (!chatId) return json({ error: 'Chat ID required' }, { status: 400 });
+
+    if (!chatId) {
+      return json({ error: 'Chat ID required' }, { status: 400 });
+    }
 
     const invitations = await getChatInvitations(chatId, user.id);
+
     return json({ invitations });
   } catch (error) {
     console.error('Error loading chat invitations:', error);

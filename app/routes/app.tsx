@@ -12,6 +12,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const user = await requireAuth(request, context);
   const sub = await getSubscriptionByUserId(user.id);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
+
   return json({ user: userWithTier });
 }
 

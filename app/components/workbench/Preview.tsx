@@ -57,9 +57,13 @@ export const Preview = memo(() => {
 
   const [isWindowSizeDropdownOpen, setIsWindowSizeDropdownOpen] = useState(false);
   const [selectedWindowSize, setSelectedWindowSize] = useState<WindowSize>(WINDOW_SIZES[0]);
+  const caretBtnRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; right: number } | null>(null);
 
-  // Multi-source error bridge: captures Vite HMR errors, runtime JS errors,
-  // console.error/warn, and network errors forwarded from the preview iframe.
+  /*
+   * Multi-source error bridge: captures Vite HMR errors, runtime JS errors,
+   * console.error/warn, and network errors forwarded from the preview iframe.
+   */
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== 'object') {
@@ -80,6 +84,7 @@ export const Preview = memo(() => {
           description: message,
           content: err.stack || message,
         });
+
         // enqueueAlert already mirrors into errorsStore via workbench.ts
         return;
       }
@@ -105,6 +110,7 @@ export const Preview = memo(() => {
           file: data.file,
           line: data.line ? Number(data.line) : undefined,
         });
+
         return;
       }
 
@@ -112,7 +118,11 @@ export const Preview = memo(() => {
       if (type === 'app:console') {
         const level = data.level === 'warn' ? 'warn' : 'error';
         const message = String(data.message || '');
-        if (!message) return;
+
+        if (!message) {
+          return;
+        }
+
         addError({
           source: 'console',
           level,
@@ -142,8 +152,10 @@ export const Preview = memo(() => {
     setIframeUrl(baseUrl);
   }, [activePreview]);
 
-  // Auto-reload the iframe when a preview transitions from not-ready → ready
-  // (e.g. after a dev server restart or file change rebuild).
+  /*
+   * Auto-reload the iframe when a preview transitions from not-ready → ready
+   * (e.g. after a dev server restart or file change rebuild).
+   */
   const prevReadyRef = useRef<boolean | undefined>(undefined);
 
   useEffect(() => {
@@ -402,23 +414,34 @@ export const Preview = memo(() => {
             title={isFullscreen ? 'Exit Full Screen' : 'Full Screen'}
           />
 
-          <div className="flex items-center relative">
+          <div className="flex items-center">
             <IconButton
               icon="i-ph:arrow-square-out"
               onClick={() => openInNewWindow(selectedWindowSize)}
               title={`Open Preview in ${selectedWindowSize.name} Window`}
             />
-            <IconButton
-              icon="i-ph:caret-down"
-              onClick={() => setIsWindowSizeDropdownOpen(!isWindowSizeDropdownOpen)}
-              className="ml-1"
-              title="Select Window Size"
-            />
+            <div ref={caretBtnRef} className="ml-1">
+              <IconButton
+                icon="i-ph:caret-down"
+                onClick={() => {
+                  if (!isWindowSizeDropdownOpen && caretBtnRef.current) {
+                    const rect = caretBtnRef.current.getBoundingClientRect();
+                    setDropdownPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+                  }
 
-            {isWindowSizeDropdownOpen && (
+                  setIsWindowSizeDropdownOpen(v => !v);
+                }}
+                title="Select Window Size"
+              />
+            </div>
+
+            {isWindowSizeDropdownOpen && dropdownPos && (
               <>
-                <div className="fixed inset-0 z-50" onClick={() => setIsWindowSizeDropdownOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 z-50 min-w-[240px] bg-white dark:bg-black rounded-xl shadow-2xl border border-[#E5E7EB] dark:border-[rgba(255,255,255,0.1)] overflow-hidden">
+                <div className="fixed inset-0 z-[200]" onClick={() => setIsWindowSizeDropdownOpen(false)} />
+                <div
+                  className="fixed z-[201] min-w-[240px] bg-white dark:bg-black rounded-xl shadow-2xl border border-[#E5E7EB] dark:border-[rgba(255,255,255,0.1)] overflow-hidden"
+                  style={{ top: dropdownPos.top, right: dropdownPos.right }}
+                >
                   {WINDOW_SIZES.map(size => (
                     <button
                       key={size.name}

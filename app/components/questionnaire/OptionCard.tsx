@@ -18,12 +18,12 @@ export function OptionCard({ option, selected, onSelect }: OptionCardProps) {
           : 'border-bolt-elements-borderColor bg-bolt-elements-bg-depth-2 hover:bg-bolt-elements-item-backgroundActive',
       ].join(' ')}
     >
-      <p className={`font-semibold text-sm leading-snug ${selected ? 'text-accent-600' : 'text-bolt-elements-textPrimary'}`}>
+      <p
+        className={`font-semibold text-sm leading-snug ${selected ? 'text-accent-600' : 'text-bolt-elements-textPrimary'}`}
+      >
         {option.label}
       </p>
-      <p className="text-xs text-bolt-elements-textSecondary mt-1 leading-relaxed">
-        {option.description}
-      </p>
+      <p className="text-xs text-bolt-elements-textSecondary mt-1 leading-relaxed">{option.description}</p>
     </button>
   );
 }
@@ -35,22 +35,12 @@ interface OptionGridProps {
 }
 
 export function OptionGrid({ options, selectedId, onSelect }: OptionGridProps) {
-  const cols =
-    options.length <= 2
-      ? 'grid-cols-2'
-      : options.length === 3
-        ? 'grid-cols-3'
-        : 'grid-cols-2';
+  const cols = options.length <= 2 ? 'grid-cols-2' : options.length === 3 ? 'grid-cols-3' : 'grid-cols-2';
 
   return (
     <div className={`grid ${cols} gap-3`}>
-      {options.map((opt) => (
-        <OptionCard
-          key={opt.id}
-          option={opt}
-          selected={selectedId === opt.id}
-          onSelect={() => onSelect(opt.id)}
-        />
+      {options.map(opt => (
+        <OptionCard key={opt.id} option={opt} selected={selectedId === opt.id} onSelect={() => onSelect(opt.id)} />
       ))}
     </div>
   );

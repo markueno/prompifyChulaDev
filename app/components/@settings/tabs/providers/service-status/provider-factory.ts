@@ -16,12 +16,14 @@ import { XAIStatusChecker } from './providers/xai';
 
 export class ProviderStatusCheckerFactory {
   private static _providerConfigs: Record<ProviderName, ProviderConfig> = {
-    // AmazonBedrock: {
-    //   statusUrl: 'https://health.aws.amazon.com/health/status',
-    //   apiUrl: 'https://bedrock.us-east-1.amazonaws.com/models',
-    //   headers: {},
-    //   testModel: 'anthropic.claude-3-sonnet-20240229-v1:0',
-    // },
+    /*
+     * AmazonBedrock: {
+     *   statusUrl: 'https://health.aws.amazon.com/health/status',
+     *   apiUrl: 'https://bedrock.us-east-1.amazonaws.com/models',
+     *   headers: {},
+     *   testModel: 'anthropic.claude-3-sonnet-20240229-v1:0',
+     * },
+     */
     Cohere: {
       statusUrl: 'https://status.cohere.com/',
       apiUrl: 'https://api.cohere.ai/v1/models',
@@ -98,8 +100,10 @@ export class ProviderStatusCheckerFactory {
     }
 
     switch (provider) {
-      // case 'AmazonBedrock':
-      //   return new AmazonBedrockStatusChecker(config);
+      /*
+       * case 'AmazonBedrock':
+       *   return new AmazonBedrockStatusChecker(config);
+       */
       case 'Cohere':
         return new CohereStatusChecker(config);
       case 'Deepseek':

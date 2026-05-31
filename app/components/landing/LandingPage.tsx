@@ -5,12 +5,42 @@ import { CONTACT_COUNTRY_OPTIONS, CONTACT_ENQUIRY_OPTIONS } from '~/lib/contact-
 const PIC_BASE = '/landing-pics';
 
 const PIN_CARDS = [
-  { num: '01', title: 'Prompt-to-Production in Minutes', img: '1.avif', text: 'Describe what you need in plain English and get a working, live app asap— no coding, no developers, no waiting.' },
-  { num: '02', title: 'Multi-LLM Intelligence Engine', img: '2.png', text: 'Every request is automatically routed to the smartest, fastest, most cost-effective AI model — so you get great results without thinking about what\'s under the hood.' },
-  { num: '03', title: 'Business Intelligence Framework', img: '3.gif', text: 'Connect a spreadsheet or database, ask questions like "What were last month\'s sales by region?" and get instant answers with charts included.' },
-  { num: '04', title: 'Private LLM & Data Sovereignty', img: '4.webp', text: 'One switch keeps everything running on your own servers. Nothing leaves your walls — perfect for industries where privacy isn\'t optional.' },
-  { num: '05', title: 'Domain-Intelligence Modules', img: '5.png', text: 'Built-in knowledge for finance, healthcare, and retail means smarter, more accurate results from day one — not generic AI guesswork.' },
-  { num: '06', title: 'Enterprise-Grade Deployment', img: '6.jpg', text: 'Security, single sign-on, audit logs, and compliance reports come standard. No extra setup needed to pass your procurement team\'s checklist.' },
+  {
+    num: '01',
+    title: 'Prompt-to-Production in Minutes',
+    img: '1.avif',
+    text: 'Describe what you need in plain English and get a working, live app asap— no coding, no developers, no waiting.',
+  },
+  {
+    num: '02',
+    title: 'Multi-LLM Intelligence Engine',
+    img: '2.png',
+    text: "Every request is automatically routed to the smartest, fastest, most cost-effective AI model — so you get great results without thinking about what's under the hood.",
+  },
+  {
+    num: '03',
+    title: 'Business Intelligence Framework',
+    img: '3.gif',
+    text: 'Connect a spreadsheet or database, ask questions like "What were last month\'s sales by region?" and get instant answers with charts included.',
+  },
+  {
+    num: '04',
+    title: 'Private LLM & Data Sovereignty',
+    img: '4.webp',
+    text: "One switch keeps everything running on your own servers. Nothing leaves your walls — perfect for industries where privacy isn't optional.",
+  },
+  {
+    num: '05',
+    title: 'Domain-Intelligence Modules',
+    img: '5.png',
+    text: 'Built-in knowledge for finance, healthcare, and retail means smarter, more accurate results from day one — not generic AI guesswork.',
+  },
+  {
+    num: '06',
+    title: 'Enterprise-Grade Deployment',
+    img: '6.jpg',
+    text: "Security, single sign-on, audit logs, and compliance reports come standard. No extra setup needed to pass your procurement team's checklist.",
+  },
 ];
 
 function escapeHtml(text: string) {
@@ -22,8 +52,10 @@ function escapeHtml(text: string) {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
   }
+
   const div = document.createElement('div');
   div.textContent = text;
+
   return div.innerHTML;
 }
 
@@ -35,12 +67,7 @@ function LandingContactModal({ onClose }: { onClose: () => void }) {
   const contactFetcher = useFetcher<AuthActionData>();
 
   return (
-    <div
-      className="landing-login-modal-root"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="landing-contact-title"
-    >
+    <div className="landing-login-modal-root" role="dialog" aria-modal="true" aria-labelledby="landing-contact-title">
       <button type="button" className="landing-login-modal-backdrop" aria-label="Close" onClick={onClose} />
       <div className="landing-login-modal-panel landing-login-modal-panel--contact">
         <button type="button" className="landing-login-modal-close" aria-label="Close" onClick={onClose}>
@@ -81,7 +108,7 @@ function LandingContactModal({ onClose }: { onClose: () => void }) {
               <option value="" disabled>
                 Select a topic
               </option>
-              {CONTACT_ENQUIRY_OPTIONS.map((opt) => (
+              {CONTACT_ENQUIRY_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
@@ -131,13 +158,15 @@ function LandingContactModal({ onClose }: { onClose: () => void }) {
                   <option value="" disabled hidden>
                     Select country for phone
                   </option>
-                  {CONTACT_COUNTRY_OPTIONS.filter((o) => o.value).map((opt) => (
+                  {CONTACT_COUNTRY_OPTIONS.filter(o => o.value).map(opt => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
                   ))}
                 </select>
-                <p className="landing-login-modal-hint">Dial code for your number (stored with your phone in our records).</p>
+                <p className="landing-login-modal-hint">
+                  Dial code for your number (stored with your phone in our records).
+                </p>
               </div>
               <div className="landing-contact-field-col">
                 <label className="landing-login-modal-label" htmlFor="landing-contact-phone">
@@ -227,6 +256,7 @@ export function LandingPage() {
       clearTimeout(loginSigningInTimerRef.current);
       loginSigningInTimerRef.current = null;
     }
+
     setLoginSigningIn(false);
   }, []);
 
@@ -244,7 +274,7 @@ export function LandingPage() {
         loginSigningInTimerRef.current = null;
       }
     },
-    [],
+    []
   );
 
   useEffect(() => {
@@ -252,11 +282,7 @@ export function LandingPage() {
     previousLoginFetcherStateRef.current = loginFetcher.state;
 
     // Only complete login flow after an actual request cycle (submitting/loading -> idle).
-    if (
-      !loginAttemptRef.current ||
-      loginFetcher.state !== 'idle' ||
-      previousState === 'idle'
-    ) {
+    if (!loginAttemptRef.current || loginFetcher.state !== 'idle' || previousState === 'idle') {
       return;
     }
 
@@ -264,16 +290,22 @@ export function LandingPage() {
       clearTimeout(loginSigningInTimerRef.current);
       loginSigningInTimerRef.current = null;
     }
+
     setLoginSigningIn(false);
     loginAttemptRef.current = false;
 
-    if (loginFetcher.data?.error) return;
+    if (loginFetcher.data?.error) {
+      return;
+    }
 
     navigate('/app/', { replace: true });
   }, [loginFetcher.state, loginFetcher.data, navigate]);
 
   useEffect(() => {
-    if (searchParams.get('login') !== '1') return;
+    if (searchParams.get('login') !== '1') {
+      return;
+    }
+
     const mode = searchParams.get('mode');
     setShowLoginModal(true);
     setShowContactModal(false);
@@ -289,7 +321,7 @@ export function LandingPage() {
     setShowLoginModal(false);
     setAuthModalMode('login');
     setForgotShowFormForced(false);
-    setContactModalKey((k) => k + 1);
+    setContactModalKey(k => k + 1);
     setShowContactModal(true);
   }, []);
 
@@ -306,35 +338,44 @@ export function LandingPage() {
     }, 450);
   }, []);
 
-  const handleSubmit = useCallback((text?: string, fromFloating?: boolean) => {
-    const input = text || (fromFloating ? floatingValue : promptValue);
-    if (!input.trim() || isLoading) return;
+  const handleSubmit = useCallback(
+    (text?: string, fromFloating?: boolean) => {
+      const input = text || (fromFloating ? floatingValue : promptValue);
 
-    setMessages((prev) => [...prev, { role: 'user', content: input }]);
-    if (fromFloating) {
-      setFloatingValue('');
-    } else {
-      setPromptValue('');
-    }
-    setShowExamples(false);
-    setIsLoading(true);
+      if (!input.trim() || isLoading) {
+        return;
+      }
 
-    if (fromFloating) {
-      setFloatingResponseContent('Building your app...');
-      setShowFloatingResponse(true);
-    }
-
-    setTimeout(() => {
-      const response = `Got it! I'm building your "${input}" right now. Your app will be live asap — no code required.`;
-      setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
-      setIsLoading(false);
+      setMessages(prev => [...prev, { role: 'user', content: input }]);
 
       if (fromFloating) {
-        setFloatingResponseContent(response);
+        setFloatingValue('');
+      } else {
+        setPromptValue('');
       }
-      openLoginModalSoon();
-    }, 1600);
-  }, [promptValue, floatingValue, isLoading, openLoginModalSoon]);
+
+      setShowExamples(false);
+      setIsLoading(true);
+
+      if (fromFloating) {
+        setFloatingResponseContent('Building your app...');
+        setShowFloatingResponse(true);
+      }
+
+      setTimeout(() => {
+        const response = `Got it! I'm building your "${input}" right now. Your app will be live asap — no code required.`;
+        setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+        setIsLoading(false);
+
+        if (fromFloating) {
+          setFloatingResponseContent(response);
+        }
+
+        openLoginModalSoon();
+      }, 1600);
+    },
+    [promptValue, floatingValue, isLoading, openLoginModalSoon]
+  );
 
   useEffect(() => {
     messagesAreaRef.current?.scrollTo({ top: messagesAreaRef.current.scrollHeight, behavior: 'smooth' });
@@ -350,8 +391,10 @@ export function LandingPage() {
     if (!showLoginModal && !showContactModal) {
       return;
     }
+
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (showContactModal) {
@@ -362,6 +405,7 @@ export function LandingPage() {
       }
     };
     window.addEventListener('keydown', onKey);
+
     return () => {
       document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKey);
@@ -390,6 +434,7 @@ export function LandingPage() {
 
     void (async () => {
       let gsap: any, ScrollTrigger: any, Lenis: any;
+
       try {
         const [gsapMod, scrollTriggerMod, lenisMod] = await Promise.all([
           import('gsap'),
@@ -402,12 +447,18 @@ export function LandingPage() {
       } catch {
         return;
       }
-      if (cancelled) return;
+
+      if (cancelled) {
+        return;
+      }
 
       gsap.registerPlugin(ScrollTrigger);
 
       const container = containerRef.current;
-      if (!container) return;
+
+      if (!container) {
+        return;
+      }
 
       const heroBg = heroBgRef.current;
       const content = contentRef.current;
@@ -433,6 +484,7 @@ export function LandingPage() {
           heroBg.style.transform = `scale(${1 + progress * 0.06})`;
           heroBg.style.opacity = '1';
           heroBg.style.visibility = 'visible';
+
           const fadeProgress = Math.max((progress - 0.45) / 0.55, 0);
           content.style.opacity = String(Math.max(1 - fadeProgress * 2, 0));
           content.style.transform = `translateY(${-fadeProgress * 80}px)`;
@@ -493,6 +545,7 @@ export function LandingPage() {
           );
 
           const overlay = eachCard.querySelector('.landing-overlay');
+
           if (overlay) {
             tl.to(overlay, { opacity: 0.4, ease: 'none' }, 0);
           }
@@ -528,7 +581,6 @@ export function LandingPage() {
       {/* Top nav */}
       <nav className="landing-nav" aria-label="Site navigation">
         <div className="landing-nav-inner">
-
           <div className="landing-nav-actions">
             <button
               type="button"
@@ -558,7 +610,13 @@ export function LandingPage() {
 
       {/* Hero background */}
       <div ref={heroBgRef} className="landing-hero-bg">
-        <img src={`${PIC_BASE}/background1.jpeg`} alt="Background" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        <img
+          src={`${PIC_BASE}/background1.jpeg`}
+          alt="Background"
+          onError={e => {
+            (e.target as HTMLImageElement).style.display = 'none';
+          }}
+        />
         <div className="gradient-overlay" />
         <div className="vignette" />
       </div>
@@ -566,7 +624,14 @@ export function LandingPage() {
       {/* Floating chat bar */}
       <div className="landing-floating-chat-bar" id="landingFloatingChatBar">
         <div className="landing-floating-bar-inner">
-          <svg className="landing-floating-sparkle" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            className="landing-floating-sparkle"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
           </svg>
           <input
@@ -574,8 +639,8 @@ export function LandingPage() {
             className="landing-floating-input"
             placeholder="Describe the app you want to build..."
             value={floatingValue}
-            onChange={(e) => setFloatingValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSubmit(undefined, true)}
+            onChange={e => setFloatingValue(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit(undefined, true)}
           />
           <button
             type="button"
@@ -583,16 +648,23 @@ export function LandingPage() {
             disabled={!floatingValue.trim() || isLoading}
             onClick={() => handleSubmit(undefined, true)}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={14} height={14}>
-              <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              width={14}
+              height={14}
+            >
+              <path d="m22 2-7 20-4-9-9-4Z" />
+              <path d="M22 2 11 13" />
             </svg>
           </button>
         </div>
         {showFloatingResponse && (
           <div className="landing-floating-response show">
-            <div className="landing-floating-response-text">
-              {floatingResponseContent}
-            </div>
+            <div className="landing-floating-response-text">{floatingResponseContent}</div>
           </div>
         )}
       </div>
@@ -623,7 +695,10 @@ export function LandingPage() {
                 >
                   {messages.map((msg, i) => (
                     <div key={i} className={`landing-message-row ${msg.role}`}>
-                      <div className={`landing-message-bubble ${msg.role}`} dangerouslySetInnerHTML={{ __html: escapeHtml(msg.content) }} />
+                      <div
+                        className={`landing-message-bubble ${msg.role}`}
+                        dangerouslySetInnerHTML={{ __html: escapeHtml(msg.content) }}
+                      />
                     </div>
                   ))}
                   {isLoading && (
@@ -637,7 +712,17 @@ export function LandingPage() {
                 </div>
                 <div className="input-area" style={{ padding: '0.75rem' }}>
                   <div className="landing-input-row">
-                    <svg className="sparkle-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={20} height={20} style={{ color: '#fb923c', flexShrink: 0 }}>
+                    <svg
+                      className="sparkle-icon"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      width={20}
+                      height={20}
+                      style={{ color: '#fb923c', flexShrink: 0 }}
+                    >
                       <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
                     </svg>
                     <input
@@ -645,8 +730,8 @@ export function LandingPage() {
                       className="landing-prompt-input"
                       placeholder="Describe the app you want to build..."
                       value={promptValue}
-                      onChange={(e) => setPromptValue(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                      onChange={e => setPromptValue(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                     />
                     <button
                       type="button"
@@ -654,17 +739,44 @@ export function LandingPage() {
                       disabled={!promptValue.trim() || isLoading}
                       onClick={() => handleSubmit()}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width={16} height={16}>
-                        <path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        width={16}
+                        height={16}
+                      >
+                        <path d="m22 2-7 20-4-9-9-4Z" />
+                        <path d="M22 2 11 13" />
                       </svg>
                     </button>
                   </div>
                 </div>
                 {showExamples && (
                   <div className="landing-examples">
-                    <button type="button" className="landing-example-btn" onClick={() => handleSubmit('Build me a CRM dashboard')}>Build me a CRM dashboard</button>
-                    <button type="button" className="landing-example-btn" onClick={() => handleSubmit('Create an inventory tracker')}>Create an inventory tracker</button>
-                    <button type="button" className="landing-example-btn" onClick={() => handleSubmit('Design a booking system')}>Design a booking system</button>
+                    <button
+                      type="button"
+                      className="landing-example-btn"
+                      onClick={() => handleSubmit('Build me a CRM dashboard')}
+                    >
+                      Build me a CRM dashboard
+                    </button>
+                    <button
+                      type="button"
+                      className="landing-example-btn"
+                      onClick={() => handleSubmit('Create an inventory tracker')}
+                    >
+                      Create an inventory tracker
+                    </button>
+                    <button
+                      type="button"
+                      className="landing-example-btn"
+                      onClick={() => handleSubmit('Design a booking system')}
+                    >
+                      Design a booking system
+                    </button>
                   </div>
                 )}
               </div>
@@ -673,13 +785,19 @@ export function LandingPage() {
         </section>
 
         {/* Pin cards with sliding effects */}
-        {PIN_CARDS.map((card) => (
+        {PIN_CARDS.map(card => (
           <section key={card.num} className="landing-pin-card">
             <div className="landing-overlay" />
             <span>({card.num})</span>
             <div className="landing-pin-card-content">
               <h2>{card.title}</h2>
-              <img src={`${PIC_BASE}/${card.img}`} alt="" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              <img
+                src={`${PIC_BASE}/${card.img}`}
+                alt=""
+                onError={e => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
               <p>{card.text}</p>
             </div>
           </section>
@@ -693,8 +811,10 @@ export function LandingPage() {
             Refine and Deploy
           </h2>
           <p>
-            From retail CRMs to logistics systems, Prompify AI powers smart integrations that transform daily operations.
-            <br /><br />
+            From retail CRMs to logistics systems, Prompify AI powers smart integrations that transform daily
+            operations.
+            <br />
+            <br />
             <b>At Prompify, creativity meets creation.</b>
           </p>
           <div className="landing-outro-buttons">
@@ -754,18 +874,8 @@ export function LandingPage() {
       </main>
 
       {showLoginModal && (
-        <div
-          className="landing-login-modal-root"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="landing-auth-title"
-        >
-          <button
-            type="button"
-            className="landing-login-modal-backdrop"
-            aria-label="Close"
-            onClick={closeAuthModal}
-          />
+        <div className="landing-login-modal-root" role="dialog" aria-modal="true" aria-labelledby="landing-auth-title">
+          <button type="button" className="landing-login-modal-backdrop" aria-label="Close" onClick={closeAuthModal} />
           <div className="landing-login-modal-panel">
             <button type="button" className="landing-login-modal-close" aria-label="Close" onClick={closeAuthModal}>
               ×
@@ -784,9 +894,11 @@ export function LandingPage() {
                   className="landing-login-modal-form"
                   onSubmit={() => {
                     loginAttemptRef.current = true;
+
                     if (loginSigningInTimerRef.current) {
                       clearTimeout(loginSigningInTimerRef.current);
                     }
+
                     setLoginSigningIn(true);
                     loginSigningInTimerRef.current = setTimeout(() => {
                       loginSigningInTimerRef.current = null;
@@ -831,7 +943,7 @@ export function LandingPage() {
                     <button
                       type="button"
                       className="landing-login-modal-toggle-pw"
-                      onClick={() => setLoginShowPassword((v) => !v)}
+                      onClick={() => setLoginShowPassword(v => !v)}
                       aria-label={loginShowPassword ? 'Hide password' : 'Show password'}
                     >
                       {loginShowPassword ? 'Hide' : 'Show'}
@@ -841,20 +953,20 @@ export function LandingPage() {
                   <button
                     type="submit"
                     className="landing-login-modal-submit"
-                    disabled={
-                      loginFetcher.state === 'submitting' ||
-                      (loginSigningIn && !loginFetcher.data?.error)
-                    }
+                    disabled={loginFetcher.state === 'submitting' || (loginSigningIn && !loginFetcher.data?.error)}
                   >
-                    {loginFetcher.state === 'submitting' ||
-                    (loginSigningIn && !loginFetcher.data?.error)
+                    {loginFetcher.state === 'submitting' || (loginSigningIn && !loginFetcher.data?.error)
                       ? 'Signing in…'
                       : 'Sign in'}
                   </button>
                 </loginFetcher.Form>
 
                 <div className="landing-login-modal-footer">
-                  <button type="button" className="landing-login-modal-footer-btn" onClick={() => setAuthModalMode('register')}>
+                  <button
+                    type="button"
+                    className="landing-login-modal-footer-btn"
+                    onClick={() => setAuthModalMode('register')}
+                  >
                     Create an account
                   </button>
                   <span className="landing-login-modal-dot">·</span>
@@ -924,7 +1036,11 @@ export function LandingPage() {
                 )}
 
                 <div className="landing-login-modal-footer">
-                  <button type="button" className="landing-login-modal-footer-btn" onClick={() => setAuthModalMode('login')}>
+                  <button
+                    type="button"
+                    className="landing-login-modal-footer-btn"
+                    onClick={() => setAuthModalMode('login')}
+                  >
                     Back to Sign in
                   </button>
                 </div>
@@ -978,12 +1094,12 @@ export function LandingPage() {
                       autoComplete="new-password"
                       className="landing-login-modal-input"
                       placeholder="Create a strong password"
-                      onChange={(e) => updateRegisterPasswordStrength(e.target.value)}
+                      onChange={e => updateRegisterPasswordStrength(e.target.value)}
                     />
                     <button
                       type="button"
                       className="landing-login-modal-toggle-pw"
-                      onClick={() => setRegisterShowPassword((v) => !v)}
+                      onClick={() => setRegisterShowPassword(v => !v)}
                       aria-label={registerShowPassword ? 'Hide password' : 'Show password'}
                     >
                       {registerShowPassword ? 'Hide' : 'Show'}
@@ -995,7 +1111,9 @@ export function LandingPage() {
                     <li className={registerPasswordStrength.lowercase ? 'met' : ''}>One lowercase letter</li>
                     <li className={registerPasswordStrength.uppercase ? 'met' : ''}>One uppercase letter</li>
                     <li className={registerPasswordStrength.number ? 'met' : ''}>One number</li>
-                    <li className={registerPasswordStrength.special ? 'met' : ''}>One special character (!@#$%^&amp;*)</li>
+                    <li className={registerPasswordStrength.special ? 'met' : ''}>
+                      One special character (!@#$%^&amp;*)
+                    </li>
                   </ul>
 
                   <label className="landing-login-modal-label" htmlFor="landing-register-confirm">
@@ -1014,7 +1132,7 @@ export function LandingPage() {
                     <button
                       type="button"
                       className="landing-login-modal-toggle-pw"
-                      onClick={() => setRegisterShowConfirmPassword((v) => !v)}
+                      onClick={() => setRegisterShowConfirmPassword(v => !v)}
                       aria-label={registerShowConfirmPassword ? 'Hide password' : 'Show password'}
                     >
                       {registerShowConfirmPassword ? 'Hide' : 'Show'}
@@ -1031,7 +1149,11 @@ export function LandingPage() {
                 </registerFetcher.Form>
 
                 <div className="landing-login-modal-footer">
-                  <button type="button" className="landing-login-modal-footer-btn" onClick={() => setAuthModalMode('login')}>
+                  <button
+                    type="button"
+                    className="landing-login-modal-footer-btn"
+                    onClick={() => setAuthModalMode('login')}
+                  >
                     Already have an account? Sign in
                   </button>
                   <span className="landing-login-modal-dot">·</span>

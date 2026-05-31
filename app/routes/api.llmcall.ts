@@ -27,9 +27,7 @@ function findModelInList(models: ModelInfo[], model: string): ModelInfo | undefi
     models.find((m: ModelInfo) => m.name === model) ||
     models.find(
       (m: ModelInfo) =>
-        m.name.startsWith(`${model}:`) ||
-        model === m.name.split(':')[0] ||
-        model.split(':')[0] === m.name
+        m.name.startsWith(`${model}:`) || model === m.name.split(':')[0] || model.split(':')[0] === m.name
     )
   );
 }
@@ -112,6 +110,7 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
       if (!modelDetails && providerName === 'Ollama') {
         const llmManager = LLMManager.getInstance(import.meta.env);
         const ollamaProvider = llmManager.getProvider('Ollama');
+
         if (ollamaProvider) {
           const ollamaModels = await llmManager.getModelListFromProvider(ollamaProvider, {
             apiKeys,
@@ -128,8 +127,10 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
 
       const dynamicMaxTokens = modelDetails && modelDetails.maxTokenAllowed ? modelDetails.maxTokenAllowed : MAX_TOKENS;
 
-      // Trust the model metadata first to avoid mismatched model/provider pairs
-      // coming from stale client state (e.g., qwen-* accidentally sent with Anthropic).
+      /*
+       * Trust the model metadata first to avoid mismatched model/provider pairs
+       * coming from stale client state (e.g., qwen-* accidentally sent with Anthropic).
+       */
       const resolvedProviderName = modelDetails.provider || provider.name;
       const providerInfo = PROVIDER_LIST.find(p => p.name === resolvedProviderName);
 

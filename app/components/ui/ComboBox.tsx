@@ -47,9 +47,10 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
     if (inputValue.trim() === '') {
       setFilteredOptions(options);
     } else {
-      const filtered = options.filter(option =>
-        option.label.toLowerCase().includes(inputValue.toLowerCase()) ||
-        option.value.toLowerCase().includes(inputValue.toLowerCase())
+      const filtered = options.filter(
+        option =>
+          option.label.toLowerCase().includes(inputValue.toLowerCase()) ||
+          option.value.toLowerCase().includes(inputValue.toLowerCase())
       );
       setFilteredOptions(filtered);
     }
@@ -60,7 +61,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
     const newValue = e.target.value;
     setInputValue(newValue);
     setIsOpen(true);
-    
+
     // If custom input is allowed, update the value immediately
     if (allowCustomInput) {
       onChange(newValue);
@@ -86,13 +87,13 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
     if (dropdownRef.current?.contains(e.relatedTarget as Node)) {
       return;
     }
-    
+
     // If custom input is not allowed and no valid option is selected, reset to empty
     if (!allowCustomInput && !options.find(opt => opt.value === inputValue)) {
       setInputValue('');
       onChange('');
     }
-    
+
     setIsOpen(false);
   };
 
@@ -113,7 +114,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
           {label}
         </label>
       )}
-      
+
       <div className="relative">
         <input
           ref={inputRef}
@@ -135,13 +136,15 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
             inputClassName
           )}
         />
-        
+
         {/* Dropdown arrow */}
         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-          <div className={classNames(
-            'i-ph:caret-down text-bolt-elements-textSecondary transition-transform duration-200',
-            isOpen ? 'rotate-180' : ''
-          )}></div>
+          <div
+            className={classNames(
+              'i-ph:caret-down text-bolt-elements-textSecondary transition-transform duration-200',
+              isOpen ? 'rotate-180' : ''
+            )}
+          ></div>
         </div>
       </div>
 
@@ -157,7 +160,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
           )}
         >
           {filteredOptions.length > 0 ? (
-            filteredOptions.map((option) => (
+            filteredOptions.map(option => (
               <button
                 key={option.value}
                 type="button"
@@ -182,4 +185,3 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
     </div>
   );
 };
-

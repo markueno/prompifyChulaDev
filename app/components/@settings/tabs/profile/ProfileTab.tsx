@@ -17,9 +17,11 @@ export default function ProfileTab({ user }: ProfileTabProps) {
   const [isUploading, setIsUploading] = useState(false);
 
   type ProfileField = 'username' | 'bio' | 'nickname' | 'email';
+
   const debouncedUpdate = useCallback(
     debounce((field: ProfileField, value: string) => {
       updateProfile({ [field]: value });
+
       const label =
         field === 'nickname'
           ? 'Username (shown in header)'
@@ -207,7 +209,7 @@ export default function ProfileTab({ user }: ProfileTabProps) {
                 readOnly={!user?.isModerator}
                 className={classNames(
                   inputClass,
-                  !user?.isModerator && 'opacity-60 cursor-not-allowed bg-gray-100 dark:bg-gray-800/80'
+                  !user?.isModerator ? 'opacity-60 cursor-not-allowed bg-gray-100 dark:bg-gray-800/80' : ''
                 )}
                 placeholder="Email"
                 title={!user?.isModerator ? 'Email cannot be changed. Contact an administrator.' : undefined}
