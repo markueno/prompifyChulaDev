@@ -457,6 +457,7 @@ export const ChatImpl = memo(
     const showWorkbench = useStore(workbenchStore.showWorkbench);
     const files = useStore(workbenchStore.files);
     const actionAlert = useStore(workbenchStore.alert);
+    const prevAlertRef = useRef<typeof actionAlert>(undefined);
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
     const customPromptTemplate = useStore(customPromptTemplateStore);
 
@@ -599,6 +600,49 @@ export const ChatImpl = memo(
         return () => clearTimeout(t);
       }
     }, [isLoading, fakeLoading, isInitialBuild]);
+
+    // Auto-fix: when a new preview or terminal error alert fires, ask the AI to fix it.
+    useEffect(() => {
+      if (!actionAlert) {
+        prevAlertRef.current = undefined;
+        return;
+      }
+
+      // Skip if this is the same alert we already acted on
+      if (actionAlert === prevAlertRef.current) {
+        return;
+      }
+
+      prevAlertRef.current = actionAlert;
+
+      // Only auto-fix error alerts (not warnings/info), and only when not already streaming
+      if (actionAlert.type !== 'error' || isLoading) {
+        return;
+      }
+
+      const { append: appendFn, model: m, provider: p, messageAuthor: author } = chatUiRef.current;
+
+      if (!appendFn) {
+        return;
+      }
+
+      const source = actionAlert.source === 'preview' ? 'preview' : 'terminal';
+
+      toast.info(`${source === 'preview' ? 'Preview' : 'Terminal'} error detected. Asking the assistant to fix it…`);
+
+      appendFn({
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `[Model: ${m}]\n\n[Provider: ${p.name}]\n\n[Auto-${source}-error-fix] A ${source} error was detected:\n\n**${actionAlert.title}**\n${actionAlert.description}\n\n\`\`\`\n${actionAlert.content}\n\`\`\`\n\nPlease identify the root cause and fix the code. Do not ask the user for more details—apply the fix directly.`,
+          },
+        ] as any,
+        author,
+      } as any);
+
+      workbenchStore.clearAlert();
+    }, [actionAlert, isLoading]);
 
     useEffect(() => {
       processSampledMessages({

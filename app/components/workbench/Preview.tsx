@@ -4,6 +4,7 @@ import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { PortDropdown } from './PortDropdown';
 import { ScreenshotSelector } from './ScreenshotSelector';
+import type { ActionAlert } from '~/types/actions';
 
 type ResizeSide = 'left' | 'right' | null;
 
@@ -56,6 +57,36 @@ export const Preview = memo(() => {
 
   const [isWindowSizeDropdownOpen, setIsWindowSizeDropdownOpen] = useState(false);
   const [selectedWindowSize, setSelectedWindowSize] = useState<WindowSize>(WINDOW_SIZES[0]);
+
+  // Listen for Vite HMR error events forwarded from the preview iframe via postMessage.
+  // Generated apps can forward errors by calling:
+  //   window.parent.postMessage({ type: 'vite:error', err: { message, stack } }, '*')
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.data || typeof event.data !== 'object') {
+        return;
+      }
+
+      const { type, err } = event.data as { type?: string; err?: { message?: string; stack?: string } };
+
+      if ((type === 'error' || type === 'vite:error') && err) {
+        const alert: ActionAlert = {
+          type: 'error',
+          source: 'preview',
+          title: 'Preview Error',
+          description: err.message || 'An error occurred in the preview',
+          content: err.stack || err.message || '',
+        };
+        workbenchStore.enqueueAlert(alert);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, []);
 
   useEffect(() => {
     if (!activePreview) {
