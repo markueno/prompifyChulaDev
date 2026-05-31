@@ -461,7 +461,7 @@ export const ChatImpl = memo(
     const autoFixTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const autoFixAttemptsRef = useRef(0);
     const lastAutoFixAtRef = useRef(0);
-    const isLoadingRef = useRef(isLoading);
+    const isLoadingRef = useRef(false);
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
     const customPromptTemplate = useStore(customPromptTemplateStore);
 

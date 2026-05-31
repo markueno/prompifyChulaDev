@@ -87,7 +87,11 @@ async function reviewAction({ context, request }: ActionFunctionArgs) {
     }
 
     const resolvedProviderName = modelDetails.provider || provider.name;
-    const providerInfo = PROVIDER_LIST.find((p) => p.name === resolvedProviderName) ?? provider;
+    const providerInfo = PROVIDER_LIST.find((p) => p.name === resolvedProviderName) ?? PROVIDER_LIST[0];
+
+    if (!providerInfo) {
+      throw new Error('Provider not found');
+    }
 
     logger.info(`Review: provider=${resolvedProviderName} model=${modelDetails.name} files=${files.length}`);
 

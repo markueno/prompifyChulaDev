@@ -10,6 +10,7 @@ const SOURCE_LABEL: Record<string, string> = {
   console: 'CONSOLE',
   network: 'NETWORK',
   build: 'BUILD',
+  review: 'REVIEW',
 };
 
 const SOURCE_COLOR: Record<string, string> = {
@@ -18,6 +19,7 @@ const SOURCE_COLOR: Record<string, string> = {
   console: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
   network: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
   build: 'bg-red-500/20 text-red-400 border border-red-500/30',
+  review: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
 };
 
 function timeAgo(ts: number): string {

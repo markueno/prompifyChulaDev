@@ -35,7 +35,7 @@ export interface ActionAlert {
   source?: 'terminal' | 'preview';
 }
 
-export type ErrorSource = 'terminal' | 'runtime' | 'console' | 'network' | 'build';
+export type ErrorSource = 'terminal' | 'runtime' | 'console' | 'network' | 'build' | 'review';
 export type ErrorLevel = 'error' | 'warn';
 export type ErrorStatus = 'new' | 'fixing' | 'fixed' | 'ignored';
 
