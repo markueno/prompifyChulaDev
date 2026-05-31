@@ -18,6 +18,7 @@ import { extractRelativePath } from '~/utils/diff';
 import Cookies from 'js-cookie';
 import { createSampler } from '~/utils/sampler';
 import type { ActionAlert } from '~/types/actions';
+import { addError, parseFileAndLine } from '~/lib/stores/errors';
 
 const { saveAs } = fileSaver;
 
@@ -33,7 +34,7 @@ export type ArtifactUpdateState = Pick<ArtifactState, 'title' | 'closed'>;
 
 type Artifacts = MapStore<Record<string, ArtifactState>>;
 
-export type WorkbenchViewType = 'admin' | 'code' | 'diff' | 'preview';
+export type WorkbenchViewType = 'admin' | 'code' | 'diff' | 'preview' | 'problems';
 
 export class WorkbenchStore {
   #previewsStore = new PreviewsStore(webcontainer);
@@ -142,6 +143,18 @@ export class WorkbenchStore {
 
     if (import.meta.hot) {
       import.meta.hot.data.alertQueue = this.#alertQueue;
+    }
+
+    // Mirror into the unified errors store so terminal errors appear in the Problems panel
+    if (alert.type === 'error') {
+      const source = alert.source === 'preview' ? 'runtime' : 'terminal';
+      addError({
+        source,
+        level: 'error',
+        message: alert.description || alert.title,
+        stack: alert.content || undefined,
+        ...parseFileAndLine(alert.content),
+      });
     }
   }
 

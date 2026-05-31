@@ -2,9 +2,9 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
+import { addError, parseFileAndLine } from '~/lib/stores/errors';
 import { PortDropdown } from './PortDropdown';
 import { ScreenshotSelector } from './ScreenshotSelector';
-import type { ActionAlert } from '~/types/actions';
 
 type ResizeSide = 'left' | 'right' | null;
 
@@ -58,26 +58,67 @@ export const Preview = memo(() => {
   const [isWindowSizeDropdownOpen, setIsWindowSizeDropdownOpen] = useState(false);
   const [selectedWindowSize, setSelectedWindowSize] = useState<WindowSize>(WINDOW_SIZES[0]);
 
-  // Listen for Vite HMR error events forwarded from the preview iframe via postMessage.
-  // Generated apps can forward errors by calling:
-  //   window.parent.postMessage({ type: 'vite:error', err: { message, stack } }, '*')
+  // Multi-source error bridge: captures Vite HMR errors, runtime JS errors,
+  // console.error/warn, and network errors forwarded from the preview iframe.
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (!event.data || typeof event.data !== 'object') {
         return;
       }
 
-      const { type, err } = event.data as { type?: string; err?: { message?: string; stack?: string } };
+      const data = event.data as Record<string, any>;
+      const { type } = data;
 
-      if ((type === 'error' || type === 'vite:error') && err) {
-        const alert: ActionAlert = {
+      // Vite HMR overlay errors (type='error' or type='vite:error')
+      if ((type === 'error' || type === 'vite:error') && data.err) {
+        const err = data.err as { message?: string; stack?: string };
+        const message = err.message || 'An error occurred in the preview';
+        workbenchStore.enqueueAlert({
           type: 'error',
           source: 'preview',
           title: 'Preview Error',
-          description: err.message || 'An error occurred in the preview',
-          content: err.stack || err.message || '',
-        };
-        workbenchStore.enqueueAlert(alert);
+          description: message,
+          content: err.stack || message,
+        });
+        // enqueueAlert already mirrors into errorsStore via workbench.ts
+        return;
+      }
+
+      // Runtime JS errors from the injected error bridge (window.onerror / unhandledrejection)
+      if (type === 'app:error') {
+        const message = String(data.message || 'Unknown runtime error');
+        const isNetwork = data.kind === 'network';
+        const source = isNetwork ? 'network' : 'runtime';
+        workbenchStore.enqueueAlert({
+          type: 'error',
+          source: 'preview',
+          title: isNetwork ? 'Network Error' : 'Runtime Error',
+          description: message,
+          content: data.stack || message,
+        });
+        // Also add directly so we preserve source granularity
+        addError({
+          source,
+          level: 'error',
+          message,
+          stack: data.stack,
+          file: data.file,
+          line: data.line ? Number(data.line) : undefined,
+        });
+        return;
+      }
+
+      // console.error / console.warn from the injected bridge
+      if (type === 'app:console') {
+        const level = data.level === 'warn' ? 'warn' : 'error';
+        const message = String(data.message || '');
+        if (!message) return;
+        addError({
+          source: 'console',
+          level,
+          message,
+          ...parseFileAndLine(data.stack),
+        });
       }
     };
 

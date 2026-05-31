@@ -32,7 +32,25 @@ export interface ActionAlert {
   title: string;
   description: string;
   content: string;
-  source?: 'terminal' | 'preview'; // Add source to differentiate between terminal and preview errors
+  source?: 'terminal' | 'preview';
+}
+
+export type ErrorSource = 'terminal' | 'runtime' | 'console' | 'network' | 'build';
+export type ErrorLevel = 'error' | 'warn';
+export type ErrorStatus = 'new' | 'fixing' | 'fixed' | 'ignored';
+
+export interface AppError {
+  id: string;
+  timestamp: number;
+  source: ErrorSource;
+  level: ErrorLevel;
+  message: string;
+  stack?: string;
+  file?: string;
+  line?: number;
+  status: ErrorStatus;
+  fixAttempts: number;
+  fingerprint: string;
 }
 
 export interface FileHistory {

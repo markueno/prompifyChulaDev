@@ -9,6 +9,8 @@ import { ActionRunner } from '~/lib/runtime/action-runner';
 import { getLanguageFromExtension } from '~/utils/getLanguageFromExtension';
 import type { FileHistory } from '~/types/actions';
 import { AdminPanel } from './AdminPanel';
+import { ErrorPanel, ErrorBadge, requestFixForError } from './ErrorPanel';
+import { getActiveErrors, updateErrorStatus } from '~/lib/stores/errors';
 import { StreamingBadge } from '~/components/ui/BuildingOverlay';
 import { DiffView } from './DiffView';
 import {
@@ -384,6 +386,19 @@ export const Workbench = memo(
               <div className="h-full flex flex-col bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor shadow-sm rounded-lg overflow-hidden">
                 <div className="flex items-center px-3 py-2 border-b border-bolt-elements-borderColor">
                   <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
+                  {/* Problems tab button with live error badge */}
+                  <button
+                    className={`relative ml-1 flex items-center gap-1 px-2.5 py-0.5 rounded-full text-sm transition-colors ${
+                      selectedView === 'problems'
+                        ? 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
+                        : 'text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive'
+                    }`}
+                    onClick={() => setSelectedView('problems')}
+                    title="Problems panel"
+                  >
+                    Problems
+                    <ErrorBadge />
+                  </button>
                   <div className="ml-auto" />
                   {selectedView === 'code' && (
                     <div className="flex overflow-y-auto">
@@ -474,6 +489,21 @@ export const Workbench = memo(
                   </View>
                   <View initial={{ x: '100%' }} animate={{ x: selectedView === 'preview' ? '0%' : '100%' }}>
                     <Preview />
+                  </View>
+                  <View initial={{ x: '100%' }} animate={{ x: selectedView === 'problems' ? '0%' : '100%' }}>
+                    <ErrorPanel
+                      onFixError={(error) => {
+                        requestFixForError(error);
+                        setSelectedView('preview');
+                      }}
+                      onFixAll={() => {
+                        getActiveErrors().forEach((e) => {
+                          requestFixForError(e);
+                          updateErrorStatus(e.id, 'fixing');
+                        });
+                        setSelectedView('preview');
+                      }}
+                    />
                   </View>
                 </div>
               </div>
