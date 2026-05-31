@@ -5,12 +5,15 @@ import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import { Popover, Transition } from '@headlessui/react';
 import { diffLines, type Change } from 'diff';
+import Cookies from 'js-cookie';
 import { ActionRunner } from '~/lib/runtime/action-runner';
 import { getLanguageFromExtension } from '~/utils/getLanguageFromExtension';
 import type { FileHistory } from '~/types/actions';
 import { AdminPanel } from './AdminPanel';
 import { ErrorPanel, ErrorBadge, requestFixForError } from './ErrorPanel';
-import { getActiveErrors, updateErrorStatus } from '~/lib/stores/errors';
+import { getActiveErrors, updateErrorStatus, addError } from '~/lib/stores/errors';
+import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROVIDER_LIST } from '~/utils/constants';
+import type { ReviewFile, ReviewIssue } from '~/routes/api.review';
 import { StreamingBadge } from '~/components/ui/BuildingOverlay';
 import { DiffView } from './DiffView';
 import {
@@ -289,6 +292,7 @@ export const Workbench = memo(
 
     const [isSyncing, setIsSyncing] = useState(false);
     const [isPushDialogOpen, setIsPushDialogOpen] = useState(false);
+    const [isReviewing, setIsReviewing] = useState(false);
     const [fileHistory, setFileHistory] = useState<Record<string, FileHistory>>({});
 
     // const modifiedFiles = Array.from(useStore(workbenchStore.unsavedFiles).keys());
@@ -342,6 +346,76 @@ export const Workbench = memo(
     const onFileReset = useCallback(() => {
       workbenchStore.resetCurrentDocument();
     }, []);
+
+    const handleReview = useCallback(async () => {
+      if (isReviewing) return;
+
+      setIsReviewing(true);
+
+      try {
+        const allFiles = workbenchStore.files.get();
+
+        // Prefer modified files; fall back to all source files
+        const modifiedPaths = Array.from(workbenchStore.modifiedFiles);
+        const sourcePaths = Object.keys(allFiles).filter((p) =>
+          /\.(tsx?|jsx?)$/.test(p) && !p.includes('node_modules'),
+        );
+        const candidatePaths = modifiedPaths.length > 0 ? modifiedPaths : sourcePaths;
+
+        const reviewFiles: ReviewFile[] = candidatePaths
+          .slice(0, 3)
+          .map((p) => {
+            const dirent = allFiles[p];
+            if (!dirent || dirent.type !== 'file' || !('content' in dirent)) return null;
+            return { path: p.replace(/^\/home\/project\//, ''), content: (dirent as any).content as string };
+          })
+          .filter((f): f is ReviewFile => f !== null);
+
+        if (reviewFiles.length === 0) {
+          toast.info('No source files to review yet.');
+          return;
+        }
+
+        const model = Cookies.get('selectedModel') || DEFAULT_MODEL;
+        const providerName = Cookies.get('selectedProvider');
+        const provider = (PROVIDER_LIST.find((p) => p.name === providerName) || DEFAULT_PROVIDER) as typeof DEFAULT_PROVIDER;
+
+        const res = await fetch('/api/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: reviewFiles, model, provider }),
+        });
+
+        if (!res.ok) {
+          throw new Error(`Review API returned ${res.status}`);
+        }
+
+        const issues: ReviewIssue[] = await res.json();
+
+        if (!issues.length) {
+          toast.success('Review complete — no issues found.');
+          return;
+        }
+
+        issues.forEach((issue) => {
+          addError({
+            source: 'review',
+            level: 'warn',
+            message: issue.message,
+            file: issue.file,
+            line: issue.line || undefined,
+          });
+        });
+
+        setSelectedView('problems');
+        toast.info(`Review found ${issues.length} potential issue${issues.length !== 1 ? 's' : ''}. Check the Problems panel.`);
+      } catch (err) {
+        console.error('Review error:', err);
+        toast.error('Review failed. Check your AI provider settings.');
+      } finally {
+        setIsReviewing(false);
+      }
+    }, [isReviewing]);
 
     const handleSyncFiles = useCallback(async () => {
       setIsSyncing(true);
@@ -398,6 +472,20 @@ export const Workbench = memo(
                   >
                     Problems
                     <ErrorBadge />
+                  </button>
+                  {/* Review button — on-demand AI scan of modified files (Layer 5) */}
+                  <button
+                    className="relative ml-1 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    onClick={handleReview}
+                    disabled={isReviewing}
+                    title="Ask AI to review recently modified files for bugs (low token cost)"
+                  >
+                    {isReviewing ? (
+                      <div className="i-ph:spinner animate-spin w-3.5 h-3.5" />
+                    ) : (
+                      <div className="i-ph:magnifying-glass w-3.5 h-3.5" />
+                    )}
+                    {isReviewing ? 'Reviewing…' : 'Review'}
                   </button>
                   <div className="ml-auto" />
                   {selectedView === 'code' && (
