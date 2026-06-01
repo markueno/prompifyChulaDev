@@ -46,7 +46,7 @@ export function DesignInspiration({ brands, maxSelect, initialSelected = [], onC
   return (
     <div className="space-y-5">
       <p className="text-xs text-bolt-elements-textTertiary">
-        Pick up to {maxSelect} — the AI will mirror that brand's visual language.
+        Pick up to {maxSelect} — the AI will mirror that visual style throughout your app.
       </p>
 
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -64,14 +64,17 @@ export function DesignInspiration({ brands, maxSelect, initialSelected = [], onC
                   : 'border-bolt-elements-borderColor bg-bolt-elements-bg-depth-2 hover:bg-bolt-elements-item-backgroundActive',
               ].join(' ')}
             >
-              <div className="flex items-start justify-between gap-2">
-                <p
-                  className={`font-semibold text-sm leading-snug ${isSelected ? 'text-accent-600' : 'text-bolt-elements-textPrimary'}`}
-                >
-                  {brand.label}
-                </p>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                {brand.icon && (
+                  <img
+                    src={brand.icon}
+                    alt={brand.label}
+                    className="w-7 h-7 object-contain shrink-0"
+                    draggable={false}
+                  />
+                )}
                 {isSelected && (
-                  <span className="shrink-0 w-4 h-4 rounded-full bg-accent-500 flex items-center justify-center mt-0.5">
+                  <span className="ml-auto shrink-0 w-4 h-4 rounded-full bg-accent-500 flex items-center justify-center">
                     <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
                       <path
                         d="M1.5 4L3.5 6L6.5 2"
@@ -84,6 +87,11 @@ export function DesignInspiration({ brands, maxSelect, initialSelected = [], onC
                   </span>
                 )}
               </div>
+              <p
+                className={`font-semibold text-sm leading-snug ${isSelected ? 'text-accent-600' : 'text-bolt-elements-textPrimary'}`}
+              >
+                {brand.label}
+              </p>
               <p className="text-xs text-bolt-elements-textSecondary mt-1 leading-relaxed">{brand.tagline}</p>
             </button>
           );

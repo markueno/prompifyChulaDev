@@ -25,6 +25,7 @@ export interface Brand {
   id: string;
   label: string;
   tagline: string;
+  icon?: string;
 }
 
 export interface Question {
@@ -76,7 +77,7 @@ export type FlowAction =
   | { type: 'SELECT_OPTION'; questionId: string; optionId: string; phase: FlowPhase }
   | { type: 'SET_COLORS'; answer: ColorsAnswer }
   | { type: 'SET_FILL_BLANKS'; text: string }
-  | { type: 'SET_DESIGN_INSPIRATION'; answer: DesignInspirationAnswer }
+  | { type: 'SET_DESIGN_INSPIRATION'; answer: DesignInspirationAnswer; phase: 'primary' | 'secondary' }
   | { type: 'SET_TEXT'; questionId: string; text: string }
   | { type: 'BACK' }
   | { type: 'RESET' }

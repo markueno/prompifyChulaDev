@@ -106,6 +106,25 @@ export const primaryQuestions: Question[] = [
     ],
   },
   {
+    id: 'design_inspiration',
+    type: 'designInspiration',
+    label: 'What style do you want your website to feel?',
+    description: 'Pick up to 2 — the AI will mirror that visual style in your app.',
+    maxSelect: 2,
+    brands: [
+      { id: 'apple', label: 'Apple', tagline: 'Minimalist & premium', icon: '/icons/brands/apple.svg' },
+      { id: 'airbnb', label: 'Airbnb', tagline: 'Warm & human', icon: '/icons/brands/airbnb.svg' },
+      { id: 'stripe', label: 'Stripe', tagline: 'Professional & trustworthy', icon: '/icons/brands/stripe.svg' },
+      { id: 'notion', label: 'Notion', tagline: 'Document-first & structured', icon: '/icons/brands/notion.svg' },
+      { id: 'linear', label: 'Linear', tagline: 'Dark, dense & precise', icon: '/icons/brands/linear.svg' },
+      { id: 'figma', label: 'Figma', tagline: 'Creative & colorful', icon: '/icons/brands/figma.svg' },
+      { id: 'spotify', label: 'Spotify', tagline: 'Bold & expressive', icon: '/icons/brands/spotify.svg' },
+      { id: 'framer', label: 'Framer', tagline: 'Motion-rich & modern', icon: '/icons/brands/framer.svg' },
+      { id: 'raycast', label: 'Raycast', tagline: 'Focused & keyboard-first', icon: '/icons/brands/raycast.svg' },
+      { id: 'supabase', label: 'Supabase', tagline: 'Dashboard & data-rich', icon: '/icons/brands/supabase.svg' },
+    ],
+  },
+  {
     id: 'colors',
     type: 'color',
     label: 'Choose your color palette',
@@ -455,95 +474,6 @@ export const secondaryUniversal: Question[] = [
     ],
   },
   {
-    id: 'email',
-    label: 'Need to send emails?',
-    description: 'Choose how your app sends emails to users.',
-    options: [
-      {
-        id: 'no',
-        label: 'No',
-        description: 'No emails at all',
-        prompt: { email: 'None', emailDetail: 'No email infrastructure. Do not include any email provider.' },
-      },
-      {
-        id: 'basics',
-        label: 'Just basics',
-        description: 'Password resets, confirmations, welcome emails',
-        prompt: {
-          email: 'Resend (transactional)',
-          emailDetail:
-            'Resend for transactional emails: verification, password reset, welcome. Simple API, excellent deliverability, generous free tier.',
-        },
-      },
-      {
-        id: 'marketing',
-        label: 'Basics + marketing',
-        description: 'Transactional + product updates and promotions',
-        prompt: {
-          email: 'SendGrid (transactional + marketing)',
-          emailDetail:
-            'SendGrid for both transactional and marketing emails. List management, templates, open/click tracking.',
-        },
-      },
-      {
-        id: 'full',
-        label: 'Full email platform',
-        description: 'Newsletters, drip campaigns, automation sequences',
-        prompt: {
-          email: 'SendGrid + queue system',
-          emailDetail:
-            'SendGrid with a job queue (BullMQ) for drip campaigns, scheduled sequences, and high-volume newsletters. Full unsubscribe management and list segmentation.',
-        },
-      },
-    ],
-  },
-  {
-    id: 'uploads',
-    label: 'Will users upload files?',
-    description: 'Choose how uploaded files are stored and delivered.',
-    options: [
-      {
-        id: 'no',
-        label: 'No',
-        description: 'No file uploads needed',
-        prompt: {
-          uploads: 'None',
-          uploadsDetail: 'No file storage infrastructure. Do not include S3, Cloudinary, or any upload handling.',
-        },
-      },
-      {
-        id: 'images',
-        label: 'Images only',
-        description: 'Profile photos, product images, avatars',
-        prompt: {
-          uploads: 'Cloudinary (image storage + CDN)',
-          uploadsDetail:
-            'Cloudinary for image upload, optimisation, transformation, and CDN delivery. Client SDK for direct upload. Auto-resize and format conversion.',
-        },
-      },
-      {
-        id: 'documents',
-        label: 'Documents',
-        description: 'PDFs, spreadsheets, Word docs, etc.',
-        prompt: {
-          uploads: 'AWS S3 (document storage)',
-          uploadsDetail:
-            'AWS S3 for secure document storage. Pre-signed URLs for direct client upload. Per-user or per-resource access control. Virus scan hook optional.',
-        },
-      },
-      {
-        id: 'mixed',
-        label: 'Mixed media',
-        description: 'Images, videos, documents, and other files',
-        prompt: {
-          uploads: 'AWS S3 + CDN + processing pipeline',
-          uploadsDetail:
-            'S3 for storage, CloudFront CDN for delivery. Background processing jobs for video transcoding and image resizing. Chunked upload support for large files.',
-        },
-      },
-    ],
-  },
-  {
     id: 'search',
     label: 'How will users find things?',
     description: 'From simple filtering to full-text and faceted search.',
@@ -625,118 +555,6 @@ export const secondaryUniversal: Question[] = [
             'Vercel + Railway chosen as sensible defaults — easy to use, generous free tiers, excellent developer experience.',
         },
       },
-    ],
-  },
-  {
-    id: 'auth_extras',
-    label: 'How should user accounts work?',
-    description: 'Beyond basic sign-in and sign-out.',
-    options: [
-      {
-        id: 'none',
-        label: 'No — basics are fine',
-        description: 'Just sign up, log in, log out',
-        prompt: {
-          authExtras: 'Basic auth only',
-          authExtrasDetail: 'Standard sign-up, login, logout, and session management. No advanced auth features.',
-        },
-      },
-      {
-        id: 'twofa',
-        label: 'Add 2FA',
-        description: 'Two-factor authentication via authenticator app',
-        prompt: {
-          authExtras: '2FA (TOTP)',
-          authExtrasDetail:
-            'TOTP-based two-factor auth (compatible with Google Authenticator / Authy). QR code setup flow, backup recovery codes, and 2FA enforcement option.',
-        },
-      },
-      {
-        id: 'multisign',
-        label: 'Link multiple sign-in methods',
-        description: 'Users can connect email + social to one account',
-        prompt: {
-          authExtras: 'Multi-provider account linking',
-          authExtrasDetail:
-            'Users can link multiple sign-in methods (email, Google, GitHub) to a single account. Account merge and unlink flows included.',
-        },
-      },
-      {
-        id: 'teams',
-        label: 'Team management & invites',
-        description: 'Workspaces, member invites, roles per team',
-        prompt: {
-          authExtras: 'Team / workspace management + RBAC',
-          authExtrasDetail:
-            'Organisation or workspace model. Owner invites members via email. Role-based access control (Owner, Admin, Member). Accept/decline invite flow. Member removal and role change.',
-        },
-      },
-    ],
-  },
-  {
-    id: 'security',
-    label: 'Who should be able to access your app?',
-    description: 'This controls how your app is protected and who can reach it',
-    options: [
-      {
-        id: 'open',
-        label: 'Open to everyone',
-        description: 'Anyone on the internet can visit without signing in',
-        prompt: {
-          security: 'Publicly accessible — no access restrictions',
-          securityDetail:
-            'No IP restrictions or VPN required. HTTPS enforced. Standard rate limiting on API routes. No additional firewall rules needed.',
-        },
-      },
-      {
-        id: 'login',
-        label: 'Login required',
-        description: 'Users must create an account or sign in to see anything',
-        prompt: {
-          security: 'Authentication wall — login required to access any page',
-          securityDetail:
-            'All routes protected behind authentication middleware. Unauthenticated requests redirected to login. Session-based or JWT access control enforced throughout.',
-        },
-      },
-      {
-        id: 'team',
-        label: 'Team or company only',
-        description: 'Restricted to specific people you invite or approve',
-        prompt: {
-          security: 'Invite-only / company-restricted access',
-          securityDetail:
-            'No public signup. Invite-only or company email domain restriction. Admin controls user creation and removal. All routes require authenticated session with role check.',
-        },
-      },
-      {
-        id: 'strict',
-        label: 'Extra security layer',
-        description: 'Restrict access to specific locations, devices, or networks',
-        prompt: {
-          security: 'Strict access control — IP whitelist or VPN',
-          securityDetail:
-            'IP whitelist firewall rules at hosting/CDN level. Optional VPN-only access. Rate limiting, brute-force protection, and audit logging on all access events.',
-        },
-      },
-    ],
-  },
-  {
-    id: 'design_inspiration',
-    type: 'designInspiration',
-    label: 'Any brands that inspire your design?',
-    description: 'Optional — pick up to 2. Their full design systems get added to your prompt.',
-    maxSelect: 2,
-    brands: [
-      { id: 'apple', label: 'Apple', tagline: 'Minimalist & premium' },
-      { id: 'airbnb', label: 'Airbnb', tagline: 'Warm & human' },
-      { id: 'stripe', label: 'Stripe', tagline: 'Professional & trustworthy' },
-      { id: 'notion', label: 'Notion', tagline: 'Document-first & structured' },
-      { id: 'linear', label: 'Linear', tagline: 'Dark, dense & precise' },
-      { id: 'figma', label: 'Figma', tagline: 'Creative & colorful' },
-      { id: 'spotify', label: 'Spotify', tagline: 'Bold & expressive' },
-      { id: 'framer', label: 'Framer', tagline: 'Motion-rich & modern' },
-      { id: 'raycast', label: 'Raycast', tagline: 'Focused & keyboard-first' },
-      { id: 'supabase', label: 'Supabase', tagline: 'Dashboard & data-rich' },
     ],
   },
 ];
