@@ -36,7 +36,7 @@ export default function PromptBlockScene({ isActive }: SceneProps) {
   const [hoveredCard, setHoveredCard] = useState<number | null>(null)
 
   const promptMat = useMemo(() => new THREE.MeshPhysicalMaterial({
-    color: '#1a1a2e',
+    color: '#231710',
     metalness: 0.3,
     roughness: 0.4,
     transparent: true,

@@ -169,7 +169,7 @@ export default function DataFlowScene({ isActive }: SceneProps) {
       <mesh ref={prismRef} scale={0.5}>
         <octahedronGeometry args={[1.2, 0]} />
         <meshPhysicalMaterial
-          color="#1a1a2e"
+          color="#231710"
           roughness={0.1}
           metalness={0.3}
           transparent

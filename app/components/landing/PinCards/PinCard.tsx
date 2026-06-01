@@ -25,8 +25,8 @@ export default function PinCard({ heading, description, index, children }: PinCa
             {String(index + 1).padStart(2, '0')}
           </span>
           <div className="pin-card-text">
-            <h2 style={{ color: '#0a0a0a' }}>{heading}</h2>
-            <p style={{ color: '#2a2a2a' }}>{description}</p>
+            <h2 style={{ color: '#231710' }}>{heading}</h2>
+            <p style={{ color: '#231710' }}>{description}</p>
           </div>
         </div>
 

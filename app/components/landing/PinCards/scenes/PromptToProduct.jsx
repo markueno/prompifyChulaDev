@@ -200,8 +200,8 @@ export default function PromptToProduct() {
                     <motion.div key={l} className="rounded-xl p-3"
                       style={{ background: 'white', border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + idx * 0.1 }}>
-                      <div className="text-[7px] mb-1 font-medium" style={{ color: 'rgba(0,0,0,0.38)' }}>{l}</div>
-                      <div className="font-bold text-sm" style={{ color: '#111' }}>{v}</div>
+                      <div className="text-[7px] mb-1 font-medium" style={{ color: 'rgba(35,23,16,0.55)' }}>{l}</div>
+                      <div className="font-bold text-sm" style={{ color: '#231710' }}>{v}</div>
                       <div className="text-[8px] mt-0.5 font-semibold" style={{ color: '#10b981' }}>↑ {c}</div>
                     </motion.div>
                   ))}

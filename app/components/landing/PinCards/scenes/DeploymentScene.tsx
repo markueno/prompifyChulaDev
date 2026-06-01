@@ -61,7 +61,7 @@ export default function DeploymentScene({ isActive }: SceneProps) {
           node.scale.setScalar(0.3)
         }
         const mat = nodeMaterialRefs.current[i]
-        if (mat) mat.color.set('#333333')
+        if (mat) mat.color.set('#231710')
       })
       if (progressLineRef.current) progressLineRef.current.scale.y = 0
       return
@@ -113,7 +113,7 @@ export default function DeploymentScene({ isActive }: SceneProps) {
         if (activatedStages.current[i]) {
           mat.color.lerp(new THREE.Color('#10b981'), delta * 5)
         } else {
-          mat.color.set('#333333')
+          mat.color.set('#231710')
         }
       }
 
@@ -185,7 +185,7 @@ export default function DeploymentScene({ isActive }: SceneProps) {
       {/* Background line */}
       <mesh ref={bgLineRef} position={[0, 0, -0.1]}>
         <cylinderGeometry args={[0.03, 0.03, 5, 8]} />
-        <meshBasicMaterial color="#333333" />
+        <meshBasicMaterial color="#231710" />
       </mesh>
 
       {/* Progress line (green, grows) */}
@@ -205,7 +205,7 @@ export default function DeploymentScene({ isActive }: SceneProps) {
             <sphereGeometry args={[0.25, 16, 16]} />
             <meshBasicMaterial
               ref={(el) => { nodeMaterialRefs.current[i] = el }}
-              color="#333333"
+              color="#231710"
             />
           </mesh>
 
