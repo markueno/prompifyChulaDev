@@ -36,10 +36,11 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0.45rem 2rem',
-        background: 'rgba(255, 255, 255, 0.07)',
-        backdropFilter: 'blur(14px)',
-        WebkitBackdropFilter: 'blur(14px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.09)',
+        background: 'rgba(255, 255, 255, 0.11)',
+        backdropFilter: 'blur(28px) saturate(1.3)',
+        WebkitBackdropFilter: 'blur(28px) saturate(1.3)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.16)',
+        boxShadow: '0 1px 0 rgba(255,255,255,0.18) inset',
         fontFamily: 'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
     >
