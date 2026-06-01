@@ -216,7 +216,7 @@ export default function Hero({ onAfterSubmit, onSignUp }: HeroProps) {
           </h1>
 
           <p className="subtitle">
-            Describe what you need in plain English and get a working, live app in your screen.
+            Build what you need before your coffee gets cold.
           </p>
 
           <div className="prompt-wrapper">
