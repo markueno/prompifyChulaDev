@@ -2,8 +2,6 @@
 
 **AI-powered B2B enterprise app suite builder.** Generate, deploy, and manage a suite of internal web applications per company — with shared identity, shared data, governance, and full code ownership.
 
-> Built on top of [bolt.diy](https://github.com/stackblitz-labs/bolt.diy) (open source). Forked and extended with multi-tenant enterprise architecture.
-
 ---
 
 ## Table of Contents
@@ -26,7 +24,7 @@
 
 Prompify lets enterprise teams build and manage internal web applications using AI — without writing code from scratch. Unlike other AI builders that work at the individual app level, Prompify works at the **company level**: one workspace, multiple apps, shared infrastructure.
 
-**What makes it different from Replit, Lovable, Bolt.new, Base44, v0.dev:**
+**What makes it different from Replit, Lovable, Base44, v0.dev:**
 
 | | Other builders | Prompify |
 |---|---|---|
