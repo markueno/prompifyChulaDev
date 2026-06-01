@@ -1,351 +1,374 @@
-# bolt.diy (Previously oTToDev)
+# Prompify
 
-[![bolt.diy: AI-Powered Full-Stack Web Development in the Browser](./public/social_preview_index.jpg)](https://bolt.diy)
+**AI-powered B2B enterprise app suite builder.** Generate, deploy, and manage a suite of internal web applications per company — with shared identity, shared data, governance, and full code ownership.
 
-Welcome to bolt.diy, the official open source version of Bolt.new (previously known as oTToDev and bolt.new ANY LLM), which allows you to choose the LLM that you use for each prompt! Currently, you can use OpenAI, Anthropic, Ollama, OpenRouter, Gemini, LMStudio, Mistral, xAI, HuggingFace, DeepSeek, or Groq models - and it is easily extended to use any other model supported by the Vercel AI SDK! See the instructions below for running this locally and extending it to include more models.
-
------
-Check the [bolt.diy Docs](https://stackblitz-labs.github.io/bolt.diy/) for more offical installation instructions and more informations.
-
------
-Also [this pinned post in our community](https://thinktank.ottomator.ai/t/videos-tutorial-helpful-content/3243) has a bunch of incredible resources for running and deploying bolt.diy yourself!
-
-We have also launched an experimental agent called the "bolt.diy Expert" that can answer common questions about bolt.diy. Find it here on the [oTTomator Live Agent Studio](https://studio.ottomator.ai/).
-
-bolt.diy was originally started by [Cole Medin](https://www.youtube.com/@ColeMedin) but has quickly grown into a massive community effort to build the BEST open source AI coding assistant!
+---
 
 ## Table of Contents
 
-- [Join the Community](#join-the-community)
-- [Requested Additions](#requested-additions)
-- [Features](#features)
-- [Setup](#setup)
-- [Run the Application](#run-the-application)
+- [What is Prompify](#what-is-prompify)
+- [Architecture Overview](#architecture-overview)
+- [Prerequisites](#prerequisites)
+- [Environment Setup](#environment-setup)
+- [Running with Docker Compose](#running-with-docker-compose)
+- [Running Locally (without Docker)](#running-locally-without-docker)
+- [Phase 1 — AI App Builder](#phase-1--ai-app-builder)
+- [Phase 2 — Multi-Tenant Enterprise](#phase-2--multi-tenant-enterprise)
+- [Database Schema](#database-schema)
+- [API Reference](#api-reference)
 - [Available Scripts](#available-scripts)
-- [Contributing](#contributing)
-- [Roadmap](#roadmap)
-- [FAQ](#faq)
 
-## Join the community
+---
 
-[Join the bolt.diy community here, in the oTTomator Think Tank!](https://thinktank.ottomator.ai)
+## What is Prompify
 
-## Project management
+Prompify lets enterprise teams build and manage internal web applications using AI — without writing code from scratch. Unlike other AI builders that work at the individual app level, Prompify works at the **company level**: one workspace, multiple apps, shared infrastructure.
 
-Bolt.diy is a community effort! Still, the core team of contributors aims at organizing the project in way that allows
-you to understand where the current areas of focus are.
+**What makes it different from Replit, Lovable, Base44, v0.dev:**
 
-If you want to know what we are working on, what we are planning to work on, or if you want to contribute to the
-project, please check the [project management guide](./PROJECT.md) to get started easily.
+| | Other builders | Prompify |
+|---|---|---|
+| Unit of value | Individual app | Company app suite |
+| Data isolation | Per-app | Per-company (shared schema) |
+| Identity | Per-app auth | Company SSO propagated to all apps |
+| Code ownership | Platform-dependent | Your GitHub org, standard code |
+| Governance | None or bolt-on | RBAC + audit log built in |
+| Multi-app dashboard | No | Yes — status, sleep/wake, deploy |
 
-## Requested Additions
+---
 
-- ✅ OpenRouter Integration (@coleam00)
-- ✅ Gemini Integration (@jonathands)
-- ✅ Autogenerate Ollama models from what is downloaded (@yunatamos)
-- ✅ Filter models by provider (@jasonm23)
-- ✅ Download project as ZIP (@fabwaseem)
-- ✅ Improvements to the main bolt.new prompt in `app\lib\.server\llm\prompts.ts` (@kofi-bhr)
-- ✅ DeepSeek API Integration (@zenith110)
-- ✅ Mistral API Integration (@ArulGandhi)
-- ✅ "Open AI Like" API Integration (@ZerxZ)
-- ✅ Ability to sync files (one way sync) to local folder (@muzafferkadir)
-- ✅ Containerize the application with Docker for easy installation (@aaronbolton)
-- ✅ Publish projects directly to GitHub (@goncaloalves)
-- ✅ Ability to enter API keys in the UI (@ali00209)
-- ✅ xAI Grok Beta Integration (@milutinke)
-- ✅ LM Studio Integration (@karrot0)
-- ✅ HuggingFace Integration (@ahsan3219)
-- ✅ Bolt terminal to see the output of LLM run commands (@thecodacus)
-- ✅ Streaming of code output (@thecodacus)
-- ✅ Ability to revert code to earlier version (@wonderwhy-er)
-- ✅ Chat history backup and restore functionality (@sidbetatester)
-- ✅ Cohere Integration (@hasanraiyan)
-- ✅ Dynamic model max token length (@hasanraiyan)
-- ✅ Better prompt enhancing (@SujalXplores)
-- ✅ Prompt caching (@SujalXplores)
-- ✅ Load local projects into the app (@wonderwhy-er)
-- ✅ Together Integration (@mouimet-infinisoft)
-- ✅ Mobile friendly (@qwikode)
-- ✅ Better prompt enhancing (@SujalXplores)
-- ✅ Attach images to prompts (@atrokhym)(@stijnus)
-- ✅ Added Git Clone button (@thecodacus)
-- ✅ Git Import from url (@thecodacus)
-- ✅ PromptLibrary to have different variations of prompts for different use cases (@thecodacus)
-- ✅ Detect package.json and commands to auto install & run preview for folder and git import (@wonderwhy-er)
-- ✅ Selection tool to target changes visually (@emcconnell)
-- ✅ Detect terminal Errors and ask bolt to fix it (@thecodacus)
-- ✅ Detect preview Errors and ask bolt to fix it (@wonderwhy-er)
-- ✅ Add Starter Template Options (@thecodacus)
-- ✅ Perplexity Integration (@meetpateltech)
-- ✅ AWS Bedrock Integration (@kunjabijukchhe)
-- ✅ Add a "Diff View" to see the changes (@toddyclipsgg)
-- ⬜ **HIGH PRIORITY** - Prevent bolt from rewriting files as often (file locking and diffs)
-- ⬜ **HIGH PRIORITY** - Better prompting for smaller LLMs (code window sometimes doesn't start)
-- ⬜ **HIGH PRIORITY** - Run agents in the backend as opposed to a single model call
-- ⬜ Deploy directly to Vercel/Netlify/other similar platforms
-- ⬜ Have LLM plan the project in a MD file for better results/transparency
-- ⬜ VSCode Integration with git-like confirmations
-- ⬜ Upload documents for knowledge - UI design templates, a code base to reference coding style, etc.
-- ⬜ Voice prompting
-- ⬜ Azure Open AI API Integration
-- ⬜ Vertex AI Integration
-- ⬜ Granite Integration
-- ✅ Popout Window for Web Container(@stijnus)
-- ✅ Ability to change Popout window size (@stijnus)
+## Architecture Overview
 
-## Features
+```
+User (browser)
+    │
+    ├── Structured Prompt Wizard (6 questions → system prompt)
+    │
+    ├── AI IDE (WebContainers — Node.js runs in browser via WASM)
+    │     ├── Code editor (CodeMirror 6)
+    │     ├── Terminal (xterm.js)
+    │     └── Live preview (iframe)
+    │
+    └── Deploy → Netlify (static/SSR) or Docker container (Phase 3)
+                      │
+                      └── Code pushed to company GitHub org
+                                │
+                                └── App appears in /c/{company-slug} dashboard
+```
 
-- **AI-powered full-stack web development** for **NodeJS based applications** directly in your browser.
-- **Support for multiple LLMs** with an extensible architecture to integrate additional models.
-- **Attach images to prompts** for better contextual understanding.
-- **Integrated terminal** to view output of LLM-run commands.
-- **Revert code to earlier versions** for easier debugging and quicker changes.
-- **Download projects as ZIP** for easy portability.
-- **Integration-ready Docker support** for a hassle-free setup.
+**Infrastructure stack (Docker Compose):**
 
-## Setup
+```
+nginx (HTTPS, port 443/80)
+    └── app (Remix + Vite, port 5173)
+          ├── postgres (PostgreSQL 15, port 5432)
+          ├── redis (Redis 7, port 6379)
+          └── cron (curl-based, hits /api/cron/sleep-check every 15 min)
+```
 
-If you're new to installing software from GitHub, don't worry! If you encounter any issues, feel free to submit an "issue" using the provided links or improve this documentation by forking the repository, editing the instructions, and submitting a pull request. The following instruction will help you get the stable branch up and running on your local machine in no time.
-
-Let's get you up and running with the stable version of Bolt.DIY!
-
-## Quick Download
-
-[![Download Latest Release](https://img.shields.io/github/v/release/stackblitz-labs/bolt.diy?label=Download%20Bolt&sort=semver)](https://github.com/stackblitz-labs/bolt.diy/releases/latest) ← Click here to go the the latest release version!
-
-- Next **click source.zip**
+---
 
 ## Prerequisites
 
-Before you begin, you'll need to install two important pieces of software:
+- [Docker Desktop](https://www.docker.com/) (Windows/Mac) or Docker Engine + Compose (Linux)
+- An AI provider API key — at minimum one of: Anthropic, OpenAI, Groq, Google, etc.
+- A Netlify account + token (for app deployment in Phase 1)
+- A GitHub org (optional, for code push in Phase 2)
 
-### Install Node.js
+---
 
-Node.js is required to run the application.
+## Environment Setup
 
-1. Visit the [Node.js Download Page](https://nodejs.org/en/download/)
-2. Download the "LTS" (Long Term Support) version for your operating system
-3. Run the installer, accepting the default settings
-4. Verify Node.js is properly installed:
-   - **For Windows Users**:
-     1. Press `Windows + R`
-     2. Type "sysdm.cpl" and press Enter
-     3. Go to "Advanced" tab → "Environment Variables"
-     4. Check if `Node.js` appears in the "Path" variable
-   - **For Mac/Linux Users**:
-     1. Open Terminal
-     2. Type this command:
-        ```bash
-        echo $PATH
-        ```
-     3. Look for `/usr/local/bin` in the output
+Copy `.env.example` to `.env` and fill in values:
 
-## Running the Application
+```bash
+cp .env.example .env
+```
 
-You have two options for running Bolt.DIY: directly on your machine or using Docker.
+### Required variables
 
-### Option 1: Direct Installation (Recommended for Beginners)
+```env
+# Database (auto-configured in Docker — change only if using external Postgres)
+DATABASE_TYPE=postgresql
+DATABASE_URL=postgresql://prompify_user:Mark@3156@postgres:5432/prompify
+POSTGRES_DB=prompify
+POSTGRES_USER=prompify_user
+POSTGRES_PASSWORD=Mark@3156
 
-1. **Install Package Manager (pnpm)**:
+# Auth
+JWT_SECRET=change-this-to-a-long-random-string-in-production
+AUTH_DISABLED=false
 
-   ```bash
-   npm install -g pnpm
-   ```
+# Cron endpoint protection (Phase 2 — sleep/wake)
+CRON_SECRET=generate-a-random-string-here
 
-2. **Install Project Dependencies**:
+# At least one AI provider
+ANTHROPIC_API_KEY=sk-ant-...
+# OPENAI_API_KEY=sk-...
+# GROQ_API_KEY=gsk_...
+# GOOGLE_GENERATIVE_AI_API_KEY=...
+```
 
-   ```bash
-   pnpm install
-   ```
+### Optional variables
 
-3. **Start the Application**:
+```env
+# Email (for verification + password reset)
+SENDGRID_API_KEY=
+FROM_EMAIL=noreply@yourdomain.com
+EMAIL_VERIFICATION_REQUIRED=true
 
-   ```bash
-   pnpm run dev
-   ```
-   
-### Option 2: Using Docker
+# Other AI providers
+OPEN_ROUTER_API_KEY=
+XAI_API_KEY=
+HuggingFace_API_KEY=
+TOGETHER_API_KEY=
+OLLAMA_API_BASE_URL=http://host.docker.internal:11434
+AWS_BEDROCK_CONFIG=
 
-This option requires some familiarity with Docker but provides a more isolated environment.
+# Dev/debug
+AUTH_DISABLED=true        # Bypass login entirely (local dev only)
+VITE_LOG_LEVEL=debug
+```
 
-#### Additional Prerequisite
+---
 
-- Install Docker: [Download Docker](https://www.docker.com/)
+## Running with Docker Compose
 
-#### Steps:
+This is the primary way to run Prompify. It starts PostgreSQL, Redis, Nginx, the app, and the cron runner together.
 
-1. **Build the Docker Image**:
+```bash
+docker-compose -f docker-compose.prod.yaml --profile production up --build --force-recreate
+```
 
-   ```bash
-   # Using npm script:
-   npm run dockerbuild
+App is available at:
+- `http://localhost:5173` (direct)
+- `https://localhost` (via Nginx, if SSL certs are configured)
 
-   # OR using direct Docker command:
-   docker build . --target bolt-ai-development
-   ```
+**Database migrations run automatically** on app start — `createPostgresTables()` runs idempotent `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` statements every time the app boots.
 
-2. **Run the Container**:
-   ```bash
-   docker compose --profile development up
-   ```
+### Useful Docker commands
 
-## Configuring API Keys and Providers
+```bash
+# View logs
+docker logs prompify-app -f
+docker logs prompify-postgres -f
 
-### Adding Your API Keys
+# Connect to Postgres directly
+docker exec -it prompify-postgres psql -U prompify_user -d prompify
 
-Setting up your API keys in Bolt.DIY is straightforward:
+# Rebuild after code changes
+docker-compose -f docker-compose.prod.yaml --profile production up --build
 
-1. Open the home page (main interface)
-2. Select your desired provider from the dropdown menu
-3. Click the pencil (edit) icon
-4. Enter your API key in the secure input field
+# Stop everything
+docker-compose -f docker-compose.prod.yaml --profile production down
 
-![API Key Configuration Interface](./docs/images/api-key-ui-section.png)
+# Stop and wipe the database (fresh start)
+docker-compose -f docker-compose.prod.yaml --profile production down -v
+```
 
-### Configuring Custom Base URLs
+---
 
-For providers that support custom base URLs (such as Ollama or LM Studio), follow these steps:
+## Running Locally (without Docker)
 
-1. Click the settings icon in the sidebar to open the settings menu
-   ![Settings Button Location](./docs/images/bolt-settings-button.png)
+Requires a running PostgreSQL instance.
 
-2. Navigate to the "Providers" tab
-3. Search for your provider using the search bar
-4. Enter your custom base URL in the designated field
-   ![Provider Base URL Configuration](./docs/images/provider-base-url.png)
+```bash
+# Install dependencies
+pnpm install
 
-> **Note**: Custom base URLs are particularly useful when running local instances of AI models or using custom API endpoints.
+# Set DATABASE_URL in .env to point at your local Postgres
+# Then start the dev server
+pnpm run dev
+```
 
-### Supported Providers
+App runs at `http://localhost:5173`.
 
-- Ollama
-- LM Studio
-- OpenAILike
+---
 
-## Setup Using Git (For Developers only)
+## Phase 1 — AI App Builder
 
-This method is recommended for developers who want to:
+Phase 1 delivers the core generation → deployment loop for a single user.
 
-- Contribute to the project
-- Stay updated with the latest changes
-- Switch between different versions
-- Create custom modifications
+### How it works
 
-#### Prerequisites
+1. **Structured prompt wizard** — answer questions about what you want to build (app type, users, auth, payments). Outputs a structured system prompt.
+2. **AI generation** — Claude/GPT streams generated code into a virtual filesystem via WebContainers (Node.js running in-browser via WASM). No remote VM needed during development.
+3. **Live preview** — app runs instantly in an iframe inside the IDE.
+4. **Deploy** — click Deploy → files packaged → Netlify Sites API → live `*.netlify.app` URL returned.
 
-1. Install Git: [Download Git](https://git-scm.com/downloads)
+### Supported AI providers
 
-#### Initial Setup
+OpenAI · Anthropic (Claude) · Google Gemini · Groq · Mistral · Cohere · Ollama · LM Studio · OpenRouter · Together · HuggingFace · xAI · AWS Bedrock · DeepSeek · Perplexity
 
-1. **Clone the Repository**:
+### Configuring API keys
 
-   ```bash
-   # Using HTTPS
-   git clone https://github.com/stackblitz-labs/bolt.diy.git
-   ```
+Set keys in your `.env` file **or** enter them directly in the app UI (Settings → Providers). UI-entered keys are stored in the browser only.
 
-2. **Navigate to Project Directory**:
+### Netlify deployment
 
-   ```bash
-   cd bolt.diy
-   ```
+In the IDE, click the Deploy button. On first deploy, enter your Netlify personal access token — it's stored in your browser and sent with each deploy request.
 
-3. **Switch to the Main Branch**:
-   ```bash
-   git checkout main
-   ```
-4. **Install Dependencies**:
+---
 
-   ```bash
-   pnpm install
-   ```
+## Phase 2 — Multi-Tenant Enterprise
 
-5. **Start the Development Server**:
-   ```bash
-   pnpm run dev
-   ```
+Phase 2 introduces company-scoped workspaces. Each company gets isolated data, a GitHub org for code storage, a shared app suite dashboard, RBAC, and an audit log.
 
-#### Staying Updated
+### Creating a company workspace
 
-To get the latest changes from the repository:
+1. Navigate to `/company/new`
+2. Enter company name and slug (used in URL: `/c/{slug}`)
+3. Optionally enter your GitHub org name (required for code push)
+4. You become the company admin automatically
 
-1. **Save Your Local Changes** (if any):
+### App suite dashboard
 
-   ```bash
-   git stash
-   ```
+`/c/{slug}` — shows all apps grouped by status (Active → Building → Sleeping → Draft → Failed) with status badges, last-active time, deploy URL, GitHub repo link, and Wake/Sleep actions.
 
-2. **Pull Latest Updates**:
+### RBAC roles
 
-   ```bash
-   git pull origin main
-   ```
+| Role | Can do |
+|---|---|
+| `admin` | All actions + member management + settings |
+| `developer` | Build, deploy, wake, sleep apps |
+| `viewer` | Read-only — can see dashboard, cannot act |
 
-3. **Update Dependencies**:
+### GitHub code push
 
-   ```bash
-   pnpm install
-   ```
+After deploying an app, click "Push to GitHub" to create a private repo in your company's GitHub org and push all generated files. Requires a GitHub PAT with `repo` scope stored in the browser.
 
-4. **Restore Your Local Changes** (if any):
-   ```bash
-   git stash pop
-   ```
+Each app gets its own repo: `{github-org}/{app-slug}`.
 
-#### Troubleshooting Git Setup
+### Sleep / wake
 
-If you encounter issues:
+Apps with `runtime_type = container` (Phase 3) automatically sleep after 15 minutes of inactivity via the cron service. Static/Netlify apps track status only — they don't actually stop since Netlify always serves them.
 
-1. **Clean Installation**:
+Manual sleep/wake buttons are on each app card in the dashboard.
 
-   ```bash
-   # Remove node modules and lock files
-   rm -rf node_modules pnpm-lock.yaml
+### Audit log
 
-   # Clear pnpm cache
-   pnpm store prune
+Every action (CREATE_COMPANY, DEPLOY, PUSH_CODE, WAKE, SLEEP, MEMBER_ADD, etc.) is logged to the `audit_logs` table. Visible at `/c/{slug}/settings` under the Audit log section.
 
-   # Reinstall dependencies
-   pnpm install
-   ```
+---
 
-2. **Reset Local Changes**:
-   ```bash
-   # Discard all local changes
-   git reset --hard origin/main
-   ```
+## Database Schema
 
-Remember to always commit your local changes or stash them before pulling updates to avoid conflicts.
+All tables created automatically on app start. Key tables:
+
+### Core (Phase 1)
+
+| Table | Purpose |
+|---|---|
+| `users` | Auth credentials, verification, lockout |
+| `user_sessions` | JWT session tokens (hashed), expiry |
+| `projects` | App container — extended in Phase 2 |
+| `project_members` | Per-project RBAC |
+| `chats` | AI conversation history (JSONB messages) |
+| `token_usage` | Per-message token consumption |
+| `token_balances` | Token allocation pools (tier, top-up, promo) |
+| `subscriptions` | User subscription tier |
+
+### Multi-tenant (Phase 2)
+
+| Table | Purpose |
+|---|---|
+| `companies` | Tenant accounts — name, slug, GitHub org, plan |
+| `company_members` | Company RBAC (admin / developer / viewer) |
+| `audit_logs` | Append-only action log per company |
+
+### Extended `projects` columns (Phase 2)
+
+| Column | Purpose |
+|---|---|
+| `company_id` | FK → companies |
+| `status` | `draft \| building \| active \| sleeping \| failed` |
+| `runtime_type` | `static \| worker \| container` |
+| `github_repo` | Full GitHub repo URL |
+| `deploy_url` | Live app URL |
+| `last_active_at` | Used for inactivity sleep threshold |
+| `build_logs` | Captured build output |
+
+---
+
+## API Reference
+
+### Auth
+| Method | Route | Description |
+|---|---|---|
+| POST | `/api/auth/login` | Login with email + password |
+| POST | `/api/auth/register` | Register new account |
+| POST | `/api/auth/logout` | Invalidate session |
+| POST | `/api/auth/forgot-password` | Send reset email |
+| POST | `/api/auth/reset-password` | Set new password |
+
+### AI & Deployment
+| Method | Route | Description |
+|---|---|---|
+| POST | `/api/chat` | Stream AI code generation (SSE) |
+| POST | `/api/deploy` | Deploy to Netlify |
+| POST | `/api/github/push` | Push generated files to GitHub org repo |
+
+### Companies (Phase 2)
+| Method | Route | Description |
+|---|---|---|
+| GET | `/api/companies` | List user's companies |
+| POST | `/api/companies` | Create company |
+| PATCH | `/api/companies` | Update company |
+| GET | `/api/companies/:id/members` | List members |
+| POST | `/api/companies/:id/members` | Add member |
+| PATCH | `/api/companies/:id/members` | Change member role |
+| DELETE | `/api/companies/:id/members` | Remove member |
+
+### App Lifecycle (Phase 2)
+| Method | Route | Description |
+|---|---|---|
+| POST | `/api/apps/:id/wake` | Wake a sleeping app |
+| POST | `/api/apps/:id/sleep` | Sleep an active app |
+| POST | `/api/cron/sleep-check` | Auto-sleep inactive apps (requires `Authorization: Bearer {CRON_SECRET}`) |
+
+### Pages
+| Route | Description |
+|---|---|
+| `/app` | Main AI IDE |
+| `/app/overview` | User dashboard (token usage, recent runs) |
+| `/company/new` | Create company workspace |
+| `/c/:slug` | Company app suite dashboard |
+| `/c/:slug/settings` | Company settings, members, audit log |
 
 ---
 
 ## Available Scripts
 
-- **`pnpm run dev`**: Starts the development server.
-- **`pnpm run build`**: Builds the project.
-- **`pnpm run start`**: Runs the built application locally using Wrangler Pages.
-- **`pnpm run preview`**: Builds and runs the production build locally.
-- **`pnpm test`**: Runs the test suite using Vitest.
-- **`pnpm run typecheck`**: Runs TypeScript type checking.
-- **`pnpm run typegen`**: Generates TypeScript types using Wrangler.
-- **`pnpm run deploy`**: Deploys the project to Cloudflare Pages.
-- **`pnpm run lint:fix`**: Automatically fixes linting issues.
+```bash
+pnpm run dev          # Start development server (localhost:5173)
+pnpm run build        # Production build
+pnpm run typecheck    # TypeScript type checking
+pnpm run lint         # ESLint
+pnpm run lint:fix     # ESLint + Prettier fix
+pnpm run test         # Run test suite (Vitest)
+pnpm run test:db      # Test database connection
+pnpm run clean        # Clean build artifacts
+```
 
----
+### Docker scripts
 
-## Contributing
-
-We welcome contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
+```bash
+pnpm run docker:dev                                                          # Dev mode (docker-compose.yaml)
+docker-compose -f docker-compose.prod.yaml --profile production up --build  # Production stack
+pnpm run dockerbuild                                                         # Build development image
+pnpm run dockerbuild:prod                                                    # Build production image
+```
 
 ---
 
 ## Roadmap
 
-Explore upcoming features and priorities on our [Roadmap](https://roadmap.sh/r/ottodev-roadmap-2ovzo).
-
----
-
-## FAQ
-
-For answers to common questions, issues, and to see a list of recommended models, visit our [FAQ Page](FAQ.md).
+### Phase 3 (planned)
+- Subdomain routing — `{app}.{company}.prompify.app` via Traefik + wildcard DNS
+- Docker container runtime — real container start/stop for sleep/wake
+- Schema-per-tenant — full PostgreSQL data isolation per company
+- SSO/SAML — Okta, Azure AD, Google Workspace integration
+- Approval workflow — App Owner approves before production deploy
+- Bring-your-own-database — point apps at company's existing Postgres
+- VPC deployment — deploy containers into customer's own AWS/GCP VPC
+- App template marketplace — pre-built CRM, HR, analytics, inventory starters
