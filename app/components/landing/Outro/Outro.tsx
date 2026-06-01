@@ -25,7 +25,7 @@ export default function Outro({ onStartBuilding }: OutroProps) {
         <br /><br /><b>At Prompify, creativity meets creation.</b>
       </p>
       <div className="outro-buttons">
-        <button className="outro-cta-btn" onClick={() => onStartBuilding?.()}>
+        <button className="outro-cta-btn" onClick={() => onStartBuilding ? onStartBuilding() : window.location.href = '/signup'}>
           Start Building
         </button>
         <a href="#contact" className="contact-us-btn" onClick={scrollToFooter}>

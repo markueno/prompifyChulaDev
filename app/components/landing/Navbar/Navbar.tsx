@@ -50,7 +50,7 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
         <button
-          onClick={onLogin}
+          onClick={() => onLogin ? onLogin() : window.location.href = '/login'}
           style={{
             padding: '0.375rem 0.85rem',
             borderRadius: '9999px',
@@ -69,7 +69,7 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
         </button>
 
         <button
-          onClick={onSignUp}
+          onClick={() => onSignUp ? onSignUp() : window.location.href = '/signup'}
           style={{
             padding: '0.375rem 0.85rem',
             borderRadius: '9999px',
