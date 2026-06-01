@@ -17,7 +17,7 @@ export default function Outro({ onStartBuilding }: OutroProps) {
   return (
     <section className="outro" ref={sectionRef}>
       <h2 className="shimmer-text">
-        <span style={{ color: '#fb923c' }}>Prompt</span><br />
+        <span style={{ color: '#f97316' }}>Prompt</span><br />
         Refine and Deploy
       </h2>
       <p>
