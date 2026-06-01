@@ -1,8 +1,10 @@
+﻿'use client'
+
 import { useEffect, useRef } from 'react'
 
 interface NavbarProps {
-  onLogin: () => void
-  onSignUp: () => void
+  onLogin?: () => void
+  onSignUp?: () => void
 }
 
 export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
@@ -88,3 +90,4 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
     </nav>
   )
 }
+
