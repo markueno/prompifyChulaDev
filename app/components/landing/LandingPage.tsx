@@ -223,7 +223,7 @@ export function LandingPage() {
       <Navbar onLogin={openLoginModal} onSignUp={openRegisterModal} />
       <Hero onAfterSubmit={openLoginModalSoon} onSignUp={openRegisterModal} />
       <DynamicPinCards />
-      <Outro onStartBuilding={openRegisterModal} />
+      <Outro onStartBuilding={openRegisterModal} onContactUs={openContactModal} />
       <Footer />
 
       {/* ── Auth modal ─────────────────────────────────────────────────── */}

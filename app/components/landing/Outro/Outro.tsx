@@ -4,15 +4,11 @@ import { useRef } from 'react'
 
 interface OutroProps {
   onStartBuilding?: () => void
+  onContactUs?: () => void
 }
 
-export default function Outro({ onStartBuilding }: OutroProps) {
+export default function Outro({ onStartBuilding, onContactUs }: OutroProps) {
   const sectionRef = useRef<HTMLElement>(null)
-
-  const scrollToFooter = (e: React.MouseEvent) => {
-    e.preventDefault()
-    document.querySelector('.info')?.scrollIntoView({ behavior: 'smooth' })
-  }
 
   return (
     <section className="outro" ref={sectionRef}>
@@ -28,9 +24,9 @@ export default function Outro({ onStartBuilding }: OutroProps) {
         <button className="outro-cta-btn" onClick={() => onStartBuilding ? onStartBuilding() : window.location.href = '/signup'}>
           Start Building
         </button>
-        <a href="#contact" className="contact-us-btn" onClick={scrollToFooter}>
+        <button className="contact-us-btn" onClick={() => onContactUs ? onContactUs() : window.location.href = '/contact'}>
           Contact Us
-        </a>
+        </button>
       </div>
     </section>
   )
