@@ -21,10 +21,10 @@ export default function Outro({ onStartBuilding, onContactUs }: OutroProps) {
         <br /><br /><b>At Prompify, creativity meets creation.</b>
       </p>
       <div className="outro-buttons">
-        <button className="outro-cta-btn" onClick={() => onStartBuilding ? onStartBuilding() : window.location.href = '/signup'}>
+        <button className="outro-cta-btn" style={{ borderRadius: '9999px' }} onClick={() => onStartBuilding ? onStartBuilding() : window.location.href = '/signup'}>
           Start Building
         </button>
-        <button className="contact-us-btn" onClick={() => onContactUs ? onContactUs() : window.location.href = '/contact'}>
+        <button className="contact-us-btn" style={{ borderRadius: '9999px' }} onClick={() => onContactUs ? onContactUs() : window.location.href = '/contact'}>
           Contact Us
         </button>
       </div>

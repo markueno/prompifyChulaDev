@@ -190,7 +190,7 @@ export default function PromptToProduct() {
                     <div key={l} className="text-[9px]" style={{ color: 'rgba(255,255,255,0.35)' }}>{l}</div>
                   ))}
                 </div>
-                <div className="h-5 rounded-md px-2 py-1 text-[8px] font-bold" style={{ background: '#f97316', color: 'white' }}>Upgrade</div>
+                <div className="rounded-md px-2 py-1 text-[8px] font-bold leading-none" style={{ background: '#f97316', color: 'white', whiteSpace: 'nowrap' }}>Upgrade</div>
               </div>
 
               {/* Dashboard body */}
