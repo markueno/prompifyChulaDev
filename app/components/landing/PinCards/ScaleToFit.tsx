@@ -15,7 +15,7 @@ export default function ScaleToFit({ designWidth, children }: Props) {
     if (!el) return
     const ro = new ResizeObserver(([entry]) => {
       const w = entry.contentRect.width
-      setScale(Math.min(1, w / designWidth))
+      setScale(Math.min(1.4, w / designWidth))
     })
     ro.observe(el)
     return () => ro.disconnect()
