@@ -31,9 +31,11 @@ export default function Outro({ onStartBuilding, onContactUs }: OutroProps) {
   return (
     <section className="outro" ref={sectionRef}>
       <h2>
-        <span style={{ color: '#f97316' }}>Prompt</span>
-        <br />
-        <span className="shimmer-text">Refine and Deploy</span>
+        <span className="shimmer-text">
+          Prompt
+          <br />
+          Refine and Deploy
+        </span>
       </h2>
       <p>
         From retail CRMs to logistics systems, Prompify AI powers smart integrations that transform daily operations.

@@ -1422,7 +1422,7 @@ body {
     background-position: 0% 0;
     -webkit-background-clip: text;
     background-clip: text;
-    animation: highlight 65s ease-in-out infinite;
+    animation: highlight 10s ease-in-out infinite;
     animation-play-state: paused;
 }
 
@@ -1431,15 +1431,9 @@ body {
 }
 
 @keyframes highlight {
-  0% {
-    background-position: 100% 0;
-  }
-  15% {
-    background-position: 0% 0;
-  }
-  100% {
-    background-position: 0% 0;
-  }
+  0%   { background-position: 0% 0; }
+  50%  { background-position: 100% 0; }
+  100% { background-position: 0% 0; }
 }
 
 
@@ -1969,7 +1963,7 @@ body {
   background-position: 0% 0;
   -webkit-background-clip: text;
   background-clip: text;
-  animation: highlight 65s ease-in-out infinite;
+  animation: highlight 13s ease-in-out infinite;
   animation-play-state: paused;
 }
 
