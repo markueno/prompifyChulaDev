@@ -1,4 +1,4 @@
-import { useReducer, useState, useRef } from 'react';
+import { useReducer, useState } from 'react';
 import { useNavigate } from '@remix-run/react';
 import { primaryQuestions, buildRefineQuestions } from '~/lib/questionnaire/data';
 import { buildPrimaryPrompt, buildRefinedPrompt } from '~/lib/questionnaire/engine';
@@ -106,6 +106,20 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
     }
 
     case 'SET_DESIGN_INSPIRATION': {
+      if (action.phase === 'primary') {
+        const currentQ = primaryQuestions[state.primaryStep];
+        const newAnswers = { ...state.primaryAnswers, [currentQ.id]: action.answer };
+        const { nextStep, done } = advance(state.primaryStep, primaryQuestions.length);
+
+        return {
+          ...state,
+          primaryAnswers: newAnswers,
+          phase: done ? 'secondary' : 'primary',
+          primaryStep: done ? state.primaryStep : nextStep,
+          secondaryStep: done ? 0 : state.secondaryStep,
+        };
+      }
+
       const currentQ = state.refineQuestions[state.secondaryStep];
       const newAnswers = { ...state.secondaryAnswers, [currentQ.id]: action.answer };
       const { nextStep, done } = advance(state.secondaryStep, state.refineQuestions.length);
@@ -161,6 +175,9 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
     case 'EDIT_SECONDARY': {
       return { ...state, phase: 'secondary', secondaryStep: action.index };
     }
+
+    default:
+      return state;
   }
 }
 
@@ -265,6 +282,18 @@ export function QuestionFlow() {
         );
       }
 
+      if (q.type === 'designInspiration') {
+        const existing = state.primaryAnswers[q.id] as DesignInspirationAnswer | undefined;
+        return (
+          <DesignInspiration
+            brands={q.brands ?? []}
+            maxSelect={q.maxSelect ?? 2}
+            initialSelected={existing?.brands ?? []}
+            onContinue={answer => dispatch({ type: 'SET_DESIGN_INSPIRATION', answer, phase: 'primary' })}
+          />
+        );
+      }
+
       if (q.type === 'fillblanks') {
         const appType = (state.primaryAnswers.app_type as string) ?? '';
         const template = q.templates?.[appType];
@@ -293,7 +322,7 @@ export function QuestionFlow() {
             brands={q.brands ?? []}
             maxSelect={q.maxSelect ?? 2}
             initialSelected={existing?.brands ?? []}
-            onContinue={answer => dispatch({ type: 'SET_DESIGN_INSPIRATION', answer })}
+            onContinue={answer => dispatch({ type: 'SET_DESIGN_INSPIRATION', answer, phase: 'secondary' })}
           />
         );
       }

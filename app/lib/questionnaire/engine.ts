@@ -282,7 +282,7 @@ export function buildRefinedPrompt(
 
   const colorsAnswer = primaryAnswers.colors as ColorsAnswer | undefined;
   const colorBlock = buildColorBlock(colorsAnswer);
-  const designInspiration = secondaryAnswers.design_inspiration as DesignInspirationAnswer | undefined;
+  const designInspiration = primaryAnswers.design_inspiration as DesignInspirationAnswer | undefined;
 
   const lines: string[] = [];
 
