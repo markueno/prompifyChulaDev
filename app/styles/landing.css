@@ -1956,6 +1956,7 @@ body {
 }
 
 .shimmer-text {
+  display: inline-block;
   color: transparent;
   background: linear-gradient(
     132deg,
