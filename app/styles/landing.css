@@ -1,4 +1,4 @@
-/* Landing page styles - from landingPage/styles.css */
+﻿/* Landing page styles - from landingPage/styles.css */
 .landing-page {
   width: 100vw;
   overflow-x: hidden;
@@ -101,7 +101,7 @@
   animation: landingFadeInUp 0.9s ease 0.1s forwards;
 }
 
-/* Prompify gradient — continuous shifting (infinite loop) */
+/* Prompify gradient â€” continuous shifting (infinite loop) */
 .landing-heading .landing-highlight {
   color: transparent;
   text-shadow: none;
@@ -131,17 +131,17 @@
   }
 }
 
-/* Same gradient as "Prompify" on / — use on app builder title, etc. */
+/* Same gradient as "Prompify" on / â€” use on app builder title, etc. */
 .landing-gradient-text {
   color: transparent;
   background: linear-gradient(
     120deg,
     #f97316 0%,
-    #ea580c 18%,
+    #f97316 18%,
     #fed7aa 38%,
-    #e2ffc7 50%,
+    #f0e4d5 50%,
     #fed7aa 62%,
-    #ea580c 82%,
+    #f97316 82%,
     #f97316 100%
   );
   background-size: 220% 100%;
@@ -222,7 +222,7 @@
 }
 
 .landing-send-btn:hover {
-  background: #ea580c;
+  background: #f97316;
 }
 
 .landing-send-btn:disabled {
@@ -288,7 +288,7 @@
   flex-shrink: 0;
   width: 16px;
   height: 16px;
-  color: #fb923c;
+  color: #f97316;
   opacity: 0.8;
 }
 
@@ -351,7 +351,7 @@
 
 .landing-message-bubble.assistant {
   background: rgba(255, 255, 255, 0.4);
-  color: #1f2937;
+  color: #231710;
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
@@ -359,7 +359,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #4b5563;
+  color: #231710;
   background: rgba(255, 255, 255, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 1rem;
@@ -370,7 +370,7 @@
 .landing-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(251, 146, 60, 0.3);
+  border: 2px solid rgba(249, 115, 22, 0.3);
   border-top-color: #f97316;
   border-radius: 50%;
   animation: landingSpin 0.8s linear infinite;
@@ -396,7 +396,7 @@
 }
 
 .landing-floating-response-text {
-  background: rgba(251, 146, 60, 0.63);
+  background: rgba(249, 115, 22, 0.63);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   color: rgba(255, 255, 255, 0.85);
@@ -556,12 +556,12 @@ button.landing-cta-btn {
 }
 
 .landing-cta-btn:hover {
-  background: rgba(251, 146, 60, 0.96);
+  background: rgba(249, 115, 22, 0.96);
   color: #fff;
   transform: translateY(-2px);
 }
 
-/* Start Prompting — continuous border / color pulse (hover pauses it) */
+/* Start Prompting â€” continuous border / color pulse (hover pauses it) */
 .landing-cta-btn--shine {
   animation: landingCtaShine 5.5s ease-in-out infinite;
 }
@@ -573,13 +573,13 @@ button.landing-cta-btn {
 @keyframes landingCtaShine {
   0%,
   100% {
-    color: #c2410c;
-    border-color: rgba(194, 65, 12, 0.5);
+    color: #f97316;
+    border-color: rgba(249, 115, 22, 0.5);
     box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
   }
   50% {
     color: #f97316;
-    border-color: rgba(251, 146, 60, 0.95);
+    border-color: rgba(249, 115, 22, 0.95);
     box-shadow: 0 0 24px rgba(249, 115, 22, 0.28);
   }
 }
@@ -661,7 +661,7 @@ button.landing-cta-btn {
   50% { opacity: 0.4; }
 }
 
-/* Login modal (post-prompt CTA — glass card + blurred page) */
+/* Login modal (post-prompt CTA â€” glass card + blurred page) */
 .landing-login-modal-root {
   position: fixed;
   inset: 0;
@@ -717,7 +717,7 @@ button.landing-cta-btn {
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.65) inset,
     0 24px 80px rgba(0, 0, 0, 0.28);
-  color: #0a0a0a;
+  color: #231710;
   animation: landingModalSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -748,7 +748,7 @@ button.landing-cta-btn {
   border: none;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.06);
-  color: #0a0a0a;
+  color: #231710;
   font-size: 1.35rem;
   line-height: 1;
   cursor: pointer;
@@ -770,7 +770,7 @@ button.landing-cta-btn {
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #c2410c 0%, #f97316 40%, #ea580c 100%);
+  background: linear-gradient(135deg, #f97316 0%, #f97316 40%, #f97316 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -779,18 +779,18 @@ button.landing-cta-btn {
 .landing-login-modal-header p {
   margin: 0;
   font-size: 0.875rem;
-  color: rgba(10, 10, 10, 0.62);
+  color: rgba(35, 23, 16, 0.62);
   font-weight: 400;
 }
 
 .landing-login-modal-required {
-  color: #c2410c;
+  color: #f97316;
   font-weight: 700;
 }
 
 .landing-login-modal-optional {
   font-weight: 500;
-  color: rgba(10, 10, 10, 0.45);
+  color: rgba(35, 23, 16, 0.45);
   text-transform: none;
   letter-spacing: normal;
   font-size: 0.65rem;
@@ -799,7 +799,7 @@ button.landing-cta-btn {
 .landing-login-modal-hint {
   margin: -0.2rem 0 0.35rem;
   font-size: 0.72rem;
-  color: rgba(10, 10, 10, 0.48);
+  color: rgba(35, 23, 16, 0.48);
   line-height: 1.35;
 }
 
@@ -836,7 +836,7 @@ button.landing-cta-btn {
   background: rgba(255, 255, 255, 0.97);
   font-size: 0.9rem;
   font-family: inherit;
-  color: #0a0a0a;
+  color: #231710;
   outline: none;
   cursor: pointer;
   -webkit-appearance: none;
@@ -853,7 +853,7 @@ button.landing-cta-btn {
 }
 
 .landing-login-modal-select:invalid {
-  color: rgba(10, 10, 10, 0.4);
+  color: rgba(35, 23, 16, 0.4);
 }
 
 .landing-login-modal-form {
@@ -893,7 +893,7 @@ button.landing-cta-btn {
 
 .landing-modal-pw-strength li {
   font-size: 0.7rem;
-  color: rgba(10, 10, 10, 0.42);
+  color: rgba(35, 23, 16, 0.42);
   padding-left: 0.65rem;
   position: relative;
 }
@@ -906,7 +906,7 @@ button.landing-cta-btn {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: rgba(10, 10, 10, 0.22);
+  background: rgba(35, 23, 16, 0.22);
 }
 
 .landing-modal-pw-strength li.met {
@@ -922,7 +922,7 @@ button.landing-cta-btn {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(10, 10, 10, 0.55);
+  color: rgba(35, 23, 16, 0.55);
   margin-top: 0.35rem;
 }
 
@@ -934,7 +934,7 @@ button.landing-cta-btn {
   border: 1px solid rgba(0, 0, 0, 0.12);
   background: rgba(255, 255, 255, 0.97);
   font-size: 0.9rem;
-  color: #0a0a0a;
+  color: #231710;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -945,7 +945,7 @@ button.landing-cta-btn {
 }
 
 .landing-login-modal-input::placeholder {
-  color: rgba(10, 10, 10, 0.35);
+  color: rgba(35, 23, 16, 0.35);
 }
 
 .landing-login-modal-textarea {
@@ -958,7 +958,7 @@ button.landing-cta-btn {
   background: rgba(255, 255, 255, 0.97);
   font-size: 0.9rem;
   font-family: inherit;
-  color: #0a0a0a;
+  color: #231710;
   outline: none;
   resize: vertical;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -970,7 +970,7 @@ button.landing-cta-btn {
 }
 
 .landing-login-modal-textarea::placeholder {
-  color: rgba(10, 10, 10, 0.35);
+  color: rgba(35, 23, 16, 0.35);
 }
 
 .landing-login-modal-password-wrap {
@@ -992,7 +992,7 @@ button.landing-cta-btn {
   background: transparent;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #ea580c;
+  color: #f97316;
   cursor: pointer;
   padding: 0.25rem 0.4rem;
 }
@@ -1016,7 +1016,7 @@ button.landing-cta-btn {
 }
 
 .landing-login-modal-submit:hover:not(:disabled) {
-  background: #ea580c;
+  background: #f97316;
 }
 
 .landing-login-modal-submit:disabled {
@@ -1027,14 +1027,14 @@ button.landing-cta-btn {
 .landing-login-modal-submit--secondary {
   margin-top: 0.5rem;
   background: transparent;
-  color: #c2410c;
+  color: #f97316;
   border: 2px solid rgba(249, 115, 22, 0.55);
   box-shadow: none;
 }
 
 .landing-login-modal-submit--secondary:hover:not(:disabled) {
   background: rgba(249, 115, 22, 0.08);
-  color: #9a3412;
+  color: #231710;
 }
 
 .landing-login-modal-form--stack {
@@ -1058,7 +1058,7 @@ button.landing-cta-btn {
 }
 
 .landing-login-modal-footer a {
-  color: #c2410c;
+  color: #f97316;
   font-weight: 600;
   text-decoration: none;
 }
@@ -1074,7 +1074,7 @@ button.landing-cta-btn {
   background: none;
   cursor: pointer;
   font: inherit;
-  color: #c2410c;
+  color: #f97316;
   font-weight: 600;
   text-decoration: none;
 }
@@ -1084,7 +1084,7 @@ button.landing-cta-btn {
 }
 
 .landing-login-modal-dot {
-  color: rgba(10, 10, 10, 0.35);
+  color: rgba(35, 23, 16, 0.35);
   user-select: none;
 }
 
@@ -1109,7 +1109,7 @@ button.landing-cta-btn {
   }
 }
 
-/* ── Top navigation bar ─────────────────────────────────────────────────── */
+/* â”€â”€ Top navigation bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .landing-nav {
   position: fixed;
   top: 0;
@@ -1145,11 +1145,11 @@ button.landing-cta-btn {
   background: linear-gradient(
     120deg,
     #f97316 0%,
-    #ea580c 18%,
+    #f97316 18%,
     #fed7aa 38%,
     #f0e4d5 50%,
     #fed7aa 62%,
-    #ea580c 82%,
+    #f97316 82%,
     #f97316 100%
   );
   background-size: 220% 100%;
@@ -1190,12 +1190,12 @@ button.landing-cta-btn {
 .landing-nav--over-light .landing-nav-signin {
   border-color: rgba(0, 0, 0, 0.12);
   background: rgba(0, 0, 0, 0.04);
-  color: #374151;
+  color: #231710;
 }
 
 .landing-nav--over-light .landing-nav-signin:hover {
   background: rgba(0, 0, 0, 0.08);
-  color: #111827;
+  color: #231710;
 }
 
 .landing-nav-signup {
@@ -1214,12 +1214,12 @@ button.landing-cta-btn {
 }
 
 .landing-nav-signup:hover {
-  background: #ea580c;
+  background: #f97316;
   transform: translateY(-1px);
   box-shadow: 0 4px 28px rgba(249, 115, 22, 0.65);
 }
 
-/* App builder (/app, /chat/:id) — align chrome with marketing home */
+/* App builder (/app, /chat/:id) â€” align chrome with marketing home */
 .landing-app-root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
@@ -1249,11 +1249,11 @@ button.landing-cta-btn {
 .landing-app-chrome > header .header-app-toolbar .text-bolt-elements-item-contentActive,
 .landing-app-chrome > header .header-app-toolbar .text-bolt-elements-item-contentDefault,
 .landing-app-chrome > header .header-app-toolbar a:not([class*='text-white']) {
-  color: #18181b !important;
+  color: #231710 !important;
 }
 
 .landing-app-chrome > header .header-app-toolbar {
-  color: #18181b;
+  color: #231710;
 }
 
 .landing-app-chrome > header .text-accent {
@@ -1262,7 +1262,7 @@ button.landing-cta-btn {
 
 
 /* ============================================================
-   NEW ANIMATED LANDING DESIGN � appended from prompify-landing
+   NEW ANIMATED LANDING DESIGN ï¿½ appended from prompify-landing
    ============================================================ */
 
 @tailwind base;
@@ -1525,7 +1525,7 @@ body {
 
 .message-bubble.assistant {
     background: rgba(255, 255, 255, 0.4);
-    color: #1f2937;
+    color: #231710;
     border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
@@ -1533,7 +1533,7 @@ body {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    color: #4b5563;
+    color: #231710;
     background: rgba(255, 255, 255, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.5);
     border-radius: 1rem;
@@ -1544,7 +1544,7 @@ body {
 .spinner {
     width: 16px;
     height: 16px;
-    border: 2px solid rgba(251, 146, 60, 0.3);
+    border: 2px solid rgba(249, 115, 22, 0.3);
     border-top-color: #f97316;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
@@ -1603,7 +1603,7 @@ body {
 }
 
 .send-btn:hover {
-    background: #ea580c;
+    background: #f97316;
 }
 
 .send-btn:active {
@@ -1739,7 +1739,7 @@ body {
 }
 
 .floating-response-text {
-    background: rgba(251, 146, 60, 0.63);
+    background: rgba(249, 115, 22, 0.63);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     color: rgba(255, 255, 255, 0.85);
@@ -1920,10 +1920,10 @@ body {
 }
 
 .outro-cta-btn:hover {
-  background: rgba(251, 146, 60, 0.96);
+  background: rgba(249, 115, 22, 0.96);
   color: #fff;
-  border-color: rgba(251, 146, 60, 0.8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 4px 20px rgba(251, 146, 60, 0.6);
+  border-color: rgba(249, 115, 22, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 4px 20px rgba(249, 115, 22, 0.6);
   transform: translateY(-2px);
 }
 
@@ -1945,10 +1945,10 @@ body {
 }
 
 .contact-us-btn:hover {
-  background: rgba(251, 146, 60, 0.96);
+  background: rgba(249, 115, 22, 0.96);
   color: #fff;
-  border-color: rgba(251, 146, 60, 0.8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 4px 20px rgba(251, 146, 60, 0.6);
+  border-color: rgba(249, 115, 22, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 4px 20px rgba(249, 115, 22, 0.6);
   transform: translateY(-2px);
 }
 
@@ -2050,7 +2050,7 @@ body {
   }
 }
 
-/* Reveals gradient from dark → orange and holds there */
+/* Reveals gradient from dark â†’ orange and holds there */
 @keyframes shimmer-reveal {
   0% {
     background-position: 100% 0;
@@ -2195,24 +2195,24 @@ body {
 }
 
 
-/* Wrapper for new animated design � sits alongside existing .landing-page modal CSS */
+/* Wrapper for new animated design ï¿½ sits alongside existing .landing-page modal CSS */
 .landing-page-wrapper {
   width: 100vw;
   overflow-x: hidden;
 }
 
 /* ==========================================================
-   GLASSMORPHISM ENHANCEMENTS � auth modal, prompt box
+   GLASSMORPHISM ENHANCEMENTS ï¿½ auth modal, prompt box
    ========================================================== */
 
-/* Auth modal backdrop � deeper blur */
+/* Auth modal backdrop ï¿½ deeper blur */
 .landing-login-modal-backdrop {
   background: rgba(8, 6, 4, 0.55);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
 }
 
-/* Auth modal panel � true frosted glass */
+/* Auth modal panel ï¿½ true frosted glass */
 .landing-login-modal-panel {
   background: linear-gradient(
     145deg,
@@ -2228,10 +2228,10 @@ body {
     inset 0 -1px 0 rgba(255, 255, 255, 0.25),
     0 40px 100px rgba(0, 0, 0, 0.30),
     0 0 0 0.5px rgba(255, 255, 255, 0.40);
-  color: #0a0a0a;
+  color: #231710;
 }
 
-/* Modal inputs � glass tint */
+/* Modal inputs ï¿½ glass tint */
 .landing-login-modal-input,
 .landing-login-modal-select,
 .landing-login-modal-textarea {
@@ -2250,7 +2250,7 @@ body {
   outline: none;
 }
 
-/* Prompt box � enhanced glass */
+/* Prompt box ï¿½ enhanced glass */
 .prompt-box {
   background: linear-gradient(145deg, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0.50) 100%);
   backdrop-filter: blur(48px) saturate(1.6);
@@ -2269,7 +2269,7 @@ body {
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.80);
 }
 
-/* ── Modal responsive: compact on small laptop screens ── */
+/* â”€â”€ Modal responsive: compact on small laptop screens â”€â”€ */
 @media (max-height: 700px) {
   .landing-login-modal-panel {
     padding: 1.1rem 1.25rem 1rem;
