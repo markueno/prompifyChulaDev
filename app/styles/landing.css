@@ -1959,25 +1959,25 @@ body {
   display: inline-block;
   color: transparent;
   background: linear-gradient(
-    132deg,
+    135deg,
     #231710 0%,
-    #231710 25%,
-    #f97316 40%,
-    #fed7aa 50%,
-    #f97316 60%,
-    #231710 75%,
+    #231710 30%,
+    #fed7aa 45%,
+    #f0e4d5 50%,
+    #fed7aa 55%,
+    #231710 65%,
     #231710 100%
   );
   background-size: 300% 100%;
-  background-position: 100% 0;
+  background-position: 0% 0;
   -webkit-background-clip: text;
   background-clip: text;
-  animation: shimmer-reveal 1.8s ease-out forwards;
+  animation: highlight 65s ease-in-out infinite;
   animation-play-state: paused;
 }
 
 .shimmer-text.active {
-    animation-play-state: running;
+  animation-play-state: running;
 }
 
 /* ============================================
