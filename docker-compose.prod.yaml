@@ -12,7 +12,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    # No ports exposed — only accessible within the Docker network
+    ports:
+      - "5432:5432"
     networks:
       - prompify-network
     restart: unless-stopped
@@ -29,7 +30,8 @@ services:
     container_name: prompify-redis
     volumes:
       - redis_data:/data
-    # No ports exposed — only accessible within the Docker network
+    ports:
+      - "6379:6379"
     networks:
       - prompify-network
     restart: unless-stopped
