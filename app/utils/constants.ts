@@ -25,7 +25,7 @@ export const MODIFICATIONS_TAG_NAME = 'bolt_file_modifications';
 export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;
 export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
 /** DashScope/OpenAI-compat model id — align with Alibaba Model Studio (team keys work the same endpoint). */
-export const DEFAULT_MODEL = 'qwen3.6-plus';
+export const DEFAULT_MODEL = 'qwen3.7-max';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
 export const DISABLE_DYNAMIC_MODELS = 'DISABLE_DYNAMIC_MODELS';
 

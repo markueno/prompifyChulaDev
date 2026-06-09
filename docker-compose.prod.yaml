@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-prompify}
       POSTGRES_USER: ${POSTGRES_USER:-prompify_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Mark@3156}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
@@ -24,7 +24,7 @@ services:
       retries: 3
     profiles: ['production']
 
-  # Redis for session storage (optional)
+  # Redis for session storage
   redis:
     image: redis:7-alpine
     container_name: prompify-redis
@@ -50,46 +50,68 @@ services:
     container_name: prompify-app
     env_file: '.env'
     environment:
-      # Core Application Settings
+      # Core
       - NODE_ENV=development
       - PORT=5173
       - RUNNING_IN_DOCKER=true
-      
-      # Database Configuration
+      - APP_URL=${APP_URL:-https://www.prompify.com}
+
+      # Auth
+      - AUTH_DISABLED=${AUTH_DISABLED:-false}
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - EMAIL_VERIFICATION_REQUIRED=${EMAIL_VERIFICATION_REQUIRED:-true}
+
+      # Database
       - DATABASE_TYPE=postgresql
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-prompify_user}:${POSTGRES_PASSWORD:-Mark@3156}@postgres:5432/${POSTGRES_DB:-prompify}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-prompify_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-prompify}
       - REDIS_URL=redis://redis:6379
-      
-      # Development-specific Settings (Hot Module Replacement)
+
+      # Supabase (per-app databases)
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+
+      # Email
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - FROM_EMAIL=${FROM_EMAIL:-noreply@prompify.com}
+
+      # AI Providers
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
+      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
+      - XAI_API_KEY=${XAI_API_KEY}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
+      - TOGETHER_API_BASE_URL=${TOGETHER_API_BASE_URL}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+      - DASHSCOPE_API_BASE_URL=${DASHSCOPE_API_BASE_URL}
+      - OLLAMA_API_BASE_URL=${OLLAMA_API_BASE_URL}
+      - AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG}
+      - HuggingFace_API_KEY=${HuggingFace_API_KEY}
+
+      # GitHub
+      - VITE_GITHUB_ACCESS_TOKEN=${VITE_GITHUB_ACCESS_TOKEN}
+      - VITE_GITHUB_TOKEN_TYPE=${VITE_GITHUB_TOKEN_TYPE:-classic}
+
+      # KooGallery
+      - KOOGALLERY_ACCESS_KEY=${KOOGALLERY_ACCESS_KEY}
+      - KOOGALLERY_ACCESS_ID=${KOOGALLERY_ACCESS_ID}
+      - KOOGALLERY_API_BASE_URL=${KOOGALLERY_API_BASE_URL:-https://api.koogallery.com}
+      - KOOGALLERY_ENABLED=${KOOGALLERY_ENABLED:-false}
+      - CRON_SECRET=${CRON_SECRET}
+
+      # Dev server HMR (needed because we run pnpm dev inside Docker)
       - VITE_HMR_PROTOCOL=wss
       - VITE_HMR_HOST=localhost
       - VITE_HMR_PORT=5173
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true
-      
-      # AI Provider API Keys (Optional - only needed if using those services)
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - HuggingFace_API_KEY=${HuggingFace_API_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
-      - XAI_API_KEY=${XAI_API_KEY}
-      - GOOGLE_GENERATIVE_AI_API_KEY=${GOOGLE_GENERATIVE_AI_API_KEY}
-      - OLLAMA_API_BASE_URL=${OLLAMA_API_BASE_URL}
-      - TOGETHER_API_KEY=${TOGETHER_API_KEY}
-      - TOGETHER_API_BASE_URL=${TOGETHER_API_BASE_URL}
-      - AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG}
-      
-      # Application Configuration (Optional with defaults)
-      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-debug}
+
+      # Logging
+      - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
-      - AUTH_DISABLED=${AUTH_DISABLED:-true}
-      
-      # Koogallery Integration (Optional)
-      - KOOGALLERY_ACCESS_KEY=${KOOGALLERY_ACCESS_KEY}
-      - KOOGALLERY_API_BASE_URL=${KOOGALLERY_API_BASE_URL}
-      - KOOGALLERY_ENABLED=${KOOGALLERY_ENABLED:-true}
-      - CRON_SECRET=${CRON_SECRET}
+
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
@@ -101,7 +123,7 @@ services:
       - /root/qa/ssl:/app/ssl:ro
     ports:
       - '5173:5173'
-      - '5174:5174'  # HTTPS port
+      - '5174:5174'
     networks:
       - prompify-network
     depends_on:
@@ -112,7 +134,7 @@ services:
     command: pnpm run dev --host 0.0.0.0
     profiles: ['production']
 
-  # Cron runner — sleeps inactive container apps every 15 minutes
+  # Cron — sleeps inactive container apps every 15 minutes
   cron:
     image: curlimages/curl:latest
     container_name: prompify-cron
@@ -127,20 +149,18 @@ services:
       /bin/sh -c "
         while true; do
           sleep 900;
-          curl -s -X POST http://app:5173/api/cron/sleep-check
-            -H \"Authorization: Bearer $$CRON_SECRET\"
-            -H \"Content-Type: application/json\";
+          curl -s -X POST http://app:5173/api/cron/sleep-check -H \"Authorization: Bearer $$CRON_SECRET\" -H \"Content-Type: application/json\";
         done
       "
     profiles: ['production']
 
-  # Nginx reverse proxy for HTTPS
+  # Nginx reverse proxy
   nginx:
     image: nginx:alpine
     container_name: prompify-nginx
     volumes:
       - ./nginx-prod.conf:/etc/nginx/nginx.conf:ro
-      - certbot-etc:/etc/letsencrypt:ro  # Share the same cert storage used by certbot
+      - certbot-etc:/etc/letsencrypt:ro
       - certbot-var:/var/lib/letsencrypt:ro
       - certbot-webroot:/var/www/certbot:ro
       - ./ssl_prompifycom:/etc/nginx/ssl_prompifycom:ro
@@ -154,7 +174,7 @@ services:
     restart: unless-stopped
     profiles: ['production']
 
-  # Certbot for SSL certificate management
+  # Certbot — auto-renews SSL certificates
   certbot:
     image: certbot/certbot:latest
     container_name: prompify-certbot-dev
