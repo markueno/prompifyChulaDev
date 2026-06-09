@@ -8,6 +8,27 @@ const MESSAGES = [
   'Setting up the workspace...',
 ];
 
+const STREAMING_WORDS = [
+  'Gooflering',
+  'Embeddering',
+  'Synaptifying',
+  'Compiloozing',
+  'Pixelweaving',
+  'Logicmunching',
+  'Promptcrunching',
+  'Neurowiring',
+  'Codestorming',
+  'Deployifying',
+  'Bundlefusing',
+  'Querywrangling',
+  'Schemaforging',
+  'Algorithmizing',
+  'Renderizing',
+  'Stackweaving',
+  'Asyncronizing',
+  'Componentorging',
+];
+
 const COLORS = [
   { glow: '#f97316', bg: 'rgba(249,115,22,0.15)', shadow: 'rgba(249,115,22,0.4)', hue: 0 },
   { glow: '#3b82f6', bg: 'rgba(59,130,246,0.15)', shadow: 'rgba(59,130,246,0.4)', hue: 130 },
@@ -162,6 +183,8 @@ interface StreamingBadgeProps {
 export function StreamingBadge({ visible }: StreamingBadgeProps) {
   const [mounted, setMounted] = useState(false);
   const [dotCount, setDotCount] = useState(1);
+  const [wordIdx, setWordIdx] = useState(0);
+  const [wordVisible, setWordVisible] = useState(true);
   const { color } = useColorCycle(mounted);
 
   useEffect(() => {
@@ -174,18 +197,27 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
   }, [visible]);
 
   useEffect(() => {
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     const t = setInterval(() => setDotCount(d => (d % 3) + 1), 500);
-
     return () => clearInterval(t);
   }, [mounted]);
 
-  if (!mounted) {
-    return null;
-  }
+  // Fade-out → swap word → fade-in every 2.2 s
+  useEffect(() => {
+    if (!mounted) return;
+
+    const cycle = setInterval(() => {
+      setWordVisible(false);
+      setTimeout(() => {
+        setWordIdx(i => (i + 1) % STREAMING_WORDS.length);
+        setWordVisible(true);
+      }, 300);
+    }, 2200);
+
+    return () => clearInterval(cycle);
+  }, [mounted]);
+
+  if (!mounted) return null;
 
   const dots = '.'.repeat(dotCount);
 
@@ -222,9 +254,21 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
           transition: 'filter 0.8s ease',
         }}
       />
-      {/* Label */}
-      <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
-        Generating
+      {/* Rotating fun word */}
+      <span
+        style={{
+          color: 'rgba(255,255,255,0.9)',
+          fontSize: 13,
+          fontWeight: 500,
+          whiteSpace: 'nowrap',
+          opacity: wordVisible ? 1 : 0,
+          transform: wordVisible ? 'translateY(0)' : 'translateY(4px)',
+          transition: 'opacity 0.25s ease, transform 0.25s ease',
+          minWidth: 118,
+          display: 'inline-block',
+        }}
+      >
+        {STREAMING_WORDS[wordIdx]}
       </span>
       {/* Animated dots */}
       <span

@@ -12,8 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
-    ports:
-      - "5432:5432"
+    # No ports exposed — only accessible within the Docker network
     networks:
       - prompify-network
     restart: unless-stopped
@@ -30,8 +29,7 @@ services:
     container_name: prompify-redis
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
+    # No ports exposed — only accessible within the Docker network
     networks:
       - prompify-network
     restart: unless-stopped
@@ -115,11 +113,6 @@ services:
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
-      - type: bind
-        source: .
-        target: /app
-        consistency: cached
-      - /app/node_modules
       - /root/qa/ssl:/app/ssl:ro
     ports:
       - '5173:5173'
