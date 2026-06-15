@@ -71,12 +71,12 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
         </button>
 
         <button
+          className="signup-shimmer"
           onClick={() => onSignUp ? onSignUp() : window.location.href = '/signup'}
           style={{
             padding: '0.375rem 0.9rem',
             borderRadius: '9999px',
-            background: 'linear-gradient(135deg, rgba(249,115,22,0.58), rgba(249,115,22,0.32))',
-            border: '1px solid rgba(249, 115, 22, 0.50)',
+            border: '1px solid rgba(249, 115, 22, 0.60)',
             color: 'rgba(255, 255, 255, 0.98)',
             fontSize: '0.75rem',
             fontWeight: 600,
@@ -84,7 +84,6 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
             fontFamily: 'inherit',
             backdropFilter: 'blur(16px) saturate(1.4)',
             WebkitBackdropFilter: 'blur(16px) saturate(1.4)',
-            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 0 2px 10px rgba(249,115,22,0.28)',
             textShadow: '0 1px 2px rgba(0,0,0,0.25)',
           }}
         >

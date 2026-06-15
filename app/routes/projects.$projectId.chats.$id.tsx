@@ -4,7 +4,8 @@ import { redirect } from '@remix-run/cloudflare';
 
 export { links, meta };
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
-import { getChatById, getSubscriptionByUserId } from '~/lib/database';
+import { getChatById, getSubscriptionByCompanyId } from '~/lib/database';
+import { getActiveCompanyId } from '~/lib/workspace.server';
 
 export async function loader({ request, context, params }: LoaderFunctionArgs) {
   if (!params.id || !params.projectId) {
@@ -31,7 +32,8 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
     throw redirect('/app/');
   }
 
-  const sub = await getSubscriptionByUserId(user.id);
+  const companyId = await getActiveCompanyId(request, user);
+  const sub = await getSubscriptionByCompanyId(companyId);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
 
   return json({ id: params.id, projectId: params.projectId, user: userWithTier });

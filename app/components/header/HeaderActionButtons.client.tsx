@@ -8,6 +8,7 @@ import { webcontainer } from '~/lib/webcontainer';
 import { classNames } from '~/utils/classNames';
 import { path } from '~/utils/path';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ActionCallbackData } from '~/lib/runtime/message-parser';
 import { chatId } from '~/lib/persistence/useChatHistory'; // Add this import
 import { streamingState } from '~/lib/stores/streaming';
@@ -27,6 +28,8 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const canHideChat = showWorkbench || !showChat;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const deployButtonRef = useRef<HTMLDivElement>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
   const isStreaming = useStore(streamingState);
 
   useEffect(() => {
@@ -254,12 +257,18 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
   return (
     <div className="flex">
-      <div className="relative z-[2000]" ref={dropdownRef}>
-        <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden mr-2 text-sm">
+      <div className="relative" ref={dropdownRef}>
+        <div ref={deployButtonRef} className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden mr-2 text-sm">
           <Button
             active
             disabled={isDeploying || !activePreview || isStreaming}
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            onClick={() => {
+              if (deployButtonRef.current) {
+                const rect = deployButtonRef.current.getBoundingClientRect();
+                setDropdownPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right });
+              }
+              setIsDropdownOpen(!isDropdownOpen);
+            }}
             className="px-4 hover:bg-gray-50 flex items-center gap-2"
           >
             {isDeploying ? 'Deploying...' : 'Deploy'}
@@ -272,8 +281,10 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
           </Button>
         </div>
 
-        {isDropdownOpen && (
-          <div className="absolute right-2 flex flex-col gap-1 z-[2100] p-1 mt-1 min-w-[13.5rem] bg-bolt-elements-background-depth-2 rounded-md shadow-lg bg-bolt-elements-backgroundDefault border border-bolt-elements-borderColor">
+        {isDropdownOpen && typeof document !== 'undefined' && createPortal(
+          <div
+            style={{ position: 'fixed', top: dropdownPos.top, right: dropdownPos.right, zIndex: 99999 }}
+            className="flex flex-col gap-1 p-1 min-w-[13.5rem] bg-bolt-elements-background-depth-2 rounded-md shadow-lg bg-bolt-elements-backgroundDefault border border-bolt-elements-borderColor">
             <Button
               active
               onClick={() => {
@@ -325,7 +336,8 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
               />
               <span className="mx-auto">Deploy to Cloudflare (Coming Soon)</span>
             </Button>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
       <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden">

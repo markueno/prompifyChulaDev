@@ -6,6 +6,8 @@ import {
   addCompanyMember,
   removeCompanyMember,
   addAuditLog,
+  getCompanySeats,
+  getCompanyMemberCount,
 } from '~/lib/database';
 import type { CompanyRole } from '~/lib/database';
 
@@ -46,6 +48,20 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 
       if (!userId || !role) {
         return json({ error: 'userId and role are required' }, { status: 400 });
+      }
+
+      // Seat guard: only count NEW members against the plan's seat cap.
+      const alreadyMember = await getCompanyMember(companyId, userId);
+
+      if (!alreadyMember) {
+        const [seats, count] = await Promise.all([getCompanySeats(companyId), getCompanyMemberCount(companyId)]);
+
+        if (count >= seats) {
+          return json(
+            { error: `Seat limit reached (${seats}). Upgrade the plan to add more members.`, code: 'seat_limit' },
+            { status: 402 }
+          );
+        }
       }
 
       const success = await addCompanyMember(companyId, userId, role);

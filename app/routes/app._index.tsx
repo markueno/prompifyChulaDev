@@ -5,7 +5,8 @@ import { Chat } from '~/components/chat/Chat.client';
 import { Header } from '~/components/header/Header';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
-import { getSubscriptionByUserId } from '~/lib/database';
+import { getSubscriptionByCompanyId } from '~/lib/database';
+import { getActiveCompanyId } from '~/lib/workspace.server';
 import landingStyles from '~/styles/landing.css?url';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -15,7 +16,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   }
 
   const user = await requireAuth(request, context);
-  const sub = await getSubscriptionByUserId(user.id);
+  const companyId = await getActiveCompanyId(request, user);
+  const sub = await getSubscriptionByCompanyId(companyId);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
 
   return json({ user: userWithTier });

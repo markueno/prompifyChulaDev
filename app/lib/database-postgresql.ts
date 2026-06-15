@@ -257,15 +257,32 @@ export async function createPostgresTables() {
       )
     `);
 
-    // Seed subscription tiers (token limits per month, expire after 1 month)
+    /*
+     * Seed subscription tiers (token limits per month, expire after 1 month).
+     * Prices/allocations must stay in sync with app/lib/billing/plans.ts.
+     */
     await client.query(`
       INSERT INTO subscription_tiers (id, name, display_name, price_cents, limits, sort_order)
       VALUES
-        ('tier_trial', 'trial', 'Trial', 0, '{"tokens": 150000, "tokens_per_month": true}', 1),
-        ('tier_builder', 'builder', 'Builder', 0, '{"tokens": 500000, "tokens_per_month": true}', 2),
-        ('tier_innovator', 'innovator', 'Innovator', 0, '{"tokens": 1000000, "tokens_per_month": true}', 3)
-      ON CONFLICT (id) DO UPDATE SET limits = EXCLUDED.limits
+        ('tier_trial', 'trial', 'Free', 0, '{"tokens": 150000, "tokens_per_month": true, "seats": 1}', 1),
+        ('tier_builder', 'builder', 'Builder', 800, '{"tokens": 1000000, "tokens_per_month": true, "seats": 1}', 2),
+        ('tier_innovator', 'innovator', 'Innovator', 1900, '{"tokens": 2500000, "tokens_per_month": true, "seats": 1}', 3),
+        ('tier_team', 'team', 'Team', 12900, '{"tokens": 18000000, "tokens_per_month": true, "seats": 5}', 4),
+        ('tier_business', 'business', 'Business', 34900, '{"tokens": 50000000, "tokens_per_month": true, "seats": 10}', 5),
+        ('tier_scale', 'scale', 'Scale', 74900, '{"tokens": 120000000, "tokens_per_month": true, "seats": 20}', 6)
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        display_name = EXCLUDED.display_name,
+        price_cents = EXCLUDED.price_cents,
+        limits = EXCLUDED.limits,
+        sort_order = EXCLUDED.sort_order
     `);
+
+    // Stripe billing: customer id lives on the (one-per-user) subscription row.
+    await client.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT`);
+    await client.query(
+      `CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id)`
+    );
 
     // Prompts table - per-prompt record (account + chat)
     await client.query(`
@@ -510,6 +527,67 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_company ON audit_logs(company_id, created_at DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_project ON audit_logs(project_id)');
 
+    /*
+     * ── B2B Phase 1: workspace-centric billing ────────────────────────────────
+     * Workspace = a companies row. Personal account = workspace of 1 seat.
+     * Billing + token pool live at company_id. This block is additive + an
+     * idempotent backfill, safe to run on every startup.
+     */
+
+    // Step 1: additive columns (no behavior change until reads are flipped)
+    await client.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS is_personal BOOLEAN NOT NULL DEFAULT FALSE`);
+    await client.query(`ALTER TABLE companies ADD COLUMN IF NOT EXISTS seats INTEGER NOT NULL DEFAULT 1`);
+    await client.query(
+      `ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS company_id TEXT REFERENCES companies(id) ON DELETE CASCADE`
+    );
+    await client.query(
+      `ALTER TABLE token_balances ADD COLUMN IF NOT EXISTS company_id TEXT REFERENCES companies(id) ON DELETE CASCADE`
+    );
+    await client.query(`ALTER TABLE token_usage ADD COLUMN IF NOT EXISTS company_id TEXT`);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_subscriptions_company_id ON subscriptions(company_id)');
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_token_balances_company_eff ON token_balances(company_id, effective_start, effective_end)'
+    );
+    await client.query('CREATE INDEX IF NOT EXISTS idx_token_usage_company_id ON token_usage(company_id)');
+
+    // Step 2: backfill a personal workspace per existing user and move their data into it
+    await client.query(`
+      INSERT INTO companies (id, name, slug, plan, is_personal, seats, owner_user_id)
+      SELECT 'cmp_personal_' || u.id, 'Personal', 'personal-' || u.id, 'free', TRUE, 1, u.id
+      FROM users u
+      ON CONFLICT (id) DO NOTHING
+    `);
+    await client.query(`
+      INSERT INTO company_members (id, company_id, user_id, role)
+      SELECT 'cmpm_personal_' || u.id, 'cmp_personal_' || u.id, u.id, 'owner'
+      FROM users u
+      ON CONFLICT (company_id, user_id) DO NOTHING
+    `);
+    await client.query(`UPDATE projects SET company_id = 'cmp_personal_' || owner_user_id WHERE company_id IS NULL`);
+    await client.query(`UPDATE subscriptions SET company_id = 'cmp_personal_' || user_id WHERE company_id IS NULL`);
+    await client.query(`UPDATE token_balances SET company_id = 'cmp_personal_' || user_id WHERE company_id IS NULL`);
+    await client.query(`
+      UPDATE token_usage tu
+      SET company_id = p.company_id
+      FROM chats c JOIN projects p ON p.id = c.project_id
+      WHERE tu.chat_id = c.id AND tu.company_id IS NULL
+    `);
+
+    // Step 8: lock constraints once data is consistent (guarded so startup never fails)
+    await client.query(`ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_user_id_key`);
+    await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_subscriptions_company_id ON subscriptions(company_id)`);
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM projects WHERE company_id IS NULL) THEN
+          BEGIN
+            ALTER TABLE projects ALTER COLUMN company_id SET NOT NULL;
+          EXCEPTION WHEN others THEN NULL;
+          END;
+        END IF;
+      END $$;
+    `);
+
     console.log('PostgreSQL tables created successfully');
   } catch (error) {
     console.error('Error creating PostgreSQL tables:', error);
@@ -595,19 +673,45 @@ export async function getUserByEmailPostgres(email: string) {
   }
 }
 
-/** Create Trial subscription for user with 1-month effective period and token balance. Skips if already exists. */
+/** The deterministic id of a user's personal workspace (a 1-seat company). */
+export function personalCompanyId(userId: string): string {
+  return `cmp_personal_${userId}`;
+}
+
+/** Ensure the user's personal workspace (companies row + owner membership) exists. Idempotent. */
+async function ensurePersonalCompanyWithClient(client: PoolClient, userId: string): Promise<string> {
+  const companyId = personalCompanyId(userId);
+  await client.query(
+    `INSERT INTO companies (id, name, slug, plan, is_personal, seats, owner_user_id)
+     VALUES ($1, 'Personal', $2, 'free', TRUE, 1, $3)
+     ON CONFLICT (id) DO NOTHING`,
+    [companyId, `personal-${userId}`, userId]
+  );
+  await client.query(
+    `INSERT INTO company_members (id, company_id, user_id, role)
+     VALUES ($1, $2, $3, 'owner')
+     ON CONFLICT (company_id, user_id) DO NOTHING`,
+    [`cmpm_personal_${userId}`, companyId, userId]
+  );
+
+  return companyId;
+}
+
+/** Create the personal workspace + Trial subscription + token pool for a user. Idempotent. */
 async function createSubscriptionForUserWithClient(client: PoolClient, userId: string): Promise<void> {
+  const companyId = await ensurePersonalCompanyWithClient(client, userId);
+
   const now = new Date();
   const periodEnd = new Date(now);
   periodEnd.setMonth(periodEnd.getMonth() + 1);
 
   const subId = crypto.randomUUID();
   const insertResult = await client.query(
-    `INSERT INTO subscriptions (id, user_id, tier_id, status, current_period_start, current_period_end)
-     VALUES ($1, $2, 'tier_trial', 'active', $3, $4)
-     ON CONFLICT (user_id) DO NOTHING
+    `INSERT INTO subscriptions (id, user_id, company_id, tier_id, status, current_period_start, current_period_end)
+     VALUES ($1, $2, $3, 'tier_trial', 'active', $4, $5)
+     ON CONFLICT (company_id) DO NOTHING
      RETURNING id`,
-    [subId, userId, now.toISOString(), periodEnd.toISOString()]
+    [subId, userId, companyId, now.toISOString(), periodEnd.toISOString()]
   );
 
   if (insertResult.rows.length === 0) {
@@ -620,9 +724,9 @@ async function createSubscriptionForUserWithClient(client: PoolClient, userId: s
 
   const balanceId = crypto.randomUUID();
   await client.query(
-    `INSERT INTO token_balances (id, user_id, source, source_reference_id, tokens_allocated, tokens_used, effective_start, effective_end)
-     VALUES ($1, $2, 'tier', $3, $4, 0, $5, $6)`,
-    [balanceId, userId, subId, tokens, now.toISOString(), periodEnd.toISOString()]
+    `INSERT INTO token_balances (id, user_id, company_id, source, source_reference_id, tokens_allocated, tokens_used, effective_start, effective_end)
+     VALUES ($1, $2, $3, 'tier', $4, $5, 0, $6, $7)`,
+    [balanceId, userId, companyId, subId, tokens, now.toISOString(), periodEnd.toISOString()]
   );
 }
 
@@ -1031,9 +1135,14 @@ export async function getActiveSessionCountPostgres(userId: string) {
 
 // Token usage and balance functions
 
-/** Apply FIFO consumption (+ optional overage on sink row). If tokenUsageId is set, writes Level B allocation rows. */
+/**
+ * Apply FIFO consumption from a workspace's pooled balance (+ optional overage on sink row).
+ * Scopes to company_id, falling back to user_id rows not yet backfilled. If tokenUsageId is
+ * set, writes Level B allocation rows.
+ */
 async function applyTokenConsumptionInTransaction(
   client: PoolClient,
+  companyId: string | null,
   userId: string,
   n: number,
   tokenUsageId: string | null
@@ -1042,11 +1151,11 @@ async function applyTokenConsumptionInTransaction(
   const balances = await client.query(
     `SELECT id, tokens_allocated, tokens_used
      FROM token_balances
-     WHERE user_id = $1
-       AND effective_start <= $2::timestamptz
-       AND (effective_end IS NULL OR effective_end >= $2::timestamptz)
+     WHERE (company_id = $1 OR (company_id IS NULL AND user_id = $2))
+       AND effective_start <= $3::timestamptz
+       AND (effective_end IS NULL OR effective_end >= $3::timestamptz)
      ORDER BY effective_end ASC NULLS LAST`,
-    [userId, now]
+    [companyId, userId, now]
   );
 
   const insertAllocation = async (tokenBalanceId: string, tokens: number) => {
@@ -1098,9 +1207,9 @@ async function applyTokenConsumptionInTransaction(
     } else {
       const newBalanceId = crypto.randomUUID();
       await client.query(
-        `INSERT INTO token_balances (id, user_id, source, source_reference_id, tokens_allocated, tokens_used, effective_start, effective_end)
-         VALUES ($1, $2, 'grant', 'balance-overage', 0, $3, $4::timestamptz, NULL)`,
-        [newBalanceId, userId, remaining, now]
+        `INSERT INTO token_balances (id, user_id, company_id, source, source_reference_id, tokens_allocated, tokens_used, effective_start, effective_end)
+         VALUES ($1, $2, $3, 'grant', 'balance-overage', 0, $4, $5::timestamptz, NULL)`,
+        [newBalanceId, userId, companyId, remaining, now]
       );
       await insertAllocation(newBalanceId, remaining);
     }
@@ -1112,6 +1221,7 @@ export async function insertTokenUsageAndConsumePostgres(params: {
   chatId: string;
   messageId: string;
   userId: string;
+  companyId?: string | null;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
@@ -1130,15 +1240,27 @@ export async function insertTokenUsageAndConsumePostgres(params: {
   try {
     await client.query('BEGIN');
 
+    // Resolve the billing workspace from the chat's project when not supplied.
+    let companyId = params.companyId ?? null;
+
+    if (!companyId) {
+      const r = await client.query(
+        `SELECT p.company_id FROM chats c JOIN projects p ON p.id = c.project_id WHERE c.id = $1`,
+        [params.chatId]
+      );
+      companyId = (r.rows[0]?.company_id as string) ?? null;
+    }
+
     const tokenUsageId = crypto.randomUUID();
     await client.query(
-      `INSERT INTO token_usage (id, chat_id, message_id, user_id, prompt_tokens, completion_tokens, total_tokens, model, provider)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      `INSERT INTO token_usage (id, chat_id, message_id, user_id, company_id, prompt_tokens, completion_tokens, total_tokens, model, provider)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
       [
         tokenUsageId,
         params.chatId,
         params.messageId,
         params.userId,
+        companyId,
         params.promptTokens,
         params.completionTokens,
         params.totalTokens,
@@ -1146,7 +1268,7 @@ export async function insertTokenUsageAndConsumePostgres(params: {
         params.provider ?? null,
       ]
     );
-    await applyTokenConsumptionInTransaction(client, params.userId, n, tokenUsageId);
+    await applyTokenConsumptionInTransaction(client, companyId, params.userId, n, tokenUsageId);
     await client.query('COMMIT');
 
     return true;
@@ -1204,37 +1326,6 @@ export async function insertTokenUsagePostgres(params: {
   }
 }
 
-/** Level A fallback: updates balances only (no allocation rows). Prefer insertTokenUsageAndConsumePostgres for chat. */
-export async function consumeTokenBalancePostgres(userId: string, tokensToConsume: number): Promise<boolean> {
-  const pool = getPostgresPool();
-  const client = await pool.connect();
-
-  try {
-    const n = Math.floor(Number(tokensToConsume));
-
-    if (!Number.isFinite(n) || n <= 0) {
-      return true;
-    }
-
-    await client.query('BEGIN');
-    await applyTokenConsumptionInTransaction(client, userId, n, null);
-    await client.query('COMMIT');
-
-    return true;
-  } catch (error) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {
-      /* ignore */
-    }
-    console.error('Error consuming token balance:', error);
-
-    return false;
-  } finally {
-    client.release();
-  }
-}
-
 export async function getTokenBalanceRemainingPostgres(userId: string): Promise<number> {
   const pool = getPostgresPool();
   const client = await pool.connect();
@@ -1259,15 +1350,116 @@ export async function getTokenBalanceRemainingPostgres(userId: string): Promise<
   }
 }
 
+/** Remaining tokens in a workspace's pool. Falls back to not-yet-backfilled user rows. */
+export async function getTokenBalanceRemainingForCompanyPostgres(companyId: string, userId?: string): Promise<number> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const now = new Date().toISOString();
+    const result = await client.query(
+      `SELECT COALESCE(SUM(tokens_allocated - tokens_used), 0)::bigint as remaining
+       FROM token_balances
+       WHERE (company_id = $1 OR (company_id IS NULL AND user_id = $2))
+         AND effective_start <= $3
+         AND (effective_end IS NULL OR effective_end >= $3)`,
+      [companyId, userId ?? null, now]
+    );
+
+    return parseInt(String(result.rows[0]?.remaining ?? 0), 10);
+  } catch (error) {
+    console.error('Error getting company token balance:', error);
+    return 0;
+  } finally {
+    client.release();
+  }
+}
+
+/** A workspace's subscription + tier info (the workspace-scoped equivalent of getSubscriptionByUserId). */
+export async function getSubscriptionByCompanyIdPostgres(companyId: string) {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT s.*, st.name as tier_name, st.display_name as tier_display_name, st.price_cents, st.limits
+       FROM subscriptions s
+       JOIN subscription_tiers st ON s.tier_id = st.id
+       WHERE s.company_id = $1`,
+      [companyId]
+    );
+    return result.rows[0] || null;
+  } catch (error) {
+    console.error('Error getting subscription by company:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+/** Resolve the workspace that owns a chat (via its project). Null if not found. */
+export async function getCompanyIdForChatPostgres(chatId: string): Promise<string | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT p.company_id FROM chats c JOIN projects p ON p.id = c.project_id WHERE c.id = $1 LIMIT 1`,
+      [chatId]
+    );
+    return (result.rows[0]?.company_id as string) ?? null;
+  } catch (error) {
+    console.error('Error resolving company for chat:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+/** A workspace's seat cap (from its plan). Defaults to 1. */
+export async function getCompanySeatsPostgres(companyId: string): Promise<number> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(`SELECT seats FROM companies WHERE id = $1`, [companyId]);
+    return result.rows[0]?.seats ?? 1;
+  } catch (error) {
+    console.error('Error getting company seats:', error);
+    return 1;
+  } finally {
+    client.release();
+  }
+}
+
+/** Number of members in a workspace (for seat-limit enforcement). */
+export async function getCompanyMemberCountPostgres(companyId: string): Promise<number> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(`SELECT COUNT(*)::int AS n FROM company_members WHERE company_id = $1`, [
+      companyId,
+    ]);
+    return result.rows[0]?.n ?? 0;
+  } catch (error) {
+    console.error('Error counting company members:', error);
+    return 0;
+  } finally {
+    client.release();
+  }
+}
+
 async function ensureDefaultProjectForUser(client: PoolClient, userId: string): Promise<string> {
   const defaultProjectId = `proj_personal_${userId}`;
+  const companyId = await ensurePersonalCompanyWithClient(client, userId);
   await client.query(
     `
-      INSERT INTO projects (id, owner_user_id, slug, name, description)
-      VALUES ($1, $2, $3, 'Personal', 'Default personal project')
+      INSERT INTO projects (id, owner_user_id, company_id, slug, name, description)
+      VALUES ($1, $2, $3, $4, 'Personal', 'Default personal project')
       ON CONFLICT (id) DO NOTHING
     `,
-    [defaultProjectId, userId, DEFAULT_PROJECT_ID]
+    [defaultProjectId, userId, companyId, DEFAULT_PROJECT_ID]
   );
   await client.query(
     `
@@ -1691,7 +1883,11 @@ export type ProjectOverview = {
 };
 
 /** Lightweight dashboard stats for /app/overview (no full chat message payloads). */
-export async function getProjectOverviewPostgres(userId: string, isModerator?: boolean): Promise<ProjectOverview> {
+export async function getProjectOverviewPostgres(
+  userId: string,
+  isModerator?: boolean,
+  companyId?: string
+): Promise<ProjectOverview> {
   const pool = getPostgresPool();
   const client = await pool.connect();
   const empty: ProjectOverview = {
@@ -1762,10 +1958,10 @@ export async function getProjectOverviewPostgres(userId: string, isModerator?: b
     const balanceResult = await client.query(
       `SELECT COALESCE(SUM(tokens_allocated - tokens_used), 0)::bigint AS remaining
        FROM token_balances
-       WHERE user_id = $1
-         AND effective_start <= $2
-         AND (effective_end IS NULL OR effective_end >= $2)`,
-      [userId, now]
+       WHERE (company_id = $1 OR (company_id IS NULL AND user_id = $2))
+         AND effective_start <= $3
+         AND (effective_end IS NULL OR effective_end >= $3)`,
+      [companyId ?? `cmp_personal_${userId}`, userId, now]
     );
     const tokenBalanceRemaining = parseInt(String(balanceResult.rows[0]?.remaining ?? 0), 10);
 

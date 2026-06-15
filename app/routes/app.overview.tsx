@@ -3,7 +3,8 @@ import { Link, useLoaderData } from '@remix-run/react';
 import { Header } from '~/components/header/Header';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
-import { getProjectOverview, getSubscriptionByUserId } from '~/lib/database';
+import { getProjectOverview, getSubscriptionByCompanyId } from '~/lib/database';
+import { getActiveCompanyId } from '~/lib/workspace.server';
 import landingStyles from '~/styles/landing.css?url';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 
@@ -16,9 +17,10 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   }
 
   const user = await requireAuth(request, context);
+  const companyId = await getActiveCompanyId(request, user);
   const [sub, overview] = await Promise.all([
-    getSubscriptionByUserId(user.id),
-    getProjectOverview(user.id, user.isModerator),
+    getSubscriptionByCompanyId(companyId),
+    getProjectOverview(user.id, user.isModerator, companyId),
   ]);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
 

@@ -1,4 +1,4 @@
-import { type ActionFunctionArgs } from '@remix-run/cloudflare';
+import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { createDataStream, generateId } from 'ai';
 import { MAX_RESPONSE_SEGMENTS, MAX_TOKENS, type FileMap } from '~/lib/.server/llm/constants';
 import { CONTINUE_PROMPT } from '~/lib/common/prompts/prompts';
@@ -11,8 +11,16 @@ import type { ContextAnnotation, ProgressAnnotation } from '~/types/context';
 import { WORK_DIR } from '~/utils/constants';
 import { createSummary } from '~/lib/.server/llm/create-summary';
 import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
-import { optionalAuth } from '~/lib/auth';
-import { saveChat, insertTokenUsageAndConsume } from '~/lib/database';
+import { optionalAuth, isAuthDisabled } from '~/lib/auth';
+import {
+  saveChat,
+  insertTokenUsageAndConsume,
+  getTokenBalanceRemainingForCompany,
+  getCompanyIdForChat,
+  getCompanyMember,
+} from '~/lib/database';
+import { personalCompanyId } from '~/lib/database-postgresql';
+import { getActiveCompanyId } from '~/lib/workspace.server';
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -53,6 +61,61 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   const { messages, files, promptId, customPrompt, contextOptimization, chatId, urlId, description, metadata } = body;
 
   const user = await optionalAuth(request, context);
+
+  // The workspace (company) this prompt bills to — resolved in the gate, reused in onFinish.
+  let billingCompanyId: string | null = null;
+
+  /*
+   * Go-live guard: every prompt must be attributed to a billable account. When auth
+   * is enabled, reject anonymous requests (the /app UI already requires login; this
+   * closes the direct-API loophole so usage can't be spent without an account).
+   */
+  if (!isAuthDisabled(context) && !user?.id) {
+    return json({ message: 'Please sign in to use the builder.', code: 'auth_required' }, { status: 401 });
+  }
+
+  /*
+   * Pre-flight token gate (workspace-scoped). The prompt bills to the workspace that
+   * owns the chat's project (or the active workspace for a brand-new chat). All members
+   * draw from that one shared pool. Once it's <= 0 we reject the NEXT prompt with 402;
+   * the in-flight prompt that drained it still finishes and may overshoot into negative.
+   *
+   * Exempt: admin bypass / disabled-auth mode and moderators (unlimited), and anonymous
+   * requests (handled above).
+   */
+  if (user?.id && user.id !== 'admin-bypass' && !user.isModerator && !isAuthDisabled(context)) {
+    try {
+      const personal = personalCompanyId(user.id);
+      billingCompanyId =
+        (chatId ? await getCompanyIdForChat(chatId) : null) || (await getActiveCompanyId(request, user));
+
+      // Membership check for team workspaces (the personal workspace is always the user's own).
+      if (billingCompanyId !== personal) {
+        const member = await getCompanyMember(billingCompanyId, user.id);
+
+        if (!member) {
+          return json({ message: 'You are not a member of this workspace.', code: 'not_a_member' }, { status: 403 });
+        }
+      }
+
+      const remaining = await getTokenBalanceRemainingForCompany(billingCompanyId, user.id);
+
+      if (remaining <= 0) {
+        return json(
+          {
+            message:
+              'This workspace has run out of tokens for the billing period. Upgrade the plan or add a top-up pack to keep building.',
+            code: 'token_balance_exhausted',
+            remaining,
+          },
+          { status: 402 }
+        );
+      }
+    } catch (e) {
+      // Never let a metering hiccup hard-block paying users — log and allow through.
+      logger.error('Token balance pre-flight check failed; allowing request', e);
+    }
+  }
 
   const cookieHeader = request.headers.get('Cookie');
   const apiKeys = JSON.parse(parseCookies(cookieHeader || '').apiKeys || '{}');
@@ -244,6 +307,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
                     chatId,
                     messageId: triggeringMessageId,
                     userId: user.id,
+                    companyId: billingCompanyId,
                     promptTokens: cumulativeUsage.promptTokens,
                     completionTokens: cumulativeUsage.completionTokens,
                     totalTokens,

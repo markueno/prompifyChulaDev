@@ -149,6 +149,8 @@ export default defineConfig(config => {
  * Prevents Vite's import-analysis from processing root-level files that are
  * not part of the client bundle:
  *  - dot-config files (.dockerignore, .gitignore, etc.)
+ *  - Dockerfile (and Dockerfile.<variant>) — plain text, not a JS module, but
+ *                 gets pulled into the dev module graph inside Docker (workdir /app).
  *  - server.js  — a standalone Node.js HTTP server run via `pnpm run dev`
  *                 inside Docker. Its `import * as build from "./build/server/index.js"`
  *                 fails during `remix vite:dev` because that path only exists
@@ -159,7 +161,7 @@ export default defineConfig(config => {
  */
 function ignoreNonJsRootFilesPlugin() {
   const ignorePattern =
-    /[\/\\](\.(?:dockerignore|gitignore|prettierignore|editorconfig)|server\.js)(\?.*)?$/;
+    /[\/\\](\.(?:dockerignore|gitignore|prettierignore|editorconfig)|Dockerfile(?:\.[\w-]+)?|server\.js)(\?.*)?$/;
   return {
     name: 'ignore-non-js-root-files',
     enforce: 'pre' as const,

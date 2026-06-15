@@ -43,8 +43,12 @@ import {
   getSubscriptionByUserIdPostgres,
   insertTokenUsagePostgres,
   insertTokenUsageAndConsumePostgres,
-  consumeTokenBalancePostgres,
   getTokenBalanceRemainingPostgres,
+  getTokenBalanceRemainingForCompanyPostgres,
+  getSubscriptionByCompanyIdPostgres,
+  getCompanyIdForChatPostgres,
+  getCompanyMemberCountPostgres,
+  getCompanySeatsPostgres,
   getProjectOverviewPostgres,
   insertContactSubmissionPostgres,
   type ContactSubmissionInput,
@@ -681,6 +685,7 @@ export async function insertTokenUsageAndConsume(params: {
   chatId: string;
   messageId: string;
   userId: string;
+  companyId?: string | null;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
@@ -694,20 +699,57 @@ export async function insertTokenUsageAndConsume(params: {
   return false;
 }
 
-export async function consumeTokenBalance(userId: string, tokensToConsume: number) {
-  if (DATABASE_TYPE === 'postgresql') {
-    return consumeTokenBalancePostgres(userId, tokensToConsume);
-  }
-
-  return false;
-}
-
 export async function getTokenBalanceRemaining(userId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getTokenBalanceRemainingPostgres(userId);
   }
 
   return 0;
+}
+
+/** Remaining tokens in a workspace's shared pool (B2B). */
+export async function getTokenBalanceRemainingForCompany(companyId: string, userId?: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getTokenBalanceRemainingForCompanyPostgres(companyId, userId);
+  }
+
+  return 0;
+}
+
+/** A workspace's subscription + tier info. */
+export async function getSubscriptionByCompanyId(companyId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getSubscriptionByCompanyIdPostgres(companyId);
+  }
+
+  return null;
+}
+
+/** Resolve the workspace that owns a chat (via its project). */
+export async function getCompanyIdForChat(chatId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyIdForChatPostgres(chatId);
+  }
+
+  return null;
+}
+
+/** Member count of a workspace (seat enforcement). */
+export async function getCompanyMemberCount(companyId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyMemberCountPostgres(companyId);
+  }
+
+  return 0;
+}
+
+/** Seat cap of a workspace (from its plan). */
+export async function getCompanySeats(companyId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanySeatsPostgres(companyId);
+  }
+
+  return 1;
 }
 
 const emptyProjectOverview: import('./database-postgresql').ProjectOverview = {
@@ -723,13 +765,13 @@ const emptyProjectOverview: import('./database-postgresql').ProjectOverview = {
   healthReasons: [],
 };
 
-export async function getProjectOverview(userId: string, isModerator?: boolean) {
+export async function getProjectOverview(userId: string, isModerator?: boolean, companyId?: string) {
   if (DATABASE_TYPE !== 'postgresql') {
     return emptyProjectOverview;
   }
 
   try {
-    return await getProjectOverviewPostgres(userId, isModerator);
+    return await getProjectOverviewPostgres(userId, isModerator, companyId);
   } catch (error) {
     console.error('Error loading project overview:', error);
     return emptyProjectOverview;
