@@ -30,7 +30,17 @@
       "Bash(git --no-pager grep -n \"getTokenBalanceRemainingForCompanyPostgres\\\\|getTokenBalanceRemainingPostgres\" -- app/lib/database-postgresql.ts)",
       "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,1\\)\\); console.log\\('tsx:', \\(p.devDependencies||{}\\).tsx||\\(p.dependencies||{}\\).tsx||'NO'\\); console.log\\('pg:', \\(p.dependencies||{}\\).pg||'NO'\\)\")",
       "Bash(git --no-pager grep -n \"export function getPostgresPool\\\\|export const getPostgresPool\\\\|function getPostgresPool\\\\|new Pool\\\\|new pg.Pool\\\\|import .* from 'pg'\\\\|require\\('pg'\\)\" -- app/lib/database-postgresql.ts)",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(git --no-pager grep -n \"emailVerificationRequired\\\\|EMAIL_VERIFICATION\\\\|REQUIRE_EMAIL\\\\|VERIFICATION_REQUIRED\" -- app/routes/api.auth.register.ts)",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\('EMAIL_VERIFICATION_REQUIRED =', JSON.stringify\\(process.env.EMAIL_VERIFICATION_REQUIRED\\)\\); console.log\\('REQUIRE_EMAIL_VERIFICATION =', JSON.stringify\\(process.env.REQUIRE_EMAIL_VERIFICATION\\)\\);\")",
+      "Bash(git --no-pager grep -n \"is_verified\\\\|isVerified\\\\|verify\" -- app/routes/api.auth.login.ts)",
+      "Bash(powershell.exe -NoProfile -Command '$ip=\"159.138.244.247\"; foreach \\($p in 6379,5432,443,5173\\) { $r=Test-NetConnection -ComputerName $ip -Port $p -WarningAction SilentlyContinue; \"{0,-6} -> Open={1}\" -f $p,$r.TcpTestSucceeded }')",
+      "Bash(git --no-pager grep -rn \"export function isEmailVerificationRequired\\\\|isEmailVerificationRequired =\" -- app/)",
+      "Bash(git --no-pager grep -n \"ensurePersonalCompanyWithClient\\\\|createSubscriptionForUserWithClient\" -- app/lib/database-postgresql.ts)",
+      "Bash(git --no-pager grep -n \"ensurePersonalCompany\\\\|createSubscriptionForUser\\\\|getActiveCompanyId\\\\|personalCompanyId\" -- app/lib/database.ts)",
+      "Bash(git --no-pager grep -n \"function personalCompanyId\\\\|personalCompanyId =\" -- app/)",
+      "Bash(git --no-pager grep -n \"cmp_personal_\\\\|personalCompanyId\\(userId\\)\" -- app/lib/database-postgresql.ts)",
+      "Bash(node scripts/backfill-free-tokens.cjs)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Mark\\AppData\\Local\\Temp"
