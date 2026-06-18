@@ -15,6 +15,7 @@ dist-ssr
 .vscode/launch.json
 !.vscode/extensions.json
 .idea
+.claude/
 .DS_Store
 *.suo
 *.ntvs*
@@ -39,6 +40,9 @@ modelfiles
 # docs ignore
 site
 
+
+# one-off scripts (not part of the repo)
+scripts/backfill-free-tokens.cjs
 
 # commit file ignore
 app/commit.json
