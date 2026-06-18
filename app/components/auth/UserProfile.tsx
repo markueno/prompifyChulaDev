@@ -1,4 +1,5 @@
 import { useStore } from '@nanostores/react';
+import { useSubmit } from '@remix-run/react';
 import { Button } from '~/components/ui/Button';
 import { Dropdown, DropdownItem, DropdownSeparator } from '~/components/ui/Dropdown';
 import type { User } from '~/lib/auth';
@@ -10,6 +11,7 @@ interface UserProfileProps {
 }
 
 export function UserProfile({ user }: UserProfileProps) {
+  const submit = useSubmit();
   const profile = useStore(profileStore);
   // Display name: nickname if set, otherwise auth email
   const displayName = (profile?.nickname?.trim() || user?.email || '').trim();
@@ -72,21 +74,15 @@ export function UserProfile({ user }: UserProfileProps) {
 
         <DropdownSeparator />
 
-        <DropdownItem
-          asChild
-          onSelect={() => {
-            /* keep menu open for form submit */
-          }}
-        >
-          <form action="/auth/logout" method="post" className="w-full">
-            <button
-              type="submit"
-              className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-red-600 hover:text-red-700"
-            >
-              <div className="i-ph:sign-out text-lg" />
-              Sign Out
-            </button>
-          </form>
+        <DropdownItem asChild>
+          <button
+            type="button"
+            onClick={() => submit(null, { method: 'post', action: '/auth/logout' })}
+            className="flex items-center gap-2 px-3 py-2 text-sm w-full text-left text-red-600 hover:text-red-700"
+          >
+            <div className="i-ph:sign-out text-lg" />
+            Sign Out
+          </button>
         </DropdownItem>
       </div>
     </Dropdown>
