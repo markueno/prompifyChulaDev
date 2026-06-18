@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git commit --no-verify -m ' *)",
+      "Bash(cp \"c:\\\\Users\\\\Mark\\\\Desktop\\\\GitHub\\\\PromptIDE\\\\DEV\\\\prompifyChulaDev\\\\README.md\" \"C:\\\\Users\\\\Mark\\\\AppData\\\\Local\\\\Temp\\\\prompify_readme_clean.md\" && echo \"Saved\")",
+      "Bash(git checkout *)",
+      "Bash(cp \"C:\\\\Users\\\\Mark\\\\AppData\\\\Local\\\\Temp\\\\prompify_readme_clean.md\" README.md)",
+      "Bash(git push *)",
+      "Bash(git pull *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh repo *)",
+      "Bash(git clone *)",
+      "Bash(npx tsc *)",
+      "Bash(wmic process *)",
+      "Bash(tasklist /fi \"imagename eq node.exe\" /fo list)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Mark\\\\Desktop\\\\GitHub\\\\PromptIDE\\\\DEV\\\\prompifyChulaDev\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(git --no-pager diff --stat)",
+      "Bash(git --no-pager diff app/lib/database-postgresql.ts)",
+      "Bash(git stash *)",
+      "Bash(git merge *)",
+      "Bash(git restore *)",
+      "Bash(git --no-pager grep -n \"isVerified\\\\|createUser\\(\" -- app/routes/api.auth.register.ts)",
+      "Bash(git --no-pager grep -n \"createSubscriptionForUserWithClient\" -- app/lib/database-postgresql.ts)",
+      "Bash(git --no-pager grep -n \"getTokenBalanceRemainingForCompany\\\\|token_balance_exhausted\\\\|remaining <= 0\" -- app/routes/api.chat.ts)",
+      "Bash(git --no-pager grep -n \"getTokenBalanceRemainingForCompanyPostgres\\\\|getTokenBalanceRemainingPostgres\" -- app/lib/database-postgresql.ts)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,1\\)\\); console.log\\('tsx:', \\(p.devDependencies||{}\\).tsx||\\(p.dependencies||{}\\).tsx||'NO'\\); console.log\\('pg:', \\(p.dependencies||{}\\).pg||'NO'\\)\")",
+      "Bash(git --no-pager grep -n \"export function getPostgresPool\\\\|export const getPostgresPool\\\\|function getPostgresPool\\\\|new Pool\\\\|new pg.Pool\\\\|import .* from 'pg'\\\\|require\\('pg'\\)\" -- app/lib/database-postgresql.ts)",
+      "Bash(npx vitest *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Mark\\AppData\\Local\\Temp"
+    ]
+  }
+}

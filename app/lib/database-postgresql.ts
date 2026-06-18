@@ -705,16 +705,35 @@ async function createSubscriptionForUserWithClient(client: PoolClient, userId: s
   const periodEnd = new Date(now);
   periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-  const subId = crypto.randomUUID();
+  // Ensure a Trial subscription exists for the workspace (idempotent on company_id).
   const insertResult = await client.query(
     `INSERT INTO subscriptions (id, user_id, company_id, tier_id, status, current_period_start, current_period_end)
      VALUES ($1, $2, $3, 'tier_trial', 'active', $4, $5)
      ON CONFLICT (company_id) DO NOTHING
      RETURNING id`,
-    [subId, userId, companyId, now.toISOString(), periodEnd.toISOString()]
+    [crypto.randomUUID(), userId, companyId, now.toISOString(), periodEnd.toISOString()]
   );
 
-  if (insertResult.rows.length === 0) {
+  // Resolve the subscription id whether we just inserted it or it already existed.
+  let subId = insertResult.rows[0]?.id as string | undefined;
+
+  if (!subId) {
+    const existing = await client.query(`SELECT id FROM subscriptions WHERE company_id = $1`, [companyId]);
+    subId = existing.rows[0]?.id;
+  }
+
+  /*
+   * Grant the free token pool only if the workspace doesn't already have one. This is
+   * gated on the *balance* existing — not on the subscription INSERT succeeding — so a
+   * pre-existing subscription row (partial earlier run, Stripe customer setup, re-verify)
+   * can never leave the account tokenless. Idempotent: safe to call at signup and verify.
+   */
+  const existingBalance = await client.query(
+    `SELECT 1 FROM token_balances WHERE company_id = $1 AND source = 'tier' LIMIT 1`,
+    [companyId]
+  );
+
+  if (existingBalance.rows.length > 0) {
     return;
   }
 
@@ -777,7 +796,23 @@ export async function createUserPostgres(user: any) {
       ]
     );
 
-    return result.rowCount !== null && result.rowCount > 0;
+    const created = result.rowCount !== null && result.rowCount > 0;
+
+    /*
+     * Grant the free token pool as soon as the account is usable. When email verification
+     * is OFF the account is already verified at registration, so grant now; when it's ON
+     * the account isn't usable yet and verifyUser grants on the same (idempotent) path.
+     * A grant hiccup must not fail registration, so we only warn here.
+     */
+    if (created && user.isVerified) {
+      try {
+        await createSubscriptionForUserWithClient(client, user.id);
+      } catch (subErr: any) {
+        console.warn('Could not grant signup tokens (will retry on verify):', subErr?.message ?? subErr);
+      }
+    }
+
+    return created;
   } catch (error: any) {
     console.error('❌ Error creating user:', error);
 
