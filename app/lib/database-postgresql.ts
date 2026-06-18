@@ -705,21 +705,21 @@ async function createSubscriptionForUserWithClient(client: PoolClient, userId: s
   const periodEnd = new Date(now);
   periodEnd.setMonth(periodEnd.getMonth() + 1);
 
-  // Ensure a Trial subscription exists for the workspace (idempotent on company_id).
-  const insertResult = await client.query(
-    `INSERT INTO subscriptions (id, user_id, company_id, tier_id, status, current_period_start, current_period_end)
-     VALUES ($1, $2, $3, 'tier_trial', 'active', $4, $5)
-     ON CONFLICT (company_id) DO NOTHING
-     RETURNING id`,
-    [crypto.randomUUID(), userId, companyId, now.toISOString(), periodEnd.toISOString()]
-  );
-
-  // Resolve the subscription id whether we just inserted it or it already existed.
-  let subId = insertResult.rows[0]?.id as string | undefined;
+  /*
+   * Ensure a Trial subscription exists for the workspace. Check-then-insert (no
+   * ON CONFLICT) so this can't throw if the uq_subscriptions_company_id index is
+   * missing — a silent failure here is exactly what leaves new accounts tokenless.
+   */
+  const existingSub = await client.query(`SELECT id FROM subscriptions WHERE company_id = $1 LIMIT 1`, [companyId]);
+  let subId = existingSub.rows[0]?.id as string | undefined;
 
   if (!subId) {
-    const existing = await client.query(`SELECT id FROM subscriptions WHERE company_id = $1`, [companyId]);
-    subId = existing.rows[0]?.id;
+    subId = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO subscriptions (id, user_id, company_id, tier_id, status, current_period_start, current_period_end)
+       VALUES ($1, $2, $3, 'tier_trial', 'active', $4, $5)`,
+      [subId, userId, companyId, now.toISOString(), periodEnd.toISOString()]
+    );
   }
 
   /*
@@ -747,6 +747,31 @@ async function createSubscriptionForUserWithClient(client: PoolClient, userId: s
      VALUES ($1, $2, $3, 'tier', $4, $5, 0, $6, $7)`,
     [balanceId, userId, companyId, subId, tokens, now.toISOString(), periodEnd.toISOString()]
   );
+}
+
+/**
+ * Idempotently ensure a user has their personal workspace + Trial token pool, in its
+ * own transaction. Safe to call on every login as a self-healing net — it only grants
+ * if the workspace has never had a tier balance, so it never refills a used-up trial.
+ */
+export async function ensureUserTrialPostgres(userId: string): Promise<void> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    await createSubscriptionForUserWithClient(client, userId);
+    await client.query('COMMIT');
+  } catch (e) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    console.error('ensureUserTrial failed:', e);
+  } finally {
+    client.release();
+  }
 }
 
 /** Get subscription by user ID. For future subscription/upgrade logic. */

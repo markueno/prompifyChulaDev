@@ -49,6 +49,7 @@ import {
   getCompanyIdForChatPostgres,
   getCompanyMemberCountPostgres,
   getCompanySeatsPostgres,
+  ensureUserTrialPostgres,
   getProjectOverviewPostgres,
   insertContactSubmissionPostgres,
   type ContactSubmissionInput,
@@ -705,6 +706,15 @@ export async function getTokenBalanceRemaining(userId: string) {
   }
 
   return 0;
+}
+
+/** Idempotently ensure a user's personal workspace + Trial token pool exist (self-healing). */
+export async function ensureUserTrial(userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return ensureUserTrialPostgres(userId);
+  }
+
+  return undefined;
 }
 
 /** Remaining tokens in a workspace's shared pool (B2B). */

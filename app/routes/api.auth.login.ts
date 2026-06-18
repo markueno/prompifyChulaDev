@@ -151,6 +151,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
     // Reset login attempts on successful login
     await resetLoginAttempts(user.id || '');
 
+    /*
+     * Self-healing: make sure the account has its personal workspace + Trial token pool.
+     * Idempotent (won't refill a used-up trial) — covers accounts whose signup/verify grant failed.
+     */
+    await ensureUserTrial(user.id || '');
+
     // Generate JWT token
     const secret = (context.cloudflare?.env as any)?.JWT_SECRET || 'your-secret-key';
     const isModerator = Boolean(user.is_moderator);
@@ -197,4 +203,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 }
 
-import { getUserByEmail, updateLoginAttempts, resetLoginAttempts, createUserSession } from '~/lib/database';
+import {
+  getUserByEmail,
+  updateLoginAttempts,
+  resetLoginAttempts,
+  createUserSession,
+  ensureUserTrial,
+} from '~/lib/database';
