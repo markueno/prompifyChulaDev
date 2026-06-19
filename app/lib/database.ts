@@ -7,7 +7,6 @@
 import crypto from 'crypto';
 import {
   getPostgresPool,
-  createPostgresTables,
   getUserByEmailPostgres,
   createUserPostgres,
   getUserByVerificationTokenPostgres,
@@ -127,8 +126,6 @@ function getSQLiteDatabase() {
 
 function getPostgresDatabase() {
   if (!postgresDb) {
-    // Initialize PostgreSQL tables if they don't exist
-    createPostgresTables().catch(console.error);
     postgresDb = getPostgresPool();
   }
 

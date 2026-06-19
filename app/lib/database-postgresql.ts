@@ -7,6 +7,20 @@ type PoolClient = pg.PoolClient;
 
 // PostgreSQL connection pool
 let pool: InstanceType<typeof Pool>;
+let migrateReady: Promise<void> | null = null;
+let migrationRunning = false;
+
+/** Run createPostgresTables() once; safe to call from every DB entry point. */
+export function ensurePostgresReady(): Promise<void> {
+  if (!migrateReady) {
+    migrateReady = createPostgresTables().catch((err: unknown) => {
+      migrateReady = null;
+      throw err;
+    });
+  }
+
+  return migrateReady;
+}
 
 export function getPostgresPool(): InstanceType<typeof Pool> {
   if (!pool) {
@@ -23,20 +37,34 @@ export function getPostgresPool(): InstanceType<typeof Pool> {
       connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
     });
 
-    // Test the connection
     pool.on('error', (err: Error) => {
       console.error('Unexpected error on idle client', err);
     });
+
+    const nativeConnect = pool.connect.bind(pool);
+    pool.connect = ((...args: Parameters<typeof nativeConnect>) => {
+      if (migrationRunning) {
+        return nativeConnect(...args);
+      }
+
+      if (args.length > 0) {
+        return ensurePostgresReady().then(() => nativeConnect(...args));
+      }
+
+      return ensurePostgresReady().then(() => nativeConnect());
+    }) as typeof pool.connect;
   }
 
   return pool;
 }
 
 export async function createPostgresTables() {
+  migrationRunning = true;
   const pool = getPostgresPool();
-  const client = await pool.connect();
+  let client: PoolClient | undefined;
 
   try {
+    client = await pool.connect();
     // Users table
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -45,6 +73,7 @@ export async function createPostgresTables() {
         password_hash TEXT NOT NULL,
         is_verified BOOLEAN DEFAULT FALSE,
         is_moderator BOOLEAN DEFAULT FALSE,
+        token_approved BOOLEAN NOT NULL DEFAULT TRUE,
         verification_token TEXT,
         verification_expires TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -56,6 +85,10 @@ export async function createPostgresTables() {
         reset_expires TIMESTAMP
       )
     `);
+
+    await client.query(
+      `ALTER TABLE users ADD COLUMN IF NOT EXISTS token_approved BOOLEAN NOT NULL DEFAULT TRUE`
+    );
 
     // Projects table (container for chats)
     await client.query(`
@@ -593,7 +626,8 @@ export async function createPostgresTables() {
     console.error('Error creating PostgreSQL tables:', error);
     throw error;
   } finally {
-    client.release();
+    client?.release();
+    migrationRunning = false;
   }
 }
 
