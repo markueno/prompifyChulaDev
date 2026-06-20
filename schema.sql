@@ -1,20 +1,21 @@
--- Initialize Prompify Database
--- This file is automatically executed when PostgreSQL container starts (fresh volume).
--- Schema matches app/lib/database-postgresql.ts + app/lib/billing/plans.ts (workspace billing).
-
--- Create prompify_user role if it doesn't exist
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'prompify_user') THEN
-    CREATE ROLE prompify_user WITH LOGIN PASSWORD 'Mark@3156';
-    ALTER ROLE prompify_user CREATEDB;
-  END IF;
-END
-$$;
-
-GRANT ALL PRIVILEGES ON DATABASE prompify TO prompify_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO prompify_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO prompify_user;
+-- Prompify database schema — SINGLE SOURCE OF TRUTH.
+--
+-- This file defines every table, index, and seed row. It is applied two ways,
+-- and is safe to run repeatedly (every statement is idempotent: CREATE ...
+-- IF NOT EXISTS / INSERT ... ON CONFLICT):
+--   1. The Postgres container runs it on a fresh volume
+--      (mounted at /docker-entrypoint-initdb.d/schema.sql).
+--   2. The app runs it on every startup (inlined via Vite `?raw` import in
+--      app/lib/database-postgresql.ts -> createPostgresTables()).
+--
+-- To change the schema: edit THIS file only. Because changes are applied via
+-- CREATE TABLE IF NOT EXISTS, adding a column to an existing table will NOT be
+-- picked up automatically on a database that already has data — for that you
+-- need an explicit ALTER (a migration). On a fresh volume this file is enough.
+--
+-- Role/database creation is handled by the Postgres image via POSTGRES_USER /
+-- POSTGRES_DB / POSTGRES_PASSWORD env vars (see docker-compose), so no CREATE
+-- ROLE / GRANT bootstrap lives here.
 
 -- ============================================================
 -- Core auth
