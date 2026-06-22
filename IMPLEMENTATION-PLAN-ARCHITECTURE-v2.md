@@ -33,7 +33,54 @@ git rev-parse --short EulerOS            # => b37f5e6 (UNCHANGED — proves Eule
 | Running local Postgres (compose `postgres` service) | All DDL/queries | `docker-compose.prod.yaml:5-25` | `docker compose --profile production up postgres` then `pg_isready` |
 | Node ≥ 18.18 + pnpm 9 | Build/test toolchain | `package.json:36-37, 192` | `node -v && pnpm -v` |
 
-> **NOTE (deviation, flagged):** the doc hard-names **Cloudflare R2**. Deployment target is **Huawei/Google Cloud**. The doc's Part 10 (`:872`) explicitly requires a provider-agnostic S3 abstraction. This plan therefore uses `@aws-sdk/client-s3` against a configurable `S3_ENDPOINT`. This is a *conflict resolution*, declared here, not a silent substitution.
+> **NOTE (deviation, flagged):** the doc hard-names **Cloudflare R2**. Deployment target is **Huawei/Google Cloud**. The doc's Part 10 (`:872`) explicitly requires a provider-agnostic S3 abstraction. This plan therefore uses `@aws-sdk/client-s3` against a configurable `S3_ENDPOINT`. This is a *conflict resolution*, declared here, not a silent substitution. **Decision in 1.4a below.**
+
+### 1.4a Object storage provider — DECISION: Huawei OBS (not Cloudflare R2)
+
+**Chosen: Huawei OBS.** Evidence the project is already on Huawei: `docker-compose.yaml:32` `# Updated for ECS Euler Huawei OS`; KooGallery (Huawei Cloud Marketplace) integration at `app/routes/api.koogallery.*` + `init-db.sql:100-129`. Same-region ECS↔OBS = low latency, **zero inter-cloud egress**.
+
+| Factor | Huawei OBS (CHOSEN) | Google Cloud Storage (fallback) |
+|---|---|---|
+| S3 API + SigV4 presigned URLs | **Native** — works with `@aws-sdk/client-s3` as Day 1 is written | aws-sdk presigned URLs **unreliable** on GCS; needs `@google-cloud/storage` V4 signing |
+| Impact on Day 1 | None (drop-in) | **Rewrites Day 1 adapter** (different SDK) |
+| Egress from your ECS | Same cloud → none | Cross-cloud → you pay |
+
+> If a hard "must be Google" mandate appears: Day 1 must use `@google-cloud/storage` instead of `@aws-sdk/client-s3`, and Risk **R2** (presigned URLs on non-R2) becomes a Day-1 blocker, not a Day-5/7 one.
+
+**OBS env (replaces the generic S3_* in Day 1.2):**
+```
+S3_ENDPOINT=https://obs.<region>.myhuaweicloud.com   # e.g. ap-southeast-3
+S3_REGION=<region>
+S3_BUCKET=prompify-snapshots                          # PRIVATE bucket
+S3_ACCESS_KEY_ID=<OBS AK>
+S3_SECRET_ACCESS_KEY=<OBS SK>
+# @aws-sdk/client-s3: forcePathStyle=false (OBS supports virtual-hosted style)
+```
+
+### 1.4b Target VM specification (ESTIMATE — no resource limits exist in repo)
+
+**Why this is an estimate:** no `cpus`/`mem_limit`/`shared_buffers`/`max_connections` are set in any compose/config (verified). Numbers are grounded in (a) the services that exist in `docker-compose.prod.yaml` and (b) the doc's own line `:775` "Server RAM upgrade (4GB → 8GB)".
+
+**Two facts that keep the VM small:**
+- WebContainer runs in the **browser** (`app/lib/webcontainer/index.ts:50`) → the VM never runs users' generated apps.
+- Snapshot blob bytes go **client ↔ OBS directly** via presigned URL (`ARCHITECTURE-v2.md:356, 422`) → object-storage traffic does **not** transit the VM.
+
+What runs on the VM (`docker-compose.prod.yaml`): `app` (Remix), `postgres`, `redis`, `nginx`, `certbot`, `cron`. ARCHITECTURE-v2 (scoped Phases 1,2,3-runtime,5,6) adds **no new server process** — new tables are tiny rows in the existing Postgres; new endpoints live in the existing Remix app; GC is a nightly cron call.
+
+| | Minimum (impl/staging) | **Recommended (prod)** |
+|---|---|---|
+| vCPU | 2 | **4** |
+| RAM | 4 GB (tight until Day 14 drops Vite-dev) | **8 GB** (doc `:775`) |
+| Huawei ECS flavor* | `s7.large.2` (2c/4G) | **`s7.xlarge.2` (4c/8G)** or `c7.xlarge.2` |
+| System disk | 40 GB SSD | 40 GB SSD |
+| Data disk (EVS: PG + WAL + Docker) | 80 GB SSD | **100 GB SSD** (ultra-high I/O) |
+| OS | EulerOS (current host) | EulerOS |
+| EIP bandwidth | 5 Mbps / pay-by-traffic | 5–10 Mbps — **low; blobs bypass the VM**, only LLM text + page loads transit |
+| OBS | private bucket, same region | + lifecycle rule for GC (Day 18) |
+
+*Huawei flavor names from general knowledge — **verify in Huawei console**. `s7.xlarge.2` = 4 vCPU × RAM-ratio-2 = 8 GB.
+
+**One VM covers this entire 20-day implementation.** Add a 2nd VM only on proven triggers: Postgres→own VM when pool `max:20` (`database-postgresql.ts:21`) contends or backup I/O competes; a 2nd app replica only **after Day 14** (today's `pnpm run dev` prod mode, `docker-compose.prod.yaml:129`, isn't built to scale out); read replica "at 1,000+ users" (doc `:59`). PgBouncer is a process on the existing VM, **not** a new VM (doc `:772`). OBS needs no VM.
 
 ### 1.4 Verify starting state is correct (run before Day 1)
 ```bash
