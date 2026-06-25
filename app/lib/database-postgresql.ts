@@ -1648,6 +1648,29 @@ export async function saveCodebaseVersionPostgres(params: {
   }
 }
 
+/**
+ * Fetch the latest codebase version's manifest for a chat (read-only).
+ * Returns null when the chat has no saved version yet. Source: ARCHITECTURE-v2.md:411-413 (Day 7).
+ */
+export async function getLatestCodebaseVersionPostgres(
+  chatId: string
+): Promise<{ versionNumber: number; manifest: Record<string, string> } | null> {
+  const pool = getPostgresPool();
+  const result = await pool.query(
+    'SELECT version_number, manifest FROM codebase_versions WHERE chat_id = $1 AND is_latest = true LIMIT 1',
+    [chatId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  const manifest = typeof row.manifest === 'string' ? JSON.parse(row.manifest) : row.manifest;
+
+  return { versionNumber: Number(row.version_number), manifest };
+}
+
 export async function getChatByIdPostgres(
   chatId: string,
   userId: string,
