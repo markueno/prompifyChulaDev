@@ -85,6 +85,37 @@ CREATE TABLE IF NOT EXISTS chats (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Codebase snapshots (ARCHITECTURE-v2 Phase 1): content-addressed version history.
+-- Manifests live here; file bytes live in object storage (OBS) keyed by SHA-256.
+-- Placed after chats/users (its FK targets); does NOT depend on projects.
+CREATE TABLE IF NOT EXISTS codebase_versions (
+    id SERIAL PRIMARY KEY,
+    chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL,
+    is_latest BOOLEAN NOT NULL DEFAULT false,
+    manifest JSONB NOT NULL,
+    description TEXT,
+    file_count INTEGER NOT NULL DEFAULT 0,
+    total_bytes INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(chat_id, version_number)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_versions_latest_per_chat ON codebase_versions(chat_id) WHERE is_latest = true;
+CREATE INDEX IF NOT EXISTS idx_versions_chat_latest ON codebase_versions(chat_id, version_number DESC);
+CREATE INDEX IF NOT EXISTS idx_versions_chat_created ON codebase_versions(chat_id, created_at DESC);
+
+-- Blob registry: unique files by SHA-256, ref_count for garbage collection (Day 18).
+CREATE TABLE IF NOT EXISTS codebase_blobs (
+    sha256 TEXT PRIMARY KEY,
+    size_bytes INTEGER NOT NULL,
+    compressed_size_bytes INTEGER,
+    r2_key TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    ref_count INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_blobs_ref_count ON codebase_blobs(ref_count) WHERE ref_count > 0;
+
 -- Create user_activity table
 CREATE TABLE IF NOT EXISTS user_activity (
     id TEXT PRIMARY KEY,

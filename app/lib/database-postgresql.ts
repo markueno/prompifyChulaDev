@@ -510,6 +510,59 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_company ON audit_logs(company_id, created_at DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_audit_logs_project ON audit_logs(project_id)');
 
+    /*
+     * ── Codebase snapshots (ARCHITECTURE-v2 Phase 1, doc lines 118-161) ──────────
+     * Content-addressed version history. Manifests (path -> sha256) live here; the
+     * file BYTES live in object storage (OBS), keyed by SHA-256. No code reads/writes
+     * these yet — wired starting Day 6.
+     */
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS codebase_versions (
+        id SERIAL PRIMARY KEY,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        version_number INTEGER NOT NULL,
+        is_latest BOOLEAN NOT NULL DEFAULT false,
+        manifest JSONB NOT NULL,
+        description TEXT,
+        file_count INTEGER NOT NULL DEFAULT 0,
+        total_bytes INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(chat_id, version_number)
+      )
+    `);
+    /*
+     * Only one "latest" version per chat (partial unique index — relies on the
+     * FOR UPDATE lock in saveCodebaseVersion, Day 6, to avoid concurrent-save races).
+     */
+    await client.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_versions_latest_per_chat ON codebase_versions(chat_id) WHERE is_latest = true'
+    );
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_versions_chat_latest ON codebase_versions(chat_id, version_number DESC)'
+    );
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_versions_chat_created ON codebase_versions(chat_id, created_at DESC)'
+    );
+
+    /*
+     * Blob registry: every unique file by SHA-256, with ref_count for GC (Day 18).
+     * r2_key = the object-storage key path (in OBS); column name kept per doc line 154.
+     */
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS codebase_blobs (
+        sha256 TEXT PRIMARY KEY,
+        size_bytes INTEGER NOT NULL,
+        compressed_size_bytes INTEGER,
+        r2_key TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        ref_count INTEGER NOT NULL DEFAULT 1
+      )
+    `);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_blobs_ref_count ON codebase_blobs(ref_count) WHERE ref_count > 0'
+    );
+
     console.log('PostgreSQL tables created successfully');
   } catch (error) {
     console.error('Error creating PostgreSQL tables:', error);
