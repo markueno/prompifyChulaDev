@@ -1,6 +1,8 @@
 import pg from 'pg';
 import crypto from 'crypto';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
+import { keyForHash } from '~/lib/.server/storage';
+import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
 
 const { Pool } = pg;
 type PoolClient = pg.PoolClient;
@@ -1565,6 +1567,82 @@ export async function getChatsByUserPostgres(userId: string, isModerator?: boole
   } catch (error) {
     console.error('Error fetching chats from PostgreSQL:', error);
     return [];
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Save a new codebase version for a chat in ONE transaction.
+ * Locks the chat row (FOR UPDATE) so concurrent saves from different tabs can't both
+ * insert is_latest=true (which the partial unique index would otherwise reject).
+ * Returns the new version_number. Source: ARCHITECTURE-v2.md:361-392 (Day 6).
+ */
+export async function saveCodebaseVersionPostgres(params: {
+  chatId: string;
+  userId: string;
+  manifest: Record<string, string>; // path -> sha256
+  blobSizes: Record<string, number>; // sha256 -> size_bytes
+  description?: string;
+}): Promise<number> {
+  const { chatId, userId, manifest, blobSizes, description } = params;
+  const { fileCount, totalBytes, hashes } = computeVersionMeta(manifest, blobSizes);
+
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Serialize concurrent saves for this chat (the lock the whole design hinges on).
+    await client.query('SELECT 1 FROM chats WHERE id = $1 FOR UPDATE', [chatId]);
+
+    // 2. Next version number for this chat.
+    const versionRes = await client.query(
+      'SELECT COALESCE(MAX(version_number), 0) + 1 AS next FROM codebase_versions WHERE chat_id = $1',
+      [chatId]
+    );
+    const versionNumber = Number(versionRes.rows[0].next);
+
+    // 3. Demote the current latest, then 4. insert the new version as latest.
+    await client.query('UPDATE codebase_versions SET is_latest = false WHERE chat_id = $1 AND is_latest = true', [
+      chatId,
+    ]);
+    await client.query(
+      `INSERT INTO codebase_versions
+         (chat_id, user_id, version_number, is_latest, manifest, description, file_count, total_bytes)
+       VALUES ($1, $2, $3, true, $4::jsonb, $5, $6, $7)`,
+      [chatId, userId, versionNumber, JSON.stringify(manifest), description ?? null, fileCount, totalBytes]
+    );
+
+    if (hashes.length > 0) {
+      // 5. Bump ref_count for blobs that already exist.
+      await client.query('UPDATE codebase_blobs SET ref_count = ref_count + 1 WHERE sha256 = ANY($1)', [hashes]);
+
+      // 6. Insert any new blobs (ref_count defaults to 1); existing rows are no-ops.
+      const valuesSql: string[] = [];
+      const args: unknown[] = [];
+      let i = 1;
+
+      for (const sha of hashes) {
+        valuesSql.push(`($${i++}, $${i++}, $${i++})`);
+        args.push(sha, blobSizes[sha] ?? 0, keyForHash(sha));
+      }
+
+      await client.query(
+        `INSERT INTO codebase_blobs (sha256, size_bytes, r2_key)
+         VALUES ${valuesSql.join(', ')}
+         ON CONFLICT (sha256) DO NOTHING`,
+        args
+      );
+    }
+
+    await client.query('COMMIT');
+
+    return versionNumber;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
   } finally {
     client.release();
   }
