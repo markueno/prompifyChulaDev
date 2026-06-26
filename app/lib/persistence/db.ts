@@ -18,7 +18,11 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
   }
 
   return new Promise(resolve => {
-    const request = indexedDB.open('boltHistory', 1);
+    // v2 (Day 8): adds the `snapshots` store for content-addressed codebase restore.
+    // The guards below are `contains()`-based (not `oldVersion < N`) so each store is
+    // created at most once regardless of the upgrade path; stores we don't touch are
+    // carried over untouched by IndexedDB — existing `chats` data is preserved on upgrade.
+    const request = indexedDB.open('boltHistory', 2);
 
     request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
       const db = (event.target as IDBOpenDBRequest).result;
@@ -27,6 +31,10 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
         const store = db.createObjectStore('chats', { keyPath: 'id' });
         store.createIndex('id', 'id', { unique: true });
         store.createIndex('urlId', 'urlId', { unique: true });
+      }
+
+      if (!db.objectStoreNames.contains('snapshots')) {
+        db.createObjectStore('snapshots', { keyPath: 'chatId' });
       }
     };
 
@@ -118,6 +126,41 @@ export async function deleteById(db: IDBDatabase, id: string): Promise<void> {
     const request = store.delete(id);
 
     request.onsuccess = () => resolve(undefined);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * A locally-cached codebase snapshot (Day 8). Holds the full file content for the latest
+ * version of a chat so the IDE can restore instantly without a network round-trip (Tier 1).
+ * Keyed by `chatId` in the `snapshots` object store.
+ */
+export interface StoredSnapshot {
+  chatId: string;
+  version: number | null;
+  manifest: Record<string, string>;
+  files: Record<string, string>;
+  timestamp: string;
+}
+
+export async function getSnapshot(db: IDBDatabase, chatId: string): Promise<StoredSnapshot | undefined> {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('snapshots', 'readonly');
+    const store = transaction.objectStore('snapshots');
+    const request = store.get(chatId);
+
+    request.onsuccess = () => resolve(request.result as StoredSnapshot | undefined);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function setSnapshot(db: IDBDatabase, snapshot: StoredSnapshot): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('snapshots', 'readwrite');
+    const store = transaction.objectStore('snapshots');
+    const request = store.put(snapshot);
+
+    request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
   });
 }
