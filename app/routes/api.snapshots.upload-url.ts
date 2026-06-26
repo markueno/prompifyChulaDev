@@ -36,7 +36,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
       return json({ error: 'Invalid hash' }, { status: 400 });
     }
 
-    if (!Number.isInteger(size) || size <= 0 || size > MAX_BLOB_BYTES) {
+    // size 0 is valid: empty files are real content (sha256 e3b0c4…855) and must round-trip.
+    if (!Number.isInteger(size) || size < 0 || size > MAX_BLOB_BYTES) {
       return json({ error: 'Invalid size' }, { status: 400 });
     }
 
