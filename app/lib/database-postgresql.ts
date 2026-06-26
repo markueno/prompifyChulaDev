@@ -1389,14 +1389,27 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
         last_activity = CURRENT_TIMESTAMP
       RETURNING id
     `;
+    /*
+     * PostgreSQL json/jsonb cannot store the NUL character U+0000 (error 22P05,
+     * "unsupported Unicode escape sequence"). Messages can embed binary file content
+     * (e.g. a generated public/favicon.ico) as boltActions, which contains NUL bytes;
+     * JSON.stringify encodes each as the 6-char escape backslash-u-0000, which the JSONB
+     * column then rejects. Strip those escapes before insert. Binary file bytes are
+     * preserved losslessly by the snapshot blob path; the chat message is only a replay
+     * fallback. See the regex literal below for the exact escape being removed.
+     */
+    // Null-safe: JSON.stringify(undefined) returns undefined (e.g. no metadata) — pass it
+    // through untouched so pg receives the same value the original code did.
+    const stripNullEscapes = (json: string | undefined) =>
+      typeof json === 'string' ? json.replace(/\\u0000/g, '') : json;
     const result = await client.query(query, [
       id,
       userId,
       resolvedProjectId,
       resolvedUrlId,
       description,
-      JSON.stringify(messages),
-      JSON.stringify(metadata),
+      stripNullEscapes(JSON.stringify(messages)),
+      stripNullEscapes(JSON.stringify(metadata)),
     ]);
     const savedId = result.rows[0]?.id || null;
 
