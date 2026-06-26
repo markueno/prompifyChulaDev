@@ -382,6 +382,34 @@ CREATE TABLE IF NOT EXISTS company_members (
     UNIQUE(company_id, user_id)
 );
 
+-- Projects + project_members (Risk R9 fix): previously this file only ALTERed `projects`
+-- without ever creating it, so a fresh volume init left both tables absent — breaking every
+-- chat save (resolveWritableProjectId / ensureDefaultProjectForUser). Canonical DDL mirrors
+-- createPostgresTables() in app/lib/database-postgresql.ts. Placed before the ALTER block
+-- below; FK targets (users, companies) already exist above. Idempotent via IF NOT EXISTS.
+CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    owner_user_id TEXT NOT NULL,
+    slug TEXT,
+    name TEXT NOT NULL,
+    description TEXT,
+    is_archived BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS project_members (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(project_id, user_id),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 -- Extend projects with company context + app lifecycle columns
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS company_id TEXT REFERENCES companies(id) ON DELETE CASCADE;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'draft';
