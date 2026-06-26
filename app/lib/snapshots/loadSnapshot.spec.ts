@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reconstructFiles } from './loadSnapshot';
+import { reconstructFiles, snapshotPathToRelative } from './loadSnapshot';
 
 describe('reconstructFiles', () => {
   it('maps each manifest path to its blob content', () => {
@@ -34,5 +34,28 @@ describe('reconstructFiles', () => {
 
   it('returns an empty map for an empty manifest', () => {
     expect(reconstructFiles({}, new Map())).toEqual({});
+  });
+});
+
+describe('snapshotPathToRelative', () => {
+  it('strips the per-session workdir prefix', () => {
+    expect(snapshotPathToRelative('/home/project-abc123/src/App.tsx')).toBe('src/App.tsx');
+    expect(snapshotPathToRelative('/home/project-xyz/package.json')).toBe('package.json');
+  });
+
+  it('strips a DIFFERENT workdir prefix (cross-session / new device restore)', () => {
+    // Snapshot saved under one session, restored under another: prefix differs but must still strip.
+    expect(snapshotPathToRelative('/home/project-OLDsession/src/components/Button.tsx')).toBe(
+      'src/components/Button.tsx',
+    );
+  });
+
+  it('passes already-relative paths through unchanged', () => {
+    expect(snapshotPathToRelative('src/App.tsx')).toBe('src/App.tsx');
+    expect(snapshotPathToRelative('package.json')).toBe('package.json');
+  });
+
+  it('only strips the leading /home/<name>/ segment, not deeper ones', () => {
+    expect(snapshotPathToRelative('/home/project-a/home/nested/x.ts')).toBe('home/nested/x.ts');
   });
 });

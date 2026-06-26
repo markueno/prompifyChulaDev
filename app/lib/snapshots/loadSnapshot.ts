@@ -12,6 +12,18 @@
 import { openDatabase, getSnapshot, setSnapshot } from '~/lib/persistence/db';
 import type { Snapshot } from './buildSnapshot';
 
+/**
+ * Convert a snapshot's stored absolute path (`/home/project-<session>/src/App.tsx`) to a
+ * workdir-relative path (`src/App.tsx`) for writing into the current WebContainer (Day 9b).
+ * The workdir name is per-session (sessionStorage, constants.ts), so a snapshot restored in
+ * a new tab/device carries a *different* `/home/project-…/` prefix than the live container —
+ * strip any `/home/<name>/` prefix generically rather than assuming it matches. Paths that
+ * are already relative pass through unchanged.
+ */
+export function snapshotPathToRelative(absPath: string): string {
+  return absPath.replace(/^\/home\/[^/]+\//, '');
+}
+
 interface LatestVersionResponse {
   version: number | null;
   manifest?: Record<string, string>;

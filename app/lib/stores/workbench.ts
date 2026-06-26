@@ -17,6 +17,7 @@ import { path } from '~/utils/path';
 import { extractRelativePath } from '~/utils/diff';
 import Cookies from 'js-cookie';
 import { createSampler } from '~/utils/sampler';
+import { snapshotPathToRelative } from '~/lib/snapshots/loadSnapshot';
 import type { ActionAlert } from '~/types/actions';
 import { addError, parseFileAndLine } from '~/lib/stores/errors';
 
@@ -44,6 +45,15 @@ export class WorkbenchStore {
   #alertQueue: ActionAlert[] = [...(import.meta.hot?.data.alertQueue ?? [])];
 
   #reloadedMessages = new Set<string>();
+
+  /**
+   * Day 9b — set true when the current chat's files were restored from a codebase snapshot.
+   * While set, historical FILE-action replay (from reloaded/historical messages) is skipped in
+   * `_runAction` so the instant snapshot mount isn't overwritten by slow per-file re-writes.
+   * Shell/start actions still replay (the dev server boots with the project's own command), and
+   * new generations are unaffected because their messageIds are never in `#reloadedMessages`.
+   */
+  #restoredFromSnapshot = false;
 
   artifacts: Artifacts = import.meta.hot?.data.artifacts ?? map({});
 
@@ -337,6 +347,41 @@ export class WorkbenchStore {
     this.#reloadedMessages = new Set(messages);
   }
 
+  /**
+   * Day 9b — mark (or clear) that the current chat was restored from a codebase snapshot.
+   * Reset to false at the start of every chat load; set to true only after a successful mount.
+   */
+  setRestoredFromSnapshot(value: boolean) {
+    this.#restoredFromSnapshot = value;
+  }
+
+  /**
+   * Day 9b — write a restored snapshot's files straight into the WebContainer FS, bypassing
+   * message replay (mirrors ActionRunner#runFileAction: mkdir -p + writeFile, and upstream
+   * bolt.diy's restoreSnapshot). Snapshot keys are absolute under a per-session workdir, so
+   * strip the `/home/<workdir>/` prefix to a workdir-relative path. The FilesStore watcher
+   * (`${WORK_DIR}/**`) picks the writes up, so the IDE shows the files without any replay.
+   */
+  async mountSnapshot(files: Record<string, string>) {
+    const wc = await webcontainer;
+
+    for (const [absPath, content] of Object.entries(files)) {
+      const relPath = snapshotPathToRelative(absPath);
+
+      if (!relPath) {
+        continue;
+      }
+
+      const folder = path.dirname(relPath);
+
+      if (folder && folder !== '.') {
+        await wc.fs.mkdir(folder, { recursive: true });
+      }
+
+      await wc.fs.writeFile(relPath, content);
+    }
+  }
+
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {
     const artifact = this.#getArtifact(messageId);
 
@@ -412,6 +457,15 @@ export class WorkbenchStore {
     const action = artifact.runner.actions.get()[data.actionId];
 
     if (!action || action.executed) {
+      return;
+    }
+
+    // Day 9b — files already came from the snapshot mount; skip replaying historical FILE
+    // writes so we don't overwrite the restore with slow per-file re-writes. Only file actions
+    // from reloaded (historical) messages are skipped — shell/start actions still replay so the
+    // dev server boots, and new generations (fresh messageIds) are never suppressed.
+    if (this.#restoredFromSnapshot && data.action.type === 'file' && this.#reloadedMessages.has(messageId)) {
+      artifact.runner.actions.setKey(data.actionId, { ...action, status: 'complete', executed: true });
       return;
     }
 

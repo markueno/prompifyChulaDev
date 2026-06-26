@@ -18,6 +18,7 @@ import {
 } from './db';
 import { buildSnapshot } from '~/lib/snapshots/buildSnapshot';
 import { uploadBlobs } from '~/lib/snapshots/uploadBlobs';
+import { loadSnapshot } from '~/lib/snapshots/loadSnapshot';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
 
 export interface ChatHistoryItem {
@@ -43,8 +44,8 @@ let snapshotSaveTimer: ReturnType<typeof setTimeout> | undefined;
  * Build a content-addressed snapshot of the current WebContainer file state and persist it:
  * dedup -> upload only missing blobs to object storage -> save a version row -> cache full
  * content in IndexedDB for instant restore. Best-effort and fully isolated: any failure here
- * is swallowed so it can NEVER break the chat-history save it runs after. Restore still uses
- * the existing message-replay path until Day 9b wires loadSnapshot() into loadChat().
+ * is swallowed so it can NEVER break the chat-history save it runs after. The matching restore
+ * path (loadSnapshot -> mount -> suppress file replay) is wired into loadChat() below (Day 9b).
  */
 async function saveCodebaseSnapshot(id: string, descriptionText: string | undefined): Promise<void> {
   try {
@@ -107,6 +108,33 @@ async function saveCodebaseSnapshot(id: string, descriptionText: string | undefi
   }
 }
 
+/**
+ * Day 9b — restore a chat's codebase from its latest snapshot, then mount it into the
+ * WebContainer and flag the workbench so historical FILE-write replay is suppressed. Returns
+ * true on a successful mount (caller suppresses nothing extra — the guard handles it), false
+ * when there is no snapshot or any step fails, in which case the caller falls through to the
+ * existing message-replay path (Tier 3). Best-effort and fully isolated: a restore failure
+ * must never break chat loading. Must run BEFORE setInitialMessages so the mount + guard are
+ * in place before the Chat component replays messages.
+ */
+async function restoreCodebaseSnapshot(id: string): Promise<boolean> {
+  try {
+    const snapshot = await loadSnapshot(id);
+
+    if (!snapshot) {
+      return false; // no snapshot (never saved, or unreachable) — fall back to message replay
+    }
+
+    await workbenchStore.mountSnapshot(snapshot.files);
+    workbenchStore.setRestoredFromSnapshot(true);
+
+    return true;
+  } catch (error) {
+    console.warn('Snapshot restore failed (falling back to message replay):', error);
+    return false;
+  }
+}
+
 export const chatId = atom<string | undefined>(undefined);
 export const description = atom<string | undefined>(undefined);
 export const chatMetadata = atom<IChatMetadata | undefined>(undefined);
@@ -146,6 +174,11 @@ export function useChatHistory() {
     if (mixedId) {
       const loadChat = async () => {
         try {
+          // Day 9b — clear any restore flag from a previously-loaded chat before this load.
+          if (snapshotsEnabled) {
+            workbenchStore.setRestoredFromSnapshot(false);
+          }
+
           const storedMessages = await getMessages(db, mixedId);
 
           if (storedMessages && storedMessages.messages.length > 0) {
@@ -153,6 +186,13 @@ export function useChatHistory() {
             const filteredMessages = rewindId
               ? storedMessages.messages.slice(0, storedMessages.messages.findIndex(m => m.id === rewindId) + 1)
               : storedMessages.messages;
+
+            // Day 9b — restore + mount the codebase snapshot BEFORE messages are set, so the
+            // mount and the file-replay guard are in place before the Chat component replays.
+            // A rewind explicitly wants the historical message state, so skip snapshot restore.
+            if (snapshotsEnabled && !rewindId) {
+              await restoreCodebaseSnapshot(storedMessages.id);
+            }
 
             setInitialMessages(filteredMessages);
             setUrlId(storedMessages.urlId);
@@ -171,6 +211,13 @@ export function useChatHistory() {
                 const filteredMessages = rewindId
                   ? chat.messages.slice(0, chat.messages.findIndex((m: any) => m.id === rewindId) + 1)
                   : chat.messages;
+
+                // Day 9b — restore from snapshot before setting messages (same as the
+                // IndexedDB path above). loadSnapshot handles Tier-1 cache -> Tier-2 server.
+                if (snapshotsEnabled && !rewindId) {
+                  await restoreCodebaseSnapshot(chat.id);
+                }
+
                 setInitialMessages(filteredMessages);
                 setUrlId(chat.url_id);
                 description.set(chat.description);
