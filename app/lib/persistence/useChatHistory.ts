@@ -11,10 +11,13 @@ import {
   getUrlId,
   openDatabase,
   setMessages,
+  setSnapshot,
   duplicateChat,
   createChatFromMessages,
   type IChatMetadata,
 } from './db';
+import { buildSnapshot } from '~/lib/snapshots/buildSnapshot';
+import { uploadBlobs } from '~/lib/snapshots/uploadBlobs';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
 
 export interface ChatHistoryItem {
@@ -29,6 +32,80 @@ export interface ChatHistoryItem {
 const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
 
 export const db = persistenceEnabled ? await openDatabase() : undefined;
+
+// Day 9a — codebase snapshot save (flag-gated, additive). Off by default => exact no-op.
+const snapshotsEnabled = import.meta.env.VITE_SNAPSHOTS_ENABLED === 'true';
+
+// Debounce snapshot saves so rapid message growth coalesces into one save (ARCHITECTURE-v2.md:953).
+let snapshotSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Build a content-addressed snapshot of the current WebContainer file state and persist it:
+ * dedup -> upload only missing blobs to object storage -> save a version row -> cache full
+ * content in IndexedDB for instant restore. Best-effort and fully isolated: any failure here
+ * is swallowed so it can NEVER break the chat-history save it runs after. Restore still uses
+ * the existing message-replay path until Day 9b wires loadSnapshot() into loadChat().
+ */
+async function saveCodebaseSnapshot(id: string, descriptionText: string | undefined): Promise<void> {
+  try {
+    const snapshot = await buildSnapshot(workbenchStore.files.get());
+    const hashes = [...new Set(Object.values(snapshot.manifest))];
+
+    if (hashes.length === 0) {
+      return; // nothing to snapshot (e.g. empty workbench)
+    }
+
+    // Size per unique blob (sha256 -> bytes), needed by the version-save endpoint.
+    const encoder = new TextEncoder();
+    const blobs: Record<string, number> = {};
+
+    for (const [path, sha] of Object.entries(snapshot.manifest)) {
+      if (blobs[sha] === undefined) {
+        blobs[sha] = encoder.encode(snapshot.files[path]).byteLength;
+      }
+    }
+
+    const dedupRes = await fetch('/api/snapshots/dedup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hashes }),
+    });
+
+    if (!dedupRes.ok) {
+      console.warn('Snapshot dedup failed:', dedupRes.status);
+      return;
+    }
+
+    const { missing } = (await dedupRes.json()) as { missing: string[] };
+    await uploadBlobs(snapshot, missing);
+
+    const versionRes = await fetch(`/api/chats/${id}/version`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ manifest: snapshot.manifest, blobs, description: descriptionText }),
+    });
+
+    if (!versionRes.ok) {
+      console.warn('Snapshot version save failed:', versionRes.status);
+      return;
+    }
+
+    const { version } = (await versionRes.json()) as { version: number };
+
+    if (db) {
+      await setSnapshot(db, {
+        chatId: id,
+        version,
+        manifest: snapshot.manifest,
+        files: snapshot.files,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  } catch (error) {
+    // Snapshot is a non-critical sidecar — never let it break chat persistence.
+    console.warn('Snapshot save failed (chat save unaffected):', error);
+  }
+}
 
 export const chatId = atom<string | undefined>(undefined);
 export const description = atom<string | undefined>(undefined);
@@ -234,6 +311,23 @@ export function useChatHistory() {
       } catch (error) {
         console.warn('Error saving chat to PostgreSQL:', error);
         // Don't throw error - IndexedDB save was successful
+      }
+
+      // Day 9a — snapshot save (flag-gated, debounced, best-effort). Fire-and-forget so it
+      // never blocks or breaks the chat-history save above.
+      if (snapshotsEnabled && user?.id) {
+        const id = chatId.get();
+
+        if (id) {
+          if (snapshotSaveTimer) {
+            clearTimeout(snapshotSaveTimer);
+          }
+
+          const descriptionText = description.get();
+          snapshotSaveTimer = setTimeout(() => {
+            void saveCodebaseSnapshot(id, descriptionText);
+          }, 3000);
+        }
       }
     },
     duplicateCurrentChat: async (listItemId: string) => {
