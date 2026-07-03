@@ -194,6 +194,17 @@ export function useChatHistory() {
               await restoreCodebaseSnapshot(storedMessages.id);
             }
 
+            /*
+             * Day 9b fix — arm the reloaded-messages set SYNCHRONOUSLY before the messages
+             * render. The Chat component's useEffect (Chat.client.tsx) also sets this, but
+             * React runs child effects before parent effects, so ChatImpl can start replaying
+             * historical actions before that effect fires — letting early FILE writes race the
+             * snapshot mount (observed: template files overwrote restored files
+             * nondeterministically). Arming here closes that window; the useEffect stays as a
+             * safety net for subsequent message updates.
+             */
+            workbenchStore.setReloadedMessages(filteredMessages.map((m: Message) => m.id));
+
             setInitialMessages(filteredMessages);
             setUrlId(storedMessages.urlId);
             description.set(storedMessages.description);
@@ -217,6 +228,9 @@ export function useChatHistory() {
                 if (snapshotsEnabled && !rewindId) {
                   await restoreCodebaseSnapshot(chat.id);
                 }
+
+                // Day 9b fix — same synchronous guard arming as the IndexedDB path above.
+                workbenchStore.setReloadedMessages(filteredMessages.map((m: Message) => m.id));
 
                 setInitialMessages(filteredMessages);
                 setUrlId(chat.url_id);
