@@ -18,6 +18,7 @@ import { extractRelativePath } from '~/utils/diff';
 import Cookies from 'js-cookie';
 import { createSampler } from '~/utils/sampler';
 import { snapshotPathToRelative } from '~/lib/snapshots/loadSnapshot';
+import { scheduleSnapshotSave } from '~/lib/persistence/useChatHistory';
 import type { ActionAlert } from '~/types/actions';
 import { addError, parseFileAndLine } from '~/lib/stores/errors';
 
@@ -288,6 +289,8 @@ export class WorkbenchStore {
     }
 
     await this.#filesStore.saveFile(filePath, document.value);
+
+    scheduleSnapshotSave();
 
     const newUnsavedFiles = new Set(this.unsavedFiles.get());
     newUnsavedFiles.delete(filePath);

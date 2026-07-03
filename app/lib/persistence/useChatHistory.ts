@@ -41,6 +41,33 @@ const snapshotsEnabled = import.meta.env.VITE_SNAPSHOTS_ENABLED === 'true';
 let snapshotSaveTimer: ReturnType<typeof setTimeout> | undefined;
 
 /**
+ * Day 9b fix — trigger a debounced snapshot save from outside the chat-message flow
+ * (e.g. after a manual file edit in the workbench). Reads chatId + description from
+ * the live nanostore atoms so the caller doesn't need them. Flag-gated and best-effort
+ * (failure is swallowed, never blocks the file save).
+ */
+export function scheduleSnapshotSave(): void {
+  if (!snapshotsEnabled) {
+    return;
+  }
+
+  const id = chatId.get();
+
+  if (!id) {
+    return;
+  }
+
+  if (snapshotSaveTimer) {
+    clearTimeout(snapshotSaveTimer);
+  }
+
+  const descriptionText = description.get();
+  snapshotSaveTimer = setTimeout(() => {
+    void saveCodebaseSnapshot(id, descriptionText);
+  }, 3000);
+}
+
+/**
  * Build a content-addressed snapshot of the current WebContainer file state and persist it:
  * dedup -> upload only missing blobs to object storage -> save a version row -> cache full
  * content in IndexedDB for instant restore. Best-effort and fully isolated: any failure here
@@ -374,21 +401,9 @@ export function useChatHistory() {
         // Don't throw error - IndexedDB save was successful
       }
 
-      // Day 9a — snapshot save (flag-gated, debounced, best-effort). Fire-and-forget so it
-      // never blocks or breaks the chat-history save above.
-      if (snapshotsEnabled && user?.id) {
-        const id = chatId.get();
-
-        if (id) {
-          if (snapshotSaveTimer) {
-            clearTimeout(snapshotSaveTimer);
-          }
-
-          const descriptionText = description.get();
-          snapshotSaveTimer = setTimeout(() => {
-            void saveCodebaseSnapshot(id, descriptionText);
-          }, 3000);
-        }
+      // Day 9a — snapshot save (flag-gated, debounced, best-effort).
+      if (user?.id) {
+        scheduleSnapshotSave();
       }
     },
     duplicateCurrentChat: async (listItemId: string) => {
