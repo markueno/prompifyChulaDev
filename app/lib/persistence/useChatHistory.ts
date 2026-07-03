@@ -12,6 +12,7 @@ import {
   openDatabase,
   setMessages,
   setSnapshot,
+  queueWrite,
   duplicateChat,
   createChatFromMessages,
   type IChatMetadata,
@@ -93,41 +94,53 @@ async function saveCodebaseSnapshot(id: string, descriptionText: string | undefi
       }
     }
 
-    const dedupRes = await fetch('/api/snapshots/dedup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hashes }),
-    });
-
-    if (!dedupRes.ok) {
-      console.warn('Snapshot dedup failed:', dedupRes.status);
-      return;
-    }
-
-    const { missing } = (await dedupRes.json()) as { missing: string[] };
-    await uploadBlobs(snapshot, missing);
-
-    const versionRes = await fetch(`/api/chats/${id}/version`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ manifest: snapshot.manifest, blobs, description: descriptionText }),
-    });
-
-    if (!versionRes.ok) {
-      console.warn('Snapshot version save failed:', versionRes.status);
-      return;
-    }
-
-    const { version } = (await versionRes.json()) as { version: number };
-
-    if (db) {
-      await setSnapshot(db, {
-        chatId: id,
-        version,
-        manifest: snapshot.manifest,
-        files: snapshot.files,
-        timestamp: new Date().toISOString(),
+    // Day 10 — server-side operations wrapped so any failure queues a pending write for
+    // retry on reconnect (Day 11 drain). IndexedDB cache is always updated on server success.
+    try {
+      const dedupRes = await fetch('/api/snapshots/dedup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hashes }),
       });
+
+      if (!dedupRes.ok) {
+        throw new Error(`Dedup failed: ${dedupRes.status}`);
+      }
+
+      const { missing } = (await dedupRes.json()) as { missing: string[] };
+      await uploadBlobs(snapshot, missing);
+
+      const versionRes = await fetch(`/api/chats/${id}/version`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manifest: snapshot.manifest, blobs, description: descriptionText }),
+      });
+
+      if (!versionRes.ok) {
+        throw new Error(`Version save failed: ${versionRes.status}`);
+      }
+
+      const { version } = (await versionRes.json()) as { version: number };
+
+      if (db) {
+        await setSnapshot(db, {
+          chatId: id,
+          version,
+          manifest: snapshot.manifest,
+          files: snapshot.files,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (serverError) {
+      console.warn('Snapshot server save failed, enqueuing for retry:', serverError);
+
+      if (db) {
+        await queueWrite(db, 'version', id, {
+          manifest: snapshot.manifest,
+          blobs,
+          description: descriptionText,
+        });
+      }
     }
   } catch (error) {
     // Snapshot is a non-critical sidecar — never let it break chat persistence.

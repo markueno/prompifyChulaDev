@@ -19,10 +19,8 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
 
   return new Promise(resolve => {
     // v2 (Day 8): adds the `snapshots` store for content-addressed codebase restore.
-    // The guards below are `contains()`-based (not `oldVersion < N`) so each store is
-    // created at most once regardless of the upgrade path; stores we don't touch are
-    // carried over untouched by IndexedDB — existing `chats` data is preserved on upgrade.
-    const request = indexedDB.open('boltHistory', 2);
+    // v3 (Day 10): adds `pendingWrites` for offline outbox (failed saves queued, drained on reconnect).
+    const request = indexedDB.open('boltHistory', 3);
 
     request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
       const db = (event.target as IDBOpenDBRequest).result;
@@ -35,6 +33,10 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
 
       if (!db.objectStoreNames.contains('snapshots')) {
         db.createObjectStore('snapshots', { keyPath: 'chatId' });
+      }
+
+      if (!db.objectStoreNames.contains('pendingWrites')) {
+        db.createObjectStore('pendingWrites', { keyPath: 'id', autoIncrement: true });
       }
     };
 
@@ -159,6 +161,59 @@ export async function setSnapshot(db: IDBDatabase, snapshot: StoredSnapshot): Pr
     const transaction = db.transaction('snapshots', 'readwrite');
     const store = transaction.objectStore('snapshots');
     const request = store.put(snapshot);
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export interface PendingWrite {
+  id?: number;
+  type: string;
+  chatId: string;
+  payload: any;
+  timestamp: number;
+  retryCount: number;
+}
+
+export async function queueWrite(
+  db: IDBDatabase,
+  type: string,
+  chatId: string,
+  payload: any,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('pendingWrites', 'readwrite');
+    const store = tx.objectStore('pendingWrites');
+    const request = store.put({
+      type,
+      chatId,
+      payload,
+      timestamp: Date.now(),
+      retryCount: 0,
+    });
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getPendingWrites(db: IDBDatabase): Promise<PendingWrite[]> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('pendingWrites', 'readonly');
+    const store = tx.objectStore('pendingWrites');
+    const request = store.getAll();
+
+    request.onsuccess = () => resolve(request.result as PendingWrite[]);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function deletePendingWrite(db: IDBDatabase, id: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('pendingWrites', 'readwrite');
+    const store = tx.objectStore('pendingWrites');
+    const request = store.delete(id);
 
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
