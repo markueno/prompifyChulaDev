@@ -310,6 +310,21 @@ export function useChatHistory() {
         }
       };
       loadChat();
+    } else {
+      // New chat — save the previous chat's final snapshot, then reset the WebContainer
+      // and workbench so each chat gets a fully isolated workspace.
+      (async () => {
+        const previousId = chatId.get();
+
+        if (snapshotsEnabled && previousId) {
+          await saveCodebaseSnapshot(previousId, description.get());
+        }
+
+        await workbenchStore.resetForNewChat();
+        chatId.set(undefined);
+        description.set(undefined);
+        setReady(true);
+      })();
     }
   }, [activeProjectId, mixedId, user?.id, searchParams, navigate]);
 

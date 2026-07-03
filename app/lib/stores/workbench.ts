@@ -359,6 +359,40 @@ export class WorkbenchStore {
   }
 
   /**
+   * Day 10 — reset the WebContainer and all workbench state for a new chat. Kills all running
+   * terminal processes, wipes the workdir, and resets IDE/preview stores so the new chat starts
+   * from a clean slate. Best-effort (worker-pool permission errors are swallowed).
+   */
+  async resetForNewChat() {
+    this.#restoredFromSnapshot = false;
+    this.#reloadedMessages = new Set();
+
+    // Reset nanostore state — clears the IDE, preview, and file tree instantly
+    this.#filesStore.files.set({});
+    this.unsavedFiles.set(new Set());
+    this.modifiedFiles = new Set();
+    this.currentView.set('code');
+
+    try {
+      const wc = await webcontainer;
+
+      // Kill all running shell processes
+      try {
+        await wc.spawn('kill', ['-9', '--', '-1']);
+      } catch {
+        // best-effort — worker-pool not permitted is expected in some WebContainer setups
+      }
+
+      // Wipe workdir contents — delete everything inside so the next chat starts clean.
+      // Preserve the workdir directory itself (wc.workdir) to avoid remount issues.
+      const rm = await wc.spawn('sh', ['-c', `rm -rf "${wc.workdir}"/* "${wc.workdir}"/.[!.]* "${wc.workdir}"/..?*`]);
+      await rm.exit;
+    } catch {
+      // best-effort — if cleanup fails the snapshot restore on next load will overwrite
+    }
+  }
+
+  /**
    * Day 9b — write a restored snapshot's files straight into the WebContainer FS, bypassing
    * message replay (mirrors ActionRunner#runFileAction: mkdir -p + writeFile, and upstream
    * bolt.diy's restoreSnapshot). Snapshot keys are absolute under a per-session workdir, so
