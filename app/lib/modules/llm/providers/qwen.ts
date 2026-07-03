@@ -21,7 +21,6 @@ export default class QwenProvider extends BaseProvider {
     { name: 'qwen3.7-plus', label: 'Qwen3.7-Plus', provider: 'Qwen', maxTokenAllowed: 65536 },
     { name: 'qwen3.6-plus', label: 'Qwen3.6-Plus', provider: 'Qwen', maxTokenAllowed: 65536 },
     { name: 'qwen3.6-flash', label: 'Qwen3.6-Flash', provider: 'Qwen', maxTokenAllowed: 32000 },
-    { name: 'qwen-max', label: 'Qwen-Max', provider: 'Qwen', maxTokenAllowed: 32000 },
     { name: 'qwen-plus', label: 'Qwen-Plus', provider: 'Qwen', maxTokenAllowed: 32000 },
     { name: 'qwen-turbo', label: 'Qwen-Turbo', provider: 'Qwen', maxTokenAllowed: 32000 },
     { name: 'qwen3.5-plus', label: 'Qwen3.5-Plus', provider: 'Qwen', maxTokenAllowed: 32000 },
