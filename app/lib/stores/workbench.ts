@@ -376,15 +376,9 @@ export class WorkbenchStore {
     try {
       const wc = await webcontainer;
 
-      // Kill all running shell processes
-      try {
-        await wc.spawn('kill', ['-9', '--', '-1']);
-      } catch {
-        // best-effort — worker-pool not permitted is expected in some WebContainer setups
-      }
-
       // Wipe workdir contents — delete everything inside so the next chat starts clean.
       // Preserve the workdir directory itself (wc.workdir) to avoid remount issues.
+      // NOTE: do NOT kill processes here — kill -9 -- -1 breaks the shell spawner.
       const rm = await wc.spawn('sh', ['-c', `rm -rf "${wc.workdir}"/* "${wc.workdir}"/.[!.]* "${wc.workdir}"/..?*`]);
       await rm.exit;
     } catch {
