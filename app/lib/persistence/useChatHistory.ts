@@ -1,5 +1,5 @@
 import { useLoaderData, useNavigate, useSearchParams } from '@remix-run/react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { atom } from 'nanostores';
 import type { Message } from 'ai';
 import { toast } from 'react-toastify';
@@ -197,8 +197,11 @@ export function useChatHistory() {
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [ready, setReady] = useState<boolean>(false);
   const [urlId, setUrlId] = useState<string | undefined>();
+  const activeRef = useRef(true);
 
   useEffect(() => {
+    activeRef.current = true;
+
     if (!db) {
       setReady(true);
 
@@ -214,12 +217,20 @@ export function useChatHistory() {
     if (mixedId) {
       const loadChat = async () => {
         try {
+          if (!activeRef.current) {
+            return;
+          }
+
           // Day 9b — clear any restore flag from a previously-loaded chat before this load.
           if (snapshotsEnabled) {
             workbenchStore.setRestoredFromSnapshot(false);
           }
 
           const storedMessages = await getMessages(db, mixedId);
+
+          if (!activeRef.current) {
+            return;
+          }
 
           if (storedMessages && storedMessages.messages.length > 0) {
             const rewindId = searchParams.get('rewindTo');
@@ -232,6 +243,10 @@ export function useChatHistory() {
             // A rewind explicitly wants the historical message state, so skip snapshot restore.
             if (snapshotsEnabled && !rewindId) {
               await restoreCodebaseSnapshot(storedMessages.id);
+            }
+
+            if (!activeRef.current) {
+              return;
             }
 
             /*
@@ -267,6 +282,10 @@ export function useChatHistory() {
                 // IndexedDB path above). loadSnapshot handles Tier-1 cache -> Tier-2 server.
                 if (snapshotsEnabled && !rewindId) {
                   await restoreCodebaseSnapshot(chat.id);
+                }
+
+                if (!activeRef.current) {
+                  return;
                 }
 
                 // Day 9b fix — same synchronous guard arming as the IndexedDB path above.
@@ -306,7 +325,9 @@ export function useChatHistory() {
               : 'Failed to load chat'
           );
         } finally {
-          setReady(true);
+          if (activeRef.current) {
+            setReady(true);
+          }
         }
       };
       loadChat();
@@ -320,12 +341,23 @@ export function useChatHistory() {
           await saveCodebaseSnapshot(previousId, description.get());
         }
 
+        if (!activeRef.current) {
+          return;
+        }
+
         await workbenchStore.resetForNewChat();
         chatId.set(undefined);
         description.set(undefined);
-        setReady(true);
+
+        if (activeRef.current) {
+          setReady(true);
+        }
       })();
     }
+
+    return () => {
+      activeRef.current = false;
+    };
   }, [activeProjectId, mixedId, user?.id, searchParams, navigate]);
 
   const ensureChatId = async (): Promise<string | undefined> => {
