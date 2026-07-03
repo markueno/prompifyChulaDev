@@ -7,7 +7,7 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import * as dotenv from 'dotenv';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 
 dotenv.config();
 
@@ -94,11 +94,14 @@ export default defineConfig(config => {
       host: '0.0.0.0',
       port: 5173,
       allowedHosts: true,
-      hmr: {
-        clientPort: 443
-      },
+      hmr: true,
       strictPort: false,
       cors: false
+    },
+    resolve: {
+      alias: {
+        '~': resolve(__dirname, 'app'),
+      },
     },
     build: {
       target: 'esnext',
@@ -177,6 +180,10 @@ function chrome129IssuePlugin() {
     name: 'chrome129IssuePlugin',
     configureServer(server: ViteDevServer) {
       server.middlewares.use((req, res, next) => {
+        // WebContainer requires cross-origin isolation for SharedArrayBuffer
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+        res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
+
         const raw = req.headers['user-agent']?.match(/Chrom(e|ium)\/([0-9]+)\./);
 
         if (raw) {
