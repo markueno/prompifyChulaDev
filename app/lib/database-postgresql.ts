@@ -1457,8 +1457,7 @@ async function syncPromptsFromChatMessagesPostgres(
       continue;
     }
 
-    const authorId = msg?.author?.id;
-    const userId = authorId && typeof authorId === 'string' ? authorId : defaultUserId;
+    const userId = defaultUserId;
     await client.query(
       `INSERT INTO prompts (id, chat_id, user_id, message_id)
        VALUES ($1, $2, $3, $4)
