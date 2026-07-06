@@ -20,6 +20,8 @@ import {
 import { buildSnapshot } from '~/lib/snapshots/buildSnapshot';
 import { uploadBlobs } from '~/lib/snapshots/uploadBlobs';
 import { loadSnapshot } from '~/lib/snapshots/loadSnapshot';
+import { serverCircuit } from './serverCircuit';
+import { initOfflineDrain } from './drainQueue';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
 
 export interface ChatHistoryItem {
@@ -37,6 +39,12 @@ export const db = persistenceEnabled ? await openDatabase() : undefined;
 
 // Day 9a — codebase snapshot save (flag-gated, additive). Off by default => exact no-op.
 const snapshotsEnabled = import.meta.env.VITE_SNAPSHOTS_ENABLED === 'true';
+
+// Day 11 — wire the offline-outbox drain triggers ('online' event, page load, health-check
+// recovery). Client-only and idempotent; exact no-op when the snapshots flag is off.
+if (snapshotsEnabled) {
+  initOfflineDrain(db);
+}
 
 // Debounce snapshot saves so rapid message growth coalesces into one save (ARCHITECTURE-v2.md:953).
 let snapshotSaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -94,33 +102,40 @@ async function saveCodebaseSnapshot(id: string, descriptionText: string | undefi
       }
     }
 
-    // Day 10 — server-side operations wrapped so any failure queues a pending write for
-    // retry on reconnect (Day 11 drain). IndexedDB cache is always updated on server success.
+    /*
+     * Day 10 — server-side operations wrapped so any failure queues a pending write for
+     * retry on reconnect (Day 11 drain). IndexedDB cache is always updated on server success.
+     * Day 11 — the whole server exchange goes through the persisted circuit breaker: after 3
+     * consecutive failures the circuit opens and this throws immediately (queueing the write)
+     * instead of hammering a down server; the drain's health check closes it on recovery.
+     */
     try {
-      const dedupRes = await fetch('/api/snapshots/dedup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hashes }),
+      const version = await serverCircuit.execute(async () => {
+        const dedupRes = await fetch('/api/snapshots/dedup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hashes }),
+        });
+
+        if (!dedupRes.ok) {
+          throw new Error(`Dedup failed: ${dedupRes.status}`);
+        }
+
+        const { missing } = (await dedupRes.json()) as { missing: string[] };
+        await uploadBlobs(snapshot, missing);
+
+        const versionRes = await fetch(`/api/chats/${id}/version`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manifest: snapshot.manifest, blobs, description: descriptionText }),
+        });
+
+        if (!versionRes.ok) {
+          throw new Error(`Version save failed: ${versionRes.status}`);
+        }
+
+        return ((await versionRes.json()) as { version: number }).version;
       });
-
-      if (!dedupRes.ok) {
-        throw new Error(`Dedup failed: ${dedupRes.status}`);
-      }
-
-      const { missing } = (await dedupRes.json()) as { missing: string[] };
-      await uploadBlobs(snapshot, missing);
-
-      const versionRes = await fetch(`/api/chats/${id}/version`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ manifest: snapshot.manifest, blobs, description: descriptionText }),
-      });
-
-      if (!versionRes.ok) {
-        throw new Error(`Version save failed: ${versionRes.status}`);
-      }
-
-      const { version } = (await versionRes.json()) as { version: number };
 
       if (db) {
         await setSnapshot(db, {
@@ -135,10 +150,12 @@ async function saveCodebaseSnapshot(id: string, descriptionText: string | undefi
       console.warn('Snapshot server save failed, enqueuing for retry:', serverError);
 
       if (db) {
+        // Day 11 — `files` included so a drained write can upload blobs the server is missing.
         await queueWrite(db, 'version', id, {
           manifest: snapshot.manifest,
           blobs,
           description: descriptionText,
+          files: snapshot.files,
         });
       }
     }
@@ -332,27 +349,15 @@ export function useChatHistory() {
       };
       loadChat();
     } else {
-      // New chat — save the previous chat's final snapshot, then reset the WebContainer
-      // and workbench so each chat gets a fully isolated workspace.
-      (async () => {
-        const previousId = chatId.get();
-
-        if (snapshotsEnabled && previousId) {
-          await saveCodebaseSnapshot(previousId, description.get());
-        }
-
-        if (!activeRef.current) {
-          return;
-        }
-
-        await workbenchStore.resetForNewChat();
-        chatId.set(undefined);
-        description.set(undefined);
-
-        if (activeRef.current) {
-          setReady(true);
-        }
-      })();
+      /*
+       * New chat — nothing to load. "Start new chat" is a hard <a> navigation (full page
+       * load), which already resets chatId, the workbench stores, and the WebContainer
+       * itself, so no manual reset is needed here. (A previous in-effect reset wiped the
+       * container workdir asynchronously and could race the first prompt's file writes.)
+       * The previous chat's snapshots are saved incrementally by storeMessageHistory /
+       * scheduleSnapshotSave during the chat itself.
+       */
+      setReady(true);
     }
 
     return () => {
