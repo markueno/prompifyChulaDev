@@ -33,11 +33,12 @@ async function submitToServer(write: PendingWrite): Promise<'done' | 'unretryabl
     return 'unretryable';
   }
 
-  const { manifest, blobs, description, files } = write.payload as {
+  const { manifest, blobs, description, files, messageId } = write.payload as {
     manifest: Record<string, string>;
     blobs: Record<string, number>;
     description?: string;
     files?: Record<string, string>;
+    messageId?: string;
   };
 
   const hashes = [...new Set(Object.values(manifest))];
@@ -72,7 +73,7 @@ async function submitToServer(write: PendingWrite): Promise<'done' | 'unretryabl
     const versionRes = await fetch(`/api/chats/${write.chatId}/version`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ manifest, blobs, description }),
+      body: JSON.stringify({ manifest, blobs, description, messageId }),
     });
 
     if (!versionRes.ok) {

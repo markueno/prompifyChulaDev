@@ -54,6 +54,59 @@ export function reconstructFiles(
   return files;
 }
 
+/**
+ * Day 17 — load ONE SPECIFIC version's snapshot from the server (manifest + presigned blob
+ * GETs). Used by the per-message Revert flow and the history dropdown. Unlike loadSnapshot,
+ * this never touches the IndexedDB cache: the cache holds only the LATEST version, and an
+ * older version must neither be served from it nor overwrite it. Returns null on any failure
+ * so callers can fall back to message replay.
+ */
+export async function loadSnapshotVersion(chatId: string, versionNumber: number): Promise<Snapshot | null> {
+  let payload: LatestVersionResponse;
+
+  try {
+    const res = await fetch(`/api/chats/${chatId}/version/${versionNumber}`);
+
+    if (!res.ok) {
+      return null;
+    }
+
+    payload = (await res.json()) as LatestVersionResponse;
+  } catch {
+    return null;
+  }
+
+  if (payload.version === null || !payload.manifest || !payload.urls) {
+    return null;
+  }
+
+  const contentByHash = new Map<string, string>();
+
+  try {
+    const entries = await Promise.all(
+      Object.entries(payload.urls).map(async ([hash, url]) => {
+        const blobRes = await fetch(url);
+
+        if (!blobRes.ok) {
+          throw new Error(`blob ${hash} GET failed: ${blobRes.status}`);
+        }
+
+        return [hash, await blobRes.text()] as const;
+      }),
+    );
+
+    for (const [hash, content] of entries) {
+      contentByHash.set(hash, content);
+    }
+  } catch {
+    return null; // any blob failed — don't mount a partial tree
+  }
+
+  const files = reconstructFiles(payload.manifest, contentByHash);
+
+  return files ? { manifest: payload.manifest, files } : null;
+}
+
 export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
   const db = await openDatabase();
 

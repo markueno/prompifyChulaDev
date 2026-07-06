@@ -29,6 +29,7 @@ import { cubicEasingFn } from '~/utils/easings';
 import { renderLogger } from '~/utils/logger';
 import { EditorPanel } from './EditorPanel';
 import { Preview } from './Preview';
+import { VersionHistoryDropdown } from './VersionHistoryDropdown.client';
 import useViewport from '~/lib/hooks';
 import { PushToGitHubDialog } from '~/components/@settings/tabs/connections/components/PushToGitHubDialog';
 
@@ -498,6 +499,9 @@ export const Workbench = memo(
                     )}
                     {isReviewing ? 'Reviewing…' : 'Review'}
                   </button>
+
+                  {/* Day 17 — version history dropdown (restore any earlier project state) */}
+                  <VersionHistoryDropdown />
 
                   {/* Share button — expands export options inline */}
                   {selectedView === 'code' && (

@@ -372,8 +372,31 @@ export class WorkbenchStore {
    * strip the `/home/<workdir>/` prefix to a workdir-relative path. The FilesStore watcher
    * (`${WORK_DIR}/**`) picks the writes up, so the IDE shows the files without any replay.
    */
-  async mountSnapshot(files: Record<string, string>) {
+  async mountSnapshot(files: Record<string, string>, options?: { removeOrphans?: boolean }) {
     const wc = await webcontainer;
+
+    /*
+     * Day 17 — for IN-PLACE restores (history dropdown), files created after the restored
+     * version must be deleted, or the workdir ends up a mix of two versions. Not needed on
+     * fresh page loads (empty container). Collect the delete list BEFORE writing.
+     */
+    const orphans: string[] = [];
+
+    if (options?.removeOrphans) {
+      const keep = new Set(Object.keys(files).map(snapshotPathToRelative).filter(Boolean));
+
+      for (const [absPath, dirent] of Object.entries(this.#filesStore.files.get())) {
+        if (dirent?.type !== 'file') {
+          continue;
+        }
+
+        const relPath = snapshotPathToRelative(absPath);
+
+        if (relPath && !keep.has(relPath) && !relPath.startsWith('node_modules/')) {
+          orphans.push(relPath);
+        }
+      }
+    }
 
     for (const [absPath, content] of Object.entries(files)) {
       const relPath = snapshotPathToRelative(absPath);
@@ -389,6 +412,14 @@ export class WorkbenchStore {
       }
 
       await wc.fs.writeFile(relPath, content);
+    }
+
+    for (const relPath of orphans) {
+      try {
+        await wc.fs.rm(relPath);
+      } catch {
+        // best-effort — a leftover file is cosmetic, the restored content is authoritative
+      }
     }
   }
 

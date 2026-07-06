@@ -19,7 +19,7 @@ import {
 } from './db';
 import { buildSnapshot } from '~/lib/snapshots/buildSnapshot';
 import { uploadBlobs } from '~/lib/snapshots/uploadBlobs';
-import { loadSnapshot } from '~/lib/snapshots/loadSnapshot';
+import { loadSnapshot, loadSnapshotVersion } from '~/lib/snapshots/loadSnapshot';
 import { serverCircuit } from './serverCircuit';
 import { initOfflineDrain } from './drainQueue';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
@@ -55,7 +55,7 @@ let snapshotSaveTimer: ReturnType<typeof setTimeout> | undefined;
  * the live nanostore atoms so the caller doesn't need them. Flag-gated and best-effort
  * (failure is swallowed, never blocks the file save).
  */
-export function scheduleSnapshotSave(): void {
+export function scheduleSnapshotSave(lastMessageId?: string): void {
   if (!snapshotsEnabled) {
     return;
   }
@@ -72,7 +72,7 @@ export function scheduleSnapshotSave(): void {
 
   const descriptionText = description.get();
   snapshotSaveTimer = setTimeout(() => {
-    void saveCodebaseSnapshot(id, descriptionText);
+    void saveCodebaseSnapshot(id, descriptionText, lastMessageId);
   }, 3000);
 }
 
@@ -83,7 +83,11 @@ export function scheduleSnapshotSave(): void {
  * is swallowed so it can NEVER break the chat-history save it runs after. The matching restore
  * path (loadSnapshot -> mount -> suppress file replay) is wired into loadChat() below (Day 9b).
  */
-async function saveCodebaseSnapshot(id: string, descriptionText: string | undefined): Promise<void> {
+async function saveCodebaseSnapshot(
+  id: string,
+  descriptionText: string | undefined,
+  lastMessageId?: string
+): Promise<void> {
   try {
     const snapshot = await buildSnapshot(workbenchStore.files.get());
     const hashes = [...new Set(Object.values(snapshot.manifest))];
@@ -127,7 +131,13 @@ async function saveCodebaseSnapshot(id: string, descriptionText: string | undefi
         const versionRes = await fetch(`/api/chats/${id}/version`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ manifest: snapshot.manifest, blobs, description: descriptionText }),
+          // Day 17 — messageId links this version to the message it was saved after (revert mapping).
+          body: JSON.stringify({
+            manifest: snapshot.manifest,
+            blobs,
+            description: descriptionText,
+            messageId: lastMessageId,
+          }),
         });
 
         if (!versionRes.ok) {
@@ -156,6 +166,7 @@ async function saveCodebaseSnapshot(id: string, descriptionText: string | undefi
           blobs,
           description: descriptionText,
           files: snapshot.files,
+          messageId: lastMessageId,
         });
       }
     }
@@ -174,6 +185,49 @@ async function saveCodebaseSnapshot(id: string, descriptionText: string | undefi
  * must never break chat loading. Must run BEFORE setInitialMessages so the mount + guard are
  * in place before the Chat component replays messages.
  */
+/**
+ * Day 17 — restore the codebase state mapped to a rewind target. Snapshot versions record the
+ * message they were saved after (message_id), so the newest version belonging to any KEPT
+ * message is exactly the codebase state at the rewind point. Returns false (→ fall back to
+ * message replay) when no mapped version exists — e.g. history from before Day 17.
+ */
+async function restoreSnapshotForRewind(id: string, keptMessages: Message[]): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/chats/${id}/versions`);
+
+    if (!res.ok) {
+      return false;
+    }
+
+    const { versions } = (await res.json()) as {
+      versions: { versionNumber: number; messageId: string | null }[];
+    };
+
+    const keptIds = new Set(keptMessages.map(m => m.id));
+
+    // List is newest-first, so the first hit is the latest state within the kept range.
+    const match = versions.find(v => v.messageId !== null && keptIds.has(v.messageId));
+
+    if (!match) {
+      return false;
+    }
+
+    const snapshot = await loadSnapshotVersion(id, match.versionNumber);
+
+    if (!snapshot) {
+      return false;
+    }
+
+    await workbenchStore.mountSnapshot(snapshot.files);
+    workbenchStore.setRestoredFromSnapshot(true);
+
+    return true;
+  } catch (error) {
+    console.warn('Rewind snapshot restore failed (falling back to message replay):', error);
+    return false;
+  }
+}
+
 async function restoreCodebaseSnapshot(id: string): Promise<boolean> {
   try {
     const snapshot = await loadSnapshot(id);
@@ -255,11 +309,19 @@ export function useChatHistory() {
               ? storedMessages.messages.slice(0, storedMessages.messages.findIndex(m => m.id === rewindId) + 1)
               : storedMessages.messages;
 
-            // Day 9b — restore + mount the codebase snapshot BEFORE messages are set, so the
-            // mount and the file-replay guard are in place before the Chat component replays.
-            // A rewind explicitly wants the historical message state, so skip snapshot restore.
-            if (snapshotsEnabled && !rewindId) {
-              await restoreCodebaseSnapshot(storedMessages.id);
+            /*
+             * Day 9b — restore + mount the codebase snapshot BEFORE messages are set, so the
+             * mount and the file-replay guard are in place before the Chat component replays.
+             * Day 17 — a rewind restores the version MAPPED to the rewind point (exact state,
+             * fresh container from the full-page rewind reload); if no mapping exists it
+             * falls back to replaying the kept messages, as before.
+             */
+            if (snapshotsEnabled) {
+              if (rewindId) {
+                await restoreSnapshotForRewind(storedMessages.id, filteredMessages);
+              } else {
+                await restoreCodebaseSnapshot(storedMessages.id);
+              }
             }
 
             if (!activeRef.current) {
@@ -296,9 +358,13 @@ export function useChatHistory() {
                   : chat.messages;
 
                 // Day 9b — restore from snapshot before setting messages (same as the
-                // IndexedDB path above). loadSnapshot handles Tier-1 cache -> Tier-2 server.
-                if (snapshotsEnabled && !rewindId) {
-                  await restoreCodebaseSnapshot(chat.id);
+                // IndexedDB path above). Day 17 — rewinds restore the mapped version.
+                if (snapshotsEnabled) {
+                  if (rewindId) {
+                    await restoreSnapshotForRewind(chat.id, filteredMessages);
+                  } else {
+                    await restoreCodebaseSnapshot(chat.id);
+                  }
                 }
 
                 if (!activeRef.current) {
@@ -467,8 +533,9 @@ export function useChatHistory() {
       }
 
       // Day 9a — snapshot save (flag-gated, debounced, best-effort).
+      // Day 17 — record the last message id so the version maps to this point in the chat.
       if (user?.id) {
-        scheduleSnapshotSave();
+        scheduleSnapshotSave(messages[messages.length - 1]?.id);
       }
     },
     duplicateCurrentChat: async (listItemId: string) => {

@@ -98,9 +98,15 @@ CREATE TABLE IF NOT EXISTS codebase_versions (
     description TEXT,
     file_count INTEGER NOT NULL DEFAULT 0,
     total_bytes INTEGER NOT NULL DEFAULT 0,
+    -- Day 17: id of the chat message this version was saved after (nullable — manual IDE
+    -- edits save without one). Lets the per-message Revert button restore the exact
+    -- codebase state for that point in the conversation.
+    message_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(chat_id, version_number)
 );
+-- Existing databases (init-db.sql only runs on fresh volumes):
+--   ALTER TABLE codebase_versions ADD COLUMN IF NOT EXISTS message_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_versions_latest_per_chat ON codebase_versions(chat_id) WHERE is_latest = true;
 CREATE INDEX IF NOT EXISTS idx_versions_chat_latest ON codebase_versions(chat_id, version_number DESC);
 CREATE INDEX IF NOT EXISTS idx_versions_chat_created ON codebase_versions(chat_id, created_at DESC);

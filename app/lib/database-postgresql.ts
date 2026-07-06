@@ -1596,8 +1596,10 @@ export async function saveCodebaseVersionPostgres(params: {
   manifest: Record<string, string>; // path -> sha256
   blobSizes: Record<string, number>; // sha256 -> size_bytes
   description?: string;
+  /** Day 17 — chat message this version was saved after (null for manual IDE-edit saves). */
+  messageId?: string;
 }): Promise<number> {
-  const { chatId, userId, manifest, blobSizes, description } = params;
+  const { chatId, userId, manifest, blobSizes, description, messageId } = params;
   const { fileCount, totalBytes, hashes } = computeVersionMeta(manifest, blobSizes);
 
   const pool = getPostgresPool();
@@ -1622,9 +1624,9 @@ export async function saveCodebaseVersionPostgres(params: {
     ]);
     await client.query(
       `INSERT INTO codebase_versions
-         (chat_id, user_id, version_number, is_latest, manifest, description, file_count, total_bytes)
-       VALUES ($1, $2, $3, true, $4::jsonb, $5, $6, $7)`,
-      [chatId, userId, versionNumber, JSON.stringify(manifest), description ?? null, fileCount, totalBytes]
+         (chat_id, user_id, version_number, is_latest, manifest, description, file_count, total_bytes, message_id)
+       VALUES ($1, $2, $3, true, $4::jsonb, $5, $6, $7, $8)`,
+      [chatId, userId, versionNumber, JSON.stringify(manifest), description ?? null, fileCount, totalBytes, messageId ?? null]
     );
 
     if (hashes.length > 0) {
@@ -1774,12 +1776,13 @@ export async function listCodebaseVersionsPostgres(chatId: string): Promise<
     fileCount: number;
     totalBytes: number;
     isLatest: boolean;
+    messageId: string | null;
     createdAt: string;
   }[]
 > {
   const pool = getPostgresPool();
   const result = await pool.query(
-    `SELECT version_number, description, file_count, total_bytes, is_latest, created_at
+    `SELECT version_number, description, file_count, total_bytes, is_latest, message_id, created_at
      FROM codebase_versions
      WHERE chat_id = $1
      ORDER BY version_number DESC
@@ -1793,8 +1796,34 @@ export async function listCodebaseVersionsPostgres(chatId: string): Promise<
     fileCount: Number(row.file_count),
     totalBytes: Number(row.total_bytes),
     isLatest: Boolean(row.is_latest),
+    messageId: row.message_id ?? null,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   }));
+}
+
+/**
+ * Day 17 — fetch one specific version's manifest (for restoring the codebase state mapped to
+ * a chat message, or previewing an old version). Read-only sibling of
+ * getLatestCodebaseVersionPostgres. Returns null when the version does not exist.
+ */
+export async function getCodebaseVersionPostgres(
+  chatId: string,
+  versionNumber: number
+): Promise<{ versionNumber: number; manifest: Record<string, string> } | null> {
+  const pool = getPostgresPool();
+  const result = await pool.query(
+    'SELECT version_number, manifest FROM codebase_versions WHERE chat_id = $1 AND version_number = $2 LIMIT 1',
+    [chatId, versionNumber]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  const manifest = typeof row.manifest === 'string' ? JSON.parse(row.manifest) : row.manifest;
+
+  return { versionNumber: Number(row.version_number), manifest };
 }
 
 export async function getChatByIdPostgres(

@@ -41,6 +41,7 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       manifest?: Record<string, string>;
       blobs?: Record<string, number>;
       description?: string;
+      messageId?: string;
     };
 
     const { manifest } = body;
@@ -64,6 +65,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       manifest,
       blobSizes,
       description: typeof body.description === 'string' ? body.description : undefined,
+      // Day 17 — links this version to the chat message it was saved after (revert mapping).
+      messageId: typeof body.messageId === 'string' && body.messageId.length <= 128 ? body.messageId : undefined,
     });
 
     return json({ ok: true, version });
