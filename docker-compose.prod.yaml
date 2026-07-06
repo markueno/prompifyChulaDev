@@ -43,15 +43,18 @@ services:
     profiles: ['production']
 
   app:
-    image: bolt-ai:development
+    image: bolt-ai:production
     build:
       context: .
-      target: bolt-ai-development
+      # Day 14 — compiled Node server (verified Day 13 target). Vite is build-time only:
+      # `remix vite:build` runs during image build; at runtime only `node server.js` runs.
+      # Rollback: set target back to `bolt-ai-production` and command to `pnpm run dev --host`.
+      target: bolt-ai-prod-node
     container_name: prompify-app
     env_file: '.env'
     environment:
       # Core
-      - NODE_ENV=development
+      - NODE_ENV=production
       - PORT=5173
       - RUNNING_IN_DOCKER=true
       - APP_URL=${APP_URL:-https://www.prompify.com}
@@ -101,13 +104,6 @@ services:
       - KOOGALLERY_ENABLED=${KOOGALLERY_ENABLED:-false}
       - CRON_SECRET=${CRON_SECRET}
 
-      # Dev server HMR (needed because we run pnpm dev inside Docker)
-      - VITE_HMR_PROTOCOL=wss
-      - VITE_HMR_HOST=localhost
-      - VITE_HMR_PORT=5173
-      - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
-
       # Logging
       - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
       - DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX:-32768}
@@ -118,7 +114,6 @@ services:
       - /root/qa/ssl:/app/ssl:ro
     ports:
       - '5173:5173'
-      - '5174:5174'
     networks:
       - prompify-network
     depends_on:
@@ -126,7 +121,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: pnpm run dev --host 0.0.0.0
+    command: node server.js
     profiles: ['production']
 
   # Cron — sleeps inactive container apps every 15 minutes
