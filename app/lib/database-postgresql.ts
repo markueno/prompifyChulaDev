@@ -1684,6 +1684,84 @@ export async function getLatestCodebaseVersionPostgres(
 }
 
 /**
+ * Day 16 — transactional rollback: restore version N by APPENDING a copy of its manifest as
+ * the new latest version (never mutating history — you can roll back from a rollback, and
+ * nothing is ever deleted; ARCHITECTURE-v2.md:497). Blobs are shared, so only ref_counts are
+ * bumped. Same FOR UPDATE lock as saveCodebaseVersionPostgres so a concurrent save and
+ * rollback serialize instead of corrupting is_latest.
+ * Source: ARCHITECTURE-v2.md:461-494 (spec SQL reuses $2 for userId AND version; split here).
+ * Returns the new version number, or null when the target version does not exist.
+ */
+export async function rollbackCodebaseVersionPostgres(
+  chatId: string,
+  userId: string,
+  targetVersion: number
+): Promise<number | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Lock for race safety (serializes with saves and other rollbacks on this chat).
+    await client.query('SELECT 1 FROM chats WHERE id = $1 FOR UPDATE', [chatId]);
+
+    // Target must exist (also snapshots its manifest for the ref_count bump below).
+    const target = await client.query(
+      'SELECT manifest, file_count, total_bytes FROM codebase_versions WHERE chat_id = $1 AND version_number = $2',
+      [chatId, targetVersion]
+    );
+
+    if (target.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    // Unmark current latest.
+    await client.query('UPDATE codebase_versions SET is_latest = false WHERE chat_id = $1 AND is_latest = true', [
+      chatId,
+    ]);
+
+    // Append a copy of the old manifest as the new max version (blobs shared, not copied).
+    const inserted = await client.query(
+      `INSERT INTO codebase_versions
+         (chat_id, user_id, version_number, is_latest, manifest, description, file_count, total_bytes)
+       SELECT chat_id, $3,
+         (SELECT COALESCE(MAX(version_number), 0) + 1 FROM codebase_versions WHERE chat_id = $1),
+         true, manifest,
+         'Rollback to v' || version_number,
+         file_count, total_bytes
+       FROM codebase_versions
+       WHERE chat_id = $1 AND version_number = $2
+       RETURNING version_number`,
+      [chatId, targetVersion, userId]
+    );
+
+    // Bump ref_count on every blob the restored version references (once per blob — the
+    // IN(subquery) form updates each matching row a single time, matching the save path's
+    // one-bump-per-version semantics).
+    await client.query(
+      `UPDATE codebase_blobs SET ref_count = ref_count + 1
+       WHERE sha256 IN (
+         SELECT value FROM jsonb_each_text(
+           (SELECT manifest FROM codebase_versions WHERE chat_id = $1 AND version_number = $2)
+         )
+       )`,
+      [chatId, targetVersion]
+    );
+
+    await client.query('COMMIT');
+
+    return Number(inserted.rows[0].version_number);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Day 15 — list a chat's version history (metadata only, no manifests; newest 50 rows).
  * Powers GET /api/chats/:id/versions for the history panel (Days 16-17). Ownership is checked
  * by the calling route via getChatByIdPostgres, same as the latest-version endpoint.
