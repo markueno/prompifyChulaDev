@@ -99,3 +99,24 @@ ENV GROQ_API_KEY=${GROQ_API_KEY} \
 
 RUN mkdir -p ${WORKDIR}/run
 CMD pnpm run dev --host
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Compiled Node production image (Day 13 — IMPLEMENTATION-PLAN :840-874).
+# Additive target: runs `node server.js` over the `remix vite:build` output.
+# Does NOT modify or replace the existing bolt-ai-production/development targets,
+# so Day 14 can switch compose to this target and roll back by switching back.
+#
+#   docker build --target bolt-ai-prod-node -t prompify-prod-node .
+#   docker run --rm -p 5173:5173 --env-file .env prompify-prod-node
+#   curl -I localhost:5173/api/health   # expect 200 + Cross-Origin-Embedder-Policy
+# ─────────────────────────────────────────────────────────────────────────────
+FROM base AS bolt-ai-prod-node
+
+ENV RUNNING_IN_DOCKER=true \
+    NODE_ENV=production
+
+RUN pnpm run build
+
+EXPOSE 5173
+
+CMD ["node", "server.js"]
