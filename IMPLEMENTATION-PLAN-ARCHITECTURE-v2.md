@@ -74,7 +74,7 @@ What runs on the VM (`docker-compose.prod.yaml`): `app` (Remix), `postgres`, `re
 | Huawei ECS flavor* | `s7.large.2` (2c/4G) | **`s7.xlarge.2` (4c/8G)** or `c7.xlarge.2` |
 | System disk | 40 GB SSD | 40 GB SSD |
 | Data disk (EVS: PG + WAL + Docker) | 80 GB SSD | **100 GB SSD** (ultra-high I/O) |
-| OS | EulerOS (current host) | EulerOS |
+| OS | Ubuntu 22.04 LTS (per §1.5; was EulerOS) | **Ubuntu 22.04 LTS** (per §1.5) |
 | EIP bandwidth | 5 Mbps / pay-by-traffic | 5–10 Mbps — **low; blobs bypass the VM**, only LLM text + page loads transit |
 | OBS | private bucket, same region | + lifecycle rule for GC (Day 18) |
 
@@ -90,6 +90,216 @@ pnpm test                                        # baseline: 3 spec files pass (
 pnpm run build                                    # remix vite:build succeeds -> build/server/index.js exists
 ls build/server/index.js                          # MUST exist (needed for Day 12-13)
 ```
+
+---
+
+## Section 1.5: Infrastructure Provisioning Runbook (NEW — Huawei OBS + Ubuntu VM + Docker)
+
+> **Why this section exists:** §1.3 / §1.4a / §1.4b *name* the OBS bucket, VM spec, and Docker services as prerequisites but contain **no creation steps** — the original plan assumed pre-existing infra. This runbook fills that gap.
+> **OS decision:** the host OS is **Ubuntu** (project decision). This **supersedes** the "EulerOS" entry in the §1.4b table. The app runs in Docker, so the host OS does not affect application code.
+> **Accuracy note (same convention as §1.4b):** Huawei Cloud console labels, ECS flavor availability, disk device names, and default SSH usernames change over time and vary by region. Every console-specific instruction is marked **(verify in console)**. The Ubuntu/Docker shell commands are exact.
+
+### Deadlines (what must exist, and by when)
+| Resource | Needed before | Used by |
+|---|---|---|
+| OBS bucket + AK/SK + CORS | **Day 5** (first live presigned PUT) | Days 5, 7, 8, 18 |
+| Ubuntu ECS VM | **Day 13** (compiled-server image) | Days 13, 14, 18, 19 |
+| Docker + Compose on the VM | **Day 13** | Days 13, 14 |
+| **Local** Docker (dev machine) | **Day 2** (local Postgres for DDL) | Day 2 onward (local) |
+
+> Day 2–12 are **local-only**. You do **not** need the VM until Day 13. You only need the OBS bucket reachable by Day 5.
+
+---
+
+### 1.5a — Huawei OBS: private bucket + access keys + CORS (before Day 5)
+
+**Region rule (§1.4a):** create the bucket in the **same region** you will create the ECS VM in (same-region ECS↔OBS = zero egress). Decide that region now (e.g. `ap-southeast-3`) and use it for both the bucket and the VM.
+
+**Step 1 — Create the bucket** (verify in console)
+1. Console → **Service List → Object Storage Service (OBS)**.
+2. **Create Bucket**:
+   - **Region:** your chosen region (must match the VM).
+   - **Bucket name:** `prompify-snapshots` (must equal `S3_BUCKET` in `.env`; if the name is taken, pick another and update `.env`).
+   - **Storage class:** Standard.
+   - **Bucket policy / ACL: Private** — NOT public. The architecture requires a private bucket (`ARCHITECTURE-v2.md:913`); all access is via short-lived presigned URLs.
+   - Default server-side encryption: optional.
+3. Create.
+
+**Step 2 — Create access keys (AK/SK)** (verify in console)
+Prefer a scoped IAM user over account-root keys:
+1. Console → **IAM → Users → Create User** (e.g. `prompify-obs`), enable **Programmatic access**.
+2. Attach an OBS permission policy — `OBS OperateAccess`, or (better) a **custom least-privilege policy** limited to the `prompify-snapshots` bucket only. The snapshot store contains secrets baked into generated code (`ARCHITECTURE-v2.md:916`), so scope tightly.
+3. Create an **Access Key** → download the AK/SK CSV (the **SK is shown only once**).
+4. Put them in `.env`: `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`. Never commit (`.env` is gitignored).
+
+**Step 3 — Endpoint & region into `.env`**
+- OBS endpoint format: `https://obs.<region>.myhuaweicloud.com` (e.g. `https://obs.ap-southeast-3.myhuaweicloud.com`). Confirm the exact endpoint on the bucket **Overview** page (verify in console).
+- Set `S3_ENDPOINT` and `S3_REGION` in `.env`.
+
+**Step 4 — CORS rule (REQUIRED — most-missed step)**
+Blob bytes go **browser ↔ OBS directly** via presigned URLs (`ARCHITECTURE-v2.md:66, :356, :422`). A browser cannot PUT/GET cross-origin to OBS without a bucket CORS rule — Day 5/Day 8 will fail with CORS errors even though the presigned URL is valid.
+- Bucket → **Permissions → CORS Rules → Create** (verify in console):
+  - **Allowed origins:** your app origins — `https://www.prompify.com` and (for dev) `http://localhost:5173`. (`*` is fine while testing; tighten for prod.)
+  - **Allowed methods:** `GET, PUT, HEAD` (add `POST` if you later use multipart).
+  - **Allowed headers:** `*` (or at least `content-type`, `x-amz-*`).
+  - **Exposed headers:** `ETag`.
+  - **Max-age:** `3000`.
+
+**Step 5 — Smoke test (DEFUSES Risk R2 — do BEFORE Day 5)**
+Risk **R2** (`:924`) is the plan's biggest unverified external assumption: presigned URLs were only proven on Cloudflare R2, never on OBS. Verify now, not on Day 5.
+
+*Test A — AWS CLI (basic S3 compatibility + credentials):*
+```bash
+export AWS_ACCESS_KEY_ID=<OBS AK>
+export AWS_SECRET_ACCESS_KEY=<OBS SK>
+export AWS_DEFAULT_REGION=<region>
+ENDPOINT=https://obs.<region>.myhuaweicloud.com
+
+printf 'hello-obs' > /tmp/blobtest.txt
+aws --endpoint-url $ENDPOINT s3 cp /tmp/blobtest.txt s3://prompify-snapshots/blobs/te/st/smoke
+aws --endpoint-url $ENDPOINT s3 ls s3://prompify-snapshots/blobs/te/st/
+aws --endpoint-url $ENDPOINT s3 cp s3://prompify-snapshots/blobs/te/st/smoke -   # prints hello-obs
+```
+
+*Test B — presigned URLs via the exact SDK we use (closest to Day 5; uses the deps already installed Day 1).* Save as `obs-smoke.mjs` in the repo root and run `node obs-smoke.mjs`:
+```js
+import 'dotenv/config';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+const s3 = new S3Client({
+  endpoint: process.env.S3_ENDPOINT,
+  region: process.env.S3_REGION,
+  credentials: {
+    accessKeyId: process.env.S3_ACCESS_KEY_ID,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+  },
+  forcePathStyle: false,
+});
+const Bucket = process.env.S3_BUCKET;
+const Key = `blobs/te/st/smoke-${Date.now()}`;
+
+const putUrl = await getSignedUrl(s3, new PutObjectCommand({ Bucket, Key }), { expiresIn: 60 });
+let r = await fetch(putUrl, { method: 'PUT', body: 'hello-obs' });
+console.log('PUT', r.status); // expect 200
+
+const getUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket, Key }), { expiresIn: 60 });
+r = await fetch(getUrl);
+console.log('GET', r.status, await r.text()); // expect 200 "hello-obs"
+```
+(`dotenv` and the AWS SDK are already in `package.json` from Day 1, so no extra install. Delete `obs-smoke.mjs` after — don't commit it.)
+
+**Interpreting failures:**
+- **403 on PUT/GET in Node** → SigV4 signature/region mismatch (Risk R2). Check `S3_REGION` matches the endpoint region, check VM/laptop clock skew, confirm `forcePathStyle: false`.
+- **Works in Node but fails in the browser later** → it's **CORS**, not signing — Node `fetch` ignores CORS. Fix Step 4.
+- If R2 cannot be resolved, the plan's documented fallback (`:924`) is direct server-side upload/download (no presign) — but try config fixes first.
+
+**Step 6 — Lifecycle rule:** **defer to Day 18.** GC is done in-app (`:504-526`); an optional OBS lifecycle rule can be added then. Do nothing now.
+
+---
+
+### 1.5b — Ubuntu ECS VM (before Day 13)
+
+**Spec (from §1.4b):** recommended **4 vCPU / 8 GB** (`s7.xlarge.2` or `c7.xlarge.2`); minimum **2 vCPU / 4 GB** (`s7.large.2`) for staging. **OS: Ubuntu 22.04 LTS** (supersedes the EulerOS note in §1.4b).
+
+**Step 1 — Create the ECS** (verify in console)
+1. Console → **Elastic Cloud Server (ECS) → Buy ECS**.
+2. **Billing:** Pay-per-use (or apply your credits).
+3. **Region/AZ:** **same region as the OBS bucket** (1.5a).
+4. **Flavor:** `s7.xlarge.2` (4c/8G) recommended; `s7.large.2` (2c/4G) minimum. (Flavor availability varies by region — verify in console.)
+5. **Image:** Public image → **Ubuntu → Ubuntu 22.04 LTS 64-bit** (24.04 LTS also fine).
+6. **System disk:** 40 GB SSD (General Purpose SSD or higher).
+7. **Data disk:** add **100 GB SSD** (Postgres data + WAL + Docker images/volumes). Mounted in 1.5c.
+8. **Network:** a VPC + subnet (create a default if none). Assign an **EIP** with **5–10 Mbps** pay-by-traffic — low is fine because blob bytes bypass the VM (§1.4b).
+9. **Security group:** see Step 2.
+10. **Login:** create/download a **key pair** (`.pem`) — prefer this over password.
+11. Create. Record the **EIP** (public IP).
+
+**Step 2 — Security group / firewall** (verify in console)
+Inbound:
+- **TCP 22 (SSH)** — source restricted to **your IP**, not `0.0.0.0/0`.
+- **TCP 80 (HTTP)** — `0.0.0.0/0` (nginx + certbot HTTP-01 challenge).
+- **TCP 443 (HTTPS)** — `0.0.0.0/0`.
+- Do **NOT** expose **5173** (app), **5432** (Postgres), or **6379** (Redis) publicly — they stay internal; nginx fronts the app (`nginx-prod.conf` / `nginx-ecs.conf`).
+Outbound: allow all (default).
+
+**Step 3 — DNS (only when serving prod / TLS):** point your domain's **A record** to the EIP. certbot (existing compose service) needs DNS resolving to the VM to issue Let's Encrypt certs. Can defer past Day 14.
+
+**Step 4 — SSH in**
+```bash
+chmod 600 prompify-key.pem
+ssh -i prompify-key.pem ubuntu@<EIP>   # Huawei Ubuntu images usually use user "ubuntu"; some use "root" (verify in console)
+```
+
+---
+
+### 1.5c — Install Docker + Compose, mount the data disk (on the Ubuntu VM)
+
+**Step 1 — Update the system**
+```bash
+sudo apt-get update && sudo apt-get upgrade -y
+```
+
+**Step 2 — Mount the 100 GB data disk**
+```bash
+lsblk                                   # identify the data disk (e.g. /dev/vdb) — DO NOT assume the name
+sudo mkfs.ext4 /dev/vdb                 # ONLY if the disk is new/blank — this erases it
+sudo mkdir -p /data
+sudo mount /dev/vdb /data
+echo '/dev/vdb /data ext4 defaults 0 2' | sudo tee -a /etc/fstab   # persist across reboot
+```
+
+**Step 3 — Install Docker Engine + Compose plugin (official Docker apt repo)**
+```bash
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+Verify:
+```bash
+sudo docker run hello-world
+docker compose version
+```
+
+**Step 4 — (optional) Run docker without sudo**
+```bash
+sudo usermod -aG docker $USER          # then log out and back in
+```
+
+**Step 5 — (recommended) Put Docker's data on the big disk**
+```bash
+sudo systemctl stop docker
+sudo mkdir -p /etc/docker
+echo '{ "data-root": "/data/docker" }' | sudo tee /etc/docker/daemon.json
+sudo systemctl start docker
+docker info | grep "Docker Root Dir"   # expect: /data/docker
+```
+
+---
+
+### 1.5d — Bring up the existing services (on the VM, near Day 13)
+```bash
+git clone <your-repo-url> /data/prompify && cd /data/prompify
+git checkout feat/persistence-architecture-v2          # or your release branch
+cp .env.example .env                                   # then fill REAL values: DB creds, JWT_SECRET, S3_*, etc.
+docker compose -f docker-compose.prod.yaml --profile production up -d
+docker compose -f docker-compose.prod.yaml ps          # postgres, redis, app, nginx, certbot, cron
+```
+Notes:
+- Until **Day 14**, the `app` service runs `pnpm run dev` (`docker-compose.prod.yaml:129`). Day 14 switches it to the compiled `node server.js`.
+- Ensure the **Postgres volume** lands on `/data` (the big disk) — verify the volume mapping in `docker-compose.prod.yaml`.
+- PG/Redis ports stay internal; only nginx (80/443) is public.
+
+---
+
+### 1.5e — What you do NOT need to create now (per plan scope)
+- **No PgBouncer, no read replica, no 2nd VM** yet — those are "1,000+ users" triggers (§1.4b, §2.6).
+- **No new server process** — every new endpoint/table from Phases 1/2/3-runtime/5/6 runs inside the existing `app` container and existing Postgres (§1.4b).
+- **OBS needs no VM** — it is a managed service reached over HTTPS (§1.4b).
 
 ---
 
@@ -132,10 +342,11 @@ Store every generated app's **files** as content-addressed blobs (keyed by SHA-2
 `pnpm test` runs only `app/lib/runtime/message-parser.spec.ts`, `app/components/chat/Markdown.spec.ts`, `app/utils/diff.spec.ts` (`Glob app/**/*.spec.ts`). **None** touch persistence, DB, routes, workbench, or deploy. Therefore "all tests pass" is a **necessary but wildly insufficient** gate. Every day that changes behavior must (a) add a focused test for the *current* behavior first, then (b) verify the new behavior with a **scripted manual check** (curl / browser steps) recorded in Post-Conditions.
 
 ### 2.6 Scope for these 20 days (and what is deferred, with justification)
-**IN:** Phase 1 (snapshots, Days 1-9), Phase 2 (offline, Days 10-12), Phase 3 runtime-only = wire `server.js` (Days 13-14), Phase 5 (version UI, Days 15-17), Phase 6 (GC + monitoring, Days 18-19), hardening (Day 20).
+**IN:** Phase 1 (snapshots, Days 1-9), Phase 2 (offline, Days 10-12), Phase 3 runtime-only = wire `server.js` (Days 13-14), Phase 5 (version UI, Days 15-17), Phase 6 (backups + GC + monitoring, Days 18-19), hardening (Day 20).
 **DEFERRED (out of these 20 days):**
 - **Phase 4 (Remix data proxy + Supabase migration).** Justification: doc `:757` "Migration is a cost optimization, not a reliability fix"; it is 5-7 days alone (`:834`), security-sensitive (new auth secret, RLS, schema-per-app), and does not fit the remaining budget. Tracked in Section 6.
 - **Phase 3 scaling (PgBouncer, read replica, multi-replica).** Justification: doc marks these "added at 1,000+ users" (`:59, 774`); premature now. Tracked in Section 6.
+> **CORRECTION:** ARCHITECTURE-v2.md Phase 3 line 829 lumps database backups alongside scaling items. Backups are disaster recovery, not scaling — needed from Day 1 of production, not at 1,000+ users. Moved into Day 18 (Operations Day) as a hard dependency for safe GC activation.
 
 ---
 
@@ -802,71 +1013,367 @@ IDE sidebar lists versions; "Restore this version" calls rollback then remounts.
 
 ---
 
-## Day 18: GC job (prune versions, ref_count, orphan blobs) in cron container
+## Day 18: Database Backups + GC (Operations Day)
+
+> **CORRECTION from original plan §2.6:** ARCHITECTURE-v2.md lumps backups into Phase 3 alongside scaling items (PgBouncer, read replicas). This is a **categorization error** — backups are disaster recovery, not scaling. They have fundamentally different triggers: scaling is "at 1,000+ users"; backups are **"Day 1 of production."** Backups are also a hard dependency for GC: you must not run destructive data deletion without a verified restore path.
 
 ### Goal
-A nightly script prunes versions beyond 30/chat, decrements ref_count, deletes orphan blobs from DB and object storage.
+Three-layer database backup system operational (WAL archiving → pg_dump nightly → pg_basebackup weekly) with retention policies on OBS. Backup restored successfully once before GC activates. Then: GC prunes versions beyond 30/chat, decrements ref_count, deletes orphan blobs from DB and object storage — **with a safety net** (backups verified).
 
 ### Why This Day
-- Requires: **Day 6** (ref_count semantics), **Day 1** (delete from storage).
-- Enables: bounded growth.
-- Ordering evidence: GC reverses Day 6's ref_count increments; deletes Day 5's uploads.
+- Backup requires: Postgres running (existing, no code changes), OBS configured (Day 1, verified Day 5).
+- GC requires: **backup verified first** — must not delete data without a tested restore.
+- Enables: disaster recovery (ARCHITECTURE-v2.md Phase 3 line 829), safe GC, bounded growth.
+- Evidence: ARCHITECTURE-v2.md:776 budgets $5-10/mo for "Daily full + continuous WAL archiving"; :829 "Set up pg_basebackup + WAL archiving." Line 954: "Restore from R2 backup to new region. Update DNS."
+- Ordering: backup → restore test → GC activation.
 
 ### Pre-Conditions
-- [ ] Days 1 & 6 merged; cron container present (`docker-compose.prod.yaml:132-150`).
-- [ ] `pnpm test` passes.
+- [ ] Days 1 & 6 merged; cron container present; `pnpm test` passes.
+- [ ] OBS bucket reachable from VM (Day 5 smoke test still passing).
+- [ ] Postgres container running with at least 2GB free on data disk for WAL buffer.
+- [ ] `docker compose -f docker-compose.prod.yaml ps` shows postgres healthy.
 
 ### Detailed Steps
-#### Step 18.1: GC endpoint/script
-- **What:** implement `:504-526` steps (delete versions rn>30; decrement ref_count; `DELETE FROM codebase_blobs WHERE ref_count<=0`; delete those keys from storage). Guard with `CRON_SECRET` (existing pattern: `docker-compose.prod.yaml:147` cron posts with Bearer).
-- **Why:** `:499-526, 858-860`.
-- **Current state:** reuse cron auth pattern of `api.cron.sleep-check.ts`.
-- **What could break:** **deleting referenced blobs** if ref_count logic is off → data loss. Mitigate: delete from storage only AFTER DB delete confirms ref_count<=0, in a dry-run-first mode (log keys before deleting for the first run).
+
+#### Step 18.1: PostgreSQL WAL archiving configuration
+
+- **What:** Enable WAL archiving in the postgres container via `docker-compose.prod.yaml` command override. Postgres copies completed WAL segments to a shared Docker volume (`wal_archive`). The backup container picks them up and uploads to OBS.
+- **Why:** Continuous WAL archiving gives near-real-time PITR without replication auth complexity. `archive_command = cp` returns in microseconds — never blocks Postgres. Source: PostgreSQL manual §26.3.1. `archive_timeout=300` limits idle WAL growth to 5 minutes.
+- **Current state:** Postgres container has no `command:` override; `wal_level` defaults to `replica` in PG 15; `archive_mode` defaults to `off`.
+- **Target — add to postgres service in `docker-compose.prod.yaml`:**
+
+```yaml
+postgres:
+    # ... existing config (image, environment, volumes, ports, networks, healthcheck) unchanged ...
+    command: >
+      postgres
+      -c wal_level=replica
+      -c archive_mode=on
+      -c archive_command='test ! -f /wal_archive/%f && cp %p /wal_archive/%f'
+      -c archive_timeout=300
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql    # existing
+      - wal_archive:/wal_archive                                   # NEW — shared with backup container
+```
+
+- **What could break:** If `/wal_archive` not writable → `archive_command` returns non-zero → WAL accumulates in `pg_wal` directory → **DISK FULL** (highest-severity failure mode, can crash Postgres). Mitigated by: `test ! -f` check prevents duplicate copies; backup container removes uploaded files; `archive_timeout=300` bounds WAL growth. Monitor: `pg_stat_archiver` — any `failed_count > 0` triggers immediate investigation.
+- **Verification:** `docker exec prompify-postgres psql -U prompify_user -c "SHOW archive_mode;"` → `on`. `ls /wal_archive/` shows WAL files arriving after database writes. `pg_stat_archiver` shows `archived_count > 0` and `failed_count = 0`.
+
+#### Step 18.2: New backup service in docker-compose.prod.yaml
+
+- **What:** Add a `backup` container using `postgres:15-alpine` (already pulled by postgres service). Runs a shell script loop that (a) uploads WAL segments to OBS every 60s, (b) runs `pg_dump -Fc` daily at 03:00 UTC, (c) runs `pg_basebackup` weekly on Sunday at 03:00 UTC, (d) enforces retention (daily 30 days, WAL 7 days, weekly 4 weeks).
+- **Why:** Separation of concerns — backup logic isolated from app and DB. OBS credentials only in this container. Same image as postgres (has pg_dump, pg_basebackup, psql built-in). 03:00 UTC = 11 PM EST / 4 AM CET / 11 AM CST — lowest B2B SaaS traffic intersection.
+- **Target — add to `docker-compose.prod.yaml`:**
+
+```yaml
+  backup:
+    image: postgres:15-alpine
+    container_name: prompify-backup
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-prompify_user}
+      POSTGRES_DB: ${POSTGRES_DB:-prompify}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+    volumes:
+      - wal_archive:/wal_archive:ro
+      - ./scripts/backup-runner.sh:/backup-runner.sh:ro
+    entrypoint: /bin/sh -c "
+      apk add --no-cache aws-cli > /dev/null 2>&1 &&
+      echo '[backup] Container started' &&
+      /backup-runner.sh
+    "
+    networks:
+      - prompify-network
+    restart: unless-stopped
+    profiles: ['production']
+```
+
+- **What could break:** `PGPASSWORD` wrong → all backup ops fail silently for days. Mitigation: entrypoint runs `psql -h postgres -c 'SELECT 1'` health check, logs failure loudly. OBS credentials wrong → WAL files accumulate on shared volume, never uploaded. Mitigation: backup runner monitors `/wal_archive` file count; if >100 files, logs CRITICAL alert. If backup container is down, WAL files stay on volume (backlog) — Postgres continues normal operation.
+- **Verification:** `docker logs prompify-backup` shows "Backup container started" and successful OBS connection. WAL files appearing in OBS under `backups/wal/`. `docker compose ps` shows `prompify-backup` with status `Up`.
+
+#### Step 18.3: Backup runner script (`scripts/backup-runner.sh`)
+
+- **What:** A single shell script running an infinite loop (consistent with existing cron container pattern at `docker-compose.prod.yaml:135-149`). Handles all three backup layers + retention enforcement.
+- **Why:** Single script → single point to debug. No cron daemon needed in Alpine. All three layers in one loop.
+- **Script structure (pseudocode):**
+
+```
+validate_env() {
+  # Check all required env vars are set; exit with CRITICAL message if missing
+}
+
+health_check() {
+  # psql -h postgres -c 'SELECT 1' -- abort if DB unreachable
+  # aws s3 ls s3://$S3_BUCKET/backups/ -- abort if OBS unreachable
+}
+
+while true; do
+  NOW=$(date -u +%s)
+  HOUR=$(date -u +%H)
+  DOW=$(date -u +%u)   # 1=Mon, 7=Sun
+
+  # Layer 1 — WAL upload (every loop, every 60s)
+  for f in /wal_archive/*; do
+    [ -f "$f" ] || continue
+    aws s3 cp "$f" "s3://$S3_BUCKET/backups/wal/$(basename $f)" --endpoint-url "$S3_ENDPOINT" && rm "$f"
+  done
+
+  # Layer 2 — pg_dump (daily at 03:00-03:59 UTC)
+  if [ "$HOUR" = "03" ]; then
+    DUMP_FILE="/tmp/prompify-$(date -u +%Y%m%d_%H%M%S).dump"
+    pg_dump -h postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc --no-owner --no-acl -f "$DUMP_FILE"
+    aws s3 cp "$DUMP_FILE" "s3://$S3_BUCKET/backups/daily/" --endpoint-url "$S3_ENDPOINT"
+    rm "$DUMP_FILE"
+  fi
+
+  # Layer 3 — pg_basebackup (Sunday at 03:00-03:59 UTC)
+  if [ "$DOW" = "7" ] && [ "$HOUR" = "03" ]; then
+    BASE_DIR="/tmp/base-$(date -u +%Y%V)"
+    pg_basebackup -h postgres -U "$POSTGRES_USER" -D "$BASE_DIR" -Ft -z --no-password
+    aws s3 cp "$BASE_DIR.tar.gz" "s3://$S3_BUCKET/backups/weekly/" --endpoint-url "$S3_ENDPOINT"
+    rm -rf "$BASE_DIR" "$BASE_DIR.tar.gz"
+  fi
+
+  # Retention — purge WAL older than 7 days, dailies older than 30 days, weeklies older than 4 weeks
+  # (use aws s3 ls + date comparison; or trust OBS lifecycle rule configured in §1.5a Step 6)
+
+  # Alert if WAL backlog > 100 files (volumes fill)
+  WAL_COUNT=$(ls /wal_archive/ 2>/dev/null | wc -l)
+  if [ "$WAL_COUNT" -gt 100 ]; then
+    echo "[backup] CRITICAL: WAL backlog = $WAL_COUNT files — check OBS connectivity" >&2
+  fi
+
+  sleep 60
+done
+```
+
+- **Performance justification:** `pg_dump -Fc` uses COPY protocol (fast bulk transfer). Single `REPEATABLE READ` transaction — non-blocking, consistent snapshot. At 1-5GB DB, completes in 30-120s. Sequential read ~10-20 MB/s over Docker bridge. Negligible on 100GB SSD. No locks held beyond transaction duration. `archive_command = cp` returns in microseconds.
+- **Verification:** Script runs without errors for 24h. OBS contains: `backups/daily/prompify-YYYYMMDD_HHMMSS.dump`, `backups/wal/<segment>`, `backups/weekly/base-YYYYWW.tar.gz`.
+
+#### Step 18.4: Restore test (manual acceptance gate)
+
+- **What:** Download the first daily dump from OBS. Run `pg_restore -l` to verify all tables listed. Spot-check: `pg_restore -t users` and `pg_restore -t chats` restore without errors. Document result.
+- **Why:** A backup that hasn't been restore-tested is not a backup. This is the #1 cause of data loss in production post-mortems industry-wide. GC must NOT activate until this gate passes.
+- **Verification:** `pg_restore -l prompify-YYYYMMDD.dump | wc -l` returns expected table count (22+). Spot-check restores work. Result recorded in plan file.
+
+#### Step 18.5: GC endpoint/script (original Day 18 — activates AFTER backup verified)
+
+- **What:** Implement the GC steps from `ARCHITECTURE-v2.md:504-526` (delete versions rn>30; decrement ref_count; `DELETE FROM codebase_blobs WHERE ref_count<=0`; delete those keys from OBS). Guard with `CRON_SECRET` (existing pattern: `api.cron.sleep-check.ts`).
+- **Why:** `:499-526, 858-860`. GC can now run safely — verified backup provides recovery path if GC misbehaves.
+- **Additional pre-condition (critical):** Steps 18.1-18.4 complete AND restore test passed. GC must NOT activate without a verified restore path.
+- **What could break:** deleting referenced blobs if ref_count logic is off → data loss. Mitigation: dry-run-first mode (log keys before deleting on first run). If GC malfunctions, restore blobs from OBS backup. Same-day restore: from WAL + latest dump. Older blobs: from daily/weekly dumps.
 - **Verification:** seed >30 versions → run → exactly 30 remain; a blob referenced elsewhere is NOT deleted.
 
 ### Post-Conditions
-- [ ] Versions capped at 30/chat; shared blobs survive; orphans gone.
+- [ ] `docker compose ps` shows `prompify-backup` running with status `Up`.
+- [ ] OBS bucket contains `backups/daily/`, `backups/wal/`, `backups/weekly/` with files.
+- [ ] `pg_stat_archiver` on postgres shows `archived_count > 0` and `failed_count = 0`.
+- [ ] Manual restore test passed: `pg_restore -l` lists all expected tables.
+- [ ] GC runs without deleting blobs that are still referenced (dry-run verified first).
+- [ ] `BACKUP_DATABASE_URL` env var and `scripts/daily-sync.js` documented as **superseded** (this system replaces it). Kept as fallback, not removed.
 - [ ] `pnpm test` passes.
-- [ ] Committed: `feat(gc): snapshot retention + orphan blob cleanup`.
+- [ ] Committed: `feat(ops): database backups (WAL + pg_dump + pg_basebackup) + GC with safety net`.
 
 ### Rollback Plan
-1. Remove the cron schedule entry (stop running it) / `git revert HEAD`. **Note:** deletions are irreversible — that's why Day 18 ships dry-run-first.
+1. `docker compose stop backup` — stops uploads. Postgres continues unaffected (WAL files stay on shared volume).
+2. Revert compose changes → `archive_command` removed → Postgres handles WAL via internal checkpoint mechanism.
+3. `git revert HEAD`. Existing `daily-sync.js` still functional as fallback.
+4. GC: remove cron schedule entry / `git revert`. **Note:** GC deletions are irreversible — backup is the only recovery path. Keep backup enabled while GC runs.
 
 ### Red Flags — Stop if:
-- Dry-run lists a blob you can prove is still referenced → ref_count logic broken; do NOT enable real deletion.
+- `archive_command` fails (check `pg_stat_archiver.last_failed_time`) → WAL piling up in `pg_wal` → **DISK FULL** risk. Immediately rollback postgres compose changes.
+- Backup container can't reach OBS for >6 hours → WAL volume fills → pause backups, investigate.
+- `pg_dump` fails silently for 3 consecutive days → backup non-functional, GC must be paused.
+- Restore test fails → backup corrupt. Stop GC immediately, investigate dump integrity.
+- GC dry-run lists a blob proven still referenced → ref_count logic broken; do NOT enable real deletion.
+
+### New Volumes (add to docker-compose.prod.yaml volumes section)
+```yaml
+volumes:
+  postgres_data:      # existing
+  redis_data:         # existing
+  certbot-etc:        # existing
+  certbot-var:        # existing
+  certbot-log:        # existing
+  certbot-webroot:    # existing
+  wal_archive:        # NEW — shared between postgres (write) and backup (read+upload)
+    driver: local
+```
 
 ---
 
-## Day 19: Monitoring + alerts
+## Day 19: Relevance Guardrail + Attribution Markers + Rate Limiting + Monitoring
 
 ### Goal
-Operational visibility: table sizes, pool wait, disk alerts.
+Four operational hardening items: (1) AI refuses off-topic questions via system prompt reinforcement, (2) attribution markers in generated code, (3) rate limiting on `/api/chat` to prevent token abuse, (4) metrics endpoint for table sizes and pool health.
 
 ### Why This Day
-- Requires: Days 2,6 (tables to measure). (≤2 ✓)
-- Enables: safe operation at scale.
-- Ordering evidence: measures objects created earlier.
+- Guardrail requires: nothing — pure prompt engineering, no code dependencies.
+- Attribution requires: system prompt (same file as guardrail) + deploy endpoint.
+- Rate limiting requires: existing `rate_limits` table (Day 2) and auth pattern.
+- Metrics requires: Days 2,6 (tables to measure).
+- Enables: production readiness. The guardrail closes a product-quality gap where the AI would answer arbitrary questions ("what is 2+2", "tell me a joke") instead of staying focused on code generation.
+- Ordering evidence: all three are independent tracks that can run in parallel.
 
 ### Pre-Conditions
 - [ ] `pnpm test` passes.
+- [ ] Existing system prompt at `app/lib/common/prompts/prompts.ts` reviewed.
 
 ### Detailed Steps
-#### Step 19.1: Metrics
-- **What:** add `pg_total_relation_size('codebase_versions')` + blob count to `/api/health` (or a new `/api/metrics`); document disk/pool alert thresholds.
-- **Why:** `:832, 861-862`.
+
+#### Step 19.1: Relevance guardrail — system prompt scope enforcement
+
+- **What:** Add explicit scope boundaries to the system prompt so the AI refuses non-code/non-app-development questions. The LLM itself is the classifier — no external API, no token overhead for a separate validation call. The instructions go at the END of the system prompt (recency bias — LLMs weight later instructions more heavily).
+- **Why:** The current system prompt at `prompts.ts:6` defines the AI as "an expert AI assistant and exceptional senior software developer." This dual identity allows general Q&A. Users ask off-topic questions ("what is 2+2", "who is the president") and the AI answers them, burning tokens on non-product conversations. The AI must stay focused on code generation and app development only.
+- **Why NOT a separate classifier/API call:** An additional LLM call to classify prompts would double latency and cost. The primary LLM already has the semantic understanding to distinguish code-related from off-topic — it just needs clear instructions. Modern models (Claude, GPT-4) follow system instructions well. A keyword filter would have unacceptably high false-positive rates (a prompt like "help" has no obvious code keywords but is clearly a development request).
+- **Current state:** `prompts.ts:5-288` — the system prompt has no scope boundary or rejection instructions.
+- **Target — append to `getSystemPrompt()` in `app/lib/common/prompts/prompts.ts`, before the closing backtick:**
+
+```typescript
+// Add this section at the END of the system prompt (after <database_instructions>, before the final backtick):
+
+<scope_boundary>
+  You are a SPECIALIZED code generation assistant. Your ONLY purpose is to help users build, modify, and debug web applications.
+
+  YOU MUST REFUSE all requests that are not related to software development, web applications, or code generation. This includes but is not limited to:
+    - General knowledge questions ("what is 2+2", "who is the president", "explain quantum physics")
+    - Personal advice ("what should I eat", "how to lose weight")
+    - Creative writing ("write a poem", "tell me a story")
+    - Jokes, trivia, or entertainment
+    - Political, religious, or philosophical discussions
+    - Any question where the answer would not involve writing, editing, or explaining code
+
+  When you receive an off-topic request, respond with a BRIEF, polite refusal. Never be rude, never explain why you're refusing at length. Examples of correct refusals:
+
+  User: "What is 2+2?"
+  Assistant: "I'm a code generation assistant — I help with building web applications. Is there something you'd like me to build or modify in your project?"
+
+  User: "Tell me a joke."
+  Assistant: "I'm focused on helping you build applications. What would you like to work on in your project?"
+
+  User: "Who won the World Cup?"
+  Assistant: "I specialize in software development. Would you like me to help with your app instead?"
+
+  Requests that ARE in scope:
+    - "Add a login button to the navbar"
+    - "How do I center a div with CSS?"
+    - "Create a contact form with validation"
+    - "Debug why my API call returns 500"
+    - "Explain how React hooks work"
+    - "What's the best way to structure a Node.js project?"
+    - UI/UX questions about the app being built
+    - Database schema questions about the app being built
+    - Deployment questions about the app being built
+
+  IMPORTANT: If you're unsure whether a request is in scope, lean toward helping. Only refuse when the request is clearly and completely unrelated to software development.
+</scope_boundary>
+```
+
+- **What could break:** False refusal — the AI rejects a legitimate but vaguely-worded development request. Mitigated by the final instruction: "If unsure, lean toward helping." Also: this is purely additive to the system prompt — rollback is instant.
+- **Verification (manual):** Test in chat — "What is 2+2?" → AI refuses politely. "Add a header component" → AI generates code normally. "What's React?" → AI explains (in scope — educational about a framework). "Who is Elon Musk?" → AI refuses (not code-related).
+
+#### Step 19.1b: Attribution markers in generated code (two-layer watermarking)
+
+- **What:** Embed subtle but discoverable attribution markers in all AI-generated projects so developers inspecting the code can identify it was built with Prompify. Two layers: (a) system prompt instructs the AI to include markers during generation, (b) deploy-time injection guarantees markers survive user edits in the live app.
+- **Why:** Every major app builder does this. Base44 embeds traces in generated code. WordPress, Webflow, Shopify all use `<meta name="generator">`. It drives organic discovery — developers inspecting a competitor's site see "Built with Prompify" and investigate the tool. It's honest attribution, not stealth marketing.
+- **Why this specific approach (and not something more hidden):** A purely hidden marker (e.g., encoded in a CSS variable value) would be invisible to everyone and serve no purpose. An overly obvious marker (e.g., "Built with Prompify" in the page footer) would get removed immediately. The balance: markers placed where developers naturally look during code review — source comments, meta tags, package.json — visible to the target audience (developers), invisible to end-users of the generated app.
+- **Current state:** No attribution markers anywhere. System prompt has no instruction to add them. `api.deploy.ts` injects `env-config.js` (Supabase credentials) but no attribution.
+- **Target — Layer 1: System prompt instructions in `app/lib/common/prompts/prompts.ts`:**
+
+Add this inside the existing `<artifact_instructions>` section (alongside other code-generation rules), NOT as a separate top-level section:
+
+```
+**Attribution (DO NOT SKIP):**
+  In every new project you create, include these subtle attribution markers:
+  
+  1. In `index.html` `<head>`, add this HTML comment (NOT a visible element — a comment):
+     <!-- Built with Prompify — https://prompify.com -->
+  
+  2. In `package.json`, add a `prompify` field at the root level (alongside `name`, `version`, etc.):
+     "prompify": { "generated": true }
+     
+     This is a standard custom field — it does not affect npm or the build. Do NOT put it in `description`.
+  
+  3. In the project's main CSS/SCSS file, add this comment at the very top:
+     /* Generated with Prompify — https://prompify.com */
+  
+  These markers should be unobtrusive — do not mention them in the UI, do not add visible badges or watermarks. They exist only for developers who inspect the source code. Do NOT add "Built with Prompify" to the page footer, the app title, or any user-visible text.
+```
+
+- **Target — Layer 2: Deploy-time `<meta>` tag injection in `app/routes/api.deploy.ts`:**
+
+In the deploy function, after `env-config.js` is injected, also inject a `<meta name="generator" content="Prompify">` tag into `index.html`. This is the industry standard approach (used by WordPress, Shopify, Webflow, Wix) and guarantees attribution survives even if the user removes the AI-generated comments. Add it right after the existing `env-config.js` injection step.
+
+```typescript
+// After env-config.js injection, add generator meta tag
+const metaTag = '<meta name="generator" content="Prompify">';
+if (files['index.html']) {
+  files['index.html'] = files['index.html'].replace('</head>', `  ${metaTag}\n  </head>`);
+}
+```
+
+- **What could break:** The AI could add the markers to user-visible text (e.g., footer) instead of comments. Mitigated by explicit instruction: "do not add visible badges." The deploy injection could corrupt `index.html` if the `</head>` tag is malformed. Mitigated by checking `index.html` exists and using a safe string replacement.
+- **Why `prompify` in package.json, not `description`:** The `description` field is visible on npm. The custom `prompify` field is invisible to npm tooling but clearly visible to any developer opening `package.json` in their editor. It's the same pattern Base44 uses.
+- **Verification (manual):** Generate a React app → open `index.html` source → comment present. Open `package.json` → `"prompify": {"generated": true}` present. Deploy to Netlify → view page source → `<meta name="generator" content="Prompify">` in `<head>`.
+
+#### Step 19.2: Rate limiting on `/api/chat` (token abuse prevention)
+
+- **What:** Add a per-user rate limit check to the chat endpoint using the existing `rate_limits` table. Allow 10 requests per minute per user. Return HTTP 429 with a Retry-After header when exceeded.
+- **Why:** The chat endpoint currently has NO rate limiting. A malicious or buggy client could send hundreds of requests per minute, burning through the user's token budget rapidly. This wastes money and degrades service for other users. The token balance system caps monthly total but not burst speed — rate limiting fills this gap.
+- **Current state:** `rate_limits` table exists and is checked by auth endpoints (`api.auth.login.ts:95`, `api.auth.register.ts:133`) — same pattern, same table. `api.chat.ts` has no rate limit check.
+- **Target — in `api.chat.ts` `chatAction()`, before any LLM call:**
+
+```typescript
+// Rate limit: 10 requests/min per user (or per IP if unauthenticated)
+const rateKey = user?.id ?? request.headers.get('x-forwarded-for') ?? 'unknown';
+const rateResult = await checkRateLimit(rateKey, 'chat', 10, 60);
+if (!rateResult.allowed) {
+  return json({ error: 'Too many requests. Slow down.' }, {
+    status: 429,
+    headers: { 'Retry-After': String(Math.ceil(rateResult.retryAfterSeconds ?? 1)) }
+  });
+}
+```
+
+Reuse the existing rate limit helper pattern from `api.auth.login.ts`. Add `checkRateLimit(userId, endpoint, maxRequests, windowSeconds)` to `database-postgresql.ts` as a shared function.
+
+- **What could break:** During an intense code generation session (many follow-up questions), a user could hit the limit. Mitigation: 10 req/min allows one prompt every 6 seconds — natural for human typing speed. The `Retry-After` header tells the client exactly when to retry.
+- **Verification:** Send 11 requests in 60 seconds → 10th succeeds, 11th returns 429. Wait 60s → requests allowed again.
+
+#### Step 19.3: Metrics endpoint
+
+- **What:** add `pg_total_relation_size('codebase_versions')` + blob count + pool stats to `/api/health` (or a new `/api/metrics`); document disk/pool alert thresholds.
+- **Why:** `ARCHITECTURE-v2.md:832, 861-862`.
 - **Current state:** extend existing `app/routes/api.health.ts`.
 - **What could break:** exposing metrics unauthenticated → gate behind `CRON_SECRET`/admin.
-- **Verification:** endpoint returns sizes; alert doc committed.
+- **Verification:** endpoint returns sizes; alert thresholds documented.
 
 ### Post-Conditions
+- [ ] AI refuses off-topic questions ("what is 2+2") and stays focused on code generation.
+- [ ] AI answers in-scope questions normally — no false refusals on legitimate dev requests.
+- [ ] Generated projects contain attribution markers: HTML comment in index.html, `prompify` field in package.json, CSS comment in main stylesheet.
+- [ ] Deployed apps include `<meta name="generator" content="Prompify">` in `<head>`.
+- [ ] `/api/chat` rate-limited: 10 req/min per user, 429 after exceeded.
 - [ ] Metrics reachable (authorized only).
 - [ ] `pnpm test` passes.
-- [ ] Committed: `feat(ops): snapshot/storage metrics`.
+- [ ] Committed: `feat(ops): relevance guardrail + attribution markers + chat rate limiting + metrics`.
 
 ### Rollback Plan
-1. `git revert HEAD`.
+1. Guardrail: revert the prompt change — instant, zero code impact.
+2. Attribution: same — revert prompt + deploy injection. Already-deployed apps keep their markers (no harm).
+3. Rate limiting: `git revert HEAD` or set threshold very high (effectively disabled).
+4. Metrics: `git revert HEAD` (read-only endpoint).
+All four rollbacks are independent.
 
 ### Red Flags — Stop if:
+- AI starts refusing legitimate development requests (false positives on the scope boundary).
+- Attribution markers appear as visible text in the generated app UI (footer, title) — AI misunderstood "subtle."
+- Rate limit blocks normal usage (user gets 429 during routine conversation) → increase threshold or make it per-endpoint configurable.
 - Metrics leak without auth.
 
 ---
@@ -912,7 +1419,7 @@ Full acceptance pass; decide whether to default `SNAPSHOTS_ENABLED=true`.
 
 **End of Week 3 (Day 15):** offline UX complete; prod runs the compiled server (no Vite at runtime); version listing API live. *Verify:* offline banner + IDE still editable; `docker exec ... ps` shows no `vite`; `/api/health` 200; `/versions` returns data.
 
-**End of Week 4 (Day 20):** version history UI + rollback + GC + monitoring; all doc acceptance tests pass. *Verify:* full v1→v3→rollback flow; GC caps at 30 keeping shared blobs; metrics authorized-only; data-safety scenarios pass.
+**End of Week 4 (Day 20):** version history UI + rollback + backups (WAL + pg_dump + pg_basebackup on OBS) + GC + relevance guardrail + rate limiting + monitoring; all doc acceptance tests pass. *Verify:* full v1→v3→rollback flow; backup restore test passes before GC activates; AI refuses "what is 2+2" but answers code questions; /api/chat rate-limited at 10 req/min; GC caps at 30 keeping shared blobs; metrics authorized-only; data-safety scenarios pass.
 
 ---
 
@@ -929,6 +1436,10 @@ Full acceptance pass; decide whether to default `SNAPSHOTS_ENABLED=true`.
 | R7 | 20 days insufficient for doc's 21-29 | High — doc `:864` | Med (scope) | Phase 4 + scaling deferred (Section 6) with justification | Extend timeline or cut Phase 5 UI |
 | R8 | Concurrent-save race drops a version | Low — if `FOR UPDATE` applied | Med | Days 6/16 use the doc's `FOR UPDATE` lock (`:388-392`) | Add app-level mutex; retry on unique-violation |
 | R9 | `init-db.sql` latent `projects` ordering bug surfaces on fresh init | Med — `init-db.sql:355` ALTERs uncreated table | Med (fresh deploy fails) | Day 2 adds tables only with `chats`/`users` FKs; flag the pre-existing bug | Fix `init-db.sql` projects ordering separately |
+| R10 | `archive_command` failure fills `pg_wal` → disk full → Postgres crash | Low-Med — shared volume permissions, disk space | Critical (DB crash) | `test ! -f` guard; backup container removes uploaded WALs; `archive_timeout=300` bounds growth; monitor `pg_stat_archiver.failed_count` | Revert postgres compose command change; WAL handled by internal checkpoint |
+| R11 | Backup restore test fails (dump corrupt, incomplete, or OBS unreachable) | Low-Med — pg_dump proven stable; OBS availability | High (no recovery path if GC activates) | GC activation gated on successful manual restore test; three-layer redundancy (WAL + dump + basebackup) | Delay GC; fix backup pipeline; re-test restore |
+| R12 | Scope guardrail causes false refusals — AI rejects legitimate dev requests | Low — "lean toward helping" bias; prompt-example coverage | Med (degraded UX if too strict) | Final instruction "if unsure, lean toward helping"; manual test with ambiguous prompts before shipping | Revert prompt change (instant, zero code impact) |
+| R13 | Rate limit blocks legitimate rapid-fire usage during intense sessions | Low — 10 req/min allows one prompt every 6 seconds | Med (frustrated users) | 10/min is per-user, not per-IP; human typing is slower than this; Retry-After header in response | Increase threshold; make configurable per subscription tier |
 
 ---
 

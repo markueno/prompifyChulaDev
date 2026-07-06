@@ -1,0 +1,25 @@
+# 1. Dependencies & Build Output
+node_modules/
+build/
+.wrangler/
+.husky/
+
+# 2. Package Lockfiles (Massive token wasters)
+package-lock.json
+pnpm-lock.yaml
+
+# 3. Environment Variables & Secrets
+.env
+.env.local
+.dev.vars
+ssl_prompifycom/
+auth_file.txt
+
+# 4. Presentations & Scratchpads
+1.md
+2.md
+3.md
+4.md
+5.md
+architecture-presentation.html
+*cached verion*
