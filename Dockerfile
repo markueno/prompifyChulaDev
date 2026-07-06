@@ -55,13 +55,9 @@ ENV WRANGLER_SEND_METRICS=false \
     RUNNING_IN_DOCKER=true \
     AUTH_DISABLED=${AUTH_DISABLED:-false}
 
-# Pre-configure wrangler to disable metrics
-RUN mkdir -p /root/.config/.wrangler && \
-    echo '{"enabled":false}' > /root/.config/.wrangler/metrics.json
-
 RUN pnpm run build
 
-CMD [ "pnpm", "run", "dockerstart"]
+CMD [ "node", "server.js" ]
 
 # Development image
 FROM base AS bolt-ai-development
@@ -113,7 +109,8 @@ CMD pnpm run dev --host
 FROM base AS bolt-ai-prod-node
 
 ENV RUNNING_IN_DOCKER=true \
-    NODE_ENV=production
+    NODE_ENV=production \ 
+    NODE_OPTIONS=--max-old-space-size=4096
 
 RUN pnpm run build
 

@@ -33,6 +33,15 @@ const clientDir = path.join(rootDir, 'build', 'client');
 
 const requestHandler = createRequestHandler(build, process.env.NODE_ENV);
 
+/*
+ * Load-context shim for the Node runtime: the app was written against the Cloudflare adapter,
+ * so loaders/actions everywhere read `context.cloudflare.env.X` (JWT_SECRET, LLM keys, DB
+ * config, ...). Under `node server.js` there are no Cloudflare bindings — expose process.env
+ * through the same shape so every existing `context.cloudflare?.env` read keeps working.
+ * Without this, auth would silently fall back to the insecure 'your-secret-key' default.
+ */
+const loadContext = { cloudflare: { env: process.env } };
+
 const CONTENT_TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -177,7 +186,7 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    const response = await requestHandler(toWebRequest(req, res));
+    const response = await requestHandler(toWebRequest(req, res), loadContext);
     await sendWebResponse(res, response);
   } catch (error) {
     console.error('Unhandled server error:', error);

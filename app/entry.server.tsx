@@ -1,7 +1,14 @@
 import type { AppLoadContext } from '@remix-run/cloudflare';
 import { RemixServer } from '@remix-run/react';
 import { isbot } from 'isbot';
-import { renderToReadableStream } from 'react-dom/server';
+/*
+ * Import the web-streams build explicitly: Node's `react-dom/server` ships only
+ * renderToPipeableStream, so `node server.js` (Day 13 compiled image) crashed at import time.
+ * Node 20+ has ReadableStream built in, so the web-streams renderer runs fine under Node.
+ * (Dev worked because the Cloudflare dev proxy resolves worker conditions.)
+ */
+// @ts-expect-error - subpath ships no bundled type definitions, but contains renderToReadableStream
+import { renderToReadableStream } from 'react-dom/server.browser';
 import { renderHeadToString } from 'remix-island';
 import { Head } from './root';
 import { themeStore } from '~/lib/stores/theme';
