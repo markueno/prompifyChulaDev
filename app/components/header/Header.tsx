@@ -5,6 +5,7 @@ import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
 import { NotificationBell } from './NotificationBell.client';
+import { ConnectionStatusBanner } from '~/components/chat/ConnectionStatusBanner.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { UserProfile } from '~/components/auth/UserProfile';
 
@@ -52,6 +53,8 @@ export function Header() {
       <ClientOnly>
         {() => (
           <div className="header-app-toolbar mr-1 flex items-center gap-2">
+            {/* Day 12 — offline/syncing/recovered indicator (ARCHITECTURE-v2.md:672-680). */}
+            <ConnectionStatusBanner />
             {chat.started && <HeaderActionButtons />}
             {user && (
               <>
