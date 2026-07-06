@@ -358,33 +358,12 @@ export class WorkbenchStore {
     this.#restoredFromSnapshot = value;
   }
 
-  /**
-   * Day 10 — reset the WebContainer and all workbench state for a new chat. Kills all running
-   * terminal processes, wipes the workdir, and resets IDE/preview stores so the new chat starts
-   * from a clean slate. Best-effort (worker-pool permission errors are swallowed).
+  /*
+   * NOTE: the former resetForNewChat() (Day 10) was removed. "Start new chat" is a hard
+   * <a> navigation, so a full page load resets all stores and boots a fresh WebContainer —
+   * an in-place async wipe (rm -rf of the workdir) could race the new chat's first file
+   * writes and once killed the shell spawner (kill -9 -- -1 → SharedArrayBuffer error).
    */
-  async resetForNewChat() {
-    this.#restoredFromSnapshot = false;
-    this.#reloadedMessages = new Set();
-
-    // Reset nanostore state — clears the IDE, preview, and file tree instantly
-    this.#filesStore.files.set({});
-    this.unsavedFiles.set(new Set());
-    this.modifiedFiles = new Set();
-    this.currentView.set('code');
-
-    try {
-      const wc = await webcontainer;
-
-      // Wipe workdir contents — delete everything inside so the next chat starts clean.
-      // Preserve the workdir directory itself (wc.workdir) to avoid remount issues.
-      // NOTE: do NOT kill processes here — kill -9 -- -1 breaks the shell spawner.
-      const rm = await wc.spawn('sh', ['-c', `rm -rf "${wc.workdir}"/* "${wc.workdir}"/.[!.]* "${wc.workdir}"/..?*`]);
-      await rm.exit;
-    } catch {
-      // best-effort — if cleanup fails the snapshot restore on next load will overwrite
-    }
-  }
 
   /**
    * Day 9b — write a restored snapshot's files straight into the WebContainer FS, bypassing

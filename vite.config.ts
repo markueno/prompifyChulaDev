@@ -180,10 +180,15 @@ function chrome129IssuePlugin() {
     name: 'chrome129IssuePlugin',
     configureServer(server: ViteDevServer) {
       server.middlewares.use((req, res, next) => {
-        // WebContainer requires cross-origin isolation for SharedArrayBuffer
-        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-        res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
-
+        /*
+         * COOP/COEP intentionally NOT set here. entry.server.tsx already sets
+         * 'Cross-Origin-Embedder-Policy: require-corp' + 'Cross-Origin-Opener-Policy:
+         * same-origin' on the SSR document (same as upstream bolt.diy), and the Remix dev
+         * server writes those AFTER this middleware, overriding anything set here for the
+         * document. Setting a conflicting 'credentialless' value here (former a129a49) only
+         * created confusion — and duplicated headers behind proxies like nginx-dev.conf,
+         * which makes browsers parse the policy as invalid → unsafe-none → no isolation.
+         */
         const raw = req.headers['user-agent']?.match(/Chrom(e|ium)\/([0-9]+)\./);
 
         if (raw) {

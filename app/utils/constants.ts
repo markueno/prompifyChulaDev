@@ -121,7 +121,8 @@ export const STARTER_TEMPLATES: Template[] = [
     name: 'bolt-sveltekit',
     label: 'SvelteKit',
     description: 'SvelteKit starter template for building fast, efficient web applications',
-    githubRepo: 'bolt-sveltekit-template',
+    // Was 'bolt-sveltekit-template' (missing owner — guaranteed 404; same bug exists upstream).
+    githubRepo: 'xKevIsDev/bolt-sveltekit-template',
     tags: ['svelte', 'sveltekit', 'typescript'],
     icon: 'i-bolt:svelte',
   },
