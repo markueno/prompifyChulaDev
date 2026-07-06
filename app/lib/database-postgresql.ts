@@ -1683,6 +1683,42 @@ export async function getLatestCodebaseVersionPostgres(
   return { versionNumber: Number(row.version_number), manifest };
 }
 
+/**
+ * Day 15 — list a chat's version history (metadata only, no manifests; newest 50 rows).
+ * Powers GET /api/chats/:id/versions for the history panel (Days 16-17). Ownership is checked
+ * by the calling route via getChatByIdPostgres, same as the latest-version endpoint.
+ * Source: ARCHITECTURE-v2.md:450-458; IMPLEMENTATION-PLAN Day 15.
+ */
+export async function listCodebaseVersionsPostgres(chatId: string): Promise<
+  {
+    versionNumber: number;
+    description: string | null;
+    fileCount: number;
+    totalBytes: number;
+    isLatest: boolean;
+    createdAt: string;
+  }[]
+> {
+  const pool = getPostgresPool();
+  const result = await pool.query(
+    `SELECT version_number, description, file_count, total_bytes, is_latest, created_at
+     FROM codebase_versions
+     WHERE chat_id = $1
+     ORDER BY version_number DESC
+     LIMIT 50`,
+    [chatId]
+  );
+
+  return result.rows.map(row => ({
+    versionNumber: Number(row.version_number),
+    description: row.description ?? null,
+    fileCount: Number(row.file_count),
+    totalBytes: Number(row.total_bytes),
+    isLatest: Boolean(row.is_latest),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+  }));
+}
+
 export async function getChatByIdPostgres(
   chatId: string,
   userId: string,
