@@ -5,6 +5,16 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: prompify-postgres
+    # Day 18 — continuous WAL archiving to the shared volume; the backup container uploads
+    # segments to OBS. `archive_command = test+cp` returns in microseconds (never blocks
+    # Postgres); `archive_timeout=300` bounds idle WAL growth to 5 minutes.
+    # Rollback: remove this command block (Postgres reverts to internal checkpointing).
+    command: >
+      postgres
+      -c wal_level=replica
+      -c archive_mode=on
+      -c archive_command='test ! -f /wal_archive/%f && cp %p /wal_archive/%f'
+      -c archive_timeout=300
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-prompify}
       POSTGRES_USER: ${POSTGRES_USER:-prompify_user}
@@ -12,6 +22,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - wal_archive:/wal_archive
     ports:
       - "5432:5432"
     networks:
@@ -124,7 +135,41 @@ services:
     command: node server.js
     profiles: ['production']
 
-  # Cron — sleeps inactive container apps every 15 minutes
+  # Day 18 — three-layer database backups (WAL 60s -> OBS, pg_dump daily, pg_basebackup
+  # weekly) with retention. Same image as postgres (ships pg_dump/pg_basebackup/psql).
+  # If this container dies, WAL segments accumulate harmlessly on the shared volume.
+  backup:
+    image: postgres:15-alpine
+    container_name: prompify-backup
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-prompify_user}
+      POSTGRES_DB: ${POSTGRES_DB:-prompify}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+    volumes:
+      - wal_archive:/wal_archive
+      - ./scripts/backup-runner.sh:/backup-runner.sh:ro
+    entrypoint: >
+      /bin/sh -c "
+        apk add --no-cache aws-cli > /dev/null 2>&1 &&
+        echo '[backup] Container started' &&
+        sh /backup-runner.sh
+      "
+    networks:
+      - prompify-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles: ['production']
+
+  # Cron — sleeps inactive container apps every 15 minutes; nightly snapshot GC at ~03:30 UTC.
+  # GC runs DRY-RUN by default: switch to '/api/cron/gc?apply=true' ONLY after the Day 18
+  # restore test has passed (backups are the recovery path for GC mistakes).
   cron:
     image: curlimages/curl:latest
     container_name: prompify-cron
@@ -140,6 +185,10 @@ services:
         while true; do
           sleep 900;
           curl -s -X POST http://app:5173/api/cron/sleep-check -H \"Authorization: Bearer $$CRON_SECRET\" -H \"Content-Type: application/json\";
+          H=$$(date -u +%H); M=$$(date -u +%M);
+          if [ \"$$H\" = \"03\" ] && [ \"$$M\" -ge 30 ] && [ \"$$M\" -lt 45 ]; then
+            curl -s -X POST \"http://app:5173/api/cron/gc\" -H \"Authorization: Bearer $$CRON_SECRET\" -H \"Content-Type: application/json\";
+          fi;
         done
       "
     profiles: ['production']
@@ -183,6 +232,10 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  # Day 18 — WAL staging area shared between postgres (writes segments) and backup (uploads
+  # to OBS then deletes). If backup is down, segments accumulate here without affecting PG.
+  wal_archive:
     driver: local
   certbot-etc:
     driver: local

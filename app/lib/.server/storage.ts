@@ -4,7 +4,13 @@
  * S3-compatible content-addressed blob storage (Huawei OBS via @aws-sdk/client-s3).
  * Provider-agnostic by design — see ARCHITECTURE-v2.md:872-885. Imported by nothing yet (Day 1).
  */
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // Lazy singleton — mirrors getPostgresPool() in database-postgresql.ts:11-33.
@@ -48,6 +54,14 @@ function getBucket(): string {
  */
 export function keyForHash(sha256: string): string {
   return `blobs/${sha256.slice(0, 2)}/${sha256.slice(2, 4)}/${sha256}`;
+}
+
+/**
+ * Day 18 (GC) — delete one object. Idempotent: S3/OBS DeleteObject succeeds even when the
+ * key is already gone, so GC retries are safe.
+ */
+export async function deleteObject(key: string): Promise<void> {
+  await getClient().send(new DeleteObjectCommand({ Bucket: getBucket(), Key: key }));
 }
 
 export async function putObject(

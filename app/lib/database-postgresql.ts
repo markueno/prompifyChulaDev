@@ -1686,6 +1686,83 @@ export async function getLatestCodebaseVersionPostgres(
 }
 
 /**
+ * Day 18 — garbage collection (ARCHITECTURE-v2.md:504-526), one transaction:
+ *   1. delete non-latest versions beyond the retention window (keep `retainPerChat` per chat),
+ *   2. decrement ref_count once per deleted version per referenced blob,
+ *   3. delete blob rows whose ref_count dropped to <= 0.
+ * Returns the deleted versions count and the ORPHANED blob hashes — the caller deletes those
+ * keys from object storage AFTER commit (a stray object in OBS is harmless; a dangling DB row
+ * pointing at a deleted object is not, hence DB-first ordering).
+ * `dryRun` executes everything and ROLLS BACK, returning what WOULD happen — the plan's
+ * mandatory first-run mode (Step 18.5: never enable real deletion until a dry run is sane).
+ */
+export async function gcCodebaseVersionsPostgres(options: {
+  retainPerChat?: number;
+  dryRun: boolean;
+}): Promise<{ versionsDeleted: number; blobsDeleted: number; orphanHashes: string[] }> {
+  const retain = options.retainPerChat ?? 30;
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Delete versions beyond retention (never the latest), returning manifests so we know
+    //    which blob refs to release.
+    const deleted = await client.query(
+      `DELETE FROM codebase_versions
+       WHERE id IN (
+         SELECT id FROM (
+           SELECT id, ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY version_number DESC) AS rn
+           FROM codebase_versions
+           WHERE is_latest = false
+         ) ranked
+         WHERE rn > $1
+       )
+       RETURNING manifest`,
+      [retain]
+    );
+
+    // 2. Decrement ref_count once per deleted version per referenced blob (mirrors the +1 per
+    //    version applied on save/rollback).
+    const decrements = new Map<string, number>();
+
+    for (const row of deleted.rows) {
+      const manifest: Record<string, string> =
+        typeof row.manifest === 'string' ? JSON.parse(row.manifest) : row.manifest;
+
+      for (const sha of new Set(Object.values(manifest))) {
+        decrements.set(sha, (decrements.get(sha) ?? 0) + 1);
+      }
+    }
+
+    for (const [sha, count] of decrements) {
+      await client.query('UPDATE codebase_blobs SET ref_count = ref_count - $2 WHERE sha256 = $1', [sha, count]);
+    }
+
+    // 3. Remove unreferenced blob rows; their hashes go back to the caller for OBS deletion.
+    const orphans = await client.query('DELETE FROM codebase_blobs WHERE ref_count <= 0 RETURNING sha256');
+
+    if (options.dryRun) {
+      await client.query('ROLLBACK');
+    } else {
+      await client.query('COMMIT');
+    }
+
+    return {
+      versionsDeleted: deleted.rowCount ?? 0,
+      blobsDeleted: orphans.rowCount ?? 0,
+      orphanHashes: orphans.rows.map(r => r.sha256 as string),
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Day 16 — transactional rollback: restore version N by APPENDING a copy of its manifest as
  * the new latest version (never mutating history — you can roll back from a rollback, and
  * nothing is ever deleted; ARCHITECTURE-v2.md:497). Blobs are shared, so only ref_counts are
