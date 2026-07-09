@@ -33,6 +33,12 @@ validate_env() {
   export AWS_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID"
   export AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
   export AWS_DEFAULT_REGION="${S3_REGION:-us-east-1}"
+
+  # Huawei OBS only accepts virtual-hosted-style addressing
+  # (bucket.obs.<region>.myhuaweicloud.com). With --endpoint-url the aws-cli otherwise
+  # defaults to path-style and OBS rejects it with `VirtualHostDomainRequired`. Mirrors
+  # storage.ts `forcePathStyle: false`.
+  aws configure set default.s3.addressing_style virtual
 }
 
 s3() { aws s3 "$@" --endpoint-url "$S3_ENDPOINT"; }
