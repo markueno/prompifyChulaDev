@@ -1,4 +1,5 @@
 // Browser-compatible path utilities
+import '~/utils/process-shim';
 import type { ParsedPath } from 'path';
 import pathBrowserify from 'path-browserify';
 
