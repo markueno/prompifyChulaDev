@@ -24,3 +24,5 @@ README.md
 logs
 dist-ssr
 .DS_Store
+.env
+.env.*

@@ -22,9 +22,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (process.env.SNAPSHOTS_ENABLED !== 'true') {
+  const snapshotsEnabled = (context?.cloudflare as any)?.env?.SNAPSHOTS_ENABLED ?? process.env.SNAPSHOTS_ENABLED;
+
+  if (snapshotsEnabled !== 'true') {
     return json({ error: 'Not found' }, { status: 404 });
   }
+
+  process.env.DATABASE_URL = (context?.cloudflare as any)?.env?.DATABASE_URL ?? process.env.DATABASE_URL;
 
   const apply = new URL(request.url).searchParams.get('apply') === 'true';
 
