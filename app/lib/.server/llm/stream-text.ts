@@ -182,26 +182,37 @@ ${props.summary}
       messages: convertToCoreMessages(processedMessages as any),
     });
 
-    // Wrap non-streaming result into a streaming-compatible shape
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(JSON.stringify({ type: 'text', text: result.text })));
-        controller.close();
-      },
-    });
+    // Wrap non-streaming result in a streaming-compatible shape
+    const textContent = result.text;
+    const usage = result.usage;
 
     return {
-      textStream: stream as any,
+      textStream: new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          controller.enqueue(encoder.encode(textContent));
+          controller.close();
+        },
+      }) as any,
       fullStream: (async function* () {
-        yield { type: 'text-delta', textDelta: result.text };
-        if (result.usage) {
-          yield { type: 'finish', finishReason: 'stop', usage: result.usage };
+        yield { type: 'text-delta', textDelta: textContent };
+        if (usage) {
+          yield { type: 'finish', finishReason: 'stop', usage };
         }
       })(),
-      mergeIntoDataStream(dataStream: any) {
-        // Simulate the data stream merge
-        dataStream.writeData({ type: 'text', text: result.text });
+      mergeIntoDataStream(writer: any) {
+        // Write text in the format the data stream pipeline expects
+        writer.writeData(textContent);
+        if (usage) {
+          writer.writeMessageAnnotation({
+            type: 'usage',
+            value: {
+              completionTokens: usage.completionTokens ?? 0,
+              promptTokens: usage.promptTokens ?? 0,
+              totalTokens: usage.totalTokens ?? 0,
+            },
+          });
+        }
       },
     } as any;
   }
