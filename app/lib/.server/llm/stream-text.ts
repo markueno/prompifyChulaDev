@@ -1,11 +1,4 @@
-import {
-  convertToCoreMessages,
-  formatDataStreamPart,
-  generateText,
-  streamText as _streamText,
-  type DataStreamWriter,
-  type Message,
-} from 'ai';
+import { convertToCoreMessages, streamText as _streamText, type Message } from 'ai';
 import { MAX_TOKENS, type FileMap } from './constants';
 import { getSystemPrompt } from '~/lib/common/prompts/prompts';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, MODIFICATIONS_TAG_NAME, PROVIDER_LIST, WORK_DIR } from '~/utils/constants';
@@ -174,82 +167,6 @@ ${props.summary}
   }
 
   logger.info(`Sending llm call to ${provider.name} with model ${modelDetails.name}`);
-
-  // Qwen DashScope streaming format differs from OpenAI's SSE — use non-streaming instead
-  if (provider.name === 'Qwen') {
-    const result = await generateText({
-      model: provider.getModelInstance({
-        model: modelDetails.name,
-        serverEnv,
-        apiKeys,
-        providerSettings,
-      }),
-      system: systemPrompt,
-      maxTokens: dynamicMaxTokens,
-      messages: convertToCoreMessages(processedMessages as any),
-    });
-
-    // Wrap non-streaming result in a streaming-compatible shape
-    const textContent = result.text;
-    const usage = result.usage;
-    const finishReason = result.finishReason ?? 'stop';
-
-    return {
-      textStream: new ReadableStream({
-        start(controller) {
-          const encoder = new TextEncoder();
-          controller.enqueue(encoder.encode(textContent));
-          controller.close();
-        },
-      }) as any,
-      fullStream: (async function* () {
-        yield { type: 'text-delta', textDelta: textContent };
-        yield { type: 'finish', finishReason, usage };
-      })(),
-      mergeIntoDataStream(writer: DataStreamWriter) {
-        /*
-         * Merge a stream so the outer data stream stays open until onFinish has
-         * written its annotations (usage, "Response Generated" progress).
-         */
-        writer.merge(
-          new ReadableStream<ReturnType<typeof formatDataStreamPart>>({
-            async start(controller) {
-              // Message text must be a '0:' text part - writeData() emits a '2:'
-              // data part which useChat never renders as assistant content.
-              controller.enqueue(formatDataStreamPart('text', textContent));
-              controller.enqueue(
-                formatDataStreamPart('finish_step', {
-                  isContinued: false,
-                  finishReason,
-                  usage: {
-                    promptTokens: usage?.promptTokens ?? 0,
-                    completionTokens: usage?.completionTokens ?? 0,
-                  },
-                })
-              );
-              controller.enqueue(
-                formatDataStreamPart('finish_message', {
-                  finishReason,
-                  usage: {
-                    promptTokens: usage?.promptTokens ?? 0,
-                    completionTokens: usage?.completionTokens ?? 0,
-                  },
-                })
-              );
-
-              try {
-                await options?.onFinish?.({ text: textContent, finishReason, usage } as any);
-              } catch (error) {
-                logger.error('Qwen onFinish handler failed', error);
-              }
-
-              controller.close();
-            },
-          })
-        );
-      },
-    } as any;
-  }
 
   return await _streamText({
     model: provider.getModelInstance({
