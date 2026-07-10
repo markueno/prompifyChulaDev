@@ -61,6 +61,7 @@ import {
   getInactiveAppsPostgres,
   addAuditLogPostgres,
   getAuditLogsPostgres,
+  checkRateLimitPostgres,
 } from './database-postgresql';
 
 export type {
@@ -981,4 +982,60 @@ export async function getAuditLogs(companyId: string, limit = 50) {
   }
 
   return [];
+}
+
+export async function checkRateLimit(
+  key: string,
+  endpoint: string,
+  maxAttempts: number,
+  windowSeconds: number
+): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  if (DATABASE_TYPE === 'postgresql') {
+    return checkRateLimitPostgres(key, endpoint, maxAttempts, windowSeconds);
+  }
+
+  return checkRateLimitSQLite(key, endpoint, maxAttempts, windowSeconds);
+}
+
+export async function checkRateLimitSQLite(
+  key: string,
+  endpoint: string,
+  maxAttempts: number,
+  windowSeconds: number
+): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  const db = getDatabase();
+  const now = Date.now();
+  const windowMs = windowSeconds * 1000;
+
+  const existing = db.prepare('SELECT attempts, first_attempt FROM rate_limits WHERE ip_address = ? AND endpoint = ?').get(key, endpoint) as
+    | { attempts: number; first_attempt: string }
+    | undefined;
+
+  if (!existing) {
+    db.prepare(
+      `INSERT INTO rate_limits (id, ip_address, endpoint, attempts, first_attempt, last_attempt)
+       VALUES (?, ?, ?, 1, datetime('now'), datetime('now'))`
+    ).run(crypto.randomUUID(), key, endpoint);
+    return { allowed: true };
+  }
+
+  const firstAttempt = new Date(existing.first_attempt).getTime();
+  const elapsed = now - firstAttempt;
+
+  if (elapsed > windowMs) {
+    db.prepare(
+      `UPDATE rate_limits SET attempts = 1, first_attempt = datetime('now'), last_attempt = datetime('now') WHERE ip_address = ? AND endpoint = ?`
+    ).run(key, endpoint);
+    return { allowed: true };
+  }
+
+  if (existing.attempts >= maxAttempts) {
+    const retryAfterSeconds = Math.ceil((windowMs - elapsed) / 1000);
+    return { allowed: false, retryAfterSeconds };
+  }
+
+  db.prepare(
+    `UPDATE rate_limits SET attempts = attempts + 1, last_attempt = datetime('now') WHERE ip_address = ? AND endpoint = ?`
+  ).run(key, endpoint);
+  return { allowed: true };
 }

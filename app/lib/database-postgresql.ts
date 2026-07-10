@@ -933,6 +933,68 @@ export async function resetLoginAttemptsPostgres(userId: string) {
   }
 }
 
+export async function checkRateLimitPostgres(
+  key: string,
+  endpoint: string,
+  maxAttempts: number,
+  windowSeconds: number
+): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  try {
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - windowSeconds * 1000);
+
+    await client.query('BEGIN');
+
+    const existing = await client.query(
+      `SELECT attempts, first_attempt FROM rate_limits WHERE ip_address = $1 AND endpoint = $2 FOR UPDATE`,
+      [key, endpoint]
+    );
+
+    if (existing.rows.length === 0) {
+      await client.query(
+        `INSERT INTO rate_limits (id, ip_address, endpoint, attempts, first_attempt, last_attempt)
+         VALUES (gen_random_uuid()::text, $1, $2, 1, $3, $3)`,
+        [key, endpoint, now]
+      );
+      await client.query('COMMIT');
+      return { allowed: true };
+    }
+
+    const row = existing.rows[0];
+    const firstAttempt = new Date(row.first_attempt);
+    const elapsed = (now.getTime() - firstAttempt.getTime()) / 1000;
+
+    if (elapsed > windowSeconds) {
+      await client.query(
+        `UPDATE rate_limits SET attempts = 1, first_attempt = $1, last_attempt = $1 WHERE ip_address = $2 AND endpoint = $3`,
+        [now, key, endpoint]
+      );
+      await client.query('COMMIT');
+      return { allowed: true };
+    }
+
+    if (row.attempts >= maxAttempts) {
+      await client.query('COMMIT');
+      const retryAfterSeconds = Math.ceil(windowSeconds - elapsed);
+      return { allowed: false, retryAfterSeconds };
+    }
+
+    await client.query(
+      `UPDATE rate_limits SET attempts = attempts + 1, last_attempt = $1 WHERE ip_address = $2 AND endpoint = $3`,
+      [now, key, endpoint]
+    );
+    await client.query('COMMIT');
+    return { allowed: true };
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 export async function logEmailPostgres(userId: string, emailType: string, delivered: boolean, errorMessage?: string) {
   const pool = getPostgresPool();
   const client = await pool.connect();

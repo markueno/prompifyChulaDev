@@ -12,7 +12,7 @@ import { WORK_DIR } from '~/utils/constants';
 import { createSummary } from '~/lib/.server/llm/create-summary';
 import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
 import { optionalAuth } from '~/lib/auth';
-import { saveChat, insertTokenUsageAndConsume } from '~/lib/database';
+import { saveChat, insertTokenUsageAndConsume, checkRateLimit } from '~/lib/database';
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -59,6 +59,16 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   const providerSettings: Record<string, IProviderSetting> = JSON.parse(
     parseCookies(cookieHeader || '').providers || '{}'
   );
+
+  // Rate limit: 10 requests/min per user (or per IP if unauthenticated)
+  const rateKey = user?.id ?? request.headers.get('x-forwarded-for') ?? request.headers.get('CF-Connecting-IP') ?? 'unknown';
+  const rateResult = await checkRateLimit(rateKey, 'chat', 10, 60);
+  if (!rateResult.allowed) {
+    return new Response(JSON.stringify({ error: 'Too many requests. Slow down.' }), {
+      status: 429,
+      headers: { 'Retry-After': String(Math.ceil(rateResult.retryAfterSeconds ?? 1)) },
+    });
+  }
 
   const stream = new SwitchableStream();
 
