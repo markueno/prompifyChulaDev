@@ -1,4 +1,4 @@
-import { convertToCoreMessages, streamText as _streamText, type Message } from 'ai';
+import { convertToCoreMessages, generateText, streamText as _streamText, type Message } from 'ai';
 import { MAX_TOKENS, type FileMap } from './constants';
 import { getSystemPrompt } from '~/lib/common/prompts/prompts';
 import { DEFAULT_MODEL, DEFAULT_PROVIDER, MODIFICATIONS_TAG_NAME, PROVIDER_LIST, WORK_DIR } from '~/utils/constants';
@@ -168,7 +168,43 @@ ${props.summary}
 
   logger.info(`Sending llm call to ${provider.name} with model ${modelDetails.name}`);
 
-  // console.log(systemPrompt,processedMessages);
+  // Qwen DashScope streaming format differs from OpenAI's SSE — use non-streaming instead
+  if (provider.name === 'Qwen') {
+    const result = await generateText({
+      model: provider.getModelInstance({
+        model: modelDetails.name,
+        serverEnv,
+        apiKeys,
+        providerSettings,
+      }),
+      system: systemPrompt,
+      maxTokens: dynamicMaxTokens,
+      messages: convertToCoreMessages(processedMessages as any),
+    });
+
+    // Wrap non-streaming result into a streaming-compatible shape
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(JSON.stringify({ type: 'text', text: result.text })));
+        controller.close();
+      },
+    });
+
+    return {
+      textStream: stream as any,
+      fullStream: (async function* () {
+        yield { type: 'text-delta', textDelta: result.text };
+        if (result.usage) {
+          yield { type: 'finish', finishReason: 'stop', usage: result.usage };
+        }
+      })(),
+      mergeIntoDataStream(dataStream: any) {
+        // Simulate the data stream merge
+        dataStream.writeData({ type: 'text', text: result.text });
+      },
+    } as any;
+  }
 
   return await _streamText({
     model: provider.getModelInstance({
