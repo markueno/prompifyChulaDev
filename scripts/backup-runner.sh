@@ -34,11 +34,24 @@ validate_env() {
   export AWS_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY"
   export AWS_DEFAULT_REGION="${S3_REGION:-us-east-1}"
 
+  # Recent aws-cli adds data-integrity checksums by default (when_supported); Huawei OBS
+  # rejects them with `XAmzContentSHA256Mismatch` on PutObject/UploadPart, so uploads (WAL,
+  # dumps, basebackups) fail while ls/get succeed. Only send checksums when required.
+  export AWS_REQUEST_CHECKSUM_CALCULATION=when_required
+  export AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+
   # Huawei OBS only accepts virtual-hosted-style addressing
   # (bucket.obs.<region>.myhuaweicloud.com). With --endpoint-url the aws-cli otherwise
   # defaults to path-style and OBS rejects it with `VirtualHostDomainRequired`. Mirrors
   # storage.ts `forcePathStyle: false`.
   aws configure set default.s3.addressing_style virtual
+
+  # The shared wal_archive volume is created root-owned, but Postgres runs archive_command
+  # as the `postgres` user and must WRITE completed WAL segments here. This backup container
+  # runs as root and shares the volume (same postgres:15-alpine image, matching uid), so fix
+  # ownership on startup (idempotent). Without this, archive_command fails permission-denied
+  # and WAL archiving never runs (archived_count stays 0, failed_count climbs).
+  chown postgres:postgres /wal_archive 2>/dev/null || true
 }
 
 s3() { aws s3 "$@" --endpoint-url "$S3_ENDPOINT"; }
