@@ -136,6 +136,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }
     }
 
+    // Inject generator meta tag for attribution (all deploys)
+    const metaIndexKey = Object.keys(files).find(k => k === 'index.html' || k === '/index.html');
+    if (metaIndexKey && !files[metaIndexKey].includes('name="generator"')) {
+      files[metaIndexKey] = files[metaIndexKey].replace('</head>', '  <meta name="generator" content="Prompify">\n  </head>');
+    }
+
     // Create file digests
     const fileDigests: Record<string, string> = {};
 
