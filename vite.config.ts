@@ -115,7 +115,8 @@ export default defineConfig(config => {
       // Prevent Vite import-analysis from parsing non-JS root files (e.g. .dockerignore)
       ignoreNonJsRootFilesPlugin(),
       nodePolyfills({
-        include: ['path', 'buffer', 'process'],
+        include: ['path', 'buffer'],
+        globals: { process: false },
       }),
       config.mode !== 'test' && remixCloudflareDevProxy(),
       remixVitePlugin({
