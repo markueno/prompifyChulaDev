@@ -334,7 +334,7 @@ export class WorkbenchStore {
     // Sync the editor store so the UI doesn't show stale content
     this.#editorStore.updateFile(filePath, content);
 
-    scheduleSnapshotSave(this.#filesStore.files.get());
+    scheduleSnapshotSave(this.#filesStore.files.get(), undefined, undefined, true);
 
     const newUnsavedFiles = new Set(this.unsavedFiles.get());
     newUnsavedFiles.delete(filePath);

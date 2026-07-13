@@ -106,8 +106,10 @@ async function saveCodebaseSnapshot(
 /**
  * Debounced snapshot save for codebase state. Reads chatId/description from the
  * shared atoms (unless chatId is overridden) and returns a cleanup function.
+ * Pass immediate=true to skip the debounce (for manual saves where the user may
+ * refresh the page before the timer fires).
  */
-export function scheduleSnapshotSave(fileMap: FileMap, overrideChatId?: string, lastMessageId?: string): () => void {
+export function scheduleSnapshotSave(fileMap: FileMap, overrideChatId?: string, lastMessageId?: string, immediate?: boolean): () => void {
   if (!snapshotsEnabled) {
     return () => {};
   }
@@ -120,9 +122,16 @@ export function scheduleSnapshotSave(fileMap: FileMap, overrideChatId?: string, 
 
   if (snapshotSaveTimer) {
     clearTimeout(snapshotSaveTimer);
+    snapshotSaveTimer = undefined;
   }
 
   const descriptionText = description.get();
+
+  if (immediate) {
+    void saveCodebaseSnapshot(id, fileMap, descriptionText, lastMessageId);
+    return () => {};
+  }
+
   snapshotSaveTimer = setTimeout(() => {
     void saveCodebaseSnapshot(id, fileMap, descriptionText, lastMessageId);
   }, 3000);
