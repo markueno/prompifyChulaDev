@@ -6,6 +6,32 @@ import type { LanguageModelV1 } from 'ai';
 /** Alibaba Cloud Qwen - OpenAI compatible API */
 const DEFAULT_BASE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 
+/*
+ * DashScope qwen3 models default to "thinking" ON. While reasoning, the gateway streams
+ * only `reasoning_content` deltas, which @ai-sdk/openai@1.1.9 DROPS — so the UI shows
+ * "Generating Response" for the whole (possibly multi-minute) reasoning phase with no
+ * visible output (CONTEXT-HANDOFF-2026-07-10-EOD §4.4). Disable thinking by injecting
+ * `enable_thinking: false` into the request body AFTER the SDK has serialized it, so the
+ * SDK cannot strip the non-standard field. Unknown params are ignored by gateways that
+ * don't support it, so this is a safe no-op there.
+ */
+const disableThinkingFetch: typeof globalThis.fetch = async (input, init) => {
+  if (init?.body && typeof init.body === 'string') {
+    try {
+      const payload = JSON.parse(init.body);
+
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        payload.enable_thinking = false;
+        init = { ...init, body: JSON.stringify(payload) };
+      }
+    } catch {
+      // Body isn't JSON we can parse — forward it untouched.
+    }
+  }
+
+  return globalThis.fetch(input, init);
+};
+
 export default class QwenProvider extends BaseProvider {
   name = 'Qwen';
   getApiKeyLink = 'https://modelstudio.console.alibabacloud.com/?tab=playground#/api-key';
@@ -42,6 +68,6 @@ export default class QwenProvider extends BaseProvider {
 
     const effectiveBaseUrl = baseUrl || DEFAULT_BASE_URL;
 
-    return getOpenAILikeModel(effectiveBaseUrl, apiKey, model);
+    return getOpenAILikeModel(effectiveBaseUrl, apiKey, model, { fetch: disableThinkingFetch });
   }
 }

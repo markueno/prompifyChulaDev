@@ -168,6 +168,22 @@ ${props.summary}
 
   logger.info(`Sending llm call to ${provider.name} with model ${modelDetails.name}`);
 
+  /*
+   * Bound every LLM call so a stalled provider fails visibly instead of spinning the
+   * request forever (the qwen3.7-max "invisible thinking" 20-min hang, EOD §4.5).
+   * Configurable via LLM_STREAM_TIMEOUT_MS; merged with any caller-supplied abort
+   * signal so neither the timeout nor a client cancel is lost. abortSignal is set
+   * AFTER `...options` so the merged signal always wins.
+   */
+  const DEFAULT_LLM_TIMEOUT_MS = 180_000;
+  const configuredTimeout = Number((serverEnv as unknown as Record<string, unknown>)?.LLM_STREAM_TIMEOUT_MS);
+  const timeoutMs =
+    Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : DEFAULT_LLM_TIMEOUT_MS;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const abortSignal = options?.abortSignal
+    ? AbortSignal.any([options.abortSignal, timeoutSignal])
+    : timeoutSignal;
+
   return await _streamText({
     model: provider.getModelInstance({
       model: modelDetails.name,
@@ -179,5 +195,6 @@ ${props.summary}
     maxTokens: dynamicMaxTokens,
     messages: convertToCoreMessages(processedMessages as any),
     ...options,
+    abortSignal,
   });
 }

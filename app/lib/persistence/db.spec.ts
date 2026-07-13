@@ -1,8 +1,9 @@
 /*
- * R1 SAFETY GATE (IMPLEMENTATION-PLAN Day 8): proves the IndexedDB v1 -> v2 upgrade adds the
- * `snapshots` store WITHOUT dropping the existing `chats` store or its data. This is the single
- * most dangerous change in the plan (local chat-history loss), so it is asserted automatically,
- * not checked by hand.
+ * R1 SAFETY GATE (IMPLEMENTATION-PLAN Day 8): proves that opening the DB from a legacy v1 store
+ * (the pre-snapshots state a real user carries) upgrades straight to the current v3 and adds the
+ * `snapshots` + `pendingWrites` stores WITHOUT dropping the existing `chats` store or its data.
+ * This is the single most dangerous change in the plan (local chat-history loss), so it is
+ * asserted automatically, not checked by hand.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import 'fake-indexeddb/auto';
@@ -42,7 +43,7 @@ function seedV1(): Promise<void> {
   });
 }
 
-describe('openDatabase v1 -> v2 upgrade', () => {
+describe('openDatabase v1 -> v3 upgrade', () => {
   beforeEach(() => {
     // Fresh in-memory IndexedDB per test.
     globalThis.indexedDB = new IDBFactory();
@@ -60,6 +61,8 @@ describe('openDatabase v1 -> v2 upgrade', () => {
     expect(db!.version).toBeGreaterThanOrEqual(3);
     expect(db!.objectStoreNames.contains('chats')).toBe(true);
     expect(db!.objectStoreNames.contains('snapshots')).toBe(true);
+    // A v1 user jumping straight to v3 must also get the offline outbox store, not just snapshots.
+    expect(db!.objectStoreNames.contains('pendingWrites')).toBe(true);
 
     const chats = await getAll(db!);
     expect(chats).toHaveLength(1);
