@@ -3,7 +3,7 @@ import type { FileMap } from '~/lib/stores/files';
 import { buildSnapshot } from '~/lib/snapshots/buildSnapshot';
 import { uploadBlobs } from '~/lib/snapshots/uploadBlobs';
 import { serverCircuit } from '~/lib/persistence/serverCircuit';
-import { openDatabase, setSnapshot, queueWrite } from '~/lib/persistence/db';
+import { openDatabase, getSnapshot, setSnapshot, queueWrite } from '~/lib/persistence/db';
 import { initOfflineDrain } from '~/lib/persistence/drainQueue';
 
 const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
@@ -39,6 +39,30 @@ async function saveCodebaseSnapshot(
     for (const [path, sha] of Object.entries(snapshot.manifest)) {
       if (blobs[sha] === undefined) {
         blobs[sha] = encoder.encode(snapshot.files[path]).byteLength;
+      }
+    }
+
+    /*
+     * Optimistic Tier-1 cache write FIRST — before the server round-trip. loadSnapshot reads
+     * this IndexedDB cache before hitting the server, so writing it now means a page refresh
+     * restores the LATEST files even if the server version-save then fails (circuit open,
+     * offline, or an auth/ownership/FK error on POST /api/chats/:id/version — e.g. the
+     * admin-bypass user). Previously the cache was only written on server success, so any
+     * server failure silently lost manual edits on refresh. Keep the existing version number
+     * if we have one; the real server version overwrites it on success below.
+     */
+    if (db) {
+      try {
+        const existing = await getSnapshot(db, id);
+        await setSnapshot(db, {
+          chatId: id,
+          version: existing?.version ?? 0,
+          manifest: snapshot.manifest,
+          files: snapshot.files,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (cacheError) {
+        console.warn('Optimistic snapshot cache write failed (continuing to server save):', cacheError);
       }
     }
 
