@@ -70,6 +70,7 @@ export class WorkbenchStore {
   modifiedFiles = new Set<string>();
   artifactIdList: string[] = [];
   #globalExecutionQueue = Promise.resolve();
+  #autoSaveTimer: ReturnType<typeof setTimeout> | undefined;
   constructor() {
     if (!this.actionAlert.get() && this.#alertQueue.length > 0) {
       this.actionAlert.set(this.#alertQueue[0]);
@@ -263,6 +264,15 @@ export class WorkbenchStore {
 
       this.unsavedFiles.set(newUnsavedFiles);
     }
+
+    // Auto-save 3 seconds after the last edit
+    if (this.#autoSaveTimer) {
+      clearTimeout(this.#autoSaveTimer);
+    }
+    this.#autoSaveTimer = setTimeout(() => {
+      this.#autoSaveTimer = undefined;
+      this.saveCurrentDocument().catch(() => {});
+    }, 3000);
   }
 
   setCurrentDocumentScrollPosition(position: ScrollPosition) {
@@ -307,6 +317,28 @@ export class WorkbenchStore {
     }
 
     await this.saveFile(currentDocument.filePath);
+  }
+
+  async saveCurrentDocumentWithContent(content: string) {
+    const currentDocument = this.currentDocument.get();
+
+    if (currentDocument === undefined) {
+      return;
+    }
+
+    const filePath = currentDocument.filePath;
+
+    // Write the live editor content directly, bypassing the debounced store
+    await this.#filesStore.saveFile(filePath, content);
+
+    // Sync the editor store so the UI doesn't show stale content
+    this.#editorStore.updateFile(filePath, content);
+
+    scheduleSnapshotSave(this.#filesStore.files.get());
+
+    const newUnsavedFiles = new Set(this.unsavedFiles.get());
+    newUnsavedFiles.delete(filePath);
+    this.unsavedFiles.set(newUnsavedFiles);
   }
 
   resetCurrentDocument() {

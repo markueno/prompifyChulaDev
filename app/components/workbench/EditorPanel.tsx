@@ -33,6 +33,7 @@ interface EditorPanelProps {
   onEditorScroll?: OnEditorScroll;
   onFileSelect?: (value?: string) => void;
   onFileSave?: OnEditorSave;
+  onFileSaveContent?: (content: string) => void;
   onFileReset?: () => void;
 }
 
@@ -52,6 +53,7 @@ export const EditorPanel = memo(
     onEditorChange,
     onEditorScroll,
     onFileSave,
+    onFileSaveContent,
     onFileReset,
   }: EditorPanelProps) => {
     renderLogger.trace('EditorPanel');
@@ -124,6 +126,7 @@ export const EditorPanel = memo(
                   onScroll={onEditorScroll}
                   onChange={onEditorChange}
                   onSave={onFileSave}
+                  onSaveContent={onFileSaveContent}
                 />
               </div>
             </Panel>

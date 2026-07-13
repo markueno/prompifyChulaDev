@@ -348,6 +348,12 @@ export const Workbench = memo(
       });
     }, []);
 
+    const onFileSaveContent = useCallback((content: string) => {
+      workbenchStore.saveCurrentDocumentWithContent(content).catch(() => {
+        toast.error('Failed to update file content');
+      });
+    }, []);
+
     const onFileReset = useCallback(() => {
       workbenchStore.resetCurrentDocument();
     }, []);
@@ -613,6 +619,7 @@ export const Workbench = memo(
                       onEditorScroll={onEditorScroll}
                       onEditorChange={onEditorChange}
                       onFileSave={onFileSave}
+                      onFileSaveContent={onFileSaveContent}
                       onFileReset={onFileReset}
                     />
                   </View>

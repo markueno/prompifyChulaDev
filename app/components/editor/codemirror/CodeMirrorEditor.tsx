@@ -70,6 +70,7 @@ interface Props {
   onChange?: OnChangeCallback;
   onScroll?: OnScrollCallback;
   onSave?: OnSaveCallback;
+  onSaveContent?: (content: string) => void;
   className?: string;
   settings?: EditorSettings;
 }
@@ -126,6 +127,7 @@ export const CodeMirrorEditor = memo(
     onScroll,
     onChange,
     onSave,
+    onSaveContent,
     theme,
     settings,
     className = '',
@@ -142,6 +144,7 @@ export const CodeMirrorEditor = memo(
     const onScrollRef = useRef(onScroll);
     const onChangeRef = useRef(onChange);
     const onSaveRef = useRef(onSave);
+    const onSaveContentRef = useRef(onSaveContent);
 
     /**
      * This effect is used to avoid side effects directly in the render function
@@ -151,6 +154,7 @@ export const CodeMirrorEditor = memo(
       onScrollRef.current = onScroll;
       onChangeRef.current = onChange;
       onSaveRef.current = onSave;
+      onSaveContentRef.current = onSaveContent;
       docRef.current = doc;
       themeRef.current = theme;
     });
@@ -212,7 +216,7 @@ export const CodeMirrorEditor = memo(
       const theme = themeRef.current!;
 
       if (!doc) {
-        const state = newEditorState('', theme, settings, onScrollRef, debounceScroll, onSaveRef, [
+        const state = newEditorState('', theme, settings, onScrollRef, debounceScroll, onSaveRef, onSaveContentRef, [
           languageCompartment.of([]),
         ]);
 
@@ -234,7 +238,7 @@ export const CodeMirrorEditor = memo(
       let state = editorStates.get(doc.filePath);
 
       if (!state) {
-        state = newEditorState(doc.value, theme, settings, onScrollRef, debounceScroll, onSaveRef, [
+        state = newEditorState(doc.value, theme, settings, onScrollRef, debounceScroll, onSaveRef, onSaveContentRef, [
           languageCompartment.of([]),
         ]);
 
@@ -273,6 +277,7 @@ function newEditorState(
   onScrollRef: MutableRefObject<OnScrollCallback | undefined>,
   debounceScroll: number,
   onFileSaveRef: MutableRefObject<OnSaveCallback | undefined>,
+  onSaveContentRef: MutableRefObject<((content: string) => void) | undefined>,
   extensions: Extension[]
 ) {
   return EditorState.create({
@@ -308,7 +313,8 @@ function newEditorState(
         {
           key: 'Mod-s',
           preventDefault: true,
-          run: () => {
+          run: (view) => {
+            onSaveContentRef.current?.(view.state.doc.toString());
             onFileSaveRef.current?.();
             return true;
           },
