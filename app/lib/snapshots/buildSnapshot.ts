@@ -6,6 +6,7 @@
  * content-addressed source every snapshot op consumes. Imported by nothing yet (Day 3).
  * Source: ARCHITECTURE-v2.md:340-346, 378-379; IMPLEMENTATION-PLAN Day 3.
  */
+import { isBinary } from 'istextorbinary';
 import type { FileMap } from '~/lib/stores/files';
 
 export interface Snapshot {
@@ -58,9 +59,13 @@ export async function buildSnapshot(files: FileMap): Promise<Snapshot> {
       continue;
     }
 
+    // Detect binary: prefer the FilesStore flag (content-based), fall back to
+    // path-extension check (catches files the watcher didn't classify as binary).
+    const isBinaryFile = dirent.isBinary || isBinary(path, null) === true;
+
     const bytes = encoder.encode(dirent.content);
 
-    if (dirent.isBinary && bytes.byteLength > MAX_BINARY_BYTES) {
+    if (isBinaryFile && bytes.byteLength > MAX_BINARY_BYTES) {
       continue;
     }
 

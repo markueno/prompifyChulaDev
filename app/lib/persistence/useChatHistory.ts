@@ -4,25 +4,23 @@ import { atom } from 'nanostores';
 import type { Message } from 'ai';
 import { toast } from 'react-toastify';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { logStore } from '~/lib/stores/logs'; // Import logStore
+import { logStore } from '~/lib/stores/logs';
 import {
   getMessages,
   getNextId,
   getUrlId,
-  openDatabase,
   setMessages,
-  setSnapshot,
-  queueWrite,
   duplicateChat,
   createChatFromMessages,
   type IChatMetadata,
 } from './db';
-import { buildSnapshot } from '~/lib/snapshots/buildSnapshot';
-import { uploadBlobs } from '~/lib/snapshots/uploadBlobs';
 import { loadSnapshot, loadSnapshotVersion } from '~/lib/snapshots/loadSnapshot';
-import { serverCircuit } from './serverCircuit';
-import { initOfflineDrain } from './drainQueue';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
+import { db, snapshotsEnabled, chatId, description, scheduleSnapshotSave } from '~/lib/snapshots/scheduleSnapshot';
+
+// Re-export so the `persistence/index.ts` barrel and direct imports from
+// `useChatHistory` continue to resolve these shared atoms.
+export { db, chatId, description };
 
 export interface ChatHistoryItem {
   id: string;
@@ -31,149 +29,6 @@ export interface ChatHistoryItem {
   messages: Message[];
   timestamp: string;
   metadata?: IChatMetadata;
-}
-
-const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
-
-export const db = persistenceEnabled ? await openDatabase() : undefined;
-
-// Day 9a — codebase snapshot save (flag-gated, additive). Off by default => exact no-op.
-const snapshotsEnabled = import.meta.env.VITE_SNAPSHOTS_ENABLED === 'true';
-
-// Day 11 — wire the offline-outbox drain triggers ('online' event, page load, health-check
-// recovery). Client-only and idempotent; exact no-op when the snapshots flag is off.
-if (snapshotsEnabled) {
-  initOfflineDrain(db);
-}
-
-// Debounce snapshot saves so rapid message growth coalesces into one save (ARCHITECTURE-v2.md:953).
-let snapshotSaveTimer: ReturnType<typeof setTimeout> | undefined;
-
-/**
- * Day 9b fix — trigger a debounced snapshot save from outside the chat-message flow
- * (e.g. after a manual file edit in the workbench). Reads chatId + description from
- * the live nanostore atoms so the caller doesn't need them. Flag-gated and best-effort
- * (failure is swallowed, never blocks the file save).
- */
-export function scheduleSnapshotSave(lastMessageId?: string): void {
-  if (!snapshotsEnabled) {
-    return;
-  }
-
-  const id = chatId.get();
-
-  if (!id) {
-    return;
-  }
-
-  if (snapshotSaveTimer) {
-    clearTimeout(snapshotSaveTimer);
-  }
-
-  const descriptionText = description.get();
-  snapshotSaveTimer = setTimeout(() => {
-    void saveCodebaseSnapshot(id, descriptionText, lastMessageId);
-  }, 3000);
-}
-
-/**
- * Build a content-addressed snapshot of the current WebContainer file state and persist it:
- * dedup -> upload only missing blobs to object storage -> save a version row -> cache full
- * content in IndexedDB for instant restore. Best-effort and fully isolated: any failure here
- * is swallowed so it can NEVER break the chat-history save it runs after. The matching restore
- * path (loadSnapshot -> mount -> suppress file replay) is wired into loadChat() below (Day 9b).
- */
-async function saveCodebaseSnapshot(
-  id: string,
-  descriptionText: string | undefined,
-  lastMessageId?: string
-): Promise<void> {
-  try {
-    const snapshot = await buildSnapshot(workbenchStore.files.get());
-    const hashes = [...new Set(Object.values(snapshot.manifest))];
-
-    if (hashes.length === 0) {
-      return; // nothing to snapshot (e.g. empty workbench)
-    }
-
-    // Size per unique blob (sha256 -> bytes), needed by the version-save endpoint.
-    const encoder = new TextEncoder();
-    const blobs: Record<string, number> = {};
-
-    for (const [path, sha] of Object.entries(snapshot.manifest)) {
-      if (blobs[sha] === undefined) {
-        blobs[sha] = encoder.encode(snapshot.files[path]).byteLength;
-      }
-    }
-
-    /*
-     * Day 10 — server-side operations wrapped so any failure queues a pending write for
-     * retry on reconnect (Day 11 drain). IndexedDB cache is always updated on server success.
-     * Day 11 — the whole server exchange goes through the persisted circuit breaker: after 3
-     * consecutive failures the circuit opens and this throws immediately (queueing the write)
-     * instead of hammering a down server; the drain's health check closes it on recovery.
-     */
-    try {
-      const version = await serverCircuit.execute(async () => {
-        const dedupRes = await fetch('/api/snapshots/dedup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ hashes }),
-        });
-
-        if (!dedupRes.ok) {
-          throw new Error(`Dedup failed: ${dedupRes.status}`);
-        }
-
-        const { missing } = (await dedupRes.json()) as { missing: string[] };
-        await uploadBlobs(snapshot, missing);
-
-        const versionRes = await fetch(`/api/chats/${id}/version`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // Day 17 — messageId links this version to the message it was saved after (revert mapping).
-          body: JSON.stringify({
-            manifest: snapshot.manifest,
-            blobs,
-            description: descriptionText,
-            messageId: lastMessageId,
-          }),
-        });
-
-        if (!versionRes.ok) {
-          throw new Error(`Version save failed: ${versionRes.status}`);
-        }
-
-        return ((await versionRes.json()) as { version: number }).version;
-      });
-
-      if (db) {
-        await setSnapshot(db, {
-          chatId: id,
-          version,
-          manifest: snapshot.manifest,
-          files: snapshot.files,
-          timestamp: new Date().toISOString(),
-        });
-      }
-    } catch (serverError) {
-      console.warn('Snapshot server save failed, enqueuing for retry:', serverError);
-
-      if (db) {
-        // Day 11 — `files` included so a drained write can upload blobs the server is missing.
-        await queueWrite(db, 'version', id, {
-          manifest: snapshot.manifest,
-          blobs,
-          description: descriptionText,
-          files: snapshot.files,
-          messageId: lastMessageId,
-        });
-      }
-    }
-  } catch (error) {
-    // Snapshot is a non-critical sidecar — never let it break chat persistence.
-    console.warn('Snapshot save failed (chat save unaffected):', error);
-  }
 }
 
 /**
@@ -246,10 +101,14 @@ async function restoreCodebaseSnapshot(id: string): Promise<boolean> {
   }
 }
 
-export const chatId = atom<string | undefined>(undefined);
-export const description = atom<string | undefined>(undefined);
 export const chatMetadata = atom<IChatMetadata | undefined>(undefined);
+
+const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
+
 export function useChatHistory() {
+  // Local ref for TypeScript narrowing (module-level const imports aren't narrowed)
+  const _hookDb = db;
+
   const navigate = useNavigate();
   const { id: mixedId, user, projectId } = useLoaderData<{ id?: string; projectId?: string; user?: any }>();
   const [searchParams] = useSearchParams();
@@ -273,7 +132,10 @@ export function useChatHistory() {
   useEffect(() => {
     activeRef.current = true;
 
-    if (!db) {
+    // Local ref for TypeScript narrowing — module-level const imports aren't narrowed.
+    const _db = db;
+
+    if (!_db) {
       setReady(true);
 
       if (persistenceEnabled) {
@@ -297,7 +159,7 @@ export function useChatHistory() {
             workbenchStore.setRestoredFromSnapshot(false);
           }
 
-          const storedMessages = await getMessages(db, mixedId);
+          const storedMessages = await getMessages(_db, mixedId);
 
           if (!activeRef.current) {
             return;
@@ -380,9 +242,9 @@ export function useChatHistory() {
                 chatId.set(chat.id);
                 chatMetadata.set(chat.metadata);
 
-                if (db) {
+                if (_db) {
                   await setMessages(
-                    db,
+                    _db,
                     chat.id,
                     chat.messages,
                     chat.url_id,
@@ -432,7 +294,7 @@ export function useChatHistory() {
   }, [activeProjectId, mixedId, user?.id, searchParams, navigate]);
 
   const ensureChatId = async (): Promise<string | undefined> => {
-    if (!db) {
+    if (!_hookDb) {
       return chatId.get();
     }
 
@@ -442,7 +304,7 @@ export function useChatHistory() {
       return current;
     }
 
-    const nextId = await getNextId(db);
+    const nextId = await getNextId(_hookDb);
     chatId.set(nextId);
 
     if (!urlId) {
@@ -459,12 +321,12 @@ export function useChatHistory() {
     updateChatMestaData: async (metadata: IChatMetadata) => {
       const id = chatId.get();
 
-      if (!db || !id) {
+      if (!_hookDb || !id) {
         return;
       }
 
       try {
-        await setMessages(db, id, initialMessages, urlId, description.get(), undefined, metadata);
+        await setMessages(_hookDb, id, initialMessages, urlId, description.get(), undefined, metadata);
         chatMetadata.set(metadata);
       } catch (error) {
         toast.error('Failed to update chat metadata');
@@ -472,14 +334,14 @@ export function useChatHistory() {
       }
     },
     storeMessageHistory: async (messages: Message[]) => {
-      if (!db || messages.length === 0) {
+      if (!_hookDb || messages.length === 0) {
         return;
       }
 
       const { firstArtifact } = workbenchStore;
 
       if (!urlId && firstArtifact?.id) {
-        const urlId = await getUrlId(db, firstArtifact.id);
+        const urlId = await getUrlId(_hookDb, firstArtifact.id);
 
         navigateChat(urlId, activeProjectId);
         setUrlId(urlId);
@@ -490,7 +352,7 @@ export function useChatHistory() {
       }
 
       if (initialMessages.length === 0 && !chatId.get()) {
-        const nextId = await getNextId(db);
+        const nextId = await getNextId(_hookDb);
 
         chatId.set(nextId);
 
@@ -500,7 +362,7 @@ export function useChatHistory() {
       }
 
       // Save to IndexedDB (existing functionality)
-      await setMessages(db, chatId.get() as string, messages, urlId, description.get(), undefined, chatMetadata.get());
+      await setMessages(_hookDb, chatId.get() as string, messages, urlId, description.get(), undefined, chatMetadata.get());
 
       // Also save to PostgreSQL if user is authenticated
       try {
@@ -535,16 +397,16 @@ export function useChatHistory() {
       // Day 9a — snapshot save (flag-gated, debounced, best-effort).
       // Day 17 — record the last message id so the version maps to this point in the chat.
       if (user?.id) {
-        scheduleSnapshotSave(messages[messages.length - 1]?.id);
+        scheduleSnapshotSave(workbenchStore.files.get(), chatId.get(), messages[messages.length - 1]?.id);
       }
     },
     duplicateCurrentChat: async (listItemId: string) => {
-      if (!db || (!mixedId && !listItemId)) {
+      if (!_hookDb || (!mixedId && !listItemId)) {
         return;
       }
 
       try {
-        const newId = await duplicateChat(db, mixedId || listItemId);
+        const newId = await duplicateChat(_hookDb, mixedId || listItemId);
         navigate(buildProjectChatPath(activeProjectId, newId));
         toast.success('Chat duplicated successfully');
       } catch (error) {
@@ -553,12 +415,12 @@ export function useChatHistory() {
       }
     },
     importChat: async (description: string, messages: Message[], metadata?: IChatMetadata) => {
-      if (!db) {
+      if (!_hookDb) {
         return;
       }
 
       try {
-        const newId = await createChatFromMessages(db, description, messages, metadata);
+        const newId = await createChatFromMessages(_hookDb, description, messages, metadata);
         window.location.href = buildProjectChatPath(activeProjectId, newId);
         toast.success('Chat imported successfully');
       } catch (error) {
@@ -570,11 +432,11 @@ export function useChatHistory() {
       }
     },
     exportChat: async (id = urlId) => {
-      if (!db || !id) {
+      if (!_hookDb || !id) {
         return;
       }
 
-      const chat = await getMessages(db, id);
+      const chat = await getMessages(_hookDb, id);
       const chatData = {
         messages: chat.messages,
         description: chat.description,

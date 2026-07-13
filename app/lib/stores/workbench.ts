@@ -10,6 +10,7 @@ import { EditorStore } from './editor';
 import { FilesStore, type FileMap } from './files';
 import { PreviewsStore } from './previews';
 import { TerminalStore } from './terminal';
+import { isBinary } from 'istextorbinary';
 import JSZip from 'jszip';
 import fileSaver from 'file-saver';
 import { Octokit, type RestEndpointMethodTypes } from '@octokit/rest';
@@ -18,7 +19,7 @@ import { extractRelativePath } from '~/utils/diff';
 import Cookies from 'js-cookie';
 import { createSampler } from '~/utils/sampler';
 import { snapshotPathToRelative } from '~/lib/snapshots/loadSnapshot';
-import { scheduleSnapshotSave } from '~/lib/persistence/useChatHistory';
+import { scheduleSnapshotSave } from '~/lib/snapshots/scheduleSnapshot';
 import type { ActionAlert } from '~/types/actions';
 import { addError, parseFileAndLine } from '~/lib/stores/errors';
 
@@ -290,7 +291,7 @@ export class WorkbenchStore {
 
     await this.#filesStore.saveFile(filePath, document.value);
 
-    scheduleSnapshotSave();
+    scheduleSnapshotSave(this.#filesStore.files.get());
 
     const newUnsavedFiles = new Set(this.unsavedFiles.get());
     newUnsavedFiles.delete(filePath);
@@ -411,7 +412,15 @@ export class WorkbenchStore {
         await wc.fs.mkdir(folder, { recursive: true });
       }
 
-      await wc.fs.writeFile(relPath, content);
+      // Decode base64-encoded binary content back to raw bytes on restore.
+      const isBinaryFile = isBinary(relPath, null) === true;
+
+      if (isBinaryFile) {
+        const binary = Uint8Array.from(atob(content), (c) => c.charCodeAt(0));
+        await wc.fs.writeFile(relPath, binary);
+      } else {
+        await wc.fs.writeFile(relPath, content);
+      }
     }
 
     for (const relPath of orphans) {
@@ -551,7 +560,7 @@ export class WorkbenchStore {
   async downloadZip() {
     const zip = new JSZip();
     const files = this.files.get();
-    const { description } = await import('~/lib/persistence/useChatHistory');
+    const { description } = await import('~/lib/snapshots/scheduleSnapshot');
 
     // Get the project name from the description input, or use a default name
     const projectName = (description.value ?? 'project').toLocaleLowerCase().split(' ').join('_');

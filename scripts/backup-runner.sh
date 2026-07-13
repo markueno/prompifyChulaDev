@@ -173,6 +173,7 @@ while true; do
 
   if [ "$WAL_COUNT" -gt 100 ]; then
     crit "WAL backlog = $WAL_COUNT files — check OBS connectivity before the volume fills"
+    log "ALERT: WAL backlog = $WAL_COUNT files — check OBS connectivity before the volume fills"
   fi
 
   sleep 60

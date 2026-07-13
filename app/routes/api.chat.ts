@@ -370,8 +370,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
           for await (const part of result.fullStream) {
             if (part.type === 'error') {
               const error: any = part.error;
-              logger.error(`${error}`);
-
+              logger.error('Stream error: ' + error.message);
+              logger.error('Stream error cause: ' + (error.cause?.message ?? 'none'));
+              if (error.cause?.stack) {
+                logger.error('Stream error cause stack: ' + error.cause.stack);
+              }
               return;
             }
           }

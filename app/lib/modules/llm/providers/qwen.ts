@@ -29,7 +29,40 @@ const disableThinkingFetch: typeof globalThis.fetch = async (input, init) => {
     }
   }
 
-  return globalThis.fetch(input, init);
+  const r = await globalThis.fetch(input, init);
+
+  // If no body (HEAD, 204, etc.), nothing to re-wrap — forward as-is.
+  if (!r.body) {
+    return r;
+  }
+
+  // Diagnostic: log realm info so we can confirm the fix or detect other mismatches
+  console.log('[QWEN-DIAG] globals TDS=', typeof globalThis.TextDecoderStream,
+    'RS=', typeof globalThis.ReadableStream, 'TS=', typeof globalThis.TransformStream);
+  console.log('[QWEN-DIAG] bodyCtor=', r.body?.constructor?.name,
+    'bodyIsGlobalRS=', r.body instanceof globalThis.ReadableStream);
+
+  // Re-wrap the response body through globalThis.ReadableStream so the AI SDK's
+  // pipeThrough(new TextDecoderStream()) operates on the same-realm ReadableStream.
+  // Without this, undici's ReadableStream fails instanceof checks inside the SDK
+  // when the Vite bundle creates TextDecoderStream from a different realm.
+  const reader = r.body.getReader();
+  const fixedBody = new globalThis.ReadableStream({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) { controller.close(); return; }
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      reader.cancel(reason);
+    },
+  });
+
+  return new globalThis.Response(fixedBody, {
+    headers: r.headers,
+    status: r.status,
+    statusText: r.statusText,
+  });
 };
 
 export default class QwenProvider extends BaseProvider {
@@ -42,8 +75,8 @@ export default class QwenProvider extends BaseProvider {
   };
 
   staticModels: ModelInfo[] = [
-    { name: 'qwen3.7-max', label: 'Qwen3.7-Max', provider: 'Qwen', maxTokenAllowed: 65536 },
-    { name: 'qwen3.7-plus', label: 'Qwen3.7-Plus', provider: 'Qwen', maxTokenAllowed: 65536 },
+    { name: 'qwen3.7-max', label: 'Qwen3.7-Max', provider: 'Qwen', maxTokenAllowed: 8192 },
+    { name: 'qwen3.7-plus', label: 'Qwen3.7-Plus', provider: 'Qwen', maxTokenAllowed: 8192 },
   ];
 
   getModelInstance(options: {
