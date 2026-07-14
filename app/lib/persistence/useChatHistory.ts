@@ -16,7 +16,14 @@ import {
 } from './db';
 import { loadSnapshot, loadSnapshotVersion } from '~/lib/snapshots/loadSnapshot';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
-import { db, snapshotsEnabled, chatId, description, scheduleSnapshotSave } from '~/lib/snapshots/scheduleSnapshot';
+import {
+  db,
+  snapshotsEnabled,
+  chatId,
+  description,
+  scheduleSnapshotSave,
+  ensureChatIdForSave,
+} from '~/lib/snapshots/scheduleSnapshot';
 
 // Re-export so the `persistence/index.ts` barrel and direct imports from
 // `useChatHistory` continue to resolve these shared atoms.
@@ -293,26 +300,9 @@ export function useChatHistory() {
     };
   }, [activeProjectId, mixedId, user?.id, searchParams, navigate]);
 
-  const ensureChatId = async (): Promise<string | undefined> => {
-    if (!_hookDb) {
-      return chatId.get();
-    }
-
-    const current = chatId.get();
-
-    if (current) {
-      return current;
-    }
-
-    const nextId = await getNextId(_hookDb);
-    chatId.set(nextId);
-
-    if (!urlId) {
-      navigateChat(nextId, activeProjectId);
-    }
-
-    return nextId;
-  };
+  // Delegates to the shared single-flight allocator so a concurrent workbench save
+  // (scheduleSnapshotSave) and a message send cannot allocate two different chat ids.
+  const ensureChatId = (): Promise<string | undefined> => ensureChatIdForSave(activeProjectId);
 
   return {
     ready: !mixedId || ready,
