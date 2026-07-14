@@ -24,6 +24,18 @@ import {
   deleteProxyRow,
 } from '~/lib/stores/data-proxy-client';
 
+/** Supabase logo mark (green). Used as a logo-only affordance (no text). */
+function SupabaseMark({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
+      <path
+        fill="#3ECF8E"
+        d="M13.4 1.2 3.1 11.5c-.9.9-.4 2.5 1 2.7l7.6 1.3-1.9 17.9c-.2 1.9 2.3 2.9 3.4 1.3L21 24c.6-.9 0-2.1-1-2.2l-7.2-1 1.8-18.4c.1-1.2-1.4-1.9-2.2-1.2z"
+      />
+    </svg>
+  );
+}
+
 type Step = 'loading' | 'connect' | 'tables' | 'data';
 
 const PAGE_SIZE = 50;
@@ -707,47 +719,53 @@ const [showImportData, setShowImportData] = useState(false);
   if (step === 'tables') {
     return (
       <div>
-        {/* Connection bar */}
-        <div className="flex items-center justify-between mb-6 px-3 py-2 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-            {platformMode ? (
-              <>
-                <span className="text-sm text-bolt-elements-textSecondary">Platform database</span>
-                <span className="text-xs px-1.5 py-0.5 rounded bg-accent-500/15 text-accent-500 font-medium shrink-0">
-                  auto
+        {/* Connection bar — vertical so the action buttons never overlap on a narrow panel */}
+        <div className="flex flex-col gap-3 mb-6 px-3 py-3 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor">
+          {/* Status row */}
+          <div className="flex items-center justify-between min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+              {platformMode ? (
+                <>
+                  <span className="text-sm text-bolt-elements-textSecondary">Platform database</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-accent-500/15 text-accent-500 font-medium shrink-0">
+                    auto
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm text-bolt-elements-textSecondary truncate">
+                  {savedConfig?.projectName || savedConfig?.url}
                 </span>
-              </>
-            ) : (
-              <span className="text-sm text-bolt-elements-textSecondary truncate">
-                {savedConfig?.projectName || savedConfig?.url}
-              </span>
-            )}
+              )}
+            </div>
             <span className="text-xs text-bolt-elements-textTertiary shrink-0">
               {tables.length} table{tables.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0 ml-2">
+
+          {/* Actions — stacked, full-width, separate */}
+          <div className="flex flex-col gap-1.5">
             <button
               onClick={() => setShowImportData(true)}
-              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
+              className="flex items-center justify-center gap-1.5 text-xs px-2.5 py-1.5 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium w-full"
             >
               <span className="i-ph:upload-simple text-sm" />
               Import Data
             </button>
             <button
               onClick={() => setShowCreateTable(true)}
-              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
+              className="flex items-center justify-center gap-1.5 text-xs px-2.5 py-1.5 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium w-full"
             >
               <span className="i-ph:plus text-sm" />
               New Table
             </button>
             <button
               onClick={handleDisconnect}
-              className="text-xs px-2 py-1 rounded text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-2 transition-colors"
+              className="flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-2 transition-colors w-full"
               title={platformMode ? 'Connect to your own Supabase instead' : 'Disconnect'}
+              aria-label={platformMode ? 'Use custom Supabase' : 'Disconnect'}
             >
-              {platformMode ? 'Use custom Supabase' : 'Disconnect'}
+              <SupabaseMark className="w-4 h-4" />
             </button>
           </div>
         </div>
