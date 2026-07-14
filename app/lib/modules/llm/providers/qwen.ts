@@ -36,12 +36,6 @@ const disableThinkingFetch: typeof globalThis.fetch = async (input, init) => {
     return r;
   }
 
-  // Diagnostic: log realm info so we can confirm the fix or detect other mismatches
-  console.log('[QWEN-DIAG] globals TDS=', typeof globalThis.TextDecoderStream,
-    'RS=', typeof globalThis.ReadableStream, 'TS=', typeof globalThis.TransformStream);
-  console.log('[QWEN-DIAG] bodyCtor=', r.body?.constructor?.name,
-    'bodyIsGlobalRS=', r.body instanceof globalThis.ReadableStream);
-
   // Re-wrap the response body through globalThis.ReadableStream so the AI SDK's
   // pipeThrough(new TextDecoderStream()) operates on the same-realm ReadableStream.
   // Without this, undici's ReadableStream fails instanceof checks inside the SDK
