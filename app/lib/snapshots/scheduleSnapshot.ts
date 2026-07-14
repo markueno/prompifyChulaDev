@@ -21,6 +21,76 @@ export const description = atom<string | undefined>(undefined);
 let snapshotSaveTimer: ReturnType<typeof setTimeout> | undefined;
 let ensureChatIdInFlight: Promise<string | undefined> | undefined;
 
+/*
+ * In-flight save promise + an unload flush. The Cmd+S keymap handler is synchronous
+ * and fire-and-forget, so without this a hard refresh during the async chain
+ * (buildSnapshot -> getSnapshot -> setSnapshot) cancels the IndexedDB write and the
+ * edit is lost. We track the pending save and flush it on pagehide/visibilitychange
+ * (clearing the debounce timer and firing run() immediately). The optimistic Tier-1
+ * IndexedDB cache write is the critical bit for refresh-restore; starting it before
+ * unload gives it the best chance to commit.
+ */
+let inFlightSave: Promise<void> | undefined;
+let lastSaveArgs: { fileMap: FileMap; overrideChatId?: string; lastMessageId?: string } | undefined;
+let flushHandlersRegistered = false;
+
+function flushPendingSave(): void {
+  if (snapshotSaveTimer) {
+    clearTimeout(snapshotSaveTimer);
+    snapshotSaveTimer = undefined;
+  }
+
+  // Fire the save now (best-effort — the page is unloading). inFlightSave tracks it.
+  if (lastSaveArgs && !inFlightSave) {
+    void runSave(lastSaveArgs.fileMap, lastSaveArgs.overrideChatId, lastSaveArgs.lastMessageId);
+  }
+}
+
+function registerFlushHandlers(): void {
+  if (flushHandlersRegistered || typeof window === 'undefined') {
+    return;
+  }
+
+  flushHandlersRegistered = true;
+
+  // pagehide fires on hard refresh + tab close (including bfcache). Flush the
+  // debounced/immediate save so the IndexedDB write starts before unload.
+  window.addEventListener('pagehide', () => {
+    flushPendingSave();
+  });
+
+  // visibilitychange (hidden) covers mobile backgrounding + some refresh paths.
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flushPendingSave();
+    }
+  });
+}
+
+async function runSave(
+  fileMap: FileMap,
+  overrideChatId: string | undefined,
+  lastMessageId: string | undefined,
+): Promise<void> {
+  let id = overrideChatId ?? chatId.get();
+
+  if (!id) {
+    try {
+      id = await ensureChatIdForSave();
+    } catch (error) {
+      console.warn('Could not allocate a chat id for the snapshot save:', error);
+      return;
+    }
+  }
+
+  if (!id) {
+    return;
+  }
+
+  const descriptionText = description.get();
+  await saveCodebaseSnapshot(id, fileMap, descriptionText, lastMessageId);
+}
+
 /**
  * B1b — allocate and adopt a chat id when none exists yet (brand-new chat before the first
  * AI response), so manual/auto saves are not silently dropped. Mirrors what
@@ -194,34 +264,23 @@ export function scheduleSnapshotSave(fileMap: FileMap, overrideChatId?: string, 
     snapshotSaveTimer = undefined;
   }
 
-  const descriptionText = description.get();
+  registerFlushHandlers();
 
-  const run = async () => {
-    let id = overrideChatId ?? chatId.get();
-
-    if (!id) {
-      try {
-        id = await ensureChatIdForSave();
-      } catch (error) {
-        console.warn('Could not allocate a chat id for the snapshot save:', error);
-        return;
-      }
-    }
-
-    if (!id) {
-      return;
-    }
-
-    await saveCodebaseSnapshot(id, fileMap, descriptionText, lastMessageId);
-  };
+  // Remember the args so a pagehide/visibilitychange flush can re-fire the save
+  // (best-effort) before the page unloads — closes the refresh-during-save race.
+  lastSaveArgs = { fileMap, overrideChatId, lastMessageId };
 
   if (immediate) {
-    void run();
+    inFlightSave = runSave(fileMap, overrideChatId, lastMessageId).finally(() => {
+      inFlightSave = undefined;
+    });
     return () => {};
   }
 
   snapshotSaveTimer = setTimeout(() => {
-    void run();
+    inFlightSave = runSave(fileMap, overrideChatId, lastMessageId).finally(() => {
+      inFlightSave = undefined;
+    });
   }, 3000);
 
   return () => {

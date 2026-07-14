@@ -261,10 +261,49 @@ export function useChatHistory() {
                   );
                 }
               } else {
-                navigate('/', { replace: true });
+                /*
+                 * No messages on the server. A snapshot may still exist locally (e.g. an
+                 * edit-only chat saved before the first AI response — the fc60c0b chatId-race
+                 * fix writes the snapshot but no chat record). Restore it instead of bouncing
+                 * home and losing the user's work.
+                 */
+                let restored = false;
+
+                if (snapshotsEnabled) {
+                  const restoreId = chat?.id ?? mixedId;
+                  restored = await restoreCodebaseSnapshot(restoreId);
+                }
+
+                if (restored) {
+                  if (chat) {
+                    setUrlId(chat.url_id);
+                    description.set(chat.description);
+                    chatId.set(chat.id);
+                    chatMetadata.set(chat.metadata);
+                  } else {
+                    chatId.set(mixedId);
+                  }
+                } else {
+                  navigate('/', { replace: true });
+                }
               }
             } else {
-              navigate('/', { replace: true });
+              /*
+               * Server unreachable / error. Try the local IndexedDB snapshot before
+               * giving up — the optimistic Tier-1 cache may have the latest files even
+               * when the server is down.
+               */
+              let restored = false;
+
+              if (snapshotsEnabled) {
+                restored = await restoreCodebaseSnapshot(mixedId);
+              }
+
+              if (restored) {
+                chatId.set(mixedId);
+              } else {
+                navigate('/', { replace: true });
+              }
             }
           } else {
             navigate('/', { replace: true });
