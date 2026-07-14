@@ -329,20 +329,20 @@ const [showImportData, setShowImportData] = useState(false);
     }
 
     const run = async () => {
-      // ── Priority 0: self-hosted data proxy (no Supabase). If this chat has
-      //    any imported/created tables registered server-side, use them. This
-      //    is the default platform path now that Supabase is dropped.
+      // ── Priority 0: self-hosted data proxy (no Supabase). This is the default
+      //    platform path now that Supabase is dropped. ALWAYS use it — even on a
+      //    fresh chat with zero tables — so the Import Data button is reachable
+      //    (the empty state renders it). Falls through only if the proxy is
+      //    unreachable, so a user can still connect a custom Supabase manually.
       try {
         const proxyTables = await listProxyTables(currentChatId);
 
-        if (proxyTables.length > 0) {
-          setSavedConfig(null);
-          setPlatformMode(true);
-          setTables(proxyTables);
-          setStep('tables');
+        setSavedConfig(null);
+        setPlatformMode(true);
+        setTables(proxyTables);
+        setStep('tables');
 
-          return;
-        }
+        return;
       } catch {
         // proxy unreachable — fall through to Supabase/localStorage paths
       }
