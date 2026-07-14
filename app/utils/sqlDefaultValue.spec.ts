@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDefaultValue } from './sqlDefaultValue';
+import { formatCellValue, formatDefaultValue } from './sqlDefaultValue';
 
 describe('formatDefaultValue (H-3 — user-supplied DDL defaults)', () => {
   it('accepts allowlisted function defaults for their type only', () => {
@@ -40,5 +40,30 @@ describe('formatDefaultValue (H-3 — user-supplied DDL defaults)', () => {
 
   it('rejects unknown types', () => {
     expect(formatDefaultValue('bytea', 'x')).toBeNull();
+  });
+});
+
+describe('formatCellValue (data-import row values)', () => {
+  it('maps empty/null to NULL', () => {
+    expect(formatCellValue('text', null)).toBe('NULL');
+    expect(formatCellValue('integer', '')).toBe('NULL');
+  });
+
+  it('handles native number and boolean cells', () => {
+    expect(formatCellValue('integer', 42)).toBe('42');
+    expect(formatCellValue('numeric', 3.14)).toBe('3.14');
+    expect(formatCellValue('integer', 3.5)).toBeNull();
+    expect(formatCellValue('integer', 1e21)).toBeNull(); // '1e+21' must not pass
+    expect(formatCellValue('integer', Number.NaN)).toBeNull();
+    expect(formatCellValue('boolean', true)).toBe('true');
+    expect(formatCellValue('integer', true)).toBeNull();
+    expect(formatCellValue('text', 123)).toBe("'123'");
+  });
+
+  it('escapes string cells and never allows function defaults', () => {
+    expect(formatCellValue('text', "O'Hara")).toBe("'O''Hara'");
+    expect(formatCellValue('text', 'line1\nline2')).toBe("'line1\nline2'");
+    expect(formatCellValue('timestamptz', 'now()')).toBeNull(); // literal-only for cells
+    expect(formatCellValue('integer', '1; DROP TABLE x')).toBeNull();
   });
 });

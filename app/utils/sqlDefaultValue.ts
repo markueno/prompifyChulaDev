@@ -1,9 +1,9 @@
 /*
- * H-3 — column defaults are USER input and end up in DDL executed with the Supabase
- * service-role key, so they must never be interpolated raw. Known-safe function defaults
- * are allowlisted per type; everything else is validated against the column type and
- * emitted as a quoted, escaped literal. Returns null when the value cannot be represented
- * safely (callers should reject the request with a 400).
+ * H-3 / data-import — column defaults and imported cell values are USER input and end up
+ * in SQL executed with the Supabase service-role key, so they must never be interpolated
+ * raw. Values are validated against the column type and emitted as quoted, escaped
+ * literals. Returns null when a value cannot be represented safely (callers should reject
+ * the request with a 400).
  */
 const FUNCTION_DEFAULTS: Record<string, Set<string>> = {
   timestamptz: new Set(['now()']),
@@ -14,12 +14,9 @@ function quoteLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-export function formatDefaultValue(type: string, raw: string): string | null {
+/** Strictly typed literal (no function calls allowed) — shared by defaults and row imports. */
+export function formatLiteral(type: string, raw: string): string | null {
   const value = raw.trim();
-
-  if (FUNCTION_DEFAULTS[type]?.has(value.toLowerCase())) {
-    return value.toLowerCase();
-  }
 
   switch (type) {
     case 'integer':
@@ -40,15 +37,59 @@ export function formatDefaultValue(type: string, raw: string): string | null {
         return null;
       }
     case 'timestamptz':
-      // ISO-8601-ish literals only; anything else must use the allowlisted now().
+      // ISO-8601-ish literals only.
       return /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/.test(value)
         ? quoteLiteral(value)
         : null;
-    case 'text':
-      // Reject control characters; single quotes are escaped by quoting.
+    case 'text': {
+      // Reject control characters (tab/newline/CR stay allowed); quotes are escaped.
+      const original = raw;
+
       // eslint-disable-next-line no-control-regex
-      return /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(value) ? null : quoteLiteral(value);
+      return /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(original) ? null : quoteLiteral(original);
+    }
     default:
       return null;
   }
+}
+
+/** Column DEFAULT: allowlisted per-type functions, otherwise a strict literal. */
+export function formatDefaultValue(type: string, raw: string): string | null {
+  const value = raw.trim();
+
+  if (FUNCTION_DEFAULTS[type]?.has(value.toLowerCase())) {
+    return value.toLowerCase();
+  }
+
+  if (type === 'text') {
+    return formatLiteral(type, value);
+  }
+
+  return formatLiteral(type, raw);
+}
+
+/**
+ * One imported cell → SQL literal. Accepts the JSON scalar types a parsed CSV/XLSX cell
+ * can produce; null/empty becomes NULL. Returns null when the value doesn't fit the type.
+ */
+export function formatCellValue(type: string, value: string | number | boolean | null): string | null {
+  if (value === null || value === undefined || value === '') {
+    return 'NULL';
+  }
+
+  if (typeof value === 'boolean') {
+    return type === 'boolean' ? String(value) : type === 'text' ? quoteLiteral(String(value)) : null;
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return null;
+    }
+
+    // String(1e21) === '1e+21' — route through the literal validator so exponent forms
+    // and integer/numeric mismatches are rejected instead of interpolated.
+    return formatLiteral(type === 'text' ? 'text' : type, String(value));
+  }
+
+  return formatLiteral(type, value);
 }
