@@ -122,6 +122,24 @@ CREATE TABLE IF NOT EXISTS codebase_blobs (
 );
 CREATE INDEX IF NOT EXISTS idx_blobs_ref_count ON codebase_blobs(ref_count) WHERE ref_count > 0;
 
+-- Runtime app-data registry: maps (chat_id, logical_name) -> (usr_<userId> schema, table)
+CREATE TABLE IF NOT EXISTS app_tables (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    schema_name TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    logical_name TEXT NOT NULL,
+    columns JSONB NOT NULL DEFAULT '[]'::jsonb,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    source TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(schema_name, table_name),
+    UNIQUE(chat_id, logical_name)
+);
+CREATE INDEX IF NOT EXISTS idx_app_tables_user ON app_tables(user_id);
+CREATE INDEX IF NOT EXISTS idx_app_tables_chat ON app_tables(chat_id);
+
 -- Create user_activity table
 CREATE TABLE IF NOT EXISTS user_activity (
     id TEXT PRIMARY KEY,

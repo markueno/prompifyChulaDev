@@ -565,6 +565,37 @@ export async function createPostgresTables() {
       'CREATE INDEX IF NOT EXISTS idx_blobs_ref_count ON codebase_blobs(ref_count) WHERE ref_count > 0'
     );
 
+    /*
+     * ── Runtime app-data registry (ARCHITECTURE-v2 Part 2, self-hosted) ──────────
+     * Each USER gets one PG schema `usr_<userId>` holding their imported/generated
+     * app tables. This registry maps (chat_id, logical_name) -> (schema, table) so
+     * getSchemaContext(chatId) can list only the current app's tables, and the data
+     * proxy can resolve a (chatId, resource) request to the physical table.
+     *
+     * Physical table_name == logical_name; uniqueness is enforced both within a
+     * user's schema (UNIQUE schema_name+table_name) and within a chat
+     * (UNIQUE chat_id+logical_name). A user who already has "orders" in another
+     * chat gets a 409 on import (pick another name).
+     */
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS app_tables (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        schema_name TEXT NOT NULL,
+        table_name TEXT NOT NULL,
+        logical_name TEXT NOT NULL,
+        columns JSONB NOT NULL DEFAULT '[]'::jsonb,
+        row_count INTEGER NOT NULL DEFAULT 0,
+        source TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(schema_name, table_name),
+        UNIQUE(chat_id, logical_name)
+      )
+    `);
+    await client.query('CREATE INDEX IF NOT EXISTS idx_app_tables_user ON app_tables(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_app_tables_chat ON app_tables(chat_id)');
+
     console.log('PostgreSQL tables created successfully');
   } catch (error) {
     console.error('Error creating PostgreSQL tables:', error);

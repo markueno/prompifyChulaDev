@@ -15,6 +15,14 @@ import {
   deleteSupabaseRow,
 } from '~/lib/stores/supabase-admin';
 import { CreateTableModal } from './CreateTableModal';
+import { ImportDataModal } from './ImportDataModal';
+import {
+  listProxyTables,
+  fetchProxyRows,
+  insertProxyRow,
+  updateProxyRow,
+  deleteProxyRow,
+} from '~/lib/stores/data-proxy-client';
 
 type Step = 'loading' | 'connect' | 'tables' | 'data';
 
@@ -290,6 +298,7 @@ export const AdminDataSection = memo(() => {
   const [tables, setTables] = useState<SupabaseTable[]>([]);
   const [selectedTable, setSelectedTable] = useState<SupabaseTable | null>(null);
   const [showCreateTable, setShowCreateTable] = useState(false);
+const [showImportData, setShowImportData] = useState(false);
 
   const [rows, setRows] = useState<SupabaseRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
@@ -320,6 +329,24 @@ export const AdminDataSection = memo(() => {
     }
 
     const run = async () => {
+      // ── Priority 0: self-hosted data proxy (no Supabase). If this chat has
+      //    any imported/created tables registered server-side, use them. This
+      //    is the default platform path now that Supabase is dropped.
+      try {
+        const proxyTables = await listProxyTables(currentChatId);
+
+        if (proxyTables.length > 0) {
+          setSavedConfig(null);
+          setPlatformMode(true);
+          setTables(proxyTables);
+          setStep('tables');
+
+          return;
+        }
+      } catch {
+        // proxy unreachable — fall through to Supabase/localStorage paths
+      }
+
       // ── Priority 1: server-configured platform Supabase ─────────────────
       try {
         const res = await fetch(`/api/supabase/config?chatId=${encodeURIComponent(currentChatId)}`);
@@ -417,24 +444,54 @@ export const AdminDataSection = memo(() => {
     setStep('connect');
   };
 
+  const refreshTables = useCallback(async () => {
+    if (platformMode && currentChatId) {
+      const proxyTables = await listProxyTables(currentChatId);
+      setTables(proxyTables);
+    } else if (savedConfig) {
+      const result = await testSupabaseConnection(savedConfig);
+
+      if (result.success && result.tables) {
+        setTables(result.tables);
+      }
+    }
+  }, [platformMode, currentChatId, savedConfig]);
+
   const handleTableCreated = useCallback(
     async (tableName: string) => {
       setShowCreateTable(false);
       toast.success(`Table "${tableName}" created`);
-
-      if (savedConfig) {
-        const result = await testSupabaseConnection(savedConfig);
-
-        if (result.success && result.tables) {
-          setTables(result.tables);
-        }
-      }
+      await refreshTables();
     },
-    [savedConfig]
+    [refreshTables]
+  );
+
+  const handleImported = useCallback(
+    async (tableName: string) => {
+      setShowImportData(false);
+      toast.success(`Imported "${tableName}"`);
+      await refreshTables();
+    },
+    [refreshTables]
   );
 
   const doLoadData = useCallback(
     async (table: SupabaseTable, pg: number, sc?: string, sa?: boolean) => {
+      if (platformMode && currentChatId) {
+        setLoading(true);
+        const result = await fetchProxyRows(currentChatId, table.name, pg, PAGE_SIZE, sc, sa);
+        setLoading(false);
+
+        if (result.error) {
+          toast.error(result.error);
+        } else {
+          setRows(result.data);
+          setTotalRows(result.count);
+        }
+
+        return;
+      }
+
       if (!savedConfig) {
         return;
       }
@@ -451,7 +508,7 @@ export const AdminDataSection = memo(() => {
         setTotalRows(result.count);
       }
     },
-    [savedConfig]
+    [platformMode, currentChatId, savedConfig]
   );
 
   const handleSelectTable = (table: SupabaseTable) => {
@@ -514,7 +571,7 @@ export const AdminDataSection = memo(() => {
   const handleSaveRow = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!savedConfig || !selectedTable) {
+    if (!selectedTable || (!savedConfig && !(platformMode && currentChatId))) {
       return;
     }
 
@@ -553,13 +610,24 @@ export const AdminDataSection = memo(() => {
 
     let error: string | undefined;
 
-    if (rowModalMode === 'add') {
-      const res = await insertSupabaseRow(savedConfig, selectedTable.name, payload);
-      error = res.error;
-    } else if (editingRow) {
-      const pkVal = editingRow[selectedTable.primaryKey];
-      const res = await updateSupabaseRow(savedConfig, selectedTable.name, selectedTable.primaryKey, pkVal, payload);
-      error = res.error;
+    if (platformMode && currentChatId) {
+      if (rowModalMode === 'add') {
+        const res = await insertProxyRow(currentChatId, selectedTable.name, payload);
+        error = res.error;
+      } else if (editingRow) {
+        const pkVal = String(editingRow[selectedTable.primaryKey]);
+        const res = await updateProxyRow(currentChatId, selectedTable.name, pkVal, payload);
+        error = res.error;
+      }
+    } else if (savedConfig) {
+      if (rowModalMode === 'add') {
+        const res = await insertSupabaseRow(savedConfig, selectedTable.name, payload);
+        error = res.error;
+      } else if (editingRow) {
+        const pkVal = editingRow[selectedTable.primaryKey];
+        const res = await updateSupabaseRow(savedConfig, selectedTable.name, selectedTable.primaryKey, pkVal, payload);
+        error = res.error;
+      }
     }
 
     setSaving(false);
@@ -574,22 +642,32 @@ export const AdminDataSection = memo(() => {
   };
 
   const handleDelete = async () => {
-    if (!savedConfig || !selectedTable || !deleteTarget) {
+    if (!selectedTable || !deleteTarget || (!savedConfig && !(platformMode && currentChatId))) {
       return;
     }
 
     setDeleting(true);
 
-    const res = await deleteSupabaseRow(
-      savedConfig,
-      selectedTable.name,
-      selectedTable.primaryKey,
-      deleteTarget[selectedTable.primaryKey]
-    );
+    let error: string | undefined;
+
+    if (platformMode && currentChatId) {
+      const pkVal = String(deleteTarget[selectedTable.primaryKey]);
+      const res = await deleteProxyRow(currentChatId, selectedTable.name, pkVal);
+      error = res.error;
+    } else if (savedConfig) {
+      const res = await deleteSupabaseRow(
+        savedConfig,
+        selectedTable.name,
+        selectedTable.primaryKey,
+        deleteTarget[selectedTable.primaryKey]
+      );
+      error = res.error;
+    }
+
     setDeleting(false);
 
-    if (res.error) {
-      toast.error(res.error);
+    if (error) {
+      toast.error(error);
     } else {
       toast.success('Row deleted');
       setDeleteTarget(null);
@@ -651,6 +729,13 @@ export const AdminDataSection = memo(() => {
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-2">
             <button
+              onClick={() => setShowImportData(true)}
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
+            >
+              <span className="i-ph:upload-simple text-sm" />
+              Import Data
+            </button>
+            <button
               onClick={() => setShowCreateTable(true)}
               className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
             >
@@ -671,13 +756,22 @@ export const AdminDataSection = memo(() => {
           <div className="rounded-lg border border-dashed border-bolt-elements-borderColor p-12 text-center">
             <div className="i-ph:database text-4xl text-bolt-elements-textTertiary mx-auto mb-3" />
             <p className="text-sm text-bolt-elements-textTertiary mb-4">No tables yet.</p>
-            <button
-              onClick={() => setShowCreateTable(true)}
-              className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
-            >
-              <span className="i-ph:plus" />
-              Create your first table
-            </button>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => setShowImportData(true)}
+                className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
+              >
+                <span className="i-ph:upload-simple" />
+                Import data
+              </button>
+              <button
+                onClick={() => setShowCreateTable(true)}
+                className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors"
+              >
+                <span className="i-ph:plus" />
+                Create a table
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -706,6 +800,14 @@ export const AdminDataSection = memo(() => {
             chatId={currentChatId}
             onClose={() => setShowCreateTable(false)}
             onCreated={handleTableCreated}
+          />
+        )}
+
+        {showImportData && currentChatId && (
+          <ImportDataModal
+            chatId={currentChatId}
+            onClose={() => setShowImportData(false)}
+            onImported={handleImported}
           />
         )}
       </div>

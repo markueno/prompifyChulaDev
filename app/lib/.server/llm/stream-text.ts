@@ -9,7 +9,7 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import { createScopedLogger } from '~/utils/logger';
 import { createFilesContext, extractPropertiesFromMessage } from './utils';
 import { getFilePaths } from './select-context';
-import { getSchemaContext } from '~/lib/supabase-provision.server';
+import { getSchemaContext } from '~/lib/data-provision.server';
 
 export type Messages = Message[];
 

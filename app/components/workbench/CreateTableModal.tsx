@@ -63,11 +63,10 @@ export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTabl
     setSaving(true);
 
     try {
-      const res = await fetch('/api/supabase/schema', {
+      const res = await fetch(`/api/data/${encodeURIComponent(chatId)}/schema`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chatId,
           tableName: name,
           columns: validCols.map(c => ({
             name: slugify(c.name),
