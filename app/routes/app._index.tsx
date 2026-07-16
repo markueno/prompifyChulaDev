@@ -2,7 +2,7 @@ import { json, type LinksFunction, type MetaFunction, type LoaderFunctionArgs } 
 import { ClientOnly } from 'remix-utils/client-only';
 import { BaseChat } from '~/components/chat/BaseChat';
 import { Chat } from '~/components/chat/Chat.client';
-import { FloatingHeader } from '~/components/header/FloatingHeader.client';
+import { FloatingHeader } from '~/components/header/FloatingHeader';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getSubscriptionByUserId } from '~/lib/database';
