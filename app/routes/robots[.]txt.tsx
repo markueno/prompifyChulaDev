@@ -9,7 +9,7 @@ import type { LoaderFunctionArgs } from '@remix-run/cloudflare';
  * per the GEO-GUIDELINES "AI Crawler Accessibility" pillar.
  */
 export function loader(_args: LoaderFunctionArgs): Response {
-  const siteUrl = (process.env.SITE_URL || process.env.APP_URL || 'https://prompify.com').replace(/\/+$/, '');
+  const siteUrl = (process.env.SITE_URL || 'https://prompify.com').replace(/\/+$/, '');
 
   const body = `# prompify.com — robots.txt
 # All crawlers allowed. Nothing is blocked.

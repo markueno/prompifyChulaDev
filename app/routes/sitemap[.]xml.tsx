@@ -5,7 +5,7 @@ import type { LoaderFunctionArgs } from '@remix-run/cloudflare';
  * Builder/app routes (/app/*) are auth-gated and not included (not worth indexing).
  */
 export function loader(_args: LoaderFunctionArgs): Response {
-  const siteUrl = (process.env.SITE_URL || process.env.APP_URL || 'https://prompify.com').replace(/\/+$/, '');
+  const siteUrl = (process.env.SITE_URL || 'https://prompify.com').replace(/\/+$/, '');
   const lastmod = new Date().toISOString().slice(0, 10);
 
   const urls = ['/', '/about'];
