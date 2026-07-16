@@ -2,7 +2,7 @@ import { json, type LinksFunction, type MetaFunction, type LoaderFunctionArgs } 
 import { ClientOnly } from 'remix-utils/client-only';
 import { BaseChat } from '~/components/chat/BaseChat';
 import { Chat } from '~/components/chat/Chat.client';
-import { Header } from '~/components/header/Header';
+import { FloatingHeader } from '~/components/header/FloatingHeader.client';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getSubscriptionByUserId } from '~/lib/database';
@@ -47,7 +47,7 @@ export default function AppIndex() {
   return (
     <LandingAppChrome>
       <div className="landing-app-chrome flex min-h-0 w-full flex-1 flex-col">
-        <Header />
+          <FloatingHeader />
         <div className="relative flex min-h-0 flex-1 flex-col">
           <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
         </div>
