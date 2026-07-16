@@ -11,6 +11,79 @@ type PoolClient = pg.PoolClient;
 // PostgreSQL connection pool
 let pool: InstanceType<typeof Pool>;
 
+/*
+ * Day 20 — lazy, self-contained schema ensure for the codebase-version path.
+ * saveCodebaseVersionPostgres uses getPostgresPool(), which (unlike getPostgresDatabase() in
+ * database.ts) does NOT run createPostgresTables(). On prod, createPostgresTables() is also
+ * fire-and-forget AND throws before reaching the change_summary ALTER (the project_id FK
+ * migration at ~line 369-383 aborts on orphan chats), so the change_summary column never got
+ * added → every version save 500'd with "column change_summary does not exist".
+ *
+ * This makes version saves self-sufficient: it idempotently creates the two tables, the
+ * change_summary column, and the indexes once per process, on the SAME pool the version save
+ * uses. Gated by a module flag so it runs effectively once. All statements are IF NOT EXISTS.
+ */
+let codebaseSchemaEnsured = false;
+
+async function ensureCodebaseVersionSchema(): Promise<void> {
+  if (codebaseSchemaEnsured) {
+    return;
+  }
+
+  codebaseSchemaEnsured = true; // set first so a concurrent call doesn't re-run DDL
+
+  try {
+    const p = getPostgresPool();
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS codebase_versions (
+        id SERIAL PRIMARY KEY,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        version_number INTEGER NOT NULL,
+        is_latest BOOLEAN NOT NULL DEFAULT false,
+        manifest JSONB NOT NULL,
+        description TEXT,
+        file_count INTEGER NOT NULL DEFAULT 0,
+        total_bytes INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(chat_id, version_number)
+      )
+    `);
+    await p.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_versions_latest_per_chat ON codebase_versions(chat_id) WHERE is_latest = true'
+    );
+    await p.query(
+      'CREATE INDEX IF NOT EXISTS idx_versions_chat_latest ON codebase_versions(chat_id, version_number DESC)'
+    );
+    await p.query(
+      'CREATE INDEX IF NOT EXISTS idx_versions_chat_created ON codebase_versions(chat_id, created_at DESC)'
+    );
+    // Day 19 column — idempotent on existing DBs; this is the line createPostgresTables was missing.
+    await p.query('ALTER TABLE codebase_versions ADD COLUMN IF NOT EXISTS change_summary TEXT');
+    await p.query('ALTER TABLE codebase_versions ADD COLUMN IF NOT EXISTS message_id TEXT');
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS codebase_blobs (
+        sha256 TEXT PRIMARY KEY,
+        size_bytes INTEGER NOT NULL,
+        compressed_size_bytes INTEGER,
+        r2_key TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        ref_count INTEGER NOT NULL DEFAULT 1
+      )
+    `);
+    await p.query(
+      'CREATE INDEX IF NOT EXISTS idx_blobs_ref_count ON codebase_blobs(ref_count) WHERE ref_count > 0'
+    );
+  } catch (error) {
+    // Reset so a future save retries; never block the version save on a migration failure
+    // (the optimistic client cache keeps edits safe regardless).
+    codebaseSchemaEnsured = false;
+    console.error('ensureCodebaseVersionSchema failed (will retry next save):', error);
+  }
+}
+
 export function getPostgresPool(): InstanceType<typeof Pool> {
   if (!pool) {
     const databaseUrl = process.env.DATABASE_URL;
@@ -1711,6 +1784,12 @@ export async function saveCodebaseVersionPostgres(params: {
   const { chatId, userId, manifest, blobSizes, messageId, label, changeSummary: clientChangeSummary } = params;
   const { fileCount, totalBytes, hashes } = computeVersionMeta(manifest, blobSizes);
 
+  // Day 20 — ensure the codebase-version schema exists on THIS pool before touching it. The
+  // version-save path uses getPostgresPool(), which doesn't run createPostgresTables(); this
+  // idempotently guarantees the tables + the change_summary column exist (the missing column
+  // was causing every save to 500 with "column change_summary does not exist").
+  await ensureCodebaseVersionSchema();
+
   const pool = getPostgresPool();
   const client = await pool.connect();
 
@@ -1726,9 +1805,13 @@ export async function saveCodebaseVersionPostgres(params: {
      * assistant response). Skip the insert + ref_count bump entirely, but update the latest
      * version's message_id so rewind-to-latest stays exact (OPEN DECISION #2 = skip-but-update).
      * Race-safe: the FOR UPDATE lock above already serializes concurrent saves.
+     *
+     * Day 20 — the SELECT reads only version_number + manifest (NOT change_summary): the guard
+     * recomputes the summary from the manifest via diffSummaryFor, so it must not depend on the
+     * change_summary column existing.
      */
     const latestRes = await client.query(
-      'SELECT version_number, manifest, change_summary FROM codebase_versions WHERE chat_id = $1 AND is_latest = true LIMIT 1',
+      'SELECT version_number, manifest FROM codebase_versions WHERE chat_id = $1 AND is_latest = true LIMIT 1',
       [chatId]
     );
 
