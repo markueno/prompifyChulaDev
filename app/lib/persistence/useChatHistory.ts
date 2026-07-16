@@ -24,6 +24,7 @@ import {
   scheduleSnapshotSave,
   ensureChatIdForSave,
 } from '~/lib/snapshots/scheduleSnapshot';
+import { MODEL_REGEX, PROVIDER_REGEX } from '~/utils/constants';
 
 // Re-export so the `persistence/index.ts` barrel and direct imports from
 // `useChatHistory` continue to resolve these shared atoms.
@@ -36,6 +37,45 @@ export interface ChatHistoryItem {
   messages: Message[];
   timestamp: string;
   metadata?: IChatMetadata;
+}
+
+/**
+ * Day 19 — extract a per-version label from the last USER message's text content, stripping
+ * the leading `[Model: ...]` / `[Provider: ...]` prefixes that bolt.diy injects (mirrors the
+ * server-side extractPropertiesFromMessage strip, but client-safe). Truncates to ~60 chars.
+ * Returns undefined when there is no usable user prompt (e.g. manual saves).
+ */
+function labelFromMessages(messages: Message[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+
+    if (msg.role !== 'user') {
+      continue;
+    }
+
+    const raw = Array.isArray(msg.content)
+      ? msg.content.find(part => part.type === 'text')?.text ?? ''
+      : typeof msg.content === 'string'
+        ? msg.content
+        : '';
+
+    if (!raw) {
+      continue;
+    }
+
+    const cleaned = raw.replace(MODEL_REGEX, '').replace(PROVIDER_REGEX, '').trim();
+
+    if (!cleaned) {
+      continue;
+    }
+
+    // Collapse newlines/extra whitespace for a single-line label.
+    const singleLine = cleaned.replace(/\s+/g, ' ').slice(0, 60);
+
+    return singleLine || undefined;
+  }
+
+  return undefined;
 }
 
 /**
@@ -425,8 +465,17 @@ export function useChatHistory() {
 
       // Day 9a — snapshot save (flag-gated, debounced, best-effort).
       // Day 17 — record the last message id so the version maps to this point in the chat.
+      // Day 19 — pass the triggering user prompt (stripped of [Model:]/[Provider:] prefixes,
+      // truncated) as the per-version label so the version name reflects WHAT changed rather
+      // than the chat title (Fix B).
       if (user?.id) {
-        scheduleSnapshotSave(workbenchStore.files.get(), chatId.get(), messages[messages.length - 1]?.id);
+        scheduleSnapshotSave(
+          workbenchStore.files.get(),
+          chatId.get(),
+          messages[messages.length - 1]?.id,
+          false,
+          labelFromMessages(messages),
+        );
       }
     },
     duplicateCurrentChat: async (listItemId: string) => {

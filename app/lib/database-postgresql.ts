@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 import { keyForHash } from '~/lib/.server/storage';
 import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
+import { diffManifests } from '~/lib/snapshots/diffManifests';
 
 const { Pool } = pg;
 type PoolClient = pg.PoolClient;
@@ -546,6 +547,13 @@ export async function createPostgresTables() {
     await client.query(
       'CREATE INDEX IF NOT EXISTS idx_versions_chat_created ON codebase_versions(chat_id, created_at DESC)'
     );
+
+    /*
+     * Day 19 — nullable change_summary holds the compact added/modified/removed summary
+     * (e.g. "Edited App.tsx (+1, -1)") shown on the version-history metadata line.
+     * Idempotent: safe to re-run on existing prod DBs.
+     */
+    await client.query('ALTER TABLE codebase_versions ADD COLUMN IF NOT EXISTS change_summary TEXT');
 
     /*
      * Blob registry: every unique file by SHA-256, with ref_count for GC (Day 18).
@@ -1691,8 +1699,16 @@ export async function saveCodebaseVersionPostgres(params: {
   description?: string;
   /** Day 17 — chat message this version was saved after (null for manual IDE-edit saves). */
   messageId?: string;
+  /**
+   * Day 19 — optional client-supplied label (the triggering user prompt, truncated) that
+   * overrides the chat-title description for AI turns. When absent the caller-supplied
+   * description (or a server-computed diff summary) is used.
+   */
+  label?: string;
+  /** Day 19 — compact added/modified/removed summary to show on the history metadata line. */
+  changeSummary?: string;
 }): Promise<number> {
-  const { chatId, userId, manifest, blobSizes, description, messageId } = params;
+  const { chatId, userId, manifest, blobSizes, messageId, label, changeSummary: clientChangeSummary } = params;
   const { fileCount, totalBytes, hashes } = computeVersionMeta(manifest, blobSizes);
 
   const pool = getPostgresPool();
@@ -1703,6 +1719,47 @@ export async function saveCodebaseVersionPostgres(params: {
 
     // 1. Serialize concurrent saves for this chat (the lock the whole design hinges on).
     await client.query('SELECT 1 FROM chats WHERE id = $1 FOR UPDATE', [chatId]);
+
+    /*
+     * Day 19 — Fix A: no-op guard. Load the current is_latest manifest and deep-compare it to
+     * the incoming manifest. If IDENTICAL, this turn changed no files (e.g. a question-only
+     * assistant response). Skip the insert + ref_count bump entirely, but update the latest
+     * version's message_id so rewind-to-latest stays exact (OPEN DECISION #2 = skip-but-update).
+     * Race-safe: the FOR UPDATE lock above already serializes concurrent saves.
+     */
+    const latestRes = await client.query(
+      'SELECT version_number, manifest, change_summary FROM codebase_versions WHERE chat_id = $1 AND is_latest = true LIMIT 1',
+      [chatId]
+    );
+
+    if (latestRes.rows.length > 0) {
+      const latestRow = latestRes.rows[0];
+      const latestManifest =
+        typeof latestRow.manifest === 'string' ? JSON.parse(latestRow.manifest) : latestRow.manifest;
+      const diff = diffManifests(latestManifest, manifest);
+
+      if (!diff.changed) {
+        // No file change — update message_id (if provided) so rewind mapping stays current.
+        if (messageId) {
+          await client.query(
+            'UPDATE codebase_versions SET message_id = $1 WHERE chat_id = $2 AND is_latest = true',
+            [messageId, chatId]
+          );
+        }
+
+        await client.query('COMMIT');
+
+        return Number(latestRow.version_number);
+      }
+    }
+
+    /*
+     * Resolve the stored per-version description (Fix B): prefer the client label, else the
+     * caller-supplied description, else a server-computed diff summary as a last resort. This
+     * decouples version names from the chat title.
+     */
+    const serverChangeSummary = clientChangeSummary ?? diffSummaryFor(latestRes.rows[0]?.manifest, manifest);
+    const storedDescription = label ?? params.description ?? serverChangeSummary;
 
     // 2. Next version number for this chat.
     const versionRes = await client.query(
@@ -1717,9 +1774,19 @@ export async function saveCodebaseVersionPostgres(params: {
     ]);
     await client.query(
       `INSERT INTO codebase_versions
-         (chat_id, user_id, version_number, is_latest, manifest, description, file_count, total_bytes, message_id)
-       VALUES ($1, $2, $3, true, $4::jsonb, $5, $6, $7, $8)`,
-      [chatId, userId, versionNumber, JSON.stringify(manifest), description ?? null, fileCount, totalBytes, messageId ?? null]
+         (chat_id, user_id, version_number, is_latest, manifest, description, file_count, total_bytes, message_id, change_summary)
+       VALUES ($1, $2, $3, true, $4::jsonb, $5, $6, $7, $8, $9)`,
+      [
+        chatId,
+        userId,
+        versionNumber,
+        JSON.stringify(manifest),
+        storedDescription ?? null,
+        fileCount,
+        totalBytes,
+        messageId ?? null,
+        serverChangeSummary ?? null,
+      ]
     );
 
     if (hashes.length > 0) {
@@ -1753,6 +1820,25 @@ export async function saveCodebaseVersionPostgres(params: {
   } finally {
     client.release();
   }
+}
+
+/**
+ * Day 19 — compute a compact change-summary from the previous latest manifest (raw jsonb row
+ * value, may be string or already-parsed object) and the incoming manifest. Returns '' (which
+ * the caller stores as NULL) when there is no prior version to diff against.
+ */
+function diffSummaryFor(
+  previousManifestRaw: unknown,
+  newManifest: Record<string, string>,
+): string {
+  if (previousManifestRaw === undefined || previousManifestRaw === null) {
+    return '';
+  }
+
+  const previous =
+    typeof previousManifestRaw === 'string' ? JSON.parse(previousManifestRaw) : previousManifestRaw;
+
+  return diffManifests(previous, newManifest).summary;
 }
 
 /**
@@ -1947,12 +2033,13 @@ export async function listCodebaseVersionsPostgres(chatId: string): Promise<
     totalBytes: number;
     isLatest: boolean;
     messageId: string | null;
+    changeSummary: string | null;
     createdAt: string;
   }[]
 > {
   const pool = getPostgresPool();
   const result = await pool.query(
-    `SELECT version_number, description, file_count, total_bytes, is_latest, message_id, created_at
+    `SELECT version_number, description, file_count, total_bytes, is_latest, message_id, change_summary, created_at
      FROM codebase_versions
      WHERE chat_id = $1
      ORDER BY version_number DESC
@@ -1967,6 +2054,7 @@ export async function listCodebaseVersionsPostgres(chatId: string): Promise<
     totalBytes: Number(row.total_bytes),
     isLatest: Boolean(row.is_latest),
     messageId: row.message_id ?? null,
+    changeSummary: row.change_summary ?? null,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   }));
 }

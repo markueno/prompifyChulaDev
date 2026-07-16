@@ -6,6 +6,7 @@ import { serverCircuit } from '~/lib/persistence/serverCircuit';
 import { openDatabase, getSnapshot, setSnapshot, queueWrite, getNextId } from '~/lib/persistence/db';
 import { initOfflineDrain } from '~/lib/persistence/drainQueue';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
+import { diffManifests } from '~/lib/snapshots/diffManifests';
 
 const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
 export const db = persistenceEnabled ? await openDatabase() : undefined;
@@ -31,7 +32,13 @@ let ensureChatIdInFlight: Promise<string | undefined> | undefined;
  * unload gives it the best chance to commit.
  */
 let inFlightSave: Promise<void> | undefined;
-let lastSaveArgs: { fileMap: FileMap; overrideChatId?: string; lastMessageId?: string } | undefined;
+let lastSaveArgs: {
+  fileMap: FileMap;
+  overrideChatId?: string;
+  lastMessageId?: string;
+  label?: string;
+  changedFilePath?: string;
+} | undefined;
 let flushHandlersRegistered = false;
 
 function flushPendingSave(): void {
@@ -42,7 +49,13 @@ function flushPendingSave(): void {
 
   // Fire the save now (best-effort — the page is unloading). inFlightSave tracks it.
   if (lastSaveArgs && !inFlightSave) {
-    void runSave(lastSaveArgs.fileMap, lastSaveArgs.overrideChatId, lastSaveArgs.lastMessageId);
+    void runSave(
+      lastSaveArgs.fileMap,
+      lastSaveArgs.overrideChatId,
+      lastSaveArgs.lastMessageId,
+      lastSaveArgs.label,
+      lastSaveArgs.changedFilePath,
+    );
   }
 }
 
@@ -71,6 +84,8 @@ async function runSave(
   fileMap: FileMap,
   overrideChatId: string | undefined,
   lastMessageId: string | undefined,
+  label?: string,
+  changedFilePath?: string,
 ): Promise<void> {
   let id = overrideChatId ?? chatId.get();
 
@@ -87,8 +102,10 @@ async function runSave(
     return;
   }
 
-  const descriptionText = description.get();
-  await saveCodebaseSnapshot(id, fileMap, descriptionText, lastMessageId);
+  // Day 19 — pass a manual-edit marker as the label when only the file path is known.
+  const resolvedLabel = label ?? (changedFilePath ? `Manual edit — ${changedFilePath}` : undefined);
+
+  await saveCodebaseSnapshot(id, fileMap, undefined, lastMessageId, resolvedLabel, changedFilePath);
 }
 
 /**
@@ -133,11 +150,20 @@ export function ensureChatIdForSave(projectId?: string): Promise<string | undefi
   return ensureChatIdInFlight;
 }
 
+/*
+ * Day 19 — last manifest saved per chatId (client-side cheap skip). Avoids the server
+ * round-trip when nothing changed (the server guard is still authoritative). Populated
+ * from the optimistic cache + server response.
+ */
+const lastSavedManifestByChatId = new Map<string, Record<string, string>>();
+
 async function saveCodebaseSnapshot(
   id: string,
   fileMap: FileMap,
   descriptionText: string | undefined,
   lastMessageId?: string,
+  label?: string,
+  changedFilePath?: string,
 ): Promise<void> {
   try {
     const snapshot = await buildSnapshot(fileMap);
@@ -157,6 +183,15 @@ async function saveCodebaseSnapshot(
     }
 
     /*
+     * Day 19 — compute a compact change summary from the last manifest we saved for this
+     * chat (kept in lastSavedManifestByChatId, seeded from the optimistic IndexedDB cache).
+     * This is the SAME diff the server computes authoritatively in saveCodebaseVersionPostgres.
+     */
+    const previousManifest = lastSavedManifestByChatId.get(id);
+    const diff = diffManifests(previousManifest, snapshot.manifest);
+    const changeSummary = diff.summary || undefined;
+
+    /*
      * Optimistic Tier-1 cache write FIRST — before the server round-trip. loadSnapshot reads
      * this IndexedDB cache before hitting the server, so writing it now means a page refresh
      * restores the LATEST files even if the server version-save then fails (circuit open,
@@ -164,10 +199,18 @@ async function saveCodebaseSnapshot(
      * admin-bypass user). Previously the cache was only written on server success, so any
      * server failure silently lost manual edits on refresh. Keep the existing version number
      * if we have one; the real server version overwrites it on success below.
+     *
+     * Day 19 — also seed lastSavedManifestByChatId from the cache so the cheap client skip and
+     * change-summary are correct on the very first save of a session.
      */
     if (db) {
       try {
         const existing = await getSnapshot(db, id);
+
+        if (existing?.manifest && !previousManifest) {
+          lastSavedManifestByChatId.set(id, existing.manifest);
+        }
+
         await setSnapshot(db, {
           chatId: id,
           version: existing?.version ?? 0,
@@ -178,6 +221,16 @@ async function saveCodebaseSnapshot(
       } catch (cacheError) {
         console.warn('Optimistic snapshot cache write failed (continuing to server save):', cacheError);
       }
+    }
+
+    /*
+     * Day 19 — Fix A (client side): if the manifest is unchanged since the last save, skip the
+     * network round-trip entirely. The server guard would no-op anyway. Keep the optimistic
+     * cache write above so the cache timestamp stays fresh (flush logic). If a label was
+     * supplied (manual save) but nothing changed we still skip — there's no version to name.
+     */
+    if (!diff.changed && previousManifest) {
+      return;
     }
 
     try {
@@ -204,6 +257,9 @@ async function saveCodebaseSnapshot(
             blobs,
             description: descriptionText,
             messageId: lastMessageId,
+            // Day 19 — meaningful per-version name + changed-files summary (Fix B).
+            label,
+            changeSummary,
           }),
         });
 
@@ -213,6 +269,9 @@ async function saveCodebaseSnapshot(
 
         return ((await versionRes.json()) as { version: number }).version;
       });
+
+      // Remember this manifest so the next save can cheap-skip + diff against it.
+      lastSavedManifestByChatId.set(id, snapshot.manifest);
 
       if (db) {
         await setSnapshot(db, {
@@ -249,7 +308,16 @@ async function saveCodebaseSnapshot(
  * B1b — when no chat id exists yet (brand-new chat before the first AI response),
  * one is allocated via ensureChatIdForSave instead of silently dropping the save.
  */
-export function scheduleSnapshotSave(fileMap: FileMap, overrideChatId?: string, lastMessageId?: string, immediate?: boolean): () => void {
+export function scheduleSnapshotSave(
+  fileMap: FileMap,
+  overrideChatId?: string,
+  lastMessageId?: string,
+  immediate?: boolean,
+  /** Day 19 — per-version label (user prompt for AI turns; "Manual edit" marker otherwise). */
+  label?: string,
+  /** Day 19 — for manual saves, the file path that was edited (used to build a label). */
+  changedFilePath?: string,
+): () => void {
   if (!snapshotsEnabled) {
     return () => {};
   }
@@ -268,17 +336,17 @@ export function scheduleSnapshotSave(fileMap: FileMap, overrideChatId?: string, 
 
   // Remember the args so a pagehide/visibilitychange flush can re-fire the save
   // (best-effort) before the page unloads — closes the refresh-during-save race.
-  lastSaveArgs = { fileMap, overrideChatId, lastMessageId };
+  lastSaveArgs = { fileMap, overrideChatId, lastMessageId, label, changedFilePath };
 
   if (immediate) {
-    inFlightSave = runSave(fileMap, overrideChatId, lastMessageId).finally(() => {
+    inFlightSave = runSave(fileMap, overrideChatId, lastMessageId, label, changedFilePath).finally(() => {
       inFlightSave = undefined;
     });
     return () => {};
   }
 
   snapshotSaveTimer = setTimeout(() => {
-    inFlightSave = runSave(fileMap, overrideChatId, lastMessageId).finally(() => {
+    inFlightSave = runSave(fileMap, overrideChatId, lastMessageId, label, changedFilePath).finally(() => {
       inFlightSave = undefined;
     });
   }, 3000);

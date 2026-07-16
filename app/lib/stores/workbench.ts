@@ -301,7 +301,9 @@ export class WorkbenchStore {
 
     await this.#filesStore.saveFile(filePath, document.value);
 
-    scheduleSnapshotSave(this.#filesStore.files.get());
+    // Day 19 — pass a manual-edit label + the changed file path so the version name
+    // reflects the change instead of the chat title.
+    scheduleSnapshotSave(this.#filesStore.files.get(), undefined, undefined, false, 'Manual edit', filePath);
 
     const newUnsavedFiles = new Set(this.unsavedFiles.get());
     newUnsavedFiles.delete(filePath);
@@ -334,7 +336,8 @@ export class WorkbenchStore {
     // Sync the editor store so the UI doesn't show stale content
     this.#editorStore.updateFile(filePath, content);
 
-    scheduleSnapshotSave(this.#filesStore.files.get(), undefined, undefined, true);
+    // Day 19 — manual-edit label + changed file path for a meaningful version name.
+    scheduleSnapshotSave(this.#filesStore.files.get(), undefined, undefined, true, 'Manual edit', filePath);
 
     const newUnsavedFiles = new Set(this.unsavedFiles.get());
     newUnsavedFiles.delete(filePath);

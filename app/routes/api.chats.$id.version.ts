@@ -42,6 +42,10 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       blobs?: Record<string, number>;
       description?: string;
       messageId?: string;
+      /** Day 19 — client label (truncated user prompt / manual-edit marker) for the version name. */
+      label?: string;
+      /** Day 19 — compact added/modified/removed summary for the history metadata line. */
+      changeSummary?: string;
     };
 
     const { manifest } = body;
@@ -67,6 +71,12 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       description: typeof body.description === 'string' ? body.description : undefined,
       // Day 17 — links this version to the chat message it was saved after (revert mapping).
       messageId: typeof body.messageId === 'string' && body.messageId.length <= 128 ? body.messageId : undefined,
+      // Day 19 — meaningful per-version name + changed-files summary (decoupled from chat title).
+      label: typeof body.label === 'string' && body.label.length > 0 ? body.label.slice(0, 120) : undefined,
+      changeSummary:
+        typeof body.changeSummary === 'string' && body.changeSummary.length > 0
+          ? body.changeSummary.slice(0, 240)
+          : undefined,
     });
 
     return json({ ok: true, version });

@@ -20,6 +20,7 @@ interface VersionRow {
   totalBytes: number;
   isLatest: boolean;
   messageId: string | null;
+  changeSummary: string | null;
   createdAt: string;
 }
 
@@ -233,6 +234,7 @@ export function VersionHistoryDropdown() {
                     </div>
                     <div className="text-[11px] text-bolt-elements-textTertiary">
                       {relativeTime(v.createdAt)} · {v.fileCount} files · {formatBytes(v.totalBytes)}
+                      {v.changeSummary ? ` · changed: ${v.changeSummary}` : ''}
                       {v.isLatest ? ' · current' : ''}
                     </div>
                   </div>
