@@ -8,6 +8,8 @@ import BackgroundRays from '~/components/ui/BackgroundRays';
 
 export const meta: MetaFunction = () => {
   return [
+    // Auth-gated import shell — don't index.
+    { name: 'robots', content: 'noindex' },
     { title: 'Prompify' },
     { name: 'description', content: 'Talk with Prompify, an AI assistant from StackBlitz' },
   ];

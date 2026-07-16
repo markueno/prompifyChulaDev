@@ -38,6 +38,8 @@ export const links: LinksFunction = () => [
 ];
 
 export const meta: MetaFunction = () => [
+  // Auth-gated dashboard — don't index.
+  { name: 'robots', content: 'noindex' },
   { title: 'Overview — Prompify' },
   { name: 'description', content: 'Project health, recent runs, error rate, and usage.' },
 ];

@@ -35,6 +35,8 @@ export const links: LinksFunction = () => [
 
 export const meta: MetaFunction = () => {
   return [
+    // Auth-gated app shell — don't index the login-redirect/builder surface.
+    { name: 'robots', content: 'noindex' },
     { title: 'Prompify - App Builder' },
     {
       name: 'description',
