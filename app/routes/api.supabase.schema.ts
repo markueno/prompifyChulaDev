@@ -33,7 +33,7 @@ function validateIdentifier(name: string, label: string): string | null {
 }
 
 function buildCreateTableSQL(schema: string, tableName: string, columns: ColumnInput[]): string {
-  const colDefs = columns.map(col => {
+  const userColDefs = columns.map(col => {
     const pgType = PG_TYPES[col.type] || 'text';
     const nullable = col.nullable ? '' : ' NOT NULL';
 
@@ -41,22 +41,23 @@ function buildCreateTableSQL(schema: string, tableName: string, columns: ColumnI
     const safeDefault = col.defaultValue ? formatDefaultValue(pgType, col.defaultValue) : null;
     const def = safeDefault ? ` DEFAULT ${safeDefault}` : '';
 
-    return `  ${col.name} ${pgType}${nullable}${def}`;
+    return `  "${col.name}" ${pgType}${nullable}${def}`;
   });
 
-  return (
-    [
-      `CREATE TABLE IF NOT EXISTS ${schema}.${tableName} (`,
-      `  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),`,
-      `  created_at timestamptz NOT NULL DEFAULT now(),`,
-      `  updated_at timestamptz NOT NULL DEFAULT now(),`,
-      ...colDefs.map(d => `${d},`),
-      // Remove trailing comma from last column
-    ]
-      .join('\n')
-      .replace(/,\n\)/, '\n)') + ');'
-  );
+  const allDefs = [
+    '  id uuid PRIMARY KEY DEFAULT gen_random_uuid()',
+    '  created_at timestamptz NOT NULL DEFAULT now()',
+    '  updated_at timestamptz NOT NULL DEFAULT now()',
+    ...userColDefs,
+  ];
+
+  // Join with ",\n" so there is never a trailing comma before the closing ")".
+  // (The previous build appended ",);" — a trailing comma that produced
+  // "syntax error at or near ')'" on every table create, identical to the bug
+  // fixed in api.data.$chatId.schema.ts.)
+  return `CREATE TABLE IF NOT EXISTS "${schema}"."${tableName}" (\n${allDefs.join(',\n')}\n);`;
 }
+
 
 // GET /api/supabase/schema?chatId=X  — list tables in the app schema
 export async function loader({ request, context }: LoaderFunctionArgs) {

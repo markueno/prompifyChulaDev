@@ -50,7 +50,7 @@ function validateIdentifier(name: string, label: string): string | null {
 }
 
 function buildCreateTableSQL(tableName: string, columns: ColumnInput[]): string {
-  const colDefs = columns.map(col => {
+  const userColDefs = columns.map(col => {
     const pgType = PG_TYPES[col.type] || 'text';
     const nullable = col.nullable ? '' : ' NOT NULL';
     const safeDefault = col.defaultValue ? formatDefaultValue(pgType, col.defaultValue) : null;
@@ -59,18 +59,21 @@ function buildCreateTableSQL(tableName: string, columns: ColumnInput[]): string 
     return `  "${col.name}" ${pgType}${nullable}${def}`;
   });
 
-  return (
-    [
-      `CREATE TABLE "${tableName}" (`,
-      `  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),`,
-      `  created_at timestamptz NOT NULL DEFAULT now(),`,
-      `  updated_at timestamptz NOT NULL DEFAULT now(),`,
-      ...colDefs.map(d => `${d},`),
-    ]
-      .join('\n')
-      .replace(/,\n\)/, '\n)') + ');'
-  );
+  // Auto columns first (matches the import route's CREATE TABLE order).
+  const allDefs = [
+    '  id uuid PRIMARY KEY DEFAULT gen_random_uuid()',
+    '  created_at timestamptz NOT NULL DEFAULT now()',
+    '  updated_at timestamptz NOT NULL DEFAULT now()',
+    ...userColDefs,
+  ];
+
+  // Join with ",\n" so there is never a trailing comma before the closing ")".
+  // (The previous build appended ",);" — a trailing comma that produced
+  // "syntax error at or near ')'" whenever the table was created, especially
+  // with zero user columns.)
+  return `CREATE TABLE "${tableName}" (\n${allDefs.join(',\n')}\n);`;
 }
+
 
 // GET — list tables registered to this chat
 export async function loader({ request, params, context }: LoaderFunctionArgs) {

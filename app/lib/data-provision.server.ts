@@ -13,7 +13,7 @@
  *
  * No external Supabase calls. No anon/service-role key. No PostgREST.
  */
-import { getPostgresPool } from '~/lib/database-postgresql';
+import { getPostgresPool, ensureAppTablesSchema } from '~/lib/database-postgresql';
 
 const SCHEMA_PREFIX = 'usr_';
 const VALID_SCHEMA_CHAR = /[^a-z0-9_]/g;
@@ -105,6 +105,8 @@ export async function getRegisteredTable(
   chatId: string,
   logicalName: string
 ): Promise<AppTableMeta | null> {
+  // Day 20 — ensure the registry table exists (getPostgresPool doesn't run migrations).
+  await ensureAppTablesSchema();
   const pool = getPostgresPool();
   const client = await pool.connect();
 
@@ -139,6 +141,8 @@ export async function getRegisteredTable(
  * proxy schema route). Per-chat scoping: a user's OTHER app tables are hidden.
  */
 export async function listChatTables(chatId: string): Promise<AppTableMeta[]> {
+  // Day 20 — ensure the registry table exists (getPostgresPool doesn't run migrations).
+  await ensureAppTablesSchema();
   const pool = getPostgresPool();
   const client = await pool.connect();
 

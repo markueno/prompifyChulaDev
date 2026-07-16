@@ -84,6 +84,51 @@ async function ensureCodebaseVersionSchema(): Promise<void> {
   }
 }
 
+/*
+ * Day 20 — same hazard class as ensureCodebaseVersionSchema, for the self-hosted runtime
+ * app-data layer. The data-provision routes (api.data.*, api.import-data) query/insert
+ * `app_tables` via getPostgresPool(), which never runs createPostgresTables(); and
+ * createPostgresTables() throws before reaching the app_tables CREATE (~line 662) on prod
+ * (the project_id FK migration aborts on orphan chats). So `app_tables` may not exist on a
+ * cold/partially-migrated DB → every data route 500s with "relation app_tables does not exist".
+ * This idempotently ensures the registry table + indexes once per process, on the same pool.
+ */
+let appTablesSchemaEnsured = false;
+
+export async function ensureAppTablesSchema(): Promise<void> {
+  if (appTablesSchemaEnsured) {
+    return;
+  }
+
+  appTablesSchemaEnsured = true;
+
+  try {
+    const p = getPostgresPool();
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS app_tables (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        schema_name TEXT NOT NULL,
+        table_name TEXT NOT NULL,
+        logical_name TEXT NOT NULL,
+        columns JSONB NOT NULL DEFAULT '[]'::jsonb,
+        row_count INTEGER NOT NULL DEFAULT 0,
+        source TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(schema_name, table_name),
+        UNIQUE(chat_id, logical_name)
+      )
+    `);
+    await p.query('CREATE INDEX IF NOT EXISTS idx_app_tables_user ON app_tables(user_id)');
+    await p.query('CREATE INDEX IF NOT EXISTS idx_app_tables_chat ON app_tables(chat_id)');
+  } catch (error) {
+    appTablesSchemaEnsured = false;
+    console.error('ensureAppTablesSchema failed (will retry next call):', error);
+  }
+}
+
 export function getPostgresPool(): InstanceType<typeof Pool> {
   if (!pool) {
     const databaseUrl = process.env.DATABASE_URL;
