@@ -22,6 +22,7 @@ import {
   chatId,
   description,
   scheduleSnapshotSave,
+  refreshSnapshotCache,
   ensureChatIdForSave,
 } from '~/lib/snapshots/scheduleSnapshot';
 import { MODEL_REGEX, PROVIDER_REGEX } from '~/utils/constants';
@@ -402,7 +403,7 @@ export function useChatHistory() {
         console.error(error);
       }
     },
-    storeMessageHistory: async (messages: Message[]) => {
+    storeMessageHistory: async (messages: Message[], isLoading: boolean = false) => {
       if (!_hookDb || messages.length === 0) {
         return;
       }
@@ -468,14 +469,30 @@ export function useChatHistory() {
       // Day 19 — pass the triggering user prompt (stripped of [Model:]/[Provider:] prefixes,
       // truncated) as the per-version label so the version name reflects WHAT changed rather
       // than the chat title (Fix B).
+      //
+      // Day 20 — coalesce to ONE version per AI turn. While streaming, storeMessageHistory is
+      // re-invoked every ~50ms by processSampledMessages; previously each call re-armed the 3s
+      // debounce, which fired once per >3s quiet gap during generation → ~10 versions per turn.
+      // Now: while streaming, only refresh the optimistic IndexedDB cache (no version row, no
+      // server round-trip — keeps refresh-restore working). At turn end (isLoading=false) we
+      // fire scheduleSnapshotSave ONCE; the 3s trailing debounce then fires a single time,
+      // giving the action-runner queue time to flush the last file writes. buildSnapshot
+      // excludes node_modules, so a trailing shell action never leaves the manifest incomplete.
+      // The server no-op guard (Day 19) then skips the turn-end save for question-only turns.
       if (user?.id) {
-        scheduleSnapshotSave(
-          workbenchStore.files.get(),
-          chatId.get(),
-          messages[messages.length - 1]?.id,
-          false,
-          labelFromMessages(messages),
-        );
+        if (isLoading) {
+          refreshSnapshotCache(workbenchStore.files.get(), chatId.get()).catch(error =>
+            console.warn('Streaming snapshot cache refresh failed:', error),
+          );
+        } else {
+          scheduleSnapshotSave(
+            workbenchStore.files.get(),
+            chatId.get(),
+            messages[messages.length - 1]?.id,
+            false,
+            labelFromMessages(messages),
+          );
+        }
       }
     },
     duplicateCurrentChat: async (listItemId: string) => {

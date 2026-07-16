@@ -230,8 +230,13 @@ export function VersionHistoryDropdown() {
 
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm text-bolt-elements-textPrimary">
-                      {v.description || 'Untitled version'}
+                      {v.changeSummary || v.description || 'Untitled version'}
                     </div>
+                    {v.description && v.changeSummary && (
+                      <div className="truncate text-[11px] text-bolt-elements-textSecondary">
+                        {v.description}
+                      </div>
+                    )}
                     <div className="text-[11px] text-bolt-elements-textTertiary">
                       {relativeTime(v.createdAt)} · {v.fileCount} files · {formatBytes(v.totalBytes)}
                       {v.changeSummary ? ` · changed: ${v.changeSummary}` : ''}

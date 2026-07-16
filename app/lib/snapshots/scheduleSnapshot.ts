@@ -151,6 +151,52 @@ export function ensureChatIdForSave(projectId?: string): Promise<string | undefi
 }
 
 /*
+ * Day 20 — streaming-time cache-only refresh. While an AI response is streaming, we do NOT
+ * commit a version per intermediate file write (Fix: coalesce to one version per turn). But we
+ * still keep the optimistic IndexedDB cache fresh so a mid-stream page refresh restores the
+ * in-progress files (preserves the commit 6cd5174 refresh-restore invariant). This writes ONLY
+ * the cache — no server round-trip, no version row, and crucially does NOT touch
+ * lastSavedManifestByChatId (so the turn-end diff stays against the PREVIOUS turn's manifest).
+ * Best-effort and fully isolated: a failure never breaks the stream.
+ */
+export async function refreshSnapshotCache(fileMap: FileMap, overrideChatId?: string): Promise<void> {
+  if (!snapshotsEnabled || Object.keys(fileMap).length === 0) {
+    return;
+  }
+
+  let id = overrideChatId ?? chatId.get();
+
+  if (!id) {
+    // Don't allocate a chat id here (allocation is the streaming save's job at turn end).
+    return;
+  }
+
+  if (!db) {
+    return;
+  }
+
+  try {
+    const snapshot = await buildSnapshot(fileMap);
+
+    if (Object.keys(snapshot.manifest).length === 0) {
+      return;
+    }
+
+    const existing = await getSnapshot(db, id);
+
+    await setSnapshot(db, {
+      chatId: id,
+      version: existing?.version ?? 0,
+      manifest: snapshot.manifest,
+      files: snapshot.files,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.warn('Streaming snapshot cache refresh failed (continuing):', error);
+  }
+}
+
+/*
  * Day 19 — last manifest saved per chatId (client-side cheap skip). Avoids the server
  * round-trip when nothing changed (the server guard is still authoritative). Populated
  * from the optimistic cache + server response.

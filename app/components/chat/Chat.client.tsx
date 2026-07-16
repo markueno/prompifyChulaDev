@@ -177,13 +177,13 @@ const processSampledMessages = createSampler(
     initialMessages: Message[];
     isLoading: boolean;
     parseMessages: (messages: Message[], isLoading: boolean) => void;
-    storeMessageHistory: (messages: Message[]) => Promise<void>;
+    storeMessageHistory: (messages: Message[], isLoading: boolean) => Promise<void>;
   }) => {
     const { messages, initialMessages, isLoading, parseMessages, storeMessageHistory } = options;
     parseMessages(messages, isLoading);
 
     if (messages.length > initialMessages.length) {
-      storeMessageHistory(messages).catch(error => toast.error(error.message));
+      storeMessageHistory(messages, isLoading).catch(error => toast.error(error.message));
     }
   },
   50
@@ -191,7 +191,7 @@ const processSampledMessages = createSampler(
 
 interface ChatProps {
   initialMessages: Message[];
-  storeMessageHistory: (messages: Message[]) => Promise<void>;
+  storeMessageHistory: (messages: Message[], isLoading: boolean) => Promise<void>;
   importChat: (description: string, messages: Message[]) => Promise<void>;
   exportChat: () => void;
   ensureChatId: () => Promise<string | undefined>;

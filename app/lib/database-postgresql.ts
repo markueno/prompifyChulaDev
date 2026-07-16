@@ -1824,15 +1824,16 @@ export async function saveCodebaseVersionPostgres(params: {
 
 /**
  * Day 19 — compute a compact change-summary from the previous latest manifest (raw jsonb row
- * value, may be string or already-parsed object) and the incoming manifest. Returns '' (which
- * the caller stores as NULL) when there is no prior version to diff against.
+ * value, may be string or already-parsed object) and the incoming manifest. When there is no
+ * prior version (the very first save of a chat), diff against an empty manifest so the first
+ * version is named "Added <files> (+N)" rather than getting no summary.
  */
 function diffSummaryFor(
   previousManifestRaw: unknown,
   newManifest: Record<string, string>,
 ): string {
   if (previousManifestRaw === undefined || previousManifestRaw === null) {
-    return '';
+    return diffManifests({}, newManifest).summary;
   }
 
   const previous =
