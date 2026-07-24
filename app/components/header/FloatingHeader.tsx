@@ -103,8 +103,7 @@ export function FloatingHeader() {
         <div className="flex items-center gap-2">
           <div className="i-ph:sidebar-simple-duotone text-xl" />
           <Link to="/app/" className="text-2xl font-semibold text-accent flex items-center">
-            <img src="/logo-light-styled.png" alt="Prompify" className="w-[90px] inline-block dark:hidden" />
-            <img src="/logo-dark-styled.png" alt="Prompify" className="w-[90px] inline-block hidden dark:block" />
+            <img src="/prompify2.png" alt="Prompify" className="w-[90px] inline-block" />
           </Link>
         </div>
         {user ? (
