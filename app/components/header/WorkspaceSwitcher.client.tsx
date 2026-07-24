@@ -123,7 +123,7 @@ export function WorkspaceSwitcher() {
           ))}
           <a
             href="/company/new"
-            className="mt-1.5 flex items-center gap-2 rounded-lg border-t border-[#fed7aa]/60 px-2.5 py-2 text-sm font-medium text-[#f97316] hover:bg-[#fed7aa]/50 transition-colors"
+            className="mt-1.5 flex items-center gap-2 rounded-lg border-t border-[#fed7aa]/60 px-2.5 py-2 text-sm font-medium text-[#231710] hover:bg-[#fed7aa]/50 transition-colors"
           >
             <span className="i-ph:plus text-sm" /> Create team
           </a>

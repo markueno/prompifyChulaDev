@@ -1287,7 +1287,7 @@ button.landing-cta-btn {
 
 .landing-app-chrome > header {
   flex-shrink: 0;
-  background: rgba(35, 23, 16, 0.88);
+  background: rgba(35, 23, 16, 0.75);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom-color: rgba(255, 255, 255, 0.14) !important;
