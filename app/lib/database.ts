@@ -710,6 +710,20 @@ export async function getTokenBalanceRemaining(userId: string) {
   return 0;
 }
 
+export async function getSubscriptionByCompanyId(companyId: string) {
+  /*
+   * In the current single-user model, company-scoped subscription is the
+   * user's own subscription. The companyId contains the user id as suffix.
+   */
+  const userId = companyId.replace('cmp_personal_', '');
+  return getSubscriptionByUserId(userId);
+}
+
+export async function getTokenBalanceRemainingForCompany(companyId: string, _userId?: string) {
+  const userId = companyId.replace('cmp_personal_', '');
+  return getTokenBalanceRemaining(userId);
+}
+
 const emptyProjectOverview: import('./database-postgresql').ProjectOverview = {
   projectCount: 0,
   activeProjectsLast7Days: 0,

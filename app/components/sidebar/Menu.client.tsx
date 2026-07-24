@@ -52,7 +52,7 @@ function CurrentDateTime() {
   }, []);
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800/50">
+    <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border-b border-[#fed7aa]/40 dark:border-[#231710]/50">
       <div className="h-4 w-4 i-lucide:clock opacity-80" />
       <div className="flex gap-2">
         <span>{dateTime.toLocaleDateString()}</span>
@@ -172,12 +172,12 @@ export const Menu = () => {
         style={{ width: '340px' }}
         className={classNames(
           'flex selection-accent flex-col side-menu fixed top-0 h-full',
-          'bg-white dark:bg-gray-950 border-r border-gray-100 dark:border-gray-800/50',
+          'bg-[#f0e4d5] dark:bg-[#231710] border-r border-[#fed7aa]/40 dark:border-[#231710]/50',
           'shadow-sm text-sm',
           isSettingsOpen ? 'z-40' : 'z-sidebar'
         )}
       >
-        <div className="h-12 flex items-center justify-between px-4 border-b border-gray-100 dark:border-gray-800/50 bg-gray-50/50 dark:bg-gray-900/50">
+        <div className="h-12 flex items-center justify-between px-4 border-b border-[#fed7aa]/40 dark:border-[#231710]/50 bg-[#f0e4d5]/80 dark:bg-[#231710]/80">
           <div className="text-gray-900 dark:text-white font-medium"></div>
           {/* Guest user element hidden */}
         </div>
@@ -194,7 +194,7 @@ export const Menu = () => {
              */}
             <a
               href="/app/"
-              className="flex gap-2 items-center bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-500/20 rounded-lg px-4 py-2 transition-colors"
+              className="flex gap-2 items-center bg-[#fed7aa] text-[#231710] hover:bg-[#f97316]/20 rounded-lg px-4 py-2 transition-colors"
             >
               <span className="inline-block i-lucide:message-square h-4 w-4" />
               <span className="text-sm font-medium">Start new chat</span>
@@ -204,7 +204,7 @@ export const Menu = () => {
                 <span className="i-lucide:search h-4 w-4 text-gray-400 dark:text-gray-500" />
               </div>
               <input
-                className="w-full bg-gray-50 dark:bg-gray-900 relative pl-9 pr-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500/50 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-500 border border-gray-200 dark:border-gray-800"
+                className="w-full bg-gray-50 dark:bg-gray-900 relative pl-9 pr-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-[#f97316]/50 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-500 border border-gray-200 dark:border-gray-800"
                 type="search"
                 placeholder="Search chats..."
                 onChange={handleSearchChange}
@@ -222,7 +222,7 @@ export const Menu = () => {
             <DialogRoot open={dialogContent !== null}>
               {binDates(filteredList).map(({ category, items }) => (
                 <div key={category} className="mt-2 first:mt-0 space-y-1">
-                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 sticky top-0 z-1 bg-white dark:bg-gray-950 px-4 py-1">
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 sticky top-0 z-1 bg-[#f0e4d5] dark:bg-[#231710] px-4 py-1">
                     {category}
                   </div>
                   <div className="space-y-0.5 pr-1">
@@ -241,7 +241,7 @@ export const Menu = () => {
               <Dialog onBackdrop={closeDialog} onClose={closeDialog}>
                 {dialogContent?.type === 'delete' && (
                   <>
-                    <div className="p-6 bg-white dark:bg-gray-950">
+                    <div className="p-6 bg-[#f0e4d5] dark:bg-[#231710]">
                       <DialogTitle className="text-gray-900 dark:text-white">Delete Chat?</DialogTitle>
                       <DialogDescription className="mt-2 text-gray-600 dark:text-gray-400">
                         <p>
@@ -253,7 +253,7 @@ export const Menu = () => {
                         <p className="mt-2">Are you sure you want to delete this chat?</p>
                       </DialogDescription>
                     </div>
-                    <div className="flex justify-end gap-3 px-6 py-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
+                    <div className="flex justify-end gap-3 px-6 py-4 bg-[#f0e4d5]/80 dark:bg-[#231710]/80 border-t border-[#fed7aa]/40 dark:border-[#231710]/50">
                       <DialogButton type="secondary" onClick={closeDialog}>
                         Cancel
                       </DialogButton>
@@ -272,7 +272,7 @@ export const Menu = () => {
               </Dialog>
             </DialogRoot>
           </div>
-          <div className="flex items-center justify-between border-t border-gray-200 dark:border-gray-800 px-4 py-3">
+          <div className="flex items-center justify-between border-t border-[#fed7aa]/40 dark:border-[#231710]/50 px-4 py-3">
             {showSettings && <SettingsButton onClick={handleSettingsClick} />}
             <ThemeSwitch />
           </div>

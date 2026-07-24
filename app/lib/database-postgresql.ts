@@ -843,6 +843,11 @@ async function createSubscriptionForUserWithClient(client: PoolClient, userId: s
   );
 }
 
+/** The deterministic id of a user's personal workspace (a 1-seat company). */
+export function personalCompanyId(userId: string): string {
+  return `cmp_personal_${userId}`;
+}
+
 /** Get subscription by user ID. For future subscription/upgrade logic. */
 export async function getSubscriptionByUserIdPostgres(userId: string) {
   const pool = getPostgresPool();

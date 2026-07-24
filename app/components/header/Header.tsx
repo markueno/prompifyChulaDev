@@ -8,6 +8,7 @@ import { NotificationBell } from './NotificationBell.client';
 import { ConnectionStatusBanner } from '~/components/chat/ConnectionStatusBanner.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { UserProfile } from '~/components/auth/UserProfile';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher.client';
 
 export function Header() {
   const chat = useStore(chatStore);
@@ -58,6 +59,7 @@ export function Header() {
             {chat.started && <HeaderActionButtons />}
             {user && (
               <>
+                <ClientOnly>{() => <WorkspaceSwitcher />}</ClientOnly>
                 <NotificationBell />
                 <UserProfile user={user} />
               </>
