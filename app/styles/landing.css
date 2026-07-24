@@ -1287,7 +1287,7 @@ button.landing-cta-btn {
 
 .landing-app-chrome > header {
   flex-shrink: 0;
-  background: rgba(12, 12, 12, 0.42);
+  background: rgba(35, 23, 16, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom-color: rgba(255, 255, 255, 0.14) !important;
@@ -1302,7 +1302,7 @@ button.landing-cta-btn {
   color: rgba(255, 255, 255, 0.94);
 }
 
-/* Right toolbar: ghost / segmented / dropdown sit on light surfaces; override global white header text */
+/* Right toolbar: on dark navbar, text should be light/white for visibility */
 .landing-app-chrome > header .header-app-toolbar .text-bolt-elements-textPrimary,
 .landing-app-chrome > header .header-app-toolbar .text-bolt-elements-textSecondary,
 .landing-app-chrome > header .header-app-toolbar .text-bolt-elements-textTertiary,
@@ -1310,11 +1310,11 @@ button.landing-cta-btn {
 .landing-app-chrome > header .header-app-toolbar .text-bolt-elements-item-contentActive,
 .landing-app-chrome > header .header-app-toolbar .text-bolt-elements-item-contentDefault,
 .landing-app-chrome > header .header-app-toolbar a:not([class*='text-white']) {
-  color: #231710 !important;
+  color: rgba(255, 255, 255, 0.94) !important;
 }
 
 .landing-app-chrome > header .header-app-toolbar {
-  color: #231710;
+  color: rgba(255, 255, 255, 0.94);
 }
 
 .landing-app-chrome > header .text-accent {

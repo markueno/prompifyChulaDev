@@ -372,9 +372,9 @@ function Button({ active = false, disabled = false, children, onClick, className
       className={classNames(
         'flex items-center p-1.5',
         {
-          'bg-white hover:bg-gray-50 text-zinc-900 hover:text-black': !active && !disabled,
-          'bg-white text-zinc-900': active && !disabled,
-          'bg-white text-zinc-400 cursor-not-allowed': disabled,
+          'bg-[#f0e4d5]/20 hover:bg-[#f0e4d5]/40 text-white hover:text-white': !active && !disabled,
+          'bg-[#f97316]/30 text-white': active && !disabled,
+          'bg-[#f0e4d5]/10 text-white/30 cursor-not-allowed': disabled,
         },
         className
       )}
