@@ -15,6 +15,7 @@ export function Header() {
   const { user } = useLoaderData<{ user: any }>();
   const location = useLocation();
   const onOverview = location.pathname.startsWith('/app/overview');
+  const onPricing = location.pathname.startsWith('/app/pricing');
 
   return (
     <header
@@ -33,15 +34,26 @@ export function Header() {
           </Link>
         </div>
         {user ? (
-          <Link
-            to="/app/overview"
-            className={classNames(
-              'header-nav-overview hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
-              onOverview ? 'bg-bolt-elements-background-depth-2 !text-zinc-900' : '!text-zinc-900 hover:!text-black'
-            )}
-          >
-            Overview
-          </Link>
+          <>
+            <Link
+              to="/app/overview"
+              className={classNames(
+                'header-nav-overview hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
+                onOverview ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white'
+              )}
+            >
+              Overview
+            </Link>
+            <Link
+              to="/app/pricing"
+              className={classNames(
+                'header-nav-pricing hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
+                onPricing ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white'
+              )}
+            >
+              Pricing
+            </Link>
+          </>
         ) : null}
       </div>
       {chat.started ? (

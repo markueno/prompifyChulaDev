@@ -57,7 +57,6 @@ export function CompanyContextModal({ open, onOpenChange }: CompanyContextModalP
 
       setPhase('analyzing');
 
-      // Small delay for UX
       await new Promise(r => setTimeout(r, 800));
 
       setContext(data.context || '');
@@ -92,129 +91,153 @@ export function CompanyContextModal({ open, onOpenChange }: CompanyContextModalP
 
   return (
     <DialogRoot open={open} onOpenChange={onOpenChange}>
-      <Dialog className="w-[600px]" showCloseButton={!isLoading}>
-        <DialogTitle>
-          <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-accent-500" />
-            Company Context
-          </span>
-        </DialogTitle>
-        <DialogDescription>
-          Enter your company website URL and we'll analyze it to generate personalized context for your prompts.
-        </DialogDescription>
+      <Dialog className="w-[720px]" showCloseButton={!isLoading}>
+        <div className="px-6 py-5">
+          <DialogTitle>
+            <span className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-accent-500" />
+              Company Context
+            </span>
+          </DialogTitle>
+          <DialogDescription>
+            Enter your company website URL and we'll analyze it to generate personalized context for your AI prompts.
+          </DialogDescription>
 
-        <div className="mt-7 space-y-5">
           {phase !== 'done' && (
-            <>
+            <div className="mt-8 space-y-5">
               <div>
                 <label htmlFor="company-url" className="block text-sm font-medium text-bolt-elements-textPrimary mb-2">
                   Company website URL
                 </label>
-                <input
-                  id="company-url"
-                  type="url"
-                  value={url}
-                  onChange={e => setUrl(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      handleGenerate();
-                    }
-                  }}
-                  placeholder="https://yourcompany.com"
-                  disabled={isLoading}
-                  className={classNames(
-                    'w-full px-4 py-3 rounded-xl border text-sm',
-                    'bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor',
-                    'text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary',
-                    'focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30',
-                    'disabled:opacity-50'
-                  )}
-                />
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-bolt-elements-textTertiary">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+                      <path
+                        d="M2 8h12M8 2c1.5 2 2.5 4 2.5 6s-1 4-2.5 6M8 2c-1.5 2-2.5 4-2.5 6s1 4 2.5 6"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </span>
+                  <input
+                    id="company-url"
+                    type="url"
+                    value={url}
+                    onChange={e => setUrl(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        handleGenerate();
+                      }
+                    }}
+                    placeholder="https://yourcompany.com"
+                    disabled={isLoading}
+                    className={classNames(
+                      'w-full pl-10 pr-4 py-3 rounded-xl border text-sm',
+                      'bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor',
+                      'text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary',
+                      'focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20',
+                      'disabled:opacity-50'
+                    )}
+                  />
+                </div>
               </div>
 
               {isLoading && (
-                <div className="flex items-center gap-3 py-3">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-accent-500/5 border border-accent-500/20">
                   <div className="w-5 h-5 border-2 border-accent-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm text-bolt-elements-textSecondary">
+                  <span className="text-sm font-medium text-accent-600">
                     {phase === 'fetching' ? 'Fetching website content...' : 'Analyzing with AI...'}
                   </span>
                 </div>
               )}
 
               {error && (
-                <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</div>
+                <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 mt-0.5">
+                    <circle cx="8" cy="8" r="6" stroke="#dc2626" strokeWidth="1.5" />
+                    <path d="M8 5v3M8 10.5v.5" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                  <span className="text-sm text-red-700">{error}</span>
+                </div>
               )}
-            </>
+            </div>
           )}
 
           {phase === 'done' && (
-            <>
-              <div className="rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-800">
-                Context generated. Review and edit below, then save.
+            <div className="mt-8 space-y-5">
+              <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-green-50 border border-green-200">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+                  <circle cx="8" cy="8" r="6" stroke="#16a34a" strokeWidth="1.5" />
+                  <path
+                    d="M5 8l2 2 4-5"
+                    stroke="#16a34a"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span className="text-sm font-medium text-green-800">Context generated — review and edit below</span>
               </div>
               <textarea
                 value={context}
                 onChange={e => setContext(e.target.value)}
-                rows={10}
+                rows={14}
                 className={classNames(
-                  'w-full px-4 py-3 rounded-xl border text-sm resize-y',
+                  'w-full px-4 py-3.5 rounded-xl border text-sm resize-y',
                   'bg-bolt-elements-background-depth-2 border-bolt-elements-borderColor',
                   'text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary',
-                  'focus:outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30',
-                  'leading-relaxed font-mono'
+                  'focus:outline-none focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20',
+                  'leading-relaxed'
                 )}
               />
-            </>
+            </div>
           )}
-        </div>
 
-        <div className="flex justify-between gap-2 mt-7">
-          <div>
-            {phase === 'done' && (
-              <button
-                onClick={handleRemove}
-                className="text-sm text-red-500 hover:text-red-600 underline underline-offset-2"
-              >
-                Remove context
-              </button>
-            )}
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={handleSkip}
-              disabled={isLoading}
-              className={classNames(
-                'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors',
-                'bg-transparent text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary',
-                'hover:bg-bolt-elements-background-depth-2',
-                { 'opacity-50 cursor-not-allowed': isLoading }
+          <div className="flex justify-between gap-2 mt-8">
+            <div>
+              {phase === 'done' && (
+                <button
+                  onClick={handleRemove}
+                  className="text-sm text-red-500 hover:text-red-600 underline underline-offset-2 transition-colors"
+                >
+                  Remove context
+                </button>
               )}
-            >
-              Skip
-            </button>
-            {phase === 'done' ? (
+            </div>
+            <div className="flex gap-3">
               <button
-                onClick={handleSave}
+                onClick={handleSkip}
+                disabled={isLoading}
                 className={classNames(
-                  'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors',
-                  'bg-accent-500 text-white hover:bg-accent-600'
+                  'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                  'text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2',
+                  { 'opacity-50 cursor-not-allowed': isLoading }
                 )}
               >
-                Save & Use
+                Skip
               </button>
-            ) : (
-              <button
-                onClick={handleGenerate}
-                disabled={isLoading || !url.trim()}
-                className={classNames(
-                  'inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors',
-                  'bg-accent-500 text-white hover:bg-accent-600',
-                  { 'opacity-50 cursor-not-allowed': isLoading || !url.trim() }
-                )}
-              >
-                Generate
-              </button>
-            )}
+              {phase === 'done' ? (
+                <button
+                  onClick={handleSave}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-accent-500 text-white hover:bg-accent-600 transition-colors"
+                >
+                  Save & Use
+                </button>
+              ) : (
+                <button
+                  onClick={handleGenerate}
+                  disabled={isLoading || !url.trim()}
+                  className={classNames(
+                    'inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-accent-500 text-white hover:bg-accent-600 transition-colors',
+                    { 'opacity-50 cursor-not-allowed': isLoading || !url.trim() }
+                  )}
+                >
+                  Generate
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </Dialog>

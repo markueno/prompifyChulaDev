@@ -21,6 +21,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   ]);
 
   return json({
+    user,
     plans: PLANS,
     topup: TOPUP_PACK,
     currentTierId: (sub?.tier_id as string) ?? 'tier_trial',

@@ -9,6 +9,7 @@ import { NotificationBell } from './NotificationBell.client';
 import { ConnectionStatusBanner } from '~/components/chat/ConnectionStatusBanner.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { UserProfile } from '~/components/auth/UserProfile';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher.client';
 
 /*
  * Hover-reveal top navbar. Mirrors the sidebar's hover pattern (Menu.client.tsx) but for the
@@ -29,6 +30,7 @@ export function FloatingHeader() {
   const { user } = useLoaderData<{ user: any }>();
   const location = useLocation();
   const onOverview = location.pathname.startsWith('/app/overview');
+  const onPricing = location.pathname.startsWith('/app/pricing');
 
   const started = chat.started;
   const [open, setOpen] = useState(false);
@@ -106,15 +108,26 @@ export function FloatingHeader() {
           </Link>
         </div>
         {user ? (
-          <Link
-            to="/app/overview"
-            className={classNames(
-              'header-nav-overview hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
-              onOverview ? 'bg-bolt-elements-background-depth-2 !text-zinc-900' : '!text-zinc-900 hover:!text-black'
-            )}
-          >
-            Overview
-          </Link>
+          <>
+            <Link
+              to="/app/overview"
+              className={classNames(
+                'header-nav-overview hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
+                onOverview ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white'
+              )}
+            >
+              Overview
+            </Link>
+            <Link
+              to="/app/pricing"
+              className={classNames(
+                'header-nav-pricing hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
+                onPricing ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white'
+              )}
+            >
+              Pricing
+            </Link>
+          </>
         ) : null}
       </div>
       {started ? (
@@ -131,6 +144,7 @@ export function FloatingHeader() {
             {started && <HeaderActionButtons />}
             {user && (
               <>
+                <ClientOnly>{() => <WorkspaceSwitcher />}</ClientOnly>
                 <NotificationBell />
                 <UserProfile user={user} />
               </>

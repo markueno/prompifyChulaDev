@@ -49,12 +49,10 @@ export function WorkspaceSwitcher() {
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
-  if (workspaces.length === 0) {
-    return null;
-  }
-
-  const personal = workspaces.find(w => w.is_personal);
-  const current = workspaces.find(w => w.id === active) ?? personal ?? workspaces[0];
+  const personal =
+    workspaces.find(w => w.is_personal) ??
+    (workspaces.length > 0 ? workspaces[0] : ({ id: 'personal', name: 'Personal', is_personal: true } as Workspace));
+  const current = workspaces.find(w => w.id === active) ?? personal;
 
   const switchTo = async (id: string) => {
     setOpen(false);
