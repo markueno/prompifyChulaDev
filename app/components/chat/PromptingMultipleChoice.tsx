@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { classNames } from '~/utils/classNames';
+import { FillBlanks } from '~/components/questionnaire/FillBlanks';
+import type { FillBlanksTemplate } from '~/lib/questionnaire/types';
+import { CompanyContextModal } from './CompanyContextModal';
 
 type QuestionId = 'app_type' | 'users' | 'website_style';
 
@@ -83,6 +86,175 @@ const USERS_TEXT: Record<string, string> = {
   both: 'Both internal staff and external customers',
 };
 
+const FILL_BLANKS_TEMPLATES: Record<string, FillBlanksTemplate> = {
+  crm: {
+    parts: ["I'm building a CRM for ", ' businesses, to help their ', ' sales team ', '.'],
+    blanks: [
+      {
+        id: 'industry',
+        options: [
+          'real estate',
+          'retail',
+          'finance',
+          'healthcare',
+          'tech',
+          'logistics',
+          'hospitality',
+          'e-commerce',
+          'construction',
+        ],
+      },
+      { id: 'team_size', options: ['small', 'growing', 'large', 'remote', 'multi-location'] },
+      {
+        id: 'goal',
+        options: [
+          'manage their pipeline',
+          'track customers',
+          'forecast revenue',
+          'close more deals',
+          'organise contacts',
+          'improve follow-ups',
+        ],
+      },
+    ],
+  },
+  inventory: {
+    parts: ["I'm building an inventory system for ", ' to track ', ' across ', '.'],
+    blanks: [
+      {
+        id: 'business_type',
+        options: [
+          'a retail store',
+          'a warehouse',
+          'a restaurant',
+          'a manufacturer',
+          'an e-commerce business',
+          'a pharmacy',
+          'a supplier',
+        ],
+      },
+      {
+        id: 'stock_type',
+        options: ['physical products', 'raw materials', 'ingredients', 'digital licenses', 'equipment', 'spare parts'],
+      },
+      {
+        id: 'locations',
+        options: ['one location', 'multiple warehouses', 'online and physical stores', 'multiple branches'],
+      },
+    ],
+  },
+  hr: {
+    parts: ["I'm building an HR app for a ", ' ', ' company to help manage ', '.'],
+    blanks: [
+      { id: 'company_size', options: ['small', 'growing', 'mid-sized', 'large'] },
+      {
+        id: 'industry',
+        options: [
+          'retail',
+          'tech',
+          'hospitality',
+          'healthcare',
+          'construction',
+          'logistics',
+          'financial',
+          'manufacturing',
+        ],
+      },
+      {
+        id: 'scope',
+        options: [
+          'timesheets and leave',
+          'expenses and payroll',
+          'all HR tasks',
+          'attendance and scheduling',
+          'employee onboarding',
+        ],
+      },
+    ],
+  },
+  appointment: {
+    parts: ["I'm building a booking app for ", ' where ', ' can schedule ', '.'],
+    blanks: [
+      {
+        id: 'business_type',
+        options: [
+          'a salon',
+          'a clinic',
+          'a consultancy',
+          'a fitness studio',
+          'a repair service',
+          'a coaching business',
+          'a dental practice',
+        ],
+      },
+      { id: 'booker', options: ['customers', 'staff', 'both customers and staff'] },
+      {
+        id: 'service_type',
+        options: ['appointments', 'classes and sessions', 'consultations', 'treatments', 'meetings', 'home visits'],
+      },
+    ],
+  },
+  knowledge: {
+    parts: ["I'm building a knowledge hub for ", ' to share ', ' about ', '.'],
+    blanks: [
+      { id: 'audience', options: ['our internal team', 'our company', 'our clients', 'our partners', 'the public'] },
+      {
+        id: 'content_type',
+        options: [
+          'documents and guides',
+          'training materials',
+          'policies and procedures',
+          'product knowledge',
+          'video tutorials',
+          'FAQs and wikis',
+        ],
+      },
+      {
+        id: 'topic',
+        options: [
+          'our products',
+          'our services',
+          'company processes',
+          'technical documentation',
+          'onboarding materials',
+        ],
+      },
+    ],
+  },
+  landing: {
+    parts: ["I'm building a ", ' for ', ' to ', '.'],
+    blanks: [
+      {
+        id: 'site_type',
+        options: ['business website', 'portfolio', 'blog', 'landing page', 'product showcase', 'personal brand site'],
+      },
+      {
+        id: 'business_type',
+        options: [
+          'a freelancer',
+          'a startup',
+          'a local business',
+          'an agency',
+          'a personal brand',
+          'a non-profit',
+          'a consultancy',
+        ],
+      },
+      {
+        id: 'goal',
+        options: [
+          'showcase our work',
+          'attract new clients',
+          'share our story',
+          'generate leads',
+          'promote a product',
+          'build an audience',
+        ],
+      },
+    ],
+  },
+};
+
 export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleChoiceProps) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Partial<Record<QuestionId, string>>>({});
@@ -90,6 +262,28 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
   const [palette, setPalette] = useState(['#F97316', '#FDBA74', '#C2410C']);
   const [context, setContext] = useState('');
   const [complete, setComplete] = useState(false);
+  const [contextModalOpen, setContextModalOpen] = useState(false);
+
+  const getCompanyContext = useCallback(() => {
+    try {
+      return localStorage.getItem('companyContext') || '';
+    } catch {
+      return '';
+    }
+  }, []);
+
+  const [hasCompanyContext, setHasCompanyContext] = useState(() => !!getCompanyContext());
+
+  const handleContextModalChange = useCallback(
+    (open: boolean) => {
+      setContextModalOpen(open);
+
+      if (!open) {
+        setHasCompanyContext(!!getCompanyContext());
+      }
+    },
+    [getCompanyContext]
+  );
 
   const totalSteps = QUESTIONS.length + 2;
   const currentQuestion = QUESTIONS[step];
@@ -146,7 +340,9 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
       ? `Project context: ${context.trim()}`
       : 'Project context: Build a production-ready foundation with clear UX and scalable architecture.';
 
-    return [
+    const companyCtx = getCompanyContext();
+
+    const lines = [
       'You are an expert full-stack engineer.',
       '',
       'Build a pre-alpha scaffold for this product:',
@@ -155,19 +351,30 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
       styleLabels ? `- Visual style inspired by: ${styleLabels}` : '',
       `- Brand palette: Primary ${palette[0]}, Secondary ${palette[1]}, Accent ${palette[2]}`,
       '',
-      contextLine,
-      '',
-      'Deliver:',
-      '1) Directory structure',
-      '2) Core pages and routes',
-      '3) Authentication flow',
-      '4) Data model and CRUD APIs',
-      '5) .env.example and README',
-      '',
-      'Keep implementation lean and modular.',
-    ]
-      .filter(line => line !== '')
-      .join('\n');
+    ];
+
+    if (companyCtx) {
+      lines.push('YOUR COMPANY CONTEXT');
+      lines.push(
+        'Use the following company information for naming conventions, design decisions, feature scope, and UX tone.'
+      );
+      lines.push('');
+      lines.push(companyCtx);
+      lines.push('');
+    }
+
+    lines.push(contextLine);
+    lines.push('');
+    lines.push('Deliver:');
+    lines.push('1) Directory structure');
+    lines.push('2) Core pages and routes');
+    lines.push('3) Authentication flow');
+    lines.push('4) Data model and CRUD APIs');
+    lines.push('5) .env.example and README');
+    lines.push('');
+    lines.push('Keep implementation lean and modular.');
+
+    return lines.join('\n');
   };
 
   const completeFlow = () => {
@@ -222,6 +429,49 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
               </button>
             ))}
           </div>
+
+          {step === 0 && (
+            <div
+              className={classNames(
+                'flex items-center gap-2 px-3.5 py-2.5 rounded-lg border text-sm mt-2',
+                hasCompanyContext
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : 'bg-[#fafafa] border-[#e8e8e8] text-[#999]'
+              )}
+            >
+              {hasCompanyContext ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                    <circle cx="7" cy="7" r="6" stroke="#16a34a" strokeWidth="1.5" />
+                    <path
+                      d="M4 7l2 2 4-4"
+                      stroke="#16a34a"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>Company context loaded</span>
+                  <button
+                    onClick={() => setContextModalOpen(true)}
+                    className="ml-auto text-green-700 hover:text-green-900 underline underline-offset-2 text-xs font-medium"
+                  >
+                    Edit
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>Optional: add your company context for more personalized prompts</span>
+                  <button
+                    onClick={() => setContextModalOpen(true)}
+                    className="ml-auto text-accent-600 hover:text-accent-700 underline underline-offset-2 text-xs font-medium whitespace-nowrap"
+                  >
+                    Add context →
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -334,23 +584,20 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
         </div>
       )}
 
-      {/* Context step */}
+      {/* Context step — fill in the blanks */}
       {!complete && step === QUESTIONS.length + 1 && (
         <div className="space-y-4">
           <h3 className="text-xl font-semibold text-bolt-elements-textPrimary">Tell us about your app</h3>
-          <p className="text-sm text-bolt-elements-textSecondary">Add key context, features, and constraints.</p>
-          <textarea
-            value={context}
-            onChange={e => setContext(e.target.value)}
-            placeholder="Example: Multi-tenant dashboard, role-based access, English + Japanese support, mobile-first."
-            className="min-h-[120px] w-full rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-4 text-sm text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary"
+          <p className="text-sm text-bolt-elements-textSecondary">
+            Fill in the blanks — click each highlighted word to choose, or type your own.
+          </p>
+          <FillBlanks
+            template={FILL_BLANKS_TEMPLATES[answers.app_type || '']}
+            onContinue={sentence => {
+              setContext(sentence);
+              completeFlow();
+            }}
           />
-          <button
-            onClick={completeFlow}
-            className="rounded-lg bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-600"
-          >
-            Get my prompt
-          </button>
         </div>
       )}
 
@@ -380,6 +627,8 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
           Back
         </button>
       </div>
+
+      <CompanyContextModal open={contextModalOpen} onOpenChange={handleContextModalChange} />
     </div>
   );
 }

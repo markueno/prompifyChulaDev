@@ -1,4 +1,4 @@
-import { useReducer, useState } from 'react';
+import { useReducer, useState, useCallback } from 'react';
 import { useNavigate } from '@remix-run/react';
 import { primaryQuestions, buildRefineQuestions } from '~/lib/questionnaire/data';
 import { buildPrimaryPrompt, buildRefinedPrompt } from '~/lib/questionnaire/engine';
@@ -17,6 +17,7 @@ import { ColorPicker } from './ColorPicker';
 import { FillBlanks } from './FillBlanks';
 import { DesignInspiration } from './DesignInspiration';
 import { PromptPreview } from './PromptPreview';
+import { CompanyContextModal } from '~/components/chat/CompanyContextModal';
 
 // ── Constants ─────────────────────────────────────────────────
 
@@ -226,6 +227,28 @@ export function QuestionFlow() {
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(reducer, initialState);
   const [colorSlots, setColorSlots] = useState<ColorSlot[]>(DEFAULT_COLOR_SLOTS);
+  const [contextModalOpen, setContextModalOpen] = useState(false);
+
+  const getCompanyContext = useCallback(() => {
+    try {
+      return localStorage.getItem('companyContext') || '';
+    } catch {
+      return '';
+    }
+  }, []);
+
+  const [hasCompanyContext, setHasCompanyContext] = useState(() => !!getCompanyContext());
+
+  const handleContextModalChange = useCallback(
+    (open: boolean) => {
+      setContextModalOpen(open);
+
+      if (!open) {
+        setHasCompanyContext(!!getCompanyContext());
+      }
+    },
+    [getCompanyContext]
+  );
 
   const activePhase = state.phase === 'preview' ? 'secondary' : state.phase;
   const isPreview = state.phase === 'preview';
@@ -243,7 +266,7 @@ export function QuestionFlow() {
 
   function renderQuestion() {
     if (isPreview) {
-      const primaryPrompt = buildPrimaryPrompt(state.primaryAnswers);
+      const primaryPrompt = buildPrimaryPrompt(state.primaryAnswers, getCompanyContext());
       const refinedPrompt = buildRefinedPrompt(state.primaryAnswers, state.secondaryAnswers);
 
       return (
@@ -388,6 +411,48 @@ export function QuestionFlow() {
             </div>
           )}
 
+          {!isPreview && state.phase === 'primary' && state.primaryStep === 0 && (
+            <div
+              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-lg border text-sm mb-5 ${
+                hasCompanyContext
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : 'bg-[#fafafa] border-[#e8e8e8] text-[#999]'
+              }`}
+            >
+              {hasCompanyContext ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                    <circle cx="7" cy="7" r="6" stroke="#16a34a" strokeWidth="1.5" />
+                    <path
+                      d="M4 7l2 2 4-4"
+                      stroke="#16a34a"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>Company context loaded</span>
+                  <button
+                    onClick={() => setContextModalOpen(true)}
+                    className="ml-auto text-green-700 hover:text-green-900 underline underline-offset-2 text-xs font-medium"
+                  >
+                    Edit
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>Optional: add your company context for more personalized prompts</span>
+                  <button
+                    onClick={() => setContextModalOpen(true)}
+                    className="ml-auto text-accent-600 hover:text-accent-700 underline underline-offset-2 text-xs font-medium whitespace-nowrap"
+                  >
+                    Add context →
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {isPreview && (
             <div className="mb-6">
               <h2 className="text-xl font-bold text-bolt-elements-textPrimary mb-1.5">Your prompts are ready</h2>
@@ -415,6 +480,7 @@ export function QuestionFlow() {
           />
         )}
       </div>
+      <CompanyContextModal open={contextModalOpen} onOpenChange={handleContextModalChange} />
     </div>
   );
 }
