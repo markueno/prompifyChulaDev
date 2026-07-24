@@ -32,7 +32,7 @@ const STREAMING_WORDS = [
 const COLORS = [
   { glow: '#f97316', bg: 'rgba(249,115,22,0.15)', shadow: 'rgba(249,115,22,0.4)', hue: 0 },
   { glow: '#3b82f6', bg: 'rgba(59,130,246,0.15)', shadow: 'rgba(59,130,246,0.4)', hue: 130 },
-  { glow: '#8b5cf6', bg: 'rgba(139,92,246,0.15)', shadow: 'rgba(139,92,246,0.4)', hue: 200 },
+  { glow: '#c2410c', bg: 'rgba(194,65,12,0.15)', shadow: 'rgba(194,65,12,0.4)', hue: 200 },
   { glow: '#10b981', bg: 'rgba(16,185,129,0.15)', shadow: 'rgba(16,185,129,0.4)', hue: 90 },
 ];
 

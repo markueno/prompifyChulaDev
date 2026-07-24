@@ -12,7 +12,7 @@ interface SceneProps {
 const ICONS = [
   { color: '#10b981', angle: 0, label: 'Healthcare' },
   { color: '#3b82f6', angle: (2 * Math.PI) / 5, label: 'Finance' },
-  { color: '#8b5cf6', angle: (4 * Math.PI) / 5, label: 'Retail' },
+  { color: '#f97316', angle: (4 * Math.PI) / 5, label: 'Retail' },
   { color: '#06b6d4', angle: (6 * Math.PI) / 5, label: 'Education' },
   { color: '#f59e0b', angle: (8 * Math.PI) / 5, label: 'Tech' },
 ];

@@ -29,7 +29,7 @@ export function Header() {
           <div className="i-ph:sidebar-simple-duotone text-xl" />
           <Link to="/app/" className="text-2xl font-semibold text-accent flex items-center">
             {/* <span className="i-bolt:logo-text?mask w-[46px] inline-block" /> */}
-            <img src="/prompify2.png" alt="Prompify" className="w-[90px] inline-block" />
+            <img src="/prompify2.png" alt="Prompify" className="w-[45px] inline-block" />
           </Link>
         </div>
         {user ? (
@@ -60,7 +60,7 @@ export function Header() {
           <ClientOnly>{() => <ChatDescription />}</ClientOnly>
         </span>
       ) : (
-        <span className="flex-1" />
+        <span className="flex-1 text-center text-sm font-bold text-white">Prompify</span>
       )}
       <ClientOnly>
         {() => (

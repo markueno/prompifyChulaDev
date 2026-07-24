@@ -580,11 +580,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                         )}
                         onDragEnter={e => {
                           e.preventDefault();
-                          e.currentTarget.style.border = '2px solid #1488fc';
+                          e.currentTarget.style.border = '2px solid #f97316';
                         }}
                         onDragOver={e => {
                           e.preventDefault();
-                          e.currentTarget.style.border = '2px solid #1488fc';
+                          e.currentTarget.style.border = '2px solid #f97316';
                         }}
                         onDragLeave={e => {
                           e.preventDefault();

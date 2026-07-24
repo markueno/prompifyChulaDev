@@ -392,7 +392,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
     <div className="space-y-6">
       <div className="flex items-center justify-between pt-6">
         <div className="flex items-center gap-3">
-          <OllamaIcon className="w-8 h-8 text-purple-500" />
+          <OllamaIcon className="w-8 h-8 text-[#f97316]" />
           <div>
             <h3 className="text-lg font-semibold text-bolt-elements-textPrimary">Ollama Models</h3>
             <p className="text-sm text-bolt-elements-textSecondary mt-1">Install and manage your Ollama models</p>
@@ -403,8 +403,8 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
           disabled={isChecking}
           className={classNames(
             'px-4 py-2 rounded-lg',
-            'bg-purple-500/10 text-purple-500',
-            'hover:bg-purple-500/20',
+            'bg-[#f97316]/10 text-[#f97316]',
+            'hover:bg-[#f97316]/20',
             'transition-all duration-200',
             'flex items-center gap-2'
           )}
@@ -429,7 +429,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
                 'w-full px-4 py-3 rounded-xl',
                 'bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor',
                 'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
-                'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
+                'focus:outline-none focus:ring-2 focus:ring-[#f97316]/30',
                 'transition-all duration-200'
               )}
               placeholder="Search models or enter custom model name..."
@@ -447,7 +447,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
                 href="https://ollama.com/library"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-purple-500 hover:underline inline-flex items-center gap-1 text-base font-medium"
+                className="text-[#f97316] hover:underline inline-flex items-center gap-1 text-base font-medium"
               >
                 ollama.com/library
                 <div className="i-ph:arrow-square-out text-sm" />
@@ -461,8 +461,8 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
           disabled={!modelString || isInstalling}
           className={classNames(
             'rounded-lg px-4 py-2',
-            'bg-purple-500 text-white text-sm',
-            'hover:bg-purple-600',
+            'bg-[#f97316] text-white text-sm',
+            'hover:bg-[#ea5a0c]',
             'transition-all duration-200',
             'flex items-center gap-2',
             { 'opacity-50 cursor-not-allowed': !modelString || isInstalling }
@@ -494,7 +494,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
             className={classNames(
               'px-3 py-1 rounded-full text-xs font-medium transition-all duration-200',
               selectedTags.includes(tag)
-                ? 'bg-purple-500 text-white'
+                ? 'bg-[#f97316] text-white'
                 : 'bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-4'
             )}
           >
@@ -515,7 +515,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
               'relative group'
             )}
           >
-            <OllamaIcon className="w-5 h-5 text-purple-500 mt-0.5 flex-shrink-0" />
+            <OllamaIcon className="w-5 h-5 text-[#f97316] mt-0.5 flex-shrink-0" />
             <div className="flex-1 space-y-1.5">
               <div className="flex items-start justify-between">
                 <div>
@@ -528,7 +528,7 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
                     <div className="mt-0.5 flex flex-col items-end gap-0.5">
                       <span className="text-xs text-bolt-elements-textTertiary">v{model.installedVersion}</span>
                       {model.needsUpdate && model.latestVersion && (
-                        <span className="text-xs text-purple-500">v{model.latestVersion} available</span>
+                        <span className="text-xs text-[#f97316]">v{model.latestVersion} available</span>
                       )}
                     </div>
                   )}
@@ -552,8 +552,8 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
                         onClick={() => handleUpdateModel(model.name)}
                         className={classNames(
                           'px-2 py-0.5 rounded-lg text-xs',
-                          'bg-purple-500 text-white',
-                          'hover:bg-purple-600',
+                          'bg-[#f97316] text-white',
+                          'hover:bg-[#ea5a0c]',
                           'transition-all duration-200',
                           'flex items-center gap-1'
                         )}
@@ -571,8 +571,8 @@ export default function OllamaModelInstaller({ onModelInstalled }: OllamaModelIn
                       onClick={() => handleInstallModel(model.name)}
                       className={classNames(
                         'px-2 py-0.5 rounded-lg text-xs',
-                        'bg-purple-500 text-white',
-                        'hover:bg-purple-600',
+                        'bg-[#f97316] text-white',
+                        'hover:bg-[#ea5a0c]',
                         'transition-all duration-200',
                         'flex items-center gap-1'
                       )}

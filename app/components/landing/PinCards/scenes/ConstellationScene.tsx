@@ -12,7 +12,7 @@ interface SceneProps {
 const NODES = [
   { label: 'G', color: '#10b981', radius: 3.0, speed: 0.3, yOffset: 0.5, angleOffset: 0 },
   { label: 'O', color: '#3b82f6', radius: 3.5, speed: 0.2, yOffset: -0.3, angleOffset: Math.PI * 0.4 },
-  { label: 'C', color: '#8b5cf6', radius: 2.8, speed: 0.35, yOffset: 0.8, angleOffset: Math.PI * 0.8 },
+  { label: 'C', color: '#f97316', radius: 2.8, speed: 0.35, yOffset: 0.8, angleOffset: Math.PI * 0.8 },
   { label: 'D', color: '#06b6d4', radius: 3.2, speed: 0.25, yOffset: -0.6, angleOffset: Math.PI * 1.2 },
   { label: 'M', color: '#ef4444', radius: 3.8, speed: 0.15, yOffset: 0.2, angleOffset: Math.PI * 1.6 },
 ];

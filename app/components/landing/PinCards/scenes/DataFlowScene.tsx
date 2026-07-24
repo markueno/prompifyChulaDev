@@ -8,7 +8,7 @@ interface SceneProps {
   isActive: boolean;
 }
 
-const BAR_COLORS = ['#ff6b00', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b'];
+const BAR_COLORS = ['#ff6b00', '#3b82f6', '#10b981', '#f97316', '#f59e0b'];
 const BAR_HEIGHTS = [1.0, 2.0, 1.5, 2.5, 1.8];
 const COLS = [-4, -3.5, -3, -2.5];
 const ROWS_PER_COL = 8;
