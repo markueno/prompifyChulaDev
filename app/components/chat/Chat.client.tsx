@@ -862,8 +862,10 @@ export const ChatImpl = memo(
         setFakeLoading(true);
 
         if (autoSelectTemplate) {
+          const templateMessage = messageContent.length > 500 ? messageContent.substring(0, 500) : messageContent;
+
           const { template, title } = await selectStarterTemplate({
-            message: messageContent,
+            message: templateMessage,
             model,
             provider,
           });
