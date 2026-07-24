@@ -3,6 +3,7 @@ import { classNames } from '~/utils/classNames';
 import { FillBlanks } from '~/components/questionnaire/FillBlanks';
 import type { FillBlanksTemplate } from '~/lib/questionnaire/types';
 import { CompanyContextModal } from './CompanyContextModal';
+import { DESIGN_SYSTEMS } from '~/lib/design-systems';
 
 // ─── Color math ───────────────────────────────────────────────────────────────
 
@@ -295,20 +296,58 @@ const QUESTIONS: Question[] = [
   },
 ];
 
-const APP_TYPE_TEXT: Record<string, string> = {
-  crm: 'CRM / Sales Forecasting platform',
-  inventory: 'Inventory Management system',
-  hr: 'HR management application',
-  appointment: 'Appointment scheduling application',
-  knowledge: 'Knowledge hub / document portal',
-  landing: 'Landing page / marketing website',
+const ARCHETYPE_NOTES: Record<string, { archetype: string; notes: string }> = {
+  crm: {
+    archetype: 'CRM / Sales Forecasting platform',
+    notes:
+      'Customer relationship management with contact records, deal pipeline, activity logging, and revenue forecasting. Role-based views for sales reps and managers. Reporting and target tracking built in.',
+  },
+  inventory: {
+    archetype: 'Inventory Management system',
+    notes:
+      'Stock-level tracking with product catalogue, quantity management, low-stock alerts, and reorder workflows. Supports physical products, raw materials, and digital stock. Audit trail on all stock movements.',
+  },
+  hr: {
+    archetype: 'HR management application',
+    notes:
+      'Staff-facing HR platform. Timesheet submission and approval, leave request management, expense claims with receipt upload, and payroll summary. Manager approval flows and admin oversight panel.',
+  },
+  appointment: {
+    archetype: 'Appointment / scheduling application',
+    notes:
+      'Calendar-based booking with configurable availability, time-slot management, booking confirmations, and reminders. Supports self-service booking by customers or staff-managed scheduling. Calendar sync integration.',
+  },
+  knowledge: {
+    archetype: 'Knowledge hub / document portal',
+    notes:
+      'Centralised content platform for sharing documents, guides, and dashboards. Category-based organisation with full-text search. Role-based access to control who can view or edit content. Version history on documents.',
+  },
+  landing: {
+    archetype: 'Landing page / marketing website',
+    notes:
+      'Public-facing website with static or CMS-managed content. SEO-optimised pages, blog or news section, contact/lead capture forms, and clear calls to action. Fast load times and mobile-first design.',
+  },
 };
 
-const USERS_TEXT: Record<string, string> = {
-  customers: 'External customers (public-facing)',
-  team: 'Internal team / staff only',
-  both: 'Both internal staff and external customers',
+const USER_SCOPE: Record<string, { scope: string; auth: string; payments: string }> = {
+  customers: {
+    scope: 'External customers (public-facing)',
+    auth: 'Public signup flow with email verification. OAuth social login support (Google, GitHub). Password reset. CDN and edge deployment for performance. SEO-optimised frontend.',
+    payments: 'Stripe integration for customer payments — subscriptions, one-time purchases, and invoicing.',
+  },
+  team: {
+    scope: 'Internal team / staff only',
+    auth: 'No public signup. Invite-only or company email domain restriction. SSO-ready (SAML/OIDC). Admin-controlled user creation. Admin-focused UI, no SEO requirement.',
+    payments: 'No customer-facing payments needed.',
+  },
+  both: {
+    scope: 'Both internal staff and external customers',
+    auth: 'Dual auth flows: invite-only or SSO for staff (admin panel), OAuth + email signup for customers (public-facing app). Role-based routing to separate interfaces.',
+    payments: 'Stripe for customer payments; admin billing portal for staff subscription management.',
+  },
 };
+
+const DIVIDER = '════════════════════════════════════════';
 
 const FILL_BLANKS_TEMPLATES: Record<string, FillBlanksTemplate> = {
   crm: {
@@ -552,53 +591,129 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
   };
 
   const buildPrompt = () => {
-    const appType = APP_TYPE_TEXT[answers.app_type || ''] || 'Web application';
-    const users = USERS_TEXT[answers.users || ''] || 'General users';
-    const styleLabels = multiAnswers
-      .map(id => {
-        const opt = QUESTIONS[2].options.find(o => o.id === id);
-
-        return opt ? `${opt.label} (${opt.description})` : id;
-      })
-      .join(', ');
-
-    const contextLine = context.trim()
-      ? `Project context: ${context.trim()}`
-      : 'Project context: Build a production-ready foundation with clear UX and scalable architecture.';
-
+    const appTypeId = answers.app_type || '';
+    const archetype = ARCHETYPE_NOTES[appTypeId] ?? {
+      archetype: 'Web application',
+      notes: 'A production-ready web application with clear UX and scalable architecture.',
+    };
+    const userScope = USER_SCOPE[answers.users || ''] ?? USER_SCOPE.customers;
+    const contextSentence = context.trim();
     const companyCtx = getCompanyContext();
 
-    const lines = [
-      'You are an expert full-stack engineer.',
-      '',
-      'Build a pre-alpha scaffold for this product:',
-      `- App type: ${appType}`,
-      `- Target users: ${users}`,
-      styleLabels ? `- Visual style inspired by: ${styleLabels}` : '',
-      `- Brand palette: Primary ${palette[0]}, Secondary ${palette[1]}, Accent ${palette[2]}`,
-      '',
-    ];
+    const lines: string[] = [];
 
-    if (companyCtx) {
-      lines.push('YOUR COMPANY CONTEXT');
-      lines.push(
-        'Use the following company information for naming conventions, design decisions, feature scope, and UX tone.'
-      );
-      lines.push('');
-      lines.push(companyCtx);
+    lines.push('You are an expert full-stack software engineer and solution architect.');
+    lines.push('');
+
+    // ── WHAT I'M BUILDING ──
+    lines.push(DIVIDER);
+    lines.push("WHAT I'M BUILDING");
+    lines.push(DIVIDER);
+
+    if (contextSentence) {
+      lines.push(contextSentence);
       lines.push('');
     }
 
-    lines.push(contextLine);
+    lines.push(`App type:  ${archetype.archetype}`);
     lines.push('');
-    lines.push('Deliver:');
-    lines.push('1) Directory structure');
-    lines.push('2) Core pages and routes');
-    lines.push('3) Authentication flow');
-    lines.push('4) Data model and CRUD APIs');
-    lines.push('5) .env.example and README');
+
+    if (archetype.notes) {
+      lines.push(archetype.notes);
+      lines.push('');
+    }
+
+    // ── TARGET USERS & REQUIREMENTS ──
+    lines.push(DIVIDER);
+    lines.push('TARGET USERS & REQUIREMENTS');
+    lines.push(DIVIDER);
+    lines.push('User scope');
+    lines.push(`  ${userScope.scope}`);
     lines.push('');
-    lines.push('Keep implementation lean and modular.');
+    lines.push('Authentication');
+    lines.push(`  ${userScope.auth}`);
+    lines.push('');
+    lines.push('Payments');
+    lines.push(`  ${userScope.payments}`);
+    lines.push('');
+
+    // ── VISUAL DESIGN — COLOR PALETTE ──
+    lines.push(DIVIDER);
+    lines.push('VISUAL DESIGN — COLOR PALETTE');
+    lines.push(DIVIDER);
+    lines.push('Color palette (apply exactly — these are hard requirements):');
+    lines.push(`  Primary:    ${palette[0]}`);
+    lines.push(`  Secondary:  ${palette[1]}`);
+    lines.push(`  Accent:     ${palette[2]}`);
+    lines.push('');
+    lines.push('UI color rules:');
+    lines.push('  — Primary color: main CTAs, navigation active states, key interactive elements');
+    lines.push('  — Secondary color: backgrounds, card surfaces, sidebar fills');
+    lines.push('  — Accent color: highlights, badges, notifications, calls to attention');
+    lines.push('  Do not introduce any other brand colors. These are the only colors in the palette.');
+    lines.push('');
+
+    // ── VISUAL DESIGN INSPIRATION ──
+    if (multiAnswers.length > 0) {
+      lines.push(DIVIDER);
+      lines.push('VISUAL DESIGN INSPIRATION');
+      lines.push(DIVIDER);
+      lines.push(
+        'The following design system(s) define the visual style for this app. Use them as binding reference for component structure, spacing, typography, color usage, and interaction patterns when building all UI.'
+      );
+      lines.push('');
+
+      for (const brandId of multiAnswers) {
+        const md = DESIGN_SYSTEMS[brandId];
+
+        if (md) {
+          const brandLabel = QUESTIONS[2].options.find(o => o.id === brandId)?.label ?? brandId;
+          lines.push(`─── ${brandLabel.toUpperCase()} DESIGN SYSTEM ───`);
+          lines.push(md.trim());
+          lines.push('');
+        }
+      }
+    }
+
+    // ── COMPANY CONTEXT ──
+    if (companyCtx) {
+      lines.push(DIVIDER);
+      lines.push('YOUR COMPANY CONTEXT');
+      lines.push(DIVIDER);
+      lines.push(
+        'The following describes the company this tool is being built for. Use it throughout — for naming conventions, design decisions, feature scope, and UX tone.'
+      );
+      lines.push('');
+      lines.push(companyCtx.trim());
+      lines.push('');
+    }
+
+    // ── WHAT TO BUILD ──
+    lines.push(DIVIDER);
+    lines.push('WHAT TO BUILD — PRE-ALPHA SCAFFOLD');
+    lines.push(DIVIDER);
+    lines.push('Build the pre-alpha foundation of this app. This is the skeleton to start from.');
+    lines.push('');
+    lines.push('1)  Directory structure — scaffold the full project with proper separation of concerns');
+    lines.push('2)  Core pages and routes — all main views with working navigation');
+    lines.push('3)  Authentication flow — signup, login, password reset, session management');
+    lines.push('4)  Data model and CRUD APIs — database schema, migrations, REST or server actions');
+    lines.push('5)  .env.example and README — setup instructions, environment variables documented');
+    lines.push('');
+
+    // ── IMPORTANT NOTES ──
+    lines.push(DIVIDER);
+    lines.push('IMPORTANT NOTES');
+    lines.push(DIVIDER);
+
+    if (multiAnswers.length > 0) {
+      lines.push(
+        'Apply the selected design system(s) to all UI decisions — typography, spacing, elevation, color usage, and component patterns.'
+      );
+    }
+
+    lines.push('Keep the implementation lean and modular. Use TypeScript throughout.');
+    lines.push('Do not over-engineer — deliver the scaffold, not the final product.');
 
     return lines.join('\n');
   };
