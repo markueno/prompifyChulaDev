@@ -1,10 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  sanitizeIdentifier,
-  uniqueColumnNames,
-  inferColumnType,
-  buildImportPayload,
-} from './importTable';
+import { sanitizeIdentifier, uniqueColumnNames, inferColumnType, buildImportPayload } from './importTable';
 
 describe('sanitizeIdentifier', () => {
   it('lowercases and replaces spaces/hyphens', () => {

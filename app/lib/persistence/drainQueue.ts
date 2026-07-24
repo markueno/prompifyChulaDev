@@ -13,7 +13,7 @@
  *  3. page load (in case the tab was closed while offline)
  */
 import { atom } from 'nanostores';
-import { deletePendingWrite, getPendingWrites, type PendingWrite } from './db';
+import { deletePendingWrite, getPendingWrites, updatePendingWriteRetryCount, type PendingWrite } from './db';
 import { serverCircuit } from './serverCircuit';
 import { uploadBlobs } from '~/lib/snapshots/uploadBlobs';
 import type { Snapshot } from '~/lib/snapshots/buildSnapshot';
@@ -115,7 +115,22 @@ export async function drainPendingWrites(db: IDBDatabase | undefined): Promise<v
           continue;
         }
       } catch {
-        break; // Still failing — stop draining, keep remaining writes in queue
+        /*
+         * Increment retry count; drop writes that fail more than 5 times
+         * (dead-letter — avoids infinite retry of permanently-broken writes).
+         * Stop draining on any failure so we don't exhaust the queue on a
+         * transient outage.
+         */
+        if (write.retryCount >= 5) {
+          if (write.id !== undefined) {
+            await deletePendingWrite(db, write.id);
+          }
+
+          continue;
+        }
+
+        await updatePendingWriteRetryCount(db, write.id!, write.retryCount + 1);
+        break;
       }
     }
   } finally {
@@ -142,14 +157,18 @@ export function initOfflineDrain(db: IDBDatabase | undefined): void {
     void drainPendingWrites(db);
   });
 
-  // Trigger 3 — page load (tab may have been closed while offline). Delay a few seconds so
-  // the drain never competes with app boot (WebContainer boot, chat load).
+  /*
+   * Trigger 3 — page load (tab may have been closed while offline). Delay a few seconds so
+   * the drain never competes with app boot (WebContainer boot, chat load).
+   */
   window.setTimeout(() => {
     void drainPendingWrites(db);
   }, 5_000);
 
-  // Trigger 2 — while the circuit is open, health-check every 30s (matches RECOVERY_TIMEOUT,
-  // so each tick can move the circuit open → half-open → closed) and drain on recovery.
+  /*
+   * Trigger 2 — while the circuit is open, health-check every 30s (matches RECOVERY_TIMEOUT,
+   * so each tick can move the circuit open → half-open → closed) and drain on recovery.
+   */
   window.setInterval(async () => {
     if (!serverCircuit.isOpen) {
       return;

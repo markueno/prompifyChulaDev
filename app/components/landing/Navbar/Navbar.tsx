@@ -1,29 +1,33 @@
-﻿'use client'
+﻿'use client';
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react';
 
 interface NavbarProps {
-  onLogin?: () => void
-  onSignUp?: () => void
+  onLogin?: () => void;
+  onSignUp?: () => void;
 }
 
 export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
-  const navRef = useRef<HTMLElement>(null)
+  const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    const nav = navRef.current
-    if (!nav) return
+    const nav = navRef.current;
 
-    const handleScroll = () => {
-      const scrollY = window.scrollY
-      const opacity = Math.max(0, 1 - (scrollY - 60) / 120)
-      nav.style.opacity = String(opacity)
-      nav.style.pointerEvents = opacity < 0.05 ? 'none' : 'auto'
+    if (!nav) {
+      return;
     }
 
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      const opacity = Math.max(0, 1 - (scrollY - 60) / 120);
+      nav.style.opacity = String(opacity);
+      nav.style.pointerEvents = opacity < 0.05 ? 'none' : 'auto';
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
     <nav
@@ -50,7 +54,7 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
         <button
-          onClick={() => onLogin ? onLogin() : window.location.href = '/login'}
+          onClick={() => (onLogin ? onLogin() : (window.location.href = '/login'))}
           style={{
             padding: '0.375rem 0.9rem',
             borderRadius: '9999px',
@@ -71,7 +75,7 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
         </button>
 
         <button
-          onClick={() => onSignUp ? onSignUp() : window.location.href = '/signup'}
+          onClick={() => (onSignUp ? onSignUp() : (window.location.href = '/signup'))}
           style={{
             padding: '0.375rem 0.9rem',
             borderRadius: '9999px',
@@ -92,6 +96,5 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
         </button>
       </div>
     </nav>
-  )
+  );
 }
-

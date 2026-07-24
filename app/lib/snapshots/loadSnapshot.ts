@@ -37,7 +37,7 @@ interface LatestVersionResponse {
  */
 export function reconstructFiles(
   manifest: Record<string, string>,
-  contentByHash: Map<string, string>,
+  contentByHash: Map<string, string>
 ): Record<string, string> | null {
   const files: Record<string, string> = {};
 
@@ -92,7 +92,7 @@ export async function loadSnapshotVersion(chatId: string, versionNumber: number)
         }
 
         return [hash, await blobRes.text()] as const;
-      }),
+      })
     );
 
     for (const [hash, content] of entries) {
@@ -153,7 +153,7 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
         }
 
         return [hash, await blobRes.text()] as const;
-      }),
+      })
     );
 
     for (const [hash, content] of entries) {

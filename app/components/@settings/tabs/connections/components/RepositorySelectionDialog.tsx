@@ -133,8 +133,6 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
   const [branches, setBranches] = useState<{ name: string; default?: boolean }[]>([]);
   const [selectedBranch, setSelectedBranch] = useState('');
   const [filters, setFilters] = useState<SearchFilters>({});
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [stats, setStats] = useState<RepositoryStats | null>(null);
   const [showStatsDialog, setShowStatsDialog] = useState(false);
   const [currentStats, setCurrentStats] = useState<RepositoryStats | null>(null);
   const [pendingGitUrl, setPendingGitUrl] = useState<string>('');
@@ -352,8 +350,6 @@ export function RepositorySelectionDialog({ isOpen, onClose, onSelect }: Reposit
         hasPackageJson,
         hasDependencies,
       };
-
-      setStats(stats);
 
       return stats;
     } catch (error) {

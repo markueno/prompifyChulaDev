@@ -55,8 +55,10 @@ describe('drainPendingWrites', () => {
   beforeEach(async () => {
     globalThis.indexedDB = new IDBFactory();
 
-    // Fake ONLY Date (for deterministic queueWrite timestamps) — faking setTimeout would
-    // stall fake-indexeddb's async event delivery and hang openDatabase.
+    /*
+     * Fake ONLY Date (for deterministic queueWrite timestamps) — faking setTimeout would
+     * stall fake-indexeddb's async event delivery and hang openDatabase.
+     */
     vi.useFakeTimers({ toFake: ['Date'] });
 
     // Fresh module graph per test: fresh circuit singleton + fresh `draining` flag.
@@ -93,10 +95,7 @@ describe('drainPendingWrites', () => {
     await queueVersionWrite('chat_1', 1000);
     await queueVersionWrite('chat_2', 2000);
 
-    vi.stubGlobal(
-      'fetch',
-      mockFetch({ dedup: () => jsonResponse({ error: 'down' }, 500) })
-    );
+    vi.stubGlobal('fetch', mockFetch({ dedup: () => jsonResponse({ error: 'down' }, 500) }));
 
     await drainQueue.drainPendingWrites(db);
 
@@ -113,8 +112,10 @@ describe('drainPendingWrites', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    // chat_old: blobs missing + no files -> unretryable, deleted, drain continues.
-    // chat_new: has files -> uploadBlobs path -> needs upload-url; extend the router:
+    /*
+     * chat_old: blobs missing + no files -> unretryable, deleted, drain continues.
+     * chat_new: has files -> uploadBlobs path -> needs upload-url; extend the router:
+     */
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
 

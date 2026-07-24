@@ -269,6 +269,7 @@ export class WorkbenchStore {
     if (this.#autoSaveTimer) {
       clearTimeout(this.#autoSaveTimer);
     }
+
     this.#autoSaveTimer = setTimeout(() => {
       this.#autoSaveTimer = undefined;
       this.saveCurrentDocument().catch(() => {});
@@ -301,8 +302,10 @@ export class WorkbenchStore {
 
     await this.#filesStore.saveFile(filePath, document.value);
 
-    // Day 19 — pass a manual-edit label + the changed file path so the version name
-    // reflects the change instead of the chat title.
+    /*
+     * Day 19 — pass a manual-edit label + the changed file path so the version name
+     * reflects the change instead of the chat title.
+     */
     scheduleSnapshotSave(this.#filesStore.files.get(), undefined, undefined, false, 'Manual edit', filePath);
 
     const newUnsavedFiles = new Set(this.unsavedFiles.get());
@@ -451,7 +454,7 @@ export class WorkbenchStore {
       const isBinaryFile = isBinary(relPath, null) === true;
 
       if (isBinaryFile) {
-        const binary = Uint8Array.from(atob(content), (c) => c.charCodeAt(0));
+        const binary = Uint8Array.from(atob(content), c => c.charCodeAt(0));
         await wc.fs.writeFile(relPath, binary);
       } else {
         await wc.fs.writeFile(relPath, content);
@@ -545,10 +548,12 @@ export class WorkbenchStore {
       return;
     }
 
-    // Day 9b — files already came from the snapshot mount; skip replaying historical FILE
-    // writes so we don't overwrite the restore with slow per-file re-writes. Only file actions
-    // from reloaded (historical) messages are skipped — shell/start actions still replay so the
-    // dev server boots, and new generations (fresh messageIds) are never suppressed.
+    /*
+     * Day 9b — files already came from the snapshot mount; skip replaying historical FILE
+     * writes so we don't overwrite the restore with slow per-file re-writes. Only file actions
+     * from reloaded (historical) messages are skipped — shell/start actions still replay so the
+     * dev server boots, and new generations (fresh messageIds) are never suppressed.
+     */
     if (this.#restoredFromSnapshot && data.action.type === 'file' && this.#reloadedMessages.has(messageId)) {
       artifact.runner.actions.setKey(data.actionId, { ...action, status: 'complete', executed: true });
       return;

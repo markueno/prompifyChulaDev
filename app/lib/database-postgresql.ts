@@ -5,6 +5,7 @@ import { keyForHash } from '~/lib/.server/storage';
 import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
 import { diffManifests } from '~/lib/snapshots/diffManifests';
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 const { Pool } = pg;
 type PoolClient = pg.PoolClient;
 
@@ -73,12 +74,12 @@ async function ensureCodebaseVersionSchema(): Promise<void> {
         ref_count INTEGER NOT NULL DEFAULT 1
       )
     `);
-    await p.query(
-      'CREATE INDEX IF NOT EXISTS idx_blobs_ref_count ON codebase_blobs(ref_count) WHERE ref_count > 0'
-    );
+    await p.query('CREATE INDEX IF NOT EXISTS idx_blobs_ref_count ON codebase_blobs(ref_count) WHERE ref_count > 0');
   } catch (error) {
-    // Reset so a future save retries; never block the version save on a migration failure
-    // (the optimistic client cache keeps edits safe regardless).
+    /*
+     * Reset so a future save retries; never block the version save on a migration failure
+     * (the optimistic client cache keeps edits safe regardless).
+     */
     codebaseSchemaEnsured = false;
     console.error('ensureCodebaseVersionSchema failed (will retry next save):', error);
   }
@@ -512,6 +513,9 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_projects_owner_slug ON projects(owner_user_id, slug)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_project_members_project_id ON project_members(project_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members(user_id)');
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_project_members_project_user ON project_members(project_id, user_id)'
+    );
     await client.query('CREATE INDEX IF NOT EXISTS idx_chats_user_id ON chats(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chats_project_id ON chats(project_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chats_url_id ON chats(url_id)');
@@ -525,6 +529,7 @@ export async function createPostgresTables() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_koogallery_logs_timestamp ON koogallery_logs(timestamp)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_members_chat_id ON chat_members(chat_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_members_user_id ON chat_members(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_chat_members_chat_user ON chat_members(chat_id, user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_chat_id ON chat_invitations(chat_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_email ON chat_invitations(email)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_chat_invitations_token ON chat_invitations(token)');
@@ -963,7 +968,7 @@ export async function verifyUserPostgres(userId: string) {
   } catch (error: any) {
     try {
       await client.query('ROLLBACK');
-    } catch (_) {}
+    } catch {}
     console.error('Error verifying user:', error);
 
     return false;
@@ -990,10 +995,11 @@ export async function createPasswordResetTokenPostgres(
     }
 
     const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
 
     await client.query('UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3', [
-      token,
+      tokenHash,
       expires,
       user.id,
     ]);
@@ -1013,7 +1019,9 @@ export async function getUserByResetTokenPostgres(token: string) {
   const client = await pool.connect();
 
   try {
-    const result = await client.query('SELECT * FROM users WHERE reset_token = $1', [token]);
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const result = await client.query('SELECT * FROM users WHERE reset_token = $1', [tokenHash]);
+
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error getting user by reset token:', error);
@@ -1029,14 +1037,16 @@ export async function setPasswordFromResetTokenPostgres(token: string, passwordH
   const client = await pool.connect();
 
   try {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const result = await client.query(
       `
       UPDATE users
       SET password_hash = $1, reset_token = NULL, reset_expires = NULL, updated_at = CURRENT_TIMESTAMP
       WHERE reset_token = $2 AND reset_expires > CURRENT_TIMESTAMP
     `,
-      [passwordHash, token]
+      [passwordHash, tokenHash]
     );
+
     return (result.rowCount ?? 0) > 0;
   } catch (error) {
     console.error('Error setting password from reset token:', error);
@@ -1098,9 +1108,9 @@ export async function checkRateLimitPostgres(
 ): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
+
   try {
     const now = new Date();
-    const windowStart = new Date(now.getTime() - windowSeconds * 1000);
 
     await client.query('BEGIN');
 
@@ -1116,6 +1126,7 @@ export async function checkRateLimitPostgres(
         [key, endpoint, now]
       );
       await client.query('COMMIT');
+
       return { allowed: true };
     }
 
@@ -1129,12 +1140,15 @@ export async function checkRateLimitPostgres(
         [now, key, endpoint]
       );
       await client.query('COMMIT');
+
       return { allowed: true };
     }
 
     if (row.attempts >= maxAttempts) {
       await client.query('COMMIT');
+
       const retryAfterSeconds = Math.ceil(windowSeconds - elapsed);
+
       return { allowed: false, retryAfterSeconds };
     }
 
@@ -1143,6 +1157,7 @@ export async function checkRateLimitPostgres(
       [now, key, endpoint]
     );
     await client.query('COMMIT');
+
     return { allowed: true };
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
@@ -1184,11 +1199,12 @@ export async function createUserSessionPostgres(
   const client = await pool.connect();
 
   try {
-    // First, invalidate any existing sessions for this user (single session enforcement)
-    await invalidateUserSessionsPostgres(userId);
+    await client.query('BEGIN');
 
-    // Create new session
-    const result = await client.query(
+    // Invalidate existing sessions + create new session in one transaction
+    await client.query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+
+    await client.query(
       `
       INSERT INTO user_sessions (id, user_id, token_hash, expires_at, ip_address, user_agent)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -1196,9 +1212,13 @@ export async function createUserSessionPostgres(
       [crypto.randomUUID(), userId, tokenHash, expiresAt, ipAddress || null, userAgent || null]
     );
 
-    return (result.rowCount ?? 0) > 0;
+    await client.query('COMMIT');
+
+    return true;
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Error creating user session:', error);
+
     return false;
   } finally {
     client.release();
@@ -1617,8 +1637,10 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
      * preserved losslessly by the snapshot blob path; the chat message is only a replay
      * fallback. See the regex literal below for the exact escape being removed.
      */
-    // Null-safe: JSON.stringify(undefined) returns undefined (e.g. no metadata) — pass it
-    // through untouched so pg receives the same value the original code did.
+    /*
+     * Null-safe: JSON.stringify(undefined) returns undefined (e.g. no metadata) — pass it
+     * through untouched so pg receives the same value the original code did.
+     */
     const stripNullEscapes = (json: string | undefined) =>
       typeof json === 'string' ? json.replace(/\\u0000/g, '') : json;
     const result = await client.query(query, [
@@ -1665,25 +1687,27 @@ async function syncPromptsFromChatMessagesPostgres(
   messages: any[],
   defaultUserId: string
 ): Promise<void> {
-  for (const msg of messages) {
-    if (msg?.role !== 'user') {
-      continue;
-    }
+  const userMessages = messages.filter(msg => msg?.role === 'user' && msg.id && typeof msg.id === 'string');
 
-    const messageId = msg.id;
-
-    if (!messageId || typeof messageId !== 'string') {
-      continue;
-    }
-
-    const userId = defaultUserId;
-    await client.query(
-      `INSERT INTO prompts (id, chat_id, user_id, message_id)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (chat_id, message_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
-      [crypto.randomUUID(), chatId, userId, messageId]
-    );
+  if (userMessages.length === 0) {
+    return;
   }
+
+  const values: string[] = [];
+  const params: unknown[] = [];
+
+  userMessages.forEach((msg, i) => {
+    const base = i * 3;
+    values.push(`($${base + 1}, $${base + 2}, $${base + 3})`);
+    params.push(crypto.randomUUID(), chatId, msg.id);
+  });
+
+  await client.query(
+    `INSERT INTO prompts (id, chat_id, message_id)
+     VALUES ${values.join(', ')}
+     ON CONFLICT (chat_id, message_id) DO UPDATE SET user_id = $${params.length + 1}`,
+    [...params, defaultUserId]
+  );
 }
 
 export async function insertPromptPostgres(params: {
@@ -1829,10 +1853,12 @@ export async function saveCodebaseVersionPostgres(params: {
   const { chatId, userId, manifest, blobSizes, messageId, label, changeSummary: clientChangeSummary } = params;
   const { fileCount, totalBytes, hashes } = computeVersionMeta(manifest, blobSizes);
 
-  // Day 20 — ensure the codebase-version schema exists on THIS pool before touching it. The
-  // version-save path uses getPostgresPool(), which doesn't run createPostgresTables(); this
-  // idempotently guarantees the tables + the change_summary column exist (the missing column
-  // was causing every save to 500 with "column change_summary does not exist").
+  /*
+   * Day 20 — ensure the codebase-version schema exists on THIS pool before touching it. The
+   * version-save path uses getPostgresPool(), which doesn't run createPostgresTables(); this
+   * idempotently guarantees the tables + the change_summary column exist (the missing column
+   * was causing every save to 500 with "column change_summary does not exist").
+   */
   await ensureCodebaseVersionSchema();
 
   const pool = getPostgresPool();
@@ -1869,10 +1895,10 @@ export async function saveCodebaseVersionPostgres(params: {
       if (!diff.changed) {
         // No file change — update message_id (if provided) so rewind mapping stays current.
         if (messageId) {
-          await client.query(
-            'UPDATE codebase_versions SET message_id = $1 WHERE chat_id = $2 AND is_latest = true',
-            [messageId, chatId]
-          );
+          await client.query('UPDATE codebase_versions SET message_id = $1 WHERE chat_id = $2 AND is_latest = true', [
+            messageId,
+            chatId,
+          ]);
         }
 
         await client.query('COMMIT');
@@ -1956,16 +1982,12 @@ export async function saveCodebaseVersionPostgres(params: {
  * prior version (the very first save of a chat), diff against an empty manifest so the first
  * version is named "Added <files> (+N)" rather than getting no summary.
  */
-function diffSummaryFor(
-  previousManifestRaw: unknown,
-  newManifest: Record<string, string>,
-): string {
+function diffSummaryFor(previousManifestRaw: unknown, newManifest: Record<string, string>): string {
   if (previousManifestRaw === undefined || previousManifestRaw === null) {
     return diffManifests({}, newManifest).summary;
   }
 
-  const previous =
-    typeof previousManifestRaw === 'string' ? JSON.parse(previousManifestRaw) : previousManifestRaw;
+  const previous = typeof previousManifestRaw === 'string' ? JSON.parse(previousManifestRaw) : previousManifestRaw;
 
   return diffManifests(previous, newManifest).summary;
 }
@@ -2015,8 +2037,10 @@ export async function gcCodebaseVersionsPostgres(options: {
   try {
     await client.query('BEGIN');
 
-    // 1. Delete versions beyond retention (never the latest), returning manifests so we know
-    //    which blob refs to release.
+    /*
+     * 1. Delete versions beyond retention (never the latest), returning manifests so we know
+     *    which blob refs to release.
+     */
     const deleted = await client.query(
       `DELETE FROM codebase_versions
        WHERE id IN (
@@ -2031,8 +2055,10 @@ export async function gcCodebaseVersionsPostgres(options: {
       [retain]
     );
 
-    // 2. Decrement ref_count once per deleted version per referenced blob (mirrors the +1 per
-    //    version applied on save/rollback).
+    /*
+     * 2. Decrement ref_count once per deleted version per referenced blob (mirrors the +1 per
+     *    version applied on save/rollback).
+     */
     const decrements = new Map<string, number>();
 
     for (const row of deleted.rows) {
@@ -2124,9 +2150,11 @@ export async function rollbackCodebaseVersionPostgres(
       [chatId, targetVersion, userId]
     );
 
-    // Bump ref_count on every blob the restored version references (once per blob — the
-    // IN(subquery) form updates each matching row a single time, matching the save path's
-    // one-bump-per-version semantics).
+    /*
+     * Bump ref_count on every blob the restored version references (once per blob — the
+     * IN(subquery) form updates each matching row a single time, matching the save path's
+     * one-bump-per-version semantics).
+     */
     await client.query(
       `UPDATE codebase_blobs SET ref_count = ref_count + 1
        WHERE sha256 IN (
@@ -2982,12 +3010,26 @@ export async function acceptInvitationByTokenPostgres(
       return { success: false, error: 'This invitation was sent to a different email address' };
     }
 
+    await client.query('BEGIN');
+
     await client.query(`UPDATE chat_invitations SET status = 'accepted' WHERE id = $1`, [inv.id]);
-    await addChatMemberPostgres(inv.chat_id, userId, inv.role);
+
+    // Insert chat_members in the same transaction (no separate client)
+    const memberId = crypto.randomUUID();
+    await client.query(
+      `INSERT INTO chat_members (id, chat_id, user_id, role)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (chat_id, user_id) DO UPDATE SET role = EXCLUDED.role`,
+      [memberId, inv.chat_id, userId, inv.role]
+    );
+
+    await client.query('COMMIT');
 
     return { success: true, chatUrl: buildProjectChatPath(DEFAULT_PROJECT_ID, inv.url_id || inv.chat_id) };
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Error accepting invitation:', error);
+
     return { success: false, error: 'Failed to accept invitation' };
   } finally {
     client.release();

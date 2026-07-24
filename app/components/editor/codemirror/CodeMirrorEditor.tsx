@@ -313,9 +313,10 @@ function newEditorState(
         {
           key: 'Mod-s',
           preventDefault: true,
-          run: (view) => {
+          run: view => {
             onSaveContentRef.current?.(view.state.doc.toString());
             onFileSaveRef.current?.();
+
             return true;
           },
         },

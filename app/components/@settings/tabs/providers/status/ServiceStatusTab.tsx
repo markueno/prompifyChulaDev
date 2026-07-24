@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { classNames } from '~/utils/classNames';
 import { TbActivityHeartbeat } from 'react-icons/tb';
 import { BsCheckCircleFill, BsXCircleFill, BsExclamationCircleFill } from 'react-icons/bs';
-import { SiAmazon, SiGoogle, SiHuggingface, SiPerplexity, SiOpenai } from 'react-icons/si';
+import { SiGoogle, SiHuggingface, SiPerplexity, SiOpenai } from 'react-icons/si';
 import { BsRobot, BsCloud } from 'react-icons/bs';
 import { TbBrain } from 'react-icons/tb';
 import { BiChip, BiCodeBlock } from 'react-icons/bi';
@@ -175,7 +175,6 @@ const PROVIDER_STATUS_URLS: Record<ProviderName, ProviderConfig> = {
 };
 
 const PROVIDER_ICONS: Record<ProviderName, IconType> = {
-  // AmazonBedrock: SiAmazon,
   Anthropic: FaBrain,
   Cohere: BiChip,
   Google: SiGoogle,

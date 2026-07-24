@@ -1,10 +1,15 @@
-import { json, redirect, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { json, redirect, type LoaderFunctionArgs, type MetaFunction } from '@remix-run/cloudflare';
 import { Link, useLoaderData } from '@remix-run/react';
 import { requireAuth } from '~/lib/auth';
 import { getCompanyBySlug, getCompanyMember, getCompanyApps } from '~/lib/database';
 import { AppStatusCard } from '~/components/company/AppStatusCard';
 import { Button } from '~/components/ui/Button';
 import type { CompanyApp, CompanyRole } from '~/lib/database';
+
+export const meta: MetaFunction = () => [
+  { name: 'robots', content: 'noindex, nofollow' },
+  { title: 'Dashboard — Prompify' },
+];
 
 interface LoaderData {
   company: { id: string; name: string; slug: string; github_org: string | null };
@@ -111,6 +116,17 @@ export default function CompanyDashboard() {
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <p className="mt-2 text-gray-500">Please refresh the page and try again.</p>
       </div>
     </div>
   );

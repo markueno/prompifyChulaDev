@@ -57,14 +57,12 @@ export type ExecutionResult = { output: string; exitCode: number } | undefined;
 export class BoltShell {
   #initialized: (() => void) | undefined;
   #readyPromise: Promise<void>;
-  #webcontainer: WebContainer | undefined;
   #terminal: ITerminal | undefined;
   #process: WebContainerProcess | undefined;
   executionState = atom<
     { sessionId: string; active: boolean; executionPrms?: Promise<any>; abort?: () => void } | undefined
   >();
   #outputStream: ReadableStreamDefaultReader<string> | undefined;
-  #shellInputStream: WritableStreamDefaultWriter<string> | undefined;
 
   constructor() {
     this.#readyPromise = new Promise(resolve => {
@@ -77,7 +75,6 @@ export class BoltShell {
   }
 
   async init(webcontainer: WebContainer, terminal: ITerminal) {
-    this.#webcontainer = webcontainer;
     this.#terminal = terminal;
 
     const { process, output } = await this.newBoltShellProcess(webcontainer, terminal);
@@ -150,7 +147,6 @@ export class BoltShell {
     });
 
     const input = process.input.getWriter();
-    this.#shellInputStream = input;
 
     const [internalOutput, terminalOutput] = process.output.tee();
 

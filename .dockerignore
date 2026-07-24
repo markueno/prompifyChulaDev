@@ -26,3 +26,21 @@ dist-ssr
 .DS_Store
 .env
 .env.*
+
+# Ignore pnpm virtual store (hundreds of MB)
+.pnpm-store/
+
+# Ignore test and coverage output
+coverage/
+test-results/
+
+# Ignore temp directories
+tmp/
+
+# Ignore Docker Compose files (not needed in image)
+docker-compose*.yaml
+
+# Ignore Dockerfiles and IDE configs
+Dockerfile
+.vscode/
+.idea/

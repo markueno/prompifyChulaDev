@@ -63,15 +63,14 @@ export async function verifyKooGallerySignature(request: Request, requestBody: a
       .digest('hex')
       .toUpperCase();
 
-    // Compare signatures
-    const isValid = signature.toUpperCase() === expectedSignature;
+    // Compare signatures using timing-safe comparison (CWE-208)
+    const sig = signature.toUpperCase();
+    const isValid =
+      sig.length === expectedSignature.length &&
+      crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSignature));
 
     if (!isValid) {
-      console.error('Signature verification failed', {
-        provided: signature,
-        expected: expectedSignature,
-        canonicalRequest,
-      });
+      console.error('Signature verification failed');
     }
 
     return isValid;

@@ -1,4 +1,4 @@
-import { json, redirect } from '@remix-run/cloudflare';
+import { redirect } from '@remix-run/cloudflare';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { validateSession, updateSessionActivity } from './database';
@@ -82,7 +82,12 @@ export async function requireAuth(request: Request, context: any): Promise<User>
   let decoded: any;
 
   try {
-    const secret = (context.cloudflare?.env as any)?.JWT_SECRET || 'your-secret-key';
+    const secret = (context.cloudflare?.env as any)?.JWT_SECRET ?? process.env.JWT_SECRET;
+
+    if (!secret) {
+      throw new Error('JWT_SECRET is not configured');
+    }
+
     decoded = jwt.verify(token, secret);
   } catch {
     throw redirect('/?login=1');
@@ -137,13 +142,13 @@ export function getAuthToken(request: Request): string | null {
 export async function optionalAuth(request: Request, context: any): Promise<User | null> {
   try {
     return await requireAuth(request, context);
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
 // Session conflict detection
-export async function checkSessionConflict(userId: string): Promise<boolean> {
+export async function checkSessionConflict(_userId: string): Promise<boolean> {
   /*
    * This can be used to show a warning if user tries to login from multiple places
    * For now, we just invalidate old sessions automatically
@@ -156,18 +161,8 @@ export async function checkSessionConflict(userId: string): Promise<boolean> {
  * Only uses Secure flag in production (HTTPS), not in development (HTTP)
  */
 export function createAuthCookie(token: string, request?: Request): string {
-  // Check if we're in a secure context (HTTPS or production)
-  let isSecure = false;
-
-  if (request) {
-    const url = new URL(request.url);
-    isSecure = url.protocol === 'https:';
-  }
-
-  // Also check NODE_ENV as fallback
-  if (!isSecure) {
-    isSecure = process.env.NODE_ENV === 'production';
-  }
+  const isSecure =
+    process.env.NODE_ENV === 'production' || (request ? new URL(request.url).protocol === 'https:' : false);
 
   const secureFlag = isSecure ? 'Secure;' : '';
 
@@ -178,16 +173,8 @@ export function createAuthCookie(token: string, request?: Request): string {
  * Creates a cookie clearing string with proper Secure flag handling
  */
 export function clearAuthCookie(request?: Request): string {
-  let isSecure = false;
-
-  if (request) {
-    const url = new URL(request.url);
-    isSecure = url.protocol === 'https:';
-  }
-
-  if (!isSecure) {
-    isSecure = process.env.NODE_ENV === 'production';
-  }
+  const isSecure =
+    process.env.NODE_ENV === 'production' || (request ? new URL(request.url).protocol === 'https:' : false);
 
   const secureFlag = isSecure ? 'Secure;' : '';
 

@@ -1,4 +1,10 @@
-import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import {
+  json,
+  redirect,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+  type MetaFunction,
+} from '@remix-run/cloudflare';
 import { Form, Link, useActionData, useLoaderData, useNavigation } from '@remix-run/react';
 import { requireAuth } from '~/lib/auth';
 import { getCompanyBySlug, getCompanyMember, getCompanyMembers, updateCompany, getAuditLogs } from '~/lib/database';
@@ -8,6 +14,11 @@ import { Label } from '~/components/ui/Label';
 import { Card, CardContent, CardHeader } from '~/components/ui/Card';
 import { ScrollArea } from '~/components/ui/ScrollArea';
 import type { CompanyRole } from '~/lib/database';
+
+export const meta: MetaFunction = () => [
+  { name: 'robots', content: 'noindex, nofollow' },
+  { title: 'Settings — Prompify' },
+];
 
 interface LoaderData {
   company: { id: string; name: string; slug: string; github_org: string | null; plan: string };

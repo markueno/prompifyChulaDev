@@ -268,6 +268,7 @@ export class ActionRunner {
     /*
      * Safety net: if node_modules is missing, auto-install before starting.
      * This catches cases where the AI forgot to include an `npm install` shell action.
+     * Uses `npm ci` when package-lock.json exists (faster, uses lock file directly).
      */
     const webcontainer = await this.#webcontainer;
 
@@ -280,9 +281,25 @@ export class ActionRunner {
     }
 
     if (needsInstall) {
-      logger.debug('[start] node_modules missing — auto-running npm install');
+      let hasLockFile = false;
 
-      const installResp = await shell.executeCommand(this.runnerId.get(), 'npm install', () => {
+      try {
+        await webcontainer.fs.readFile('package-lock.json');
+        hasLockFile = true;
+      } catch {
+        try {
+          await webcontainer.fs.readFile('pnpm-lock.yaml');
+          hasLockFile = true;
+        } catch {
+          // no lock file — fall back to npm install
+        }
+      }
+
+      const installCmd = hasLockFile ? 'npm ci' : 'npm install';
+
+      logger.debug(`[start] node_modules missing — auto-running ${installCmd}`);
+
+      const installResp = await shell.executeCommand(this.runnerId.get(), installCmd, () => {
         logger.debug('[start] Aborting auto-install');
       });
 

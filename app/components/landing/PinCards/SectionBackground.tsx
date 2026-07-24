@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 export default function SectionBackground() {
   return (
@@ -14,5 +14,5 @@ export default function SectionBackground() {
         }}
       />
     </div>
-  )
+  );
 }

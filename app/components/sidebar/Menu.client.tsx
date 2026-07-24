@@ -14,7 +14,6 @@ import { binDates } from './date-binning';
 import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 import { classNames } from '~/utils/classNames';
 import { useStore } from '@nanostores/react';
-import { profileStore } from '~/lib/stores/profile';
 import { controlPanelOpenStore } from '~/lib/stores/settings';
 import { isSettingsHidden } from '~/utils/constants';
 
@@ -74,7 +73,6 @@ export const Menu = () => {
   const [open, setOpen] = useState(false);
   const [dialogContent, setDialogContent] = useState<DialogContent>(null);
   const isSettingsOpen = useStore(controlPanelOpenStore);
-  const profile = useStore(profileStore);
 
   const { filteredItems: filteredList, handleSearchChange } = useSearchFilter({
     items: list,

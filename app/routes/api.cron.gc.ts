@@ -39,9 +39,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const obsFailures: string[] = [];
 
     if (apply) {
-      // Best-effort OBS cleanup — DB already committed. Failures are logged and retried on the
-      // next GC run (the blob rows are gone, but re-deleting a missing object is idempotent...
-      // for stragglers, the OBS lifecycle rule in plan §1.5a Step 6 is the final backstop).
+      /*
+       * Best-effort OBS cleanup — DB already committed. Failures are logged and retried on the
+       * next GC run (the blob rows are gone, but re-deleting a missing object is idempotent...
+       * for stragglers, the OBS lifecycle rule in plan §1.5a Step 6 is the final backstop).
+       */
       for (const hash of result.orphanHashes) {
         try {
           await deleteObject(keyForHash(hash));

@@ -1,10 +1,21 @@
-import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import {
+  json,
+  redirect,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+  type MetaFunction,
+} from '@remix-run/cloudflare';
 import { Form, useActionData, useNavigation } from '@remix-run/react';
 import { useState } from 'react';
 import { Button } from '~/components/ui/Button';
 import { Input } from '~/components/ui/Input';
 import { Card } from '~/components/ui/Card';
 import BackgroundRays from '~/components/ui/BackgroundRays';
+
+export const meta: MetaFunction = () => [
+  { name: 'robots', content: 'noindex, nofollow' },
+  { title: 'Sign Up — Prompify' },
+];
 
 interface ActionData {
   error?: string;
@@ -262,6 +273,17 @@ export default function RegisterPage() {
           </p>
         </div>
       </Card>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <p className="mt-2 text-gray-500">Please refresh the page and try again.</p>
+      </div>
     </div>
   );
 }

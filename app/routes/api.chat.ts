@@ -11,7 +11,7 @@ import type { ContextAnnotation, ProgressAnnotation } from '~/types/context';
 import { WORK_DIR } from '~/utils/constants';
 import { createSummary } from '~/lib/.server/llm/create-summary';
 import { extractPropertiesFromMessage } from '~/lib/.server/llm/utils';
-import { optionalAuth } from '~/lib/auth';
+import { requireAuth } from '~/lib/auth';
 import { saveChat, insertTokenUsageAndConsume, checkRateLimit } from '~/lib/database';
 
 export async function action(args: ActionFunctionArgs) {
@@ -52,7 +52,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
   }>();
   const { messages, files, promptId, customPrompt, contextOptimization, chatId, urlId, description, metadata } = body;
 
-  const user = await optionalAuth(request, context);
+  const user = await requireAuth(request, context);
 
   const cookieHeader = request.headers.get('Cookie');
   const apiKeys = JSON.parse(parseCookies(cookieHeader || '').apiKeys || '{}');
@@ -60,9 +60,10 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     parseCookies(cookieHeader || '').providers || '{}'
   );
 
-  // Rate limit: 10 requests/min per user (or per IP if unauthenticated)
-  const rateKey = user?.id ?? request.headers.get('x-forwarded-for') ?? request.headers.get('CF-Connecting-IP') ?? 'unknown';
+  // Rate limit: 10 requests/min per user
+  const rateKey = user.id;
   const rateResult = await checkRateLimit(rateKey, 'chat', 10, 60);
+
   if (!rateResult.allowed) {
     return new Response(JSON.stringify({ error: 'Too many requests. Slow down.' }), {
       status: 429,
@@ -126,7 +127,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             } satisfies ProgressAnnotation);
 
             // Create a summary of the chat
-            console.log(`Messages count: ${messages.length}`);
+            logger.debug(`Messages count: ${messages.length}`);
 
             summary = await createSummary({
               messages: [...messages],
@@ -169,7 +170,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
             } satisfies ProgressAnnotation);
 
             // Select context files
-            console.log(`Messages count: ${messages.length}`);
+            logger.debug(`Messages count: ${messages.length}`);
             filteredFiles = await selectContext({
               messages: [...messages],
               env: context.cloudflare?.env,
@@ -372,9 +373,11 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               const error: any = part.error;
               logger.error('Stream error: ' + error.message);
               logger.error('Stream error cause: ' + (error.cause?.message ?? 'none'));
+
               if (error.cause?.stack) {
                 logger.error('Stream error cause stack: ' + error.cause.stack);
               }
+
               return;
             }
           }

@@ -45,7 +45,6 @@ export function formatLiteral(type: string, raw: string): string | null {
       // Reject control characters (tab/newline/CR stay allowed); quotes are escaped.
       const original = raw;
 
-      // eslint-disable-next-line no-control-regex
       return /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(original) ? null : quoteLiteral(original);
     }
     default:
@@ -86,8 +85,10 @@ export function formatCellValue(type: string, value: string | number | boolean |
       return null;
     }
 
-    // String(1e21) === '1e+21' — route through the literal validator so exponent forms
-    // and integer/numeric mismatches are rejected instead of interpolated.
+    /*
+     * String(1e21) === '1e+21' — route through the literal validator so exponent forms
+     * and integer/numeric mismatches are rejected instead of interpolated.
+     */
     return formatLiteral(type === 'text' ? 'text' : type, String(value));
   }
 

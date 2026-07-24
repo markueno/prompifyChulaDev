@@ -6,7 +6,7 @@ import type { ModelInfo } from '~/lib/modules/llm/types';
 import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
-import { optionalAuth } from '~/lib/auth';
+import { requireAuth } from '~/lib/auth';
 
 export async function action(args: ActionFunctionArgs) {
   return reviewAction(args);
@@ -40,7 +40,7 @@ Maximum 5 items. No prose, no markdown fences, just the raw JSON array.
 If no bugs found, return an empty array: []`;
 
 async function reviewAction({ context, request }: ActionFunctionArgs) {
-  await optionalAuth(request, context);
+  await requireAuth(request, context);
 
   const body = await request.json<{
     files: ReviewFile[];

@@ -5,59 +5,93 @@ const PROMPIFY_LOGO_URL = '/images/prompify.png';
 const AI_NODES = [
   {
     label: 'Claude',
-    speed: 0.38, orbitA: 210, orbitB: 55, inc: 28, lon: 0, phase: 0,
+    speed: 0.38,
+    orbitA: 210,
+    orbitB: 55,
+    inc: 28,
+    lon: 0,
+    phase: 0,
     logoPath: '/images/claude.png',
     brandColor: [212, 165, 116],
     initial: 'C',
-    repX: 0, repY: 0,
+    repX: 0,
+    repY: 0,
   },
   {
     label: 'ChatGPT',
-    speed: 0.28, orbitA: 200, orbitB: 50, inc: -35, lon: 60, phase: 1.2,
+    speed: 0.28,
+    orbitA: 200,
+    orbitB: 50,
+    inc: -35,
+    lon: 60,
+    phase: 1.2,
     logoPath: '/images/chatgpt.png',
     brandColor: [15, 163, 127],
     initial: 'G',
-    repX: 0, repY: 0,
+    repX: 0,
+    repY: 0,
   },
   {
     label: 'Gemini',
-    speed: 0.45, orbitA: 215, orbitB: 58, inc: 50, lon: 120, phase: 2.5,
+    speed: 0.45,
+    orbitA: 215,
+    orbitB: 58,
+    inc: 50,
+    lon: 120,
+    phase: 2.5,
     logoPath: '/images/gemini.png',
     brandColor: [66, 133, 244],
     initial: 'G',
-    repX: 0, repY: 0,
+    repX: 0,
+    repY: 0,
   },
   {
     label: 'Mistral',
-    speed: 0.32, orbitA: 205, orbitB: 48, inc: -20, lon: 200, phase: 0.8,
+    speed: 0.32,
+    orbitA: 205,
+    orbitB: 48,
+    inc: -20,
+    lon: 200,
+    phase: 0.8,
     logoPath: '/images/mistral.png',
     brandColor: [255, 112, 0],
     initial: 'M',
-    repX: 0, repY: 0,
+    repX: 0,
+    repY: 0,
   },
   {
     label: 'DeepSeek',
-    speed: 0.22, orbitA: 212, orbitB: 52, inc: 60, lon: 280, phase: 3.8,
+    speed: 0.22,
+    orbitA: 212,
+    orbitB: 52,
+    inc: 60,
+    lon: 280,
+    phase: 3.8,
     logoPath: '/images/deepseek.png',
     brandColor: [77, 107, 254],
     initial: 'D',
-    repX: 0, repY: 0,
+    repX: 0,
+    repY: 0,
   },
 ];
 
-// Fix 5: pre-render one glow sprite per node on an offscreen canvas.
-// Reused every frame by drawImage() — no createRadialGradient() at runtime.
+/*
+ * Fix 5: pre-render one glow sprite per node on an offscreen canvas.
+ * Reused every frame by drawImage() — no createRadialGradient() at runtime.
+ */
 function buildGlowSprite(r, g, b, radius) {
   const size = radius * 2;
   const oc = document.createElement('canvas');
   oc.width = size;
   oc.height = size;
+
   const octx = oc.getContext('2d');
   const grad = octx.createRadialGradient(radius, radius, 0, radius, radius, radius);
   grad.addColorStop(0, `rgba(${r},${g},${b},0.18)`);
   grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
   octx.fillStyle = grad;
   octx.fillRect(0, 0, size, size);
+
   return oc;
 }
 
@@ -79,6 +113,7 @@ function orbitPos(t, orbitA, orbitB, inc, lon, phase) {
   const z2 = ly * Math.sin(incR);
   const x3 = lx * Math.cos(lonR) - y2 * Math.sin(lonR);
   const y3 = lx * Math.sin(lonR) + y2 * Math.cos(lonR);
+
   return { x3, y3, z3: z2 };
 }
 
@@ -129,7 +164,11 @@ export default function ConstellationVisual() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+
+    if (!canvas) {
+      return;
+    }
+
     const ctx = canvas.getContext('2d');
     const s = stateRef.current;
     const W = canvas.width;
@@ -140,7 +179,10 @@ export default function ConstellationVisual() {
     // Load Prompify center logo
     const centerImg = new Image();
     centerImg.src = PROMPIFY_LOGO_URL;
-    centerImg.onload = () => { s.logoLoaded = true; };
+
+    centerImg.onload = () => {
+      s.logoLoaded = true;
+    };
     s.logoImg = centerImg;
 
     // Load each node logo + build its glow sprite once
@@ -153,22 +195,27 @@ export default function ConstellationVisual() {
       node._glowSprite = buildGlowSprite(r, g, b, 80); // fixed sprite radius; scaled at draw time
     });
 
-    const onMove = (e) => {
+    const onMove = e => {
       const rect = canvas.getBoundingClientRect();
       s.mouse = {
         x: (e.clientX - rect.left) * (W / rect.width),
         y: (e.clientY - rect.top) * (H / rect.height),
       };
     };
-    const onLeave = () => { s.mouse = null; };
+    const onLeave = () => {
+      s.mouse = null;
+    };
     canvas.addEventListener('mousemove', onMove);
     canvas.addEventListener('mouseleave', onLeave);
 
-    const draw = (ts) => {
+    const draw = ts => {
       animRef.current = requestAnimationFrame(draw);
 
       // Fix 6: skip frames to hold ~30 fps
-      if (ts - s.lastFrameTime < FRAME_INTERVAL) return;
+      if (ts - s.lastFrameTime < FRAME_INTERVAL) {
+        return;
+      }
+
       s.lastFrameTime = ts;
 
       const dt = Math.min((ts - (s.lastTs || ts)) / 1000, 0.05);
@@ -176,15 +223,19 @@ export default function ConstellationVisual() {
       s.t += dt;
       ctx.clearRect(0, 0, W, H);
 
-      const projected = s.nodes.map((node) => {
+      const projected = s.nodes.map(node => {
         const { x3, y3, z3 } = orbitPos(s.t * node.speed, node.orbitA, node.orbitB, node.inc, node.lon, node.phase);
         const { x, y, scale } = project(x3, y3, z3, cx, cy);
 
-        let targetRepX = 0, targetRepY = 0;
+        let targetRepX = 0,
+          targetRepY = 0;
+
         if (s.mouse) {
-          const dx = x - s.mouse.x, dy = y - s.mouse.y;
+          const dx = x - s.mouse.x,
+            dy = y - s.mouse.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           const repulseRadius = 200;
+
           if (dist < repulseRadius && dist > 1) {
             const t = dist / repulseRadius;
             const eased = (1 - t) * (1 - t) * 52;
@@ -200,11 +251,12 @@ export default function ConstellationVisual() {
       });
 
       // Faint orbit ellipses
-      AI_NODES.forEach((node) => {
+      AI_NODES.forEach(node => {
         ctx.save();
         ctx.globalAlpha = 0.04;
         ctx.strokeStyle = 'rgba(15,18,50,1)';
         ctx.lineWidth = 0.8;
+
         const lonR = (node.lon * Math.PI) / 180;
         const incR = (node.inc * Math.PI) / 180;
         ctx.translate(cx, cy);
@@ -219,7 +271,7 @@ export default function ConstellationVisual() {
       const behindLogo = projected.filter(n => n.z3 > 0);
       const inFrontLogo = projected.filter(n => n.z3 <= 0);
 
-      const drawNode = (n) => {
+      const drawNode = n => {
         const depth = (n.z3 + 250) / 500;
         const r = (16 + depth * 10) * Math.max(n.scale, 0.6);
         const alpha = 0.5 + depth * 0.4;
@@ -238,6 +290,7 @@ export default function ConstellationVisual() {
       behindLogo.forEach(n => drawNode(n));
 
       const logoSize = 120;
+
       if (s.logoLoaded && s.logoImg?.complete) {
         ctx.drawImage(s.logoImg, cx - logoSize / 2, cy - logoSize / 2, logoSize, logoSize);
       }
@@ -246,6 +299,7 @@ export default function ConstellationVisual() {
     };
 
     animRef.current = requestAnimationFrame(draw);
+
     return () => {
       cancelAnimationFrame(animRef.current);
       canvas.removeEventListener('mousemove', onMove);
@@ -255,12 +309,7 @@ export default function ConstellationVisual() {
 
   return (
     <div className="w-full h-full flex items-center justify-center" style={{ background: 'transparent' }}>
-      <canvas
-        ref={canvasRef}
-        width={640}
-        height={560}
-        style={{ width: '100%', height: 'auto', maxWidth: 693 }}
-      />
+      <canvas ref={canvasRef} width={640} height={560} style={{ width: '100%', height: 'auto', maxWidth: 693 }} />
     </div>
   );
 }

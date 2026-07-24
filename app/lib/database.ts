@@ -76,7 +76,6 @@ export type {
 } from './database-postgresql';
 
 // Database configuration
-const DATABASE_URL = process.env.DATABASE_URL;
 const DATABASE_TYPE = process.env.DATABASE_TYPE || 'postgresql'; // 'sqlite' or 'postgresql'
 
 // For SQLite (development)
@@ -107,7 +106,7 @@ export function getDrizzleDB() {
 
 function getSQLiteDatabase() {
   if (!sqliteDb) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/naming-convention
     const BetterSqlite3 = require('better-sqlite3');
     sqliteDb = new BetterSqlite3('./data/prompify.db');
 
@@ -1007,9 +1006,9 @@ export async function checkRateLimitSQLite(
   const now = Date.now();
   const windowMs = windowSeconds * 1000;
 
-  const existing = db.prepare('SELECT attempts, first_attempt FROM rate_limits WHERE ip_address = ? AND endpoint = ?').get(key, endpoint) as
-    | { attempts: number; first_attempt: string }
-    | undefined;
+  const existing = db
+    .prepare('SELECT attempts, first_attempt FROM rate_limits WHERE ip_address = ? AND endpoint = ?')
+    .get(key, endpoint) as { attempts: number; first_attempt: string } | undefined;
 
   if (!existing) {
     db.prepare(
@@ -1037,5 +1036,6 @@ export async function checkRateLimitSQLite(
   db.prepare(
     `UPDATE rate_limits SET attempts = attempts + 1, last_attempt = datetime('now') WHERE ip_address = ? AND endpoint = ?`
   ).run(key, endpoint);
+
   return { allowed: true };
 }

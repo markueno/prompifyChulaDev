@@ -1,6 +1,5 @@
 import { IconButton } from '~/components/ui/IconButton';
 import { classNames } from '~/utils/classNames';
-import React from 'react';
 
 export const SpeechRecognitionButton = ({
   isListening,

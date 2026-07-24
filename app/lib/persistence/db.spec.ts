@@ -32,6 +32,7 @@ function seedV1(): Promise<void> {
         description: 'seeded v1 chat',
         timestamp: new Date().toISOString(),
       });
+
       tx.oncomplete = () => {
         db.close();
         resolve();
@@ -96,8 +97,10 @@ describe('openDatabase v1 -> v3 upgrade', () => {
   });
 });
 
-// Build a v2 `boltHistory` (chats + snapshots), then seed representative data so the
-// v2 -> v3 upgrade test has real rows to preserve.
+/*
+ * Build a v2 `boltHistory` (chats + snapshots), then seed representative data so the
+ * v2 -> v3 upgrade test has real rows to preserve.
+ */
 function seedV2(): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open('boltHistory', 2);
@@ -182,6 +185,7 @@ describe('openDatabase v2 -> v3 upgrade', () => {
     expect(writes[0].chatId).toBe('chat_test');
 
     await deletePendingWrite(db!, writes[0].id!);
+
     const after = await getPendingWrites(db!);
     expect(after).toHaveLength(0);
   });

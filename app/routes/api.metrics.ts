@@ -26,6 +26,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       };
 
       const client = await pool.connect();
+
       try {
         const tableSizes = await client.query(`
           SELECT

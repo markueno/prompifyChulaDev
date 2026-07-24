@@ -2,11 +2,13 @@
 -- This file is automatically executed when PostgreSQL container starts
 
 -- Create prompify_user role if it doesn't exist
--- This handles cases where the volume was created with a different user
+-- NOTE: Password is set via POSTGRES_PASSWORD env var in docker-compose.
+-- The role creation block below is a fallback for fresh containers without the env var.
+-- DO NOT use the default password in production — set POSTGRES_PASSWORD=<strong_password>
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'prompify_user') THEN
-    CREATE ROLE prompify_user WITH LOGIN PASSWORD 'Mark@3156';
+    RAISE EXCEPTION 'POSTGRES_PASSWORD environment variable must be set in docker-compose or .env';
     ALTER ROLE prompify_user CREATEDB;
   END IF;
 END
@@ -82,6 +84,7 @@ CREATE TABLE IF NOT EXISTS chats (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_archived BOOLEAN DEFAULT FALSE,
+    project_id TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -105,8 +108,7 @@ CREATE TABLE IF NOT EXISTS codebase_versions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(chat_id, version_number)
 );
--- Existing databases (init-db.sql only runs on fresh volumes):
---   ALTER TABLE codebase_versions ADD COLUMN IF NOT EXISTS message_id TEXT;
+ALTER TABLE codebase_versions ADD COLUMN IF NOT EXISTS change_summary TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_versions_latest_per_chat ON codebase_versions(chat_id) WHERE is_latest = true;
 CREATE INDEX IF NOT EXISTS idx_versions_chat_latest ON codebase_versions(chat_id, version_number DESC);
 CREATE INDEX IF NOT EXISTS idx_versions_chat_created ON codebase_versions(chat_id, created_at DESC);
@@ -357,6 +359,7 @@ CREATE INDEX IF NOT EXISTS idx_koogallery_logs_instance_id ON koogallery_logs(in
 CREATE INDEX IF NOT EXISTS idx_koogallery_logs_timestamp ON koogallery_logs(timestamp);
 CREATE INDEX IF NOT EXISTS idx_chat_members_chat_id ON chat_members(chat_id);
 CREATE INDEX IF NOT EXISTS idx_chat_members_user_id ON chat_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_members_chat_user ON chat_members(chat_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_invitations_chat_id ON chat_invitations(chat_id);
 CREATE INDEX IF NOT EXISTS idx_chat_invitations_email ON chat_invitations(email);
 CREATE INDEX IF NOT EXISTS idx_chat_invitations_token ON chat_invitations(token);
@@ -433,6 +436,26 @@ CREATE TABLE IF NOT EXISTS project_members (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+-- FK from chats to projects (init-db.sql runs before createPostgresTables();
+-- matches the migration at database-postgresql.ts:488-501 on a fresh volume).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'chats_project_id_fkey'
+  ) THEN
+    ALTER TABLE chats ADD CONSTRAINT chats_project_id_fkey
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- Project indexes (match createPostgresTables() at database-postgresql.ts:512-515)
+CREATE INDEX IF NOT EXISTS idx_projects_owner_user_id ON projects(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_owner_slug ON projects(owner_user_id, slug);
+CREATE INDEX IF NOT EXISTS idx_project_members_project_id ON project_members(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_project_members_project_user ON project_members(project_id, user_id);
 
 -- Extend projects with company context + app lifecycle columns
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS company_id TEXT REFERENCES companies(id) ON DELETE CASCADE;

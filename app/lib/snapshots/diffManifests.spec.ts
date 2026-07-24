@@ -43,7 +43,7 @@ describe('diffManifests', () => {
   it('handles a mixed diff and produces a summary', () => {
     const diff = diffManifests(
       { 'src/App.tsx': 'old', 'src/removed.ts': 'gone', 'src/index.css': 'css1' },
-      { 'src/App.tsx': 'new', 'src/index.css': 'css1', 'src/new.ts': 'fresh' },
+      { 'src/App.tsx': 'new', 'src/index.css': 'css1', 'src/new.ts': 'fresh' }
     );
 
     expect(diff.changed).toBe(true);

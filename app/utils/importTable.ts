@@ -17,10 +17,19 @@ const RESERVED = new Set(['id', 'created_at', 'updated_at']);
  * `col_N` for empty/all-stripped input.
  */
 export function sanitizeIdentifier(raw: string, fallbackIndex = 0): string {
-  let s = (raw || '').toLowerCase().replace(/[\s-]+/g, '_').replace(/[^a-z0-9_]/g, '');
+  let s = (raw || '')
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
 
-  if (!s) return `col_${fallbackIndex || 1}`;
-  if (!/^[a-z]/.test(s)) s = `col_${s}`;
+  if (!s) {
+    return `col_${fallbackIndex || 1}`;
+  }
+
+  if (!/^[a-z]/.test(s)) {
+    s = `col_${s}`;
+  }
+
   s = s.slice(0, 63);
   s = s.replace(/_+$/, ''); // trim trailing underscores
 
@@ -41,8 +50,10 @@ export function uniqueColumnNames(names: string[]): string[] {
     let candidate = original;
     let n = 2;
 
-    // Reserved names (id/created_at/updated_at) are auto-added by the import
-    // route, so a user column colliding with one is suffixed too.
+    /*
+     * Reserved names (id/created_at/updated_at) are auto-added by the import
+     * route, so a user column colliding with one is suffixed too.
+     */
     while (RESERVED.has(candidate) || seen.has(candidate)) {
       candidate = `${original}_${n}`;
       n += 1;
@@ -74,12 +85,25 @@ export function inferColumnType(values: Array<string | number | boolean | null>)
     .slice(0, 500)
     .map(v => String(v));
 
-  if (samples.length === 0) return 'text';
+  if (samples.length === 0) {
+    return 'text';
+  }
 
-  if (samples.every(v => RE_INTEGER.test(v))) return 'integer';
-  if (samples.every(v => RE_NUMERIC.test(v))) return 'numeric';
-  if (samples.every(v => RE_BOOLEAN.test(v))) return 'boolean';
-  if (samples.every(v => RE_TIMESTAMPTZ.test(v))) return 'timestamptz';
+  if (samples.every(v => RE_INTEGER.test(v))) {
+    return 'integer';
+  }
+
+  if (samples.every(v => RE_NUMERIC.test(v))) {
+    return 'numeric';
+  }
+
+  if (samples.every(v => RE_BOOLEAN.test(v))) {
+    return 'boolean';
+  }
+
+  if (samples.every(v => RE_TIMESTAMPTZ.test(v))) {
+    return 'timestamptz';
+  }
 
   return 'text';
 }
@@ -120,14 +144,23 @@ export function buildImportPayload(
       const v = row[headers[i]];
       const col = columns[i];
 
-      // Coerce to the inferred type where it's a clean fit; otherwise pass the
-      // raw string and let the server's formatCellValue reject/accept it.
-      if (v === null || v === undefined || v === '') return null;
-      if (col.type === 'boolean') return /^(true|false)$/i.test(String(v)) ? String(v).toLowerCase() === 'true' : String(v);
+      /*
+       * Coerce to the inferred type where it's a clean fit; otherwise pass the
+       * raw string and let the server's formatCellValue reject/accept it.
+       */
+      if (v === null || v === undefined || v === '') {
+        return null;
+      }
+
+      if (col.type === 'boolean') {
+        return /^(true|false)$/i.test(String(v)) ? String(v).toLowerCase() === 'true' : String(v);
+      }
+
       if (col.type === 'integer' || col.type === 'numeric') {
         const n = Number(v);
         return Number.isFinite(n) && RE_NUMERIC.test(String(v)) ? n : String(v);
       }
+
       return v;
     })
   );

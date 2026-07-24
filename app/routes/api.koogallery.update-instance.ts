@@ -3,7 +3,7 @@ import { verifyKooGallerySignature } from '~/lib/koogallery/signature';
 import { getInstanceById, updateInstanceStatus } from '~/lib/koogallery/instance-manager';
 import { logKooGalleryRequest } from '~/lib/koogallery/logger';
 
-export const action = async ({ request, context }: ActionFunctionArgs) => {
+export const action = async ({ request, context: _context }: ActionFunctionArgs) => {
   try {
     const body = (await request.json()) as any;
     const { activity, scene, orderId, orderLineId, instanceId, productId, expireTime, testFlag } = body;

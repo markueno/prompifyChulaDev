@@ -18,8 +18,10 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
   }
 
   return new Promise(resolve => {
-    // v2 (Day 8): adds the `snapshots` store for content-addressed codebase restore.
-    // v3 (Day 10): adds `pendingWrites` for offline outbox (failed saves queued, drained on reconnect).
+    /*
+     * v2 (Day 8): adds the `snapshots` store for content-addressed codebase restore.
+     * v3 (Day 10): adds `pendingWrites` for offline outbox (failed saves queued, drained on reconnect).
+     */
     const request = indexedDB.open('boltHistory', 3);
 
     request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
@@ -37,6 +39,10 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
 
       if (!db.objectStoreNames.contains('pendingWrites')) {
         db.createObjectStore('pendingWrites', { keyPath: 'id', autoIncrement: true });
+      }
+
+      if (!db.objectStoreNames.contains('counters')) {
+        db.createObjectStore('counters');
       }
     };
 
@@ -176,12 +182,7 @@ export interface PendingWrite {
   retryCount: number;
 }
 
-export async function queueWrite(
-  db: IDBDatabase,
-  type: string,
-  chatId: string,
-  payload: any,
-): Promise<void> {
+export async function queueWrite(db: IDBDatabase, type: string, chatId: string, payload: any): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction('pendingWrites', 'readwrite');
     const store = tx.objectStore('pendingWrites');
@@ -220,18 +221,46 @@ export async function deletePendingWrite(db: IDBDatabase, id: number): Promise<v
   });
 }
 
+export async function updatePendingWriteRetryCount(db: IDBDatabase, id: number, retryCount: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('pendingWrites', 'readwrite');
+    const store = tx.objectStore('pendingWrites');
+    const getReq = store.get(id);
+
+    getReq.onsuccess = () => {
+      const existing = getReq.result;
+
+      if (existing) {
+        existing.retryCount = retryCount;
+
+        const putReq = store.put(existing);
+        putReq.onsuccess = () => (tx.oncomplete ? resolve() : resolve());
+        putReq.onerror = () => reject(putReq.error);
+      } else {
+        resolve();
+      }
+    };
+    getReq.onerror = () => reject(getReq.error);
+  });
+}
+
 export async function getNextId(db: IDBDatabase): Promise<string> {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction('chats', 'readonly');
-    const store = transaction.objectStore('chats');
-    const request = store.getAllKeys();
+    const transaction = db.transaction('counters', 'readwrite');
+    const store = transaction.objectStore('counters');
 
-    request.onsuccess = () => {
-      const highestId = request.result.reduce((cur, acc) => Math.max(+cur, +acc), 0);
-      resolve(String(+highestId + 1));
+    const readReq = store.get('chatId');
+
+    readReq.onsuccess = () => {
+      const next = (readReq.result?.value ?? 0) + 1;
+      const writeReq = store.put({ key: 'chatId', value: next });
+
+      writeReq.onsuccess = () => {
+        transaction.oncomplete = () => resolve(String(next));
+      };
+      writeReq.onerror = () => reject(writeReq.error);
     };
-
-    request.onerror = () => reject(request.error);
+    readReq.onerror = () => reject(readReq.error);
   });
 }
 

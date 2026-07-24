@@ -1,5 +1,4 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { verifyKooGallerySignature } from '~/lib/koogallery/signature';
 import { logKooGalleryRequest } from '~/lib/koogallery/logger';
 
 // Import all the individual handlers

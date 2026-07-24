@@ -1,4 +1,5 @@
 import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { requireAuth } from '~/lib/auth';
 import { isSupabaseConfigured, schemaForChat } from '~/lib/supabase-provision.server';
 
 /**
@@ -10,6 +11,8 @@ import { isSupabaseConfigured, schemaForChat } from '~/lib/supabase-provision.se
  * and the Data section falls back to the manual connect form.
  */
 export async function loader({ request, context }: LoaderFunctionArgs) {
+  await requireAuth(request, context);
+
   const cloudflareEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
 
   if (!isSupabaseConfigured(cloudflareEnv)) {

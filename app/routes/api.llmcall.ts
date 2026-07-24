@@ -8,6 +8,7 @@ import { LLMManager } from '~/lib/modules/llm/manager';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
+import { requireAuth } from '~/lib/auth';
 
 export async function action(args: ActionFunctionArgs) {
   return llmCallAction(args);
@@ -35,6 +36,8 @@ function findModelInList(models: ModelInfo[], model: string): ModelInfo | undefi
 const logger = createScopedLogger('api.llmcall');
 
 async function llmCallAction({ context, request }: ActionFunctionArgs) {
+  await requireAuth(request, context);
+
   const { system, message, model, provider, streamOutput } = await request.json<{
     system: string;
     message: string;
@@ -88,7 +91,7 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
         },
       });
     } catch (error: unknown) {
-      console.log(error);
+      logger.error('LLM call error:', error);
 
       if (error instanceof Error && error.message?.includes('API key')) {
         throw new Response('Invalid or missing API key', {
@@ -172,7 +175,7 @@ async function llmCallAction({ context, request }: ActionFunctionArgs) {
         },
       });
     } catch (error: unknown) {
-      console.log(error);
+      logger.error('LLM call error:', error);
 
       if (error instanceof Error && error.message?.includes('API key')) {
         throw new Response('Invalid or missing API key', {

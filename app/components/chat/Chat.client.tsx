@@ -1,7 +1,3 @@
-/*
- * @ts-nocheck
- * Preventing TS checks with files presented in the video for a better presentation.
- */
 import { useStore } from '@nanostores/react';
 import { customPromptTemplateStore } from '~/lib/stores/settings';
 import type { Message } from 'ai';
@@ -23,7 +19,6 @@ import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
 import type { ProviderInfo } from '~/types/model';
-import type { ModelInfo } from '~/lib/modules/llm/types';
 import { useRouteLoaderData, useSearchParams } from '@remix-run/react';
 import { createSampler } from '~/utils/sampler';
 import { getTemplates, selectStarterTemplate } from '~/utils/selectStarterTemplate';
@@ -59,24 +54,6 @@ interface RecoveryHistoryEntry {
 }
 
 const MAX_RECOVERY_HISTORY = 100;
-
-function getAssistantPlainText(message: Message): string {
-  const c = message.content;
-
-  if (typeof c === 'string') {
-    return c;
-  }
-
-  if (Array.isArray(c)) {
-    for (const item of c as ReadonlyArray<{ type?: string; text?: string }>) {
-      if (item?.type === 'text' && typeof item.text === 'string') {
-        return item.text;
-      }
-    }
-  }
-
-  return '';
-}
 
 const PREVIEW_RECOVERY_MARKER = '[Auto-preview-recovery]';
 const RECOVERY_CANDIDATE_TIMEOUT_MS = 10_000;
@@ -609,11 +586,23 @@ export const ChatImpl = memo(
         return;
       }
 
+      let cancelled = false;
+
       (async () => {
         setSearchParams({});
         await ensureChatId();
+
+        if (cancelled) {
+          return;
+        }
+
         await new Promise(r => setTimeout(r, 0));
         runAnimation();
+
+        if (cancelled) {
+          return;
+        }
+
         append({
           role: 'user',
           content: [
@@ -625,6 +614,10 @@ export const ChatImpl = memo(
           author: messageAuthor,
         } as any);
       })();
+
+      return () => {
+        cancelled = true;
+      };
     }, [model, provider, searchParams]);
 
     const { enhancingPrompt, promptEnhanced, enhancePrompt, resetEnhancer } = usePromptEnhancer();
@@ -644,7 +637,7 @@ export const ChatImpl = memo(
     // Hide the building overlay once the workbench becomes visible (code starts generating)
     useEffect(() => {
       if (!isInitialBuild) {
-        return;
+        return undefined;
       }
 
       if (showWorkbench) {
@@ -656,7 +649,7 @@ export const ChatImpl = memo(
     // Fallback: hide if loading ends without a workbench (e.g. error)
     useEffect(() => {
       if (!isInitialBuild) {
-        return;
+        return undefined;
       }
 
       if (!isLoading && !fakeLoading) {
@@ -693,6 +686,10 @@ export const ChatImpl = memo(
       // Cancel any pending debounce timer — the latest alert wins
       if (autoFixTimerRef.current) {
         clearTimeout(autoFixTimerRef.current);
+      }
+
+      if (!actionAlert) {
+        return undefined;
       }
 
       autoFixTimerRef.current = setTimeout(() => {

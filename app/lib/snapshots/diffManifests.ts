@@ -48,7 +48,8 @@ export function summarizeChanges(added: string[], modified: string[], removed: s
   if (edited.length > 0) {
     const names = edited.slice(0, 3).map(basename).join(', ');
     const extra = edited.length - 3;
-    const editedLabel = modified.length > 0 && addedCount === 0 ? 'Edited' : addedCount > 0 && modified.length === 0 ? 'Added' : 'Edited';
+    const editedLabel =
+      modified.length > 0 && addedCount === 0 ? 'Edited' : addedCount > 0 && modified.length === 0 ? 'Added' : 'Edited';
     parts.push(`${editedLabel} ${names}${extra > 0 ? ` +${extra}` : ''}`);
   } else if (removedCount > 0) {
     const names = removed.slice(0, 3).map(basename).join(', ');
@@ -73,7 +74,7 @@ export function summarizeChanges(added: string[], modified: string[], removed: s
 
 export function diffManifests(
   oldManifest?: Record<string, string> | null,
-  newManifest?: Record<string, string> | null,
+  newManifest?: Record<string, string> | null
 ): ManifestDiff {
   const oldM = oldManifest ?? {};
   const newM = newManifest ?? {};

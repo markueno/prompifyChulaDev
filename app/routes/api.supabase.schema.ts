@@ -51,13 +51,14 @@ function buildCreateTableSQL(schema: string, tableName: string, columns: ColumnI
     ...userColDefs,
   ];
 
-  // Join with ",\n" so there is never a trailing comma before the closing ")".
-  // (The previous build appended ",);" — a trailing comma that produced
-  // "syntax error at or near ')'" on every table create, identical to the bug
-  // fixed in api.data.$chatId.schema.ts.)
+  /*
+   * Join with ",\n" so there is never a trailing comma before the closing ")".
+   * (The previous build appended ",);" — a trailing comma that produced
+   * "syntax error at or near ')'" on every table create, identical to the bug
+   * fixed in api.data.$chatId.schema.ts.)
+   */
   return `CREATE TABLE IF NOT EXISTS "${schema}"."${tableName}" (\n${allDefs.join(',\n')}\n);`;
 }
-
 
 // GET /api/supabase/schema?chatId=X  — list tables in the app schema
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -78,8 +79,10 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       return json({ error: 'chatId is required' }, { status: 400 });
     }
 
-    // H-4 — the schema name is derived from the chat id, so anyone could read another
-    // tenant's schema by passing their chat id. Reuse the access query; null => no access.
+    /*
+     * H-4 — the schema name is derived from the chat id, so anyone could read another
+     * tenant's schema by passing their chat id. Reuse the access query; null => no access.
+     */
     const chat = await getChatById(chatId, user.id, user.isModerator);
 
     if (!chat) {
@@ -162,15 +165,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
       // H-3 — reject defaults that can't be represented as a safe literal/allowlisted function.
       if (col.defaultValue && formatDefaultValue(PG_TYPES[col.type], col.defaultValue) === null) {
-        return json(
-          { error: `Default value for "${col.name}" is not valid for type ${col.type}` },
-          { status: 400 }
-        );
+        return json({ error: `Default value for "${col.name}" is not valid for type ${col.type}` }, { status: 400 });
       }
     }
 
-    // H-4 — verify the requesting user actually has access to this chat before touching
-    // its schema. Reuse the existing access query; null => no access (or no such chat).
+    /*
+     * H-4 — verify the requesting user actually has access to this chat before touching
+     * its schema. Reuse the existing access query; null => no access (or no such chat).
+     */
     const chat = await getChatById(chatId, user.id, user.isModerator);
 
     if (!chat) {

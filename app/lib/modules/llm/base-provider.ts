@@ -123,7 +123,7 @@ export function getOpenAILikeModel(
   baseURL: string,
   apiKey: OptionalApiKey,
   model: string,
-  settings?: { fetch?: typeof globalThis.fetch },
+  settings?: { fetch?: typeof globalThis.fetch }
 ) {
   const openai = createOpenAI({
     baseURL,

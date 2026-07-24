@@ -36,15 +36,22 @@ const disableThinkingFetch: typeof globalThis.fetch = async (input, init) => {
     return r;
   }
 
-  // Re-wrap the response body through globalThis.ReadableStream so the AI SDK's
-  // pipeThrough(new TextDecoderStream()) operates on the same-realm ReadableStream.
-  // Without this, undici's ReadableStream fails instanceof checks inside the SDK
-  // when the Vite bundle creates TextDecoderStream from a different realm.
+  /*
+   * Re-wrap the response body through globalThis.ReadableStream so the AI SDK's
+   * pipeThrough(new TextDecoderStream()) operates on the same-realm ReadableStream.
+   * Without this, undici's ReadableStream fails instanceof checks inside the SDK
+   * when the Vite bundle creates TextDecoderStream from a different realm.
+   */
   const reader = r.body.getReader();
   const fixedBody = new globalThis.ReadableStream({
     async pull(controller) {
       const { done, value } = await reader.read();
-      if (done) { controller.close(); return; }
+
+      if (done) {
+        controller.close();
+        return;
+      }
+
       controller.enqueue(value);
     },
     cancel(reason) {

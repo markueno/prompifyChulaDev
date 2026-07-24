@@ -20,8 +20,7 @@ const ISSUER = 'prompify:data-proxy';
 
 function getSecret(context?: Record<string, unknown>): string {
   const cf = context as Record<string, unknown> | undefined;
-  const fromEnv =
-    (cf?.DATA_API_SECRET as string) || process.env.DATA_API_SECRET || process.env.JWT_SECRET || '';
+  const fromEnv = (cf?.DATA_API_SECRET as string) || process.env.DATA_API_SECRET || process.env.JWT_SECRET || '';
 
   if (!fromEnv) {
     throw new Error('DATA_API_SECRET (or JWT_SECRET fallback) is required for data tokens');
@@ -40,11 +39,7 @@ export interface DataTokenClaims {
  * Issue a short-lived data token scoped to (userId, chatId). Called by
  * `POST /api/data/token` after validating the session JWT.
  */
-export function issueDataApiToken(
-  userId: string,
-  chatId: string,
-  context?: Record<string, unknown>
-): string {
+export function issueDataApiToken(userId: string, chatId: string, context?: Record<string, unknown>): string {
   const secret = getSecret(context);
 
   return jwt.sign(
@@ -62,10 +57,7 @@ export function issueDataApiToken(
  * Validate a bearer data token. Returns the claims on success, null otherwise.
  * Never throws — callers treat null as 401.
  */
-export function validateDataApiToken(
-  token: string,
-  context?: Record<string, unknown>
-): DataTokenClaims | null {
+export function validateDataApiToken(token: string, context?: Record<string, unknown>): DataTokenClaims | null {
   try {
     const secret = getSecret(context);
     const decoded = jwt.verify(token, secret, { issuer: ISSUER }) as Record<string, unknown>;

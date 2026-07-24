@@ -1,10 +1,15 @@
-import { json, redirect, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { json, redirect, type LoaderFunctionArgs, type MetaFunction } from '@remix-run/cloudflare';
 import { useLoaderData } from '@remix-run/react';
 import { useEffect, useState } from 'react';
 import { Button } from '~/components/ui/Button';
 import { Card } from '~/components/ui/Card';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 import { isAuthDisabled } from '~/lib/auth';
+
+export const meta: MetaFunction = () => [
+  { name: 'robots', content: 'noindex, nofollow' },
+  { title: 'Verify Email — Prompify' },
+];
 
 interface LoaderData {
   success: boolean;

@@ -49,11 +49,22 @@ export default function AppIndex() {
   return (
     <LandingAppChrome>
       <div className="landing-app-chrome flex min-h-0 w-full flex-1 flex-col">
-          <FloatingHeader />
+        <FloatingHeader />
         <div className="relative flex min-h-0 flex-1 flex-col">
           <ClientOnly fallback={<BaseChat />}>{() => <Chat />}</ClientOnly>
         </div>
       </div>
     </LandingAppChrome>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <p className="mt-2 text-gray-500">Please refresh the page and try again.</p>
+      </div>
+    </div>
   );
 }

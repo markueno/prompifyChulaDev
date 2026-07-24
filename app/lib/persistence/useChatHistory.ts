@@ -27,8 +27,10 @@ import {
 } from '~/lib/snapshots/scheduleSnapshot';
 import { MODEL_REGEX, PROVIDER_REGEX } from '~/utils/constants';
 
-// Re-export so the `persistence/index.ts` barrel and direct imports from
-// `useChatHistory` continue to resolve these shared atoms.
+/*
+ * Re-export so the `persistence/index.ts` barrel and direct imports from
+ * `useChatHistory` continue to resolve these shared atoms.
+ */
 export { db, chatId, description };
 
 export interface ChatHistoryItem {
@@ -55,7 +57,7 @@ function labelFromMessages(messages: Message[]): string | undefined {
     }
 
     const raw = Array.isArray(msg.content)
-      ? msg.content.find(part => part.type === 'text')?.text ?? ''
+      ? (msg.content.find(part => part.type === 'text')?.text ?? '')
       : typeof msg.content === 'string'
         ? msg.content
         : '';
@@ -267,8 +269,10 @@ export function useChatHistory() {
                   ? chat.messages.slice(0, chat.messages.findIndex((m: any) => m.id === rewindId) + 1)
                   : chat.messages;
 
-                // Day 9b — restore from snapshot before setting messages (same as the
-                // IndexedDB path above). Day 17 — rewinds restore the mapped version.
+                /*
+                 * Day 9b — restore from snapshot before setting messages (same as the
+                 * IndexedDB path above). Day 17 — rewinds restore the mapped version.
+                 */
                 if (snapshotsEnabled) {
                   if (rewindId) {
                     await restoreSnapshotForRewind(chat.id, filteredMessages);
@@ -380,8 +384,10 @@ export function useChatHistory() {
     };
   }, [activeProjectId, mixedId, user?.id, searchParams, navigate]);
 
-  // Delegates to the shared single-flight allocator so a concurrent workbench save
-  // (scheduleSnapshotSave) and a message send cannot allocate two different chat ids.
+  /*
+   * Delegates to the shared single-flight allocator so a concurrent workbench save
+   * (scheduleSnapshotSave) and a message send cannot allocate two different chat ids.
+   */
   const ensureChatId = (): Promise<string | undefined> => ensureChatIdForSave(activeProjectId);
 
   return {
@@ -432,7 +438,15 @@ export function useChatHistory() {
       }
 
       // Save to IndexedDB (existing functionality)
-      await setMessages(_hookDb, chatId.get() as string, messages, urlId, description.get(), undefined, chatMetadata.get());
+      await setMessages(
+        _hookDb,
+        chatId.get() as string,
+        messages,
+        urlId,
+        description.get(),
+        undefined,
+        chatMetadata.get()
+      );
 
       // Also save to PostgreSQL if user is authenticated
       try {
@@ -464,25 +478,27 @@ export function useChatHistory() {
         // Don't throw error - IndexedDB save was successful
       }
 
-      // Day 9a — snapshot save (flag-gated, debounced, best-effort).
-      // Day 17 — record the last message id so the version maps to this point in the chat.
-      // Day 19 — pass the triggering user prompt (stripped of [Model:]/[Provider:] prefixes,
-      // truncated) as the per-version label so the version name reflects WHAT changed rather
-      // than the chat title (Fix B).
-      //
-      // Day 20 — coalesce to ONE version per AI turn. While streaming, storeMessageHistory is
-      // re-invoked every ~50ms by processSampledMessages; previously each call re-armed the 3s
-      // debounce, which fired once per >3s quiet gap during generation → ~10 versions per turn.
-      // Now: while streaming, only refresh the optimistic IndexedDB cache (no version row, no
-      // server round-trip — keeps refresh-restore working). At turn end (isLoading=false) we
-      // fire scheduleSnapshotSave ONCE; the 3s trailing debounce then fires a single time,
-      // giving the action-runner queue time to flush the last file writes. buildSnapshot
-      // excludes node_modules, so a trailing shell action never leaves the manifest incomplete.
-      // The server no-op guard (Day 19) then skips the turn-end save for question-only turns.
+      /*
+       * Day 9a — snapshot save (flag-gated, debounced, best-effort).
+       * Day 17 — record the last message id so the version maps to this point in the chat.
+       * Day 19 — pass the triggering user prompt (stripped of [Model:]/[Provider:] prefixes,
+       * truncated) as the per-version label so the version name reflects WHAT changed rather
+       * than the chat title (Fix B).
+       *
+       * Day 20 — coalesce to ONE version per AI turn. While streaming, storeMessageHistory is
+       * re-invoked every ~50ms by processSampledMessages; previously each call re-armed the 3s
+       * debounce, which fired once per >3s quiet gap during generation → ~10 versions per turn.
+       * Now: while streaming, only refresh the optimistic IndexedDB cache (no version row, no
+       * server round-trip — keeps refresh-restore working). At turn end (isLoading=false) we
+       * fire scheduleSnapshotSave ONCE; the 3s trailing debounce then fires a single time,
+       * giving the action-runner queue time to flush the last file writes. buildSnapshot
+       * excludes node_modules, so a trailing shell action never leaves the manifest incomplete.
+       * The server no-op guard (Day 19) then skips the turn-end save for question-only turns.
+       */
       if (user?.id) {
         if (isLoading) {
           refreshSnapshotCache(workbenchStore.files.get(), chatId.get()).catch(error =>
-            console.warn('Streaming snapshot cache refresh failed:', error),
+            console.warn('Streaming snapshot cache refresh failed:', error)
           );
         } else {
           scheduleSnapshotSave(
@@ -490,7 +506,7 @@ export function useChatHistory() {
             chatId.get(),
             messages[messages.length - 1]?.id,
             false,
-            labelFromMessages(messages),
+            labelFromMessages(messages)
           );
         }
       }

@@ -44,7 +44,9 @@ export async function listProxyTables(chatId: string): Promise<SupabaseTable[]> 
   try {
     const res = await fetch(`/api/data/${encodeURIComponent(chatId)}/schema`);
 
-    if (!res.ok) return [];
+    if (!res.ok) {
+      return [];
+    }
 
     const data = (await res.json()) as { tables?: ProxyTable[] };
 
@@ -70,8 +72,10 @@ export async function fetchProxyRows(
     });
 
     if (sortColumn) {
-      // The proxy currently orders by created_at DESC; sort params are passed
-      // through for a future enhancement. Kept in the signature for compat.
+      /*
+       * The proxy currently orders by created_at DESC; sort params are passed
+       * through for a future enhancement. Kept in the signature for compat.
+       */
       void sortAsc;
     }
 
@@ -86,8 +90,10 @@ export async function fetchProxyRows(
     const json = (await res.json()) as { data?: SupabaseRow[] };
     const rows = Array.isArray(json.data) ? json.data : [];
 
-    // The proxy doesn't return a total count yet; use the page size as an
-    // upper bound so the pager keeps a "next" button until the last page.
+    /*
+     * The proxy doesn't return a total count yet; use the page size as an
+     * upper bound so the pager keeps a "next" button until the last page.
+     */
     return { data: rows, count: rows.length < pageSize ? page * pageSize + rows.length : (page + 1) * pageSize + 1 };
   } catch (err) {
     return { data: [], count: 0, error: err instanceof Error ? err.message : 'Connection failed' };

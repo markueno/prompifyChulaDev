@@ -14,6 +14,7 @@
  * No external Supabase calls. No anon/service-role key. No PostgREST.
  */
 import { getPostgresPool, ensureAppTablesSchema } from '~/lib/database-postgresql';
+import { checkRateLimit } from '~/lib/database';
 
 const SCHEMA_PREFIX = 'usr_';
 const VALID_SCHEMA_CHAR = /[^a-z0-9_]/g;
@@ -64,11 +65,13 @@ export interface AppQueryResult {
  * Pass a single statement (or a multi-statement string with no params). Params
  * bind only to the first statement when multi-statement strings are used.
  */
-export async function runAppQuery(
-  userId: string,
-  sql: string,
-  params: unknown[] = []
-): Promise<AppQueryResult> {
+export async function runAppQuery(userId: string, sql: string, params: unknown[] = []): Promise<AppQueryResult> {
+  const rateResult = await checkRateLimit(userId, 'data-proxy', 100, 10);
+
+  if (!rateResult.allowed) {
+    return { ok: false, error: 'Too many requests. Please slow down.' };
+  }
+
   const schemaName = schemaForUser(userId);
   const pool = getPostgresPool();
   const client = await pool.connect();
@@ -77,8 +80,10 @@ export async function runAppQuery(
     await client.query('BEGIN');
     await client.query(`SET LOCAL search_path TO "${schemaName}"`);
     await client.query(`SET LOCAL statement_timeout = '${STATEMENT_TIMEOUT_MS}'`);
+
     const result = await client.query(sql, params);
     await client.query('COMMIT');
+
     return { ok: true, rows: result.rows, rowCount: result.rowCount };
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -101,12 +106,10 @@ export interface AppTableMeta {
  * not registered to THIS chat — which means the request must 404 (app-level
  * isolation within a user: app A cannot read app B's tables by name).
  */
-export async function getRegisteredTable(
-  chatId: string,
-  logicalName: string
-): Promise<AppTableMeta | null> {
+export async function getRegisteredTable(chatId: string, logicalName: string): Promise<AppTableMeta | null> {
   // Day 20 — ensure the registry table exists (getPostgresPool doesn't run migrations).
   await ensureAppTablesSchema();
+
   const pool = getPostgresPool();
   const client = await pool.connect();
 
@@ -119,7 +122,9 @@ export async function getRegisteredTable(
       [chatId, logicalName]
     );
 
-    if (!rows.length) return null;
+    if (!rows.length) {
+      return null;
+    }
 
     const row = rows[0];
     const columns = Array.isArray(row.columns) ? row.columns : JSON.parse(row.columns || '[]');
@@ -143,6 +148,7 @@ export async function getRegisteredTable(
 export async function listChatTables(chatId: string): Promise<AppTableMeta[]> {
   // Day 20 — ensure the registry table exists (getPostgresPool doesn't run migrations).
   await ensureAppTablesSchema();
+
   const pool = getPostgresPool();
   const client = await pool.connect();
 
@@ -188,7 +194,9 @@ export async function getSchemaContext(
 ): Promise<string | null> {
   const tables = await listChatTables(chatId);
 
-  if (!tables.length) return null;
+  if (!tables.length) {
+    return null;
+  }
 
   const lines: string[] = [
     '## App Database (self-hosted, Remix data proxy)',
@@ -200,8 +208,8 @@ export async function getSchemaContext(
     '```js',
     'const cfg = window.__PROMPIFY_CONFIG || {};',
     '// GET rows',
-    "const res = await fetch(`${cfg.apiUrl}/${cfg.chatId}/${tableName}`, {",
-    "  headers: { Authorization: `Bearer ${cfg.token}` }",
+    'const res = await fetch(`${cfg.apiUrl}/${cfg.chatId}/${tableName}`, {',
+    '  headers: { Authorization: `Bearer ${cfg.token}` }',
     '});',
     'const { data } = await res.json();',
     '// INSERT a row',

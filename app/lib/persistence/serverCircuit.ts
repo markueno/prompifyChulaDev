@@ -28,11 +28,13 @@ function storageAvailable(): boolean {
 }
 
 export class ServerCircuit {
-  private failures = 0;
-  private lastCheck = 0;
-  private state: CircuitState = 'closed';
+  private _failures = 0;
+  private _lastCheck = 0;
+  private _state: CircuitState = 'closed';
 
+  // eslint-disable-next-line @typescript-eslint/naming-convention
   private readonly FAILURE_THRESHOLD = 3;
+  // eslint-disable-next-line @typescript-eslint/naming-convention
   private readonly RECOVERY_TIMEOUT = 30_000; // 30 seconds
 
   constructor() {
@@ -43,41 +45,41 @@ export class ServerCircuit {
       if (saved) {
         try {
           const parsed = JSON.parse(saved) as { failures: number; lastCheck: number; state: CircuitState };
-          this.failures = parsed.failures ?? 0;
-          this.lastCheck = parsed.lastCheck ?? 0;
-          this.state = parsed.state === 'open' || parsed.state === 'half-open' ? parsed.state : 'closed';
+          this._failures = parsed.failures ?? 0;
+          this._lastCheck = parsed.lastCheck ?? 0;
+          this._state = parsed.state === 'open' || parsed.state === 'half-open' ? parsed.state : 'closed';
         } catch {
           // Corrupt JSON — start closed and overwrite on the next persist.
-          this.failures = 0;
-          this.lastCheck = 0;
-          this.state = 'closed';
+          this._failures = 0;
+          this._lastCheck = 0;
+          this._state = 'closed';
         }
       }
     }
 
-    circuitStateStore.set(this.state);
+    circuitStateStore.set(this._state);
   }
 
-  private persist() {
+  private _persist() {
     if (storageAvailable()) {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          failures: this.failures,
-          lastCheck: this.lastCheck,
-          state: this.state,
+          failures: this._failures,
+          lastCheck: this._lastCheck,
+          state: this._state,
         })
       );
     }
 
-    circuitStateStore.set(this.state);
+    circuitStateStore.set(this._state);
   }
 
   async execute<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.state === 'open') {
-      if (Date.now() - this.lastCheck > this.RECOVERY_TIMEOUT) {
-        this.state = 'half-open';
-        this.persist();
+    if (this._state === 'open') {
+      if (Date.now() - this._lastCheck > this.RECOVERY_TIMEOUT) {
+        this._state = 'half-open';
+        this._persist();
       } else {
         throw new Error('Circuit open — server unreachable');
       }
@@ -85,38 +87,38 @@ export class ServerCircuit {
 
     try {
       const result = await fn();
-      this.onSuccess();
+      this._onSuccess();
 
       return result;
     } catch (err) {
-      this.onFailure();
+      this._onFailure();
       throw err;
     }
   }
 
-  private onSuccess() {
-    this.failures = 0;
-    this.state = 'closed';
-    this.persist();
+  private _onSuccess() {
+    this._failures = 0;
+    this._state = 'closed';
+    this._persist();
   }
 
-  private onFailure() {
-    this.failures++;
-    this.lastCheck = Date.now();
+  private _onFailure() {
+    this._failures++;
+    this._lastCheck = Date.now();
 
-    if (this.failures >= this.FAILURE_THRESHOLD) {
-      this.state = 'open';
+    if (this._failures >= this.FAILURE_THRESHOLD) {
+      this._state = 'open';
     }
 
-    this.persist();
+    this._persist();
   }
 
   get isOpen() {
-    return this.state === 'open';
+    return this._state === 'open';
   }
 
   get currentState(): CircuitState {
-    return this.state;
+    return this._state;
   }
 }
 

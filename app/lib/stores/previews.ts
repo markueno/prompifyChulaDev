@@ -54,19 +54,6 @@ export class PreviewsStore {
     this.#init();
   }
 
-  // Generate a unique ID for this tab
-  private _getTabId(): string {
-    if (typeof window !== 'undefined') {
-      if (!window._tabId) {
-        window._tabId = Math.random().toString(36).substring(2, 15);
-      }
-
-      return window._tabId;
-    }
-
-    return '';
-  }
-
   async #init() {
     const webcontainer = await this.#webcontainer;
 

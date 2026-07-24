@@ -29,7 +29,7 @@ describe('formatDefaultValue (H-3 — user-supplied DDL defaults)', () => {
 
   it('validates uuid, jsonb and timestamptz literals', () => {
     expect(formatDefaultValue('uuid', '123E4567-E89B-12D3-A456-426614174000')).toBe(
-      "'123e4567-e89b-12d3-a456-426614174000'",
+      "'123e4567-e89b-12d3-a456-426614174000'"
     );
     expect(formatDefaultValue('uuid', 'not-a-uuid')).toBeNull();
     expect(formatDefaultValue('jsonb', '{"a": 1}')).toBe('\'{"a": 1}\'::jsonb');

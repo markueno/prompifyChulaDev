@@ -32,13 +32,15 @@ let ensureChatIdInFlight: Promise<string | undefined> | undefined;
  * unload gives it the best chance to commit.
  */
 let inFlightSave: Promise<void> | undefined;
-let lastSaveArgs: {
-  fileMap: FileMap;
-  overrideChatId?: string;
-  lastMessageId?: string;
-  label?: string;
-  changedFilePath?: string;
-} | undefined;
+let lastSaveArgs:
+  | {
+      fileMap: FileMap;
+      overrideChatId?: string;
+      lastMessageId?: string;
+      label?: string;
+      changedFilePath?: string;
+    }
+  | undefined;
 let flushHandlersRegistered = false;
 
 function flushPendingSave(): void {
@@ -54,7 +56,7 @@ function flushPendingSave(): void {
       lastSaveArgs.overrideChatId,
       lastSaveArgs.lastMessageId,
       lastSaveArgs.label,
-      lastSaveArgs.changedFilePath,
+      lastSaveArgs.changedFilePath
     );
   }
 }
@@ -66,8 +68,10 @@ function registerFlushHandlers(): void {
 
   flushHandlersRegistered = true;
 
-  // pagehide fires on hard refresh + tab close (including bfcache). Flush the
-  // debounced/immediate save so the IndexedDB write starts before unload.
+  /*
+   * pagehide fires on hard refresh + tab close (including bfcache). Flush the
+   * debounced/immediate save so the IndexedDB write starts before unload.
+   */
   window.addEventListener('pagehide', () => {
     flushPendingSave();
   });
@@ -85,7 +89,7 @@ async function runSave(
   overrideChatId: string | undefined,
   lastMessageId: string | undefined,
   label?: string,
-  changedFilePath?: string,
+  changedFilePath?: string
 ): Promise<void> {
   let id = overrideChatId ?? chatId.get();
 
@@ -164,7 +168,7 @@ export async function refreshSnapshotCache(fileMap: FileMap, overrideChatId?: st
     return;
   }
 
-  let id = overrideChatId ?? chatId.get();
+  const id = overrideChatId ?? chatId.get();
 
   if (!id) {
     // Don't allocate a chat id here (allocation is the streaming save's job at turn end).
@@ -209,7 +213,7 @@ async function saveCodebaseSnapshot(
   descriptionText: string | undefined,
   lastMessageId?: string,
   label?: string,
-  changedFilePath?: string,
+  _changedFilePath?: string
 ): Promise<void> {
   try {
     const snapshot = await buildSnapshot(fileMap);
@@ -362,7 +366,7 @@ export function scheduleSnapshotSave(
   /** Day 19 — per-version label (user prompt for AI turns; "Manual edit" marker otherwise). */
   label?: string,
   /** Day 19 — for manual saves, the file path that was edited (used to build a label). */
-  changedFilePath?: string,
+  changedFilePath?: string
 ): () => void {
   if (!snapshotsEnabled) {
     return () => {};
@@ -380,14 +384,17 @@ export function scheduleSnapshotSave(
 
   registerFlushHandlers();
 
-  // Remember the args so a pagehide/visibilitychange flush can re-fire the save
-  // (best-effort) before the page unloads — closes the refresh-during-save race.
+  /*
+   * Remember the args so a pagehide/visibilitychange flush can re-fire the save
+   * (best-effort) before the page unloads — closes the refresh-during-save race.
+   */
   lastSaveArgs = { fileMap, overrideChatId, lastMessageId, label, changedFilePath };
 
   if (immediate) {
     inFlightSave = runSave(fileMap, overrideChatId, lastMessageId, label, changedFilePath).finally(() => {
       inFlightSave = undefined;
     });
+
     return () => {};
   }
 

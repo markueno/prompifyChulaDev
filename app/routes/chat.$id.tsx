@@ -35,3 +35,14 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
 }
 
 export default AppIndexRoute;
+
+export function ErrorBoundary() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <p className="mt-2 text-gray-500">Please refresh the page and try again.</p>
+      </div>
+    </div>
+  );
+}

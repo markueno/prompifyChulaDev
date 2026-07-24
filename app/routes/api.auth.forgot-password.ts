@@ -1,5 +1,5 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { createPasswordResetToken, logEmail } from '~/lib/database';
+import { createPasswordResetToken, logEmail, checkRateLimit } from '~/lib/database';
 import { sendPasswordResetEmail } from '~/lib/email';
 
 interface ForgotPasswordRequest {
@@ -15,9 +15,22 @@ interface ForgotPasswordResponse {
 const SUCCESS_MESSAGE =
   "If an account exists with that email, we've sent a password reset link. Please check your inbox and spam folder.";
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, context: _context }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
     return json<ForgotPasswordResponse>({ success: false, message: 'Method not allowed' }, { status: 405 });
+  }
+
+  const clientIP =
+    request.headers.get('CF-Connecting-IP') ||
+    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
+    'unknown';
+  const rateResult = await checkRateLimit(clientIP, 'forgot-password', 5, 60);
+
+  if (!rateResult.allowed) {
+    return json<ForgotPasswordResponse>(
+      { success: false, message: 'Too many requests. Please try again later.' },
+      { status: 429 }
+    );
   }
 
   try {

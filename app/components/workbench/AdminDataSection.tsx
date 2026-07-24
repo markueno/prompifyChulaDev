@@ -310,7 +310,7 @@ export const AdminDataSection = memo(() => {
   const [tables, setTables] = useState<SupabaseTable[]>([]);
   const [selectedTable, setSelectedTable] = useState<SupabaseTable | null>(null);
   const [showCreateTable, setShowCreateTable] = useState(false);
-const [showImportData, setShowImportData] = useState(false);
+  const [showImportData, setShowImportData] = useState(false);
 
   const [rows, setRows] = useState<SupabaseRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
@@ -341,11 +341,13 @@ const [showImportData, setShowImportData] = useState(false);
     }
 
     const run = async () => {
-      // ── Priority 0: self-hosted data proxy (no Supabase). This is the default
-      //    platform path now that Supabase is dropped. ALWAYS use it — even on a
-      //    fresh chat with zero tables — so the Import Data button is reachable
-      //    (the empty state renders it). Falls through only if the proxy is
-      //    unreachable, so a user can still connect a custom Supabase manually.
+      /*
+       * ── Priority 0: self-hosted data proxy (no Supabase). This is the default
+       *    platform path now that Supabase is dropped. ALWAYS use it — even on a
+       *    fresh chat with zero tables — so the Import Data button is reachable
+       *    (the empty state renders it). Falls through only if the proxy is
+       *    unreachable, so a user can still connect a custom Supabase manually.
+       */
       try {
         const proxyTables = await listProxyTables(currentChatId);
 
@@ -491,6 +493,7 @@ const [showImportData, setShowImportData] = useState(false);
     async (table: SupabaseTable, pg: number, sc?: string, sa?: boolean) => {
       if (platformMode && currentChatId) {
         setLoading(true);
+
         const result = await fetchProxyRows(currentChatId, table.name, pg, PAGE_SIZE, sc, sa);
         setLoading(false);
 

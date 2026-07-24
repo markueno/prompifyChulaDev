@@ -7,6 +7,7 @@ import { isbot } from 'isbot';
  * Node 20+ has ReadableStream built in, so the web-streams renderer runs fine under Node.
  * (Dev worked because the Cloudflare dev proxy resolves worker conditions.)
  */
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-expect-error - subpath ships no bundled type definitions, but contains renderToReadableStream
 import { renderToReadableStream } from 'react-dom/server.browser';
 import { renderHeadToString } from 'remix-island';

@@ -5,15 +5,17 @@ import { isAuthDisabled, optionalAuth } from '~/lib/auth';
 
 import landingStyles from '~/styles/landing.css?url';
 
-const SITE_URL = 'https://prompify.com';
+const SITE_URL = process.env.SITE_URL || 'https://prompify.com';
 
 export const links: LinksFunction = () => [
   // Canonical host = https://prompify.com (pick ONE host; 301 the www variant at the edge/nginx).
   { rel: 'canonical', href: `${SITE_URL}/` },
   { rel: 'stylesheet', href: landingStyles },
-  // Note: Google Fonts are loaded async below (non-render-blocking) instead of via blocking
-  // <link rel=stylesheet> — improves LCP / Core Web Vitals. Inter is also loaded globally by
-  // root.tsx; here we additionally pull Raleway for landing headings, non-blocking.
+  /*
+   * Note: Google Fonts are loaded async below (non-render-blocking) instead of via blocking
+   * <link rel=stylesheet> — improves LCP / Core Web Vitals. Inter is also loaded globally by
+   * root.tsx; here we additionally pull Raleway for landing headings, non-blocking.
+   */
 ];
 
 export const meta: MetaFunction = () => {
@@ -57,8 +59,10 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   return json({});
 }
 
-// Organization + WebSite JSON-LD. No fabricated stats/bios/dates — fields left empty where no
-// real data exists yet (the owner fills them on /about).
+/*
+ * Organization + WebSite JSON-LD. No fabricated stats/bios/dates — fields left empty where no
+ * real data exists yet (the owner fills them on /about).
+ */
 const orgSchema = {
   '@context': 'https://schema.org',
   '@type': 'Organization',

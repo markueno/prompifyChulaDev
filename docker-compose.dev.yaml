@@ -14,10 +14,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Mark@3156}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./data/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
       # Dev-only seed (admin-bypass user for AUTH_DISABLED). Runs after init-db.sql (filename
       # sorts later). NOT mounted in prod, so this privileged row never reaches production.
-      - ./seed-dev.sql:/docker-entrypoint-initdb.d/seed-dev.sql
+      - ./data/seed-dev.sql:/docker-entrypoint-initdb.d/seed-dev.sql
     ports:
       - "5432:5432"
     networks:

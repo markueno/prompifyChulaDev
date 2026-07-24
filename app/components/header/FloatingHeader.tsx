@@ -57,6 +57,7 @@ export function FloatingHeader() {
       if (event.clientY < REVEAL_THRESHOLD) {
         clearClose();
         setOpen(true);
+
         return;
       }
 
@@ -72,8 +73,10 @@ export function FloatingHeader() {
         return;
       }
 
-      // Don't auto-close while a Radix popover/menu/dialog is open (e.g. the user menu, the
-      // settings modal) — those render in a portal below the bar; closing would strand them.
+      /*
+       * Don't auto-close while a Radix popover/menu/dialog is open (e.g. the user menu, the
+       * settings modal) — those render in a portal below the bar; closing would strand them.
+       */
       if (document.querySelector('[data-state="open"]')) {
         clearClose();
         return;
@@ -84,6 +87,7 @@ export function FloatingHeader() {
     }
 
     window.addEventListener('mousemove', onMouseMove);
+
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       clearClose();
@@ -97,8 +101,8 @@ export function FloatingHeader() {
         <div className="flex items-center gap-2">
           <div className="i-ph:sidebar-simple-duotone text-xl" />
           <Link to="/app/" className="text-2xl font-semibold text-accent flex items-center">
-            <img src="/logo-light-styled.png" alt="logo" className="w-[90px] inline-block dark:hidden" />
-            <img src="/logo-dark-styled.png" alt="logo" className="w-[90px] inline-block hidden dark:block" />
+            <img src="/logo-light-styled.png" alt="Prompify" className="w-[90px] inline-block dark:hidden" />
+            <img src="/logo-dark-styled.png" alt="Prompify" className="w-[90px] inline-block hidden dark:block" />
           </Link>
         </div>
         {user ? (
@@ -146,9 +150,11 @@ export function FloatingHeader() {
     );
   }
 
-  // Chat started: fixed hover-reveal overlay. `.landing-app-chrome > header` (landing.css) still
-  // applies the glass background / blur / border + child text colors; we add fixed positioning,
-  // a slide transition, and a high z so it overlays the chat/workbench.
+  /*
+   * Chat started: fixed hover-reveal overlay. `.landing-app-chrome > header` (landing.css) still
+   * applies the glass background / blur / border + child text colors; we add fixed positioning,
+   * a slide transition, and a high z so it overlays the chat/workbench.
+   */
   return (
     <header
       ref={ref}
@@ -162,6 +168,7 @@ export function FloatingHeader() {
           clearTimeout(closeTimer.current);
           closeTimer.current = undefined;
         }
+
         setOpen(true);
       }}
     >

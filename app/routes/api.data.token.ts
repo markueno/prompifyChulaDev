@@ -28,8 +28,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
       return json({ error: 'Not found' }, { status: 404 });
     }
 
-    // v1 strict schema-per-user: only the owner (or moderator) gets a data
-    // token. Non-owner chat members get 403 (no sharing in v1).
+    /*
+     * v1 strict schema-per-user: only the owner (or moderator) gets a data
+     * token. Non-owner chat members get 403 (no sharing in v1).
+     */
     if (chat.user_id !== user.id && !user.isModerator) {
       return json({ error: 'Forbidden' }, { status: 403 });
     }

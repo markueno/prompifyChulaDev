@@ -180,9 +180,7 @@ ${props.summary}
   const timeoutMs =
     Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : DEFAULT_LLM_TIMEOUT_MS;
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
-  const abortSignal = options?.abortSignal
-    ? AbortSignal.any([options.abortSignal, timeoutSignal])
-    : timeoutSignal;
+  const abortSignal = options?.abortSignal ? AbortSignal.any([options.abortSignal, timeoutSignal]) : timeoutSignal;
 
   return await _streamText({
     model: provider.getModelInstance({

@@ -4,14 +4,6 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { isEmailVerificationRequired } from '~/lib/auth';
 
-interface User {
-  id: string;
-  email: string;
-  passwordHash: string;
-  isVerified: boolean;
-  createdAt: Date;
-}
-
 interface LoginRequest {
   email: string;
   password: string;
@@ -28,12 +20,6 @@ interface LoginResponse {
   };
   message?: string;
 }
-
-// Rate limiting storage (in production, use Redis or database)
-const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
-
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-const MAX_LOGIN_ATTEMPTS = 5;
 
 export async function action({ request, context }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
@@ -70,33 +56,19 @@ export async function action({ request, context }: ActionFunctionArgs) {
       );
     }
 
-    // Rate limiting check
+    // Rate limiting check (backed by rate_limits table, shared across instances)
     const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
-    const now = Date.now();
-    const attempts = loginAttempts.get(clientIP);
+    const rateResult = await checkRateLimit(clientIP, 'login', 5, 15 * 60);
 
-    if (attempts) {
-      if (now - attempts.lastAttempt < RATE_LIMIT_WINDOW) {
-        if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
-          return json<LoginResponse>(
-            {
-              success: false,
-              message: 'Too many login attempts. Please try again in 15 minutes.',
-            },
-            { status: 429 }
-          );
-        }
-      } else {
-        // Reset counter if window has passed
-        loginAttempts.delete(clientIP);
-      }
+    if (!rateResult.allowed) {
+      return json<LoginResponse>(
+        {
+          success: false,
+          message: 'Too many login attempts. Please try again in 15 minutes.',
+        },
+        { status: 429 }
+      );
     }
-
-    // Update rate limiting
-    const currentAttempts = loginAttempts.get(clientIP) || { count: 0, lastAttempt: now };
-    currentAttempts.count += 1;
-    currentAttempts.lastAttempt = now;
-    loginAttempts.set(clientIP, currentAttempts);
 
     // Get user from database
     const user = (await getUserByEmail(emailNormalized)) as
@@ -152,7 +124,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
     await resetLoginAttempts(user.id || '');
 
     // Generate JWT token
-    const secret = (context.cloudflare?.env as any)?.JWT_SECRET || 'your-secret-key';
+    const secret = (context.cloudflare?.env as any)?.JWT_SECRET ?? process.env.JWT_SECRET;
+
+    if (!secret) {
+      throw new Error('JWT_SECRET is not configured');
+    }
+
     const isModerator = Boolean(user.is_moderator);
     const token = jwt.sign(
       {
@@ -171,9 +148,6 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const userAgent = request.headers.get('User-Agent') || '';
 
     await createUserSession(user.id || '', tokenHash, expiresAt, clientIP, userAgent);
-
-    // Clear rate limiting on successful login
-    loginAttempts.delete(clientIP);
 
     return json<LoginResponse>({
       success: true,
@@ -197,4 +171,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 }
 
-import { getUserByEmail, updateLoginAttempts, resetLoginAttempts, createUserSession } from '~/lib/database';
+import {
+  getUserByEmail,
+  updateLoginAttempts,
+  resetLoginAttempts,
+  createUserSession,
+  checkRateLimit,
+} from '~/lib/database';

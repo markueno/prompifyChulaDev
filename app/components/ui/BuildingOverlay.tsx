@@ -197,14 +197,20 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
   }, [visible]);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
     const t = setInterval(() => setDotCount(d => (d % 3) + 1), 500);
+
     return () => clearInterval(t);
   }, [mounted]);
 
   // Fade-out → swap word → fade-in every 2.2 s
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     const cycle = setInterval(() => {
       setWordVisible(false);
@@ -217,7 +223,9 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
     return () => clearInterval(cycle);
   }, [mounted]);
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return null;
+  }
 
   const dots = '.'.repeat(dotCount);
 

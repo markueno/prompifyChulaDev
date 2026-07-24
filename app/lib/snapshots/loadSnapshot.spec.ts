@@ -46,7 +46,7 @@ describe('snapshotPathToRelative', () => {
   it('strips a DIFFERENT workdir prefix (cross-session / new device restore)', () => {
     // Snapshot saved under one session, restored under another: prefix differs but must still strip.
     expect(snapshotPathToRelative('/home/project-OLDsession/src/components/Button.tsx')).toBe(
-      'src/components/Button.tsx',
+      'src/components/Button.tsx'
     );
   });
 

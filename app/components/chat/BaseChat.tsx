@@ -1,7 +1,3 @@
-/*
- * @ts-nocheck
- * Preventing TS checks with files presented in the video for a better presentation.
- */
 import type { JSONValue, Message } from 'ai';
 import React, { type RefCallback, useCallback, useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
@@ -660,8 +656,10 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               : Boolean(input.length > 0)
                           }
                           isStreaming={isStreaming}
-                          // Day 12 — sending needs the server; block while the circuit is open
-                          // (covers both the chat textarea and the first-prompt wizard path).
+                          /*
+                           * Day 12 — sending needs the server; block while the circuit is open
+                           * (covers both the chat textarea and the first-prompt wizard path).
+                           */
                           disabled={!providerList || providerList.length === 0 || circuitOpen}
                           onClick={event => {
                             if (isStreaming) {

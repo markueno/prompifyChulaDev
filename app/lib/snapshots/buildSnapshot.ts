@@ -59,8 +59,10 @@ export async function buildSnapshot(files: FileMap): Promise<Snapshot> {
       continue;
     }
 
-    // Detect binary: prefer the FilesStore flag (content-based), fall back to
-    // path-extension check (catches files the watcher didn't classify as binary).
+    /*
+     * Detect binary: prefer the FilesStore flag (content-based), fall back to
+     * path-extension check (catches files the watcher didn't classify as binary).
+     */
     const isBinaryFile = dirent.isBinary || isBinary(path, null) === true;
 
     const bytes = encoder.encode(dirent.content);

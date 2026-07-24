@@ -8,7 +8,7 @@ interface LogoutResponse {
   message?: string;
 }
 
-export async function action({ request, context }: ActionFunctionArgs) {
+export async function action({ request, context: _context }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
     return json({ success: false, message: 'Method not allowed' }, { status: 405 });
   }

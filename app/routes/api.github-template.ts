@@ -1,4 +1,5 @@
 import { json } from '@remix-run/cloudflare';
+import { requireAuth } from '~/lib/auth';
 import JSZip from 'jszip';
 
 /*
@@ -117,6 +118,8 @@ async function extractZip(zipArrayBuffer: ArrayBuffer): Promise<TemplateFile[]> 
 }
 
 export async function loader({ request, context }: { request: Request; context: any }) {
+  await requireAuth(request, context);
+
   const url = new URL(request.url);
   const repo = url.searchParams.get('repo');
 

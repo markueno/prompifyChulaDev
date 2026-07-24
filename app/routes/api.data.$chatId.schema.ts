@@ -14,11 +14,7 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-r
 import { requireAuth } from '~/lib/auth';
 import { getChatById } from '~/lib/database';
 import { getPostgresPool } from '~/lib/database-postgresql';
-import {
-  provisionUserSchema,
-  runAppQuery,
-  listChatTables,
-} from '~/lib/data-provision.server';
+import { provisionUserSchema, runAppQuery, listChatTables } from '~/lib/data-provision.server';
 import { formatDefaultValue } from '~/utils/sqlDefaultValue';
 
 const RESERVED_NAMES = new Set(['id', 'created_at', 'updated_at']);
@@ -67,25 +63,30 @@ function buildCreateTableSQL(tableName: string, columns: ColumnInput[]): string 
     ...userColDefs,
   ];
 
-  // Join with ",\n" so there is never a trailing comma before the closing ")".
-  // (The previous build appended ",);" — a trailing comma that produced
-  // "syntax error at or near ')'" whenever the table was created, especially
-  // with zero user columns.)
+  /*
+   * Join with ",\n" so there is never a trailing comma before the closing ")".
+   * (The previous build appended ",);" — a trailing comma that produced
+   * "syntax error at or near ')'" whenever the table was created, especially
+   * with zero user columns.)
+   */
   return `CREATE TABLE "${tableName}" (\n${allDefs.join(',\n')}\n);`;
 }
-
 
 // GET — list tables registered to this chat
 export async function loader({ request, params, context }: LoaderFunctionArgs) {
   const user = await requireAuth(request, context);
   const { chatId } = params;
 
-  if (!chatId) return json({ error: 'chatId is required' }, { status: 400 });
+  if (!chatId) {
+    return json({ error: 'chatId is required' }, { status: 400 });
+  }
 
   try {
     const chat = await getChatById(chatId, user.id, user.isModerator);
 
-    if (!chat) return json({ error: 'Not found' }, { status: 404 });
+    if (!chat) {
+      return json({ error: 'Not found' }, { status: 404 });
+    }
 
     const tables = await listChatTables(chat.id);
 
@@ -108,12 +109,16 @@ export async function action({ request, params, context }: ActionFunctionArgs) {
   const user = await requireAuth(request, context);
   const { chatId } = params;
 
-  if (!chatId) return json({ error: 'chatId is required' }, { status: 400 });
+  if (!chatId) {
+    return json({ error: 'chatId is required' }, { status: 400 });
+  }
 
   try {
     const chat = await getChatById(chatId, user.id, user.isModerator);
 
-    if (!chat) return json({ error: 'Not found' }, { status: 404 });
+    if (!chat) {
+      return json({ error: 'Not found' }, { status: 404 });
+    }
 
     // v1: owner-only (no sharing). Moderator bypass is allowed.
     if (chat.user_id !== user.id && !user.isModerator) {
@@ -127,11 +132,15 @@ export async function action({ request, params, context }: ActionFunctionArgs) {
 
     const { tableName, columns } = body;
 
-    if (!tableName) return json({ error: 'tableName is required' }, { status: 400 });
+    if (!tableName) {
+      return json({ error: 'tableName is required' }, { status: 400 });
+    }
 
     const tableErr = validateIdentifier(tableName, 'Table name');
 
-    if (tableErr) return json({ error: tableErr }, { status: 400 });
+    if (tableErr) {
+      return json({ error: tableErr }, { status: 400 });
+    }
 
     for (const col of columns || []) {
       if (RESERVED_NAMES.has(col.name)) {
@@ -143,17 +152,16 @@ export async function action({ request, params, context }: ActionFunctionArgs) {
 
       const colErr = validateIdentifier(col.name, 'Column name');
 
-      if (colErr) return json({ error: colErr }, { status: 400 });
+      if (colErr) {
+        return json({ error: colErr }, { status: 400 });
+      }
 
       if (!PG_TYPES[col.type]) {
         return json({ error: `Unknown column type "${col.type}"` }, { status: 400 });
       }
 
       if (col.defaultValue && formatDefaultValue(PG_TYPES[col.type], col.defaultValue) === null) {
-        return json(
-          { error: `Default value for "${col.name}" is not valid for type ${col.type}` },
-          { status: 400 }
-        );
+        return json({ error: `Default value for "${col.name}" is not valid for type ${col.type}` }, { status: 400 });
       }
     }
 
@@ -180,14 +188,7 @@ export async function action({ request, params, context }: ActionFunctionArgs) {
         `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
          VALUES ($1, $2, $3, $4, $5, $5, $6, 0, 'manual')
          ON CONFLICT (schema_name, table_name) DO NOTHING`,
-        [
-          cryptoRandomId(),
-          chat.user_id,
-          chat.id,
-          schemaName,
-          tableName,
-          JSON.stringify(columns || []),
-        ]
+        [cryptoRandomId(), chat.user_id, chat.id, schemaName, tableName, JSON.stringify(columns || [])]
       );
     } finally {
       regClient.release();
@@ -201,12 +202,16 @@ export async function action({ request, params, context }: ActionFunctionArgs) {
 }
 
 function cryptoRandomId(): string {
-  // Avoid importing node:crypto at module top for a tiny util; use Web Crypto
-  // when available, fall back to Math.random-based (sufficient for a PK here
-  // since schema+table uniqueness is the real constraint).
+  /*
+   * Avoid importing node:crypto at module top for a tiny util; use Web Crypto
+   * when available, fall back to Math.random-based (sufficient for a PK here
+   * since schema+table uniqueness is the real constraint).
+   */
   const g = globalThis as unknown as { crypto?: { randomUUID?: () => string } };
 
-  if (g.crypto?.randomUUID) return g.crypto.randomUUID();
+  if (g.crypto?.randomUUID) {
+    return g.crypto.randomUUID();
+  }
 
   return 'tbl_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }

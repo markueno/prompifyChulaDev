@@ -1,8 +1,13 @@
-import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/cloudflare';
+import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs, type MetaFunction } from '@remix-run/cloudflare';
 import { isAuthDisabled, clearAuthCookie } from '~/lib/auth';
 import { logoutUser } from '~/lib/database';
 import { getAuthToken } from '~/lib/auth';
 import crypto from 'crypto';
+
+export const meta: MetaFunction = () => [
+  { name: 'robots', content: 'noindex, nofollow' },
+  { title: 'Logout — Prompify' },
+];
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   // If authentication is disabled, redirect to main page instead of logout

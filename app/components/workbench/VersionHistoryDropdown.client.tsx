@@ -118,62 +118,65 @@ export function VersionHistoryDropdown() {
     return () => window.removeEventListener('mousedown', onClick);
   }, [open]);
 
-  const handleRestore = useCallback(async (target: VersionRow) => {
-    const id = chatId.get();
+  const handleRestore = useCallback(
+    async (target: VersionRow) => {
+      const id = chatId.get();
 
-    if (!id) {
-      return;
-    }
-
-    setRestoring(true);
-
-    try {
-      // 1. Append-only rollback server-side — creates a new latest version copying the target.
-      const rollbackRes = await fetch(`/api/chats/${id}/rollback?version=${target.versionNumber}`, {
-        method: 'POST',
-      });
-
-      if (!rollbackRes.ok) {
-        throw new Error(`Rollback failed (${rollbackRes.status})`);
+      if (!id) {
+        return;
       }
 
-      const { version: newVersion } = (await rollbackRes.json()) as { version: number };
+      setRestoring(true);
 
-      // 2. Download the restored content and remount it in place (orphans removed).
-      const snapshot = await loadSnapshotVersion(id, newVersion);
+      try {
+        // 1. Append-only rollback server-side — creates a new latest version copying the target.
+        const rollbackRes = await fetch(`/api/chats/${id}/rollback?version=${target.versionNumber}`, {
+          method: 'POST',
+        });
 
-      if (!snapshot) {
-        throw new Error('Rolled back, but downloading the restored files failed — reload the page to remount');
-      }
-
-      await workbenchStore.mountSnapshot(snapshot.files, { removeOrphans: true });
-
-      // 3. Update the local latest-snapshot cache so the next page load restores this state.
-      const db = await openDatabase();
-
-      if (db) {
-        try {
-          await setSnapshot(db, {
-            chatId: id,
-            version: newVersion,
-            manifest: snapshot.manifest,
-            files: snapshot.files,
-            timestamp: new Date().toISOString(),
-          });
-        } catch {
-          // cache write is best-effort
+        if (!rollbackRes.ok) {
+          throw new Error(`Rollback failed (${rollbackRes.status})`);
         }
-      }
 
-      toast.success(`Restored v${target.versionNumber} (saved as v${newVersion})`);
-      setConfirmTarget(null);
-      await loadVersions();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Restore failed');
-    } finally {
-      setRestoring(false);
-    }
-  }, [loadVersions]);
+        const { version: newVersion } = (await rollbackRes.json()) as { version: number };
+
+        // 2. Download the restored content and remount it in place (orphans removed).
+        const snapshot = await loadSnapshotVersion(id, newVersion);
+
+        if (!snapshot) {
+          throw new Error('Rolled back, but downloading the restored files failed — reload the page to remount');
+        }
+
+        await workbenchStore.mountSnapshot(snapshot.files, { removeOrphans: true });
+
+        // 3. Update the local latest-snapshot cache so the next page load restores this state.
+        const db = await openDatabase();
+
+        if (db) {
+          try {
+            await setSnapshot(db, {
+              chatId: id,
+              version: newVersion,
+              manifest: snapshot.manifest,
+              files: snapshot.files,
+              timestamp: new Date().toISOString(),
+            });
+          } catch {
+            // cache write is best-effort
+          }
+        }
+
+        toast.success(`Restored v${target.versionNumber} (saved as v${newVersion})`);
+        setConfirmTarget(null);
+        await loadVersions();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Restore failed');
+      } finally {
+        setRestoring(false);
+      }
+    },
+    [loadVersions]
+  );
 
   if (!snapshotsEnabled || !currentChatId) {
     return null;
@@ -233,9 +236,7 @@ export function VersionHistoryDropdown() {
                       {v.changeSummary || v.description || 'Untitled version'}
                     </div>
                     {v.description && v.changeSummary && (
-                      <div className="truncate text-[11px] text-bolt-elements-textSecondary">
-                        {v.description}
-                      </div>
+                      <div className="truncate text-[11px] text-bolt-elements-textSecondary">{v.description}</div>
                     )}
                     <div className="text-[11px] text-bolt-elements-textTertiary">
                       {relativeTime(v.createdAt)} · {v.fileCount} files · {formatBytes(v.totalBytes)}
@@ -271,15 +272,13 @@ export function VersionHistoryDropdown() {
                 <DialogDescription className="mt-2 text-gray-600 dark:text-gray-400">
                   <p>
                     The project files will be replaced with{' '}
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      v{confirmTarget.versionNumber}
-                    </span>{' '}
-                    ({confirmTarget.fileCount} files, {formatBytes(confirmTarget.totalBytes)},{' '}
+                    <span className="font-medium text-gray-900 dark:text-white">v{confirmTarget.versionNumber}</span> (
+                    {confirmTarget.fileCount} files, {formatBytes(confirmTarget.totalBytes)},{' '}
                     {relativeTime(confirmTarget.createdAt)}).
                   </p>
                   <p className="mt-2">
-                    Nothing is lost: the current state stays in the history, and the restore itself is
-                    saved as a new version.
+                    Nothing is lost: the current state stays in the history, and the restore itself is saved as a new
+                    version.
                   </p>
                 </DialogDescription>
               </div>

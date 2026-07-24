@@ -24,15 +24,7 @@ import { formatCellValue } from '~/utils/sqlDefaultValue';
 const RESERVED_NAMES = new Set(['id', 'created_at', 'updated_at']);
 const VALID_IDENTIFIER = /^[a-z][a-z0-9_]{0,62}$/;
 
-const PG_TYPES = new Set([
-  'text',
-  'integer',
-  'numeric',
-  'boolean',
-  'timestamptz',
-  'uuid',
-  'jsonb',
-]);
+const PG_TYPES = new Set(['text', 'integer', 'numeric', 'boolean', 'timestamptz', 'uuid', 'jsonb']);
 
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const MAX_COLUMNS = 64;
@@ -193,12 +185,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }
     }
 
-    // 9. CREATE TABLE — NO IF NOT EXISTS (import must never mix into an existing
-    //    table). Identifiers are double-quoted (VALID_IDENTIFIER guarantees no
-    //    quotes inside). All user columns nullable (imported data has gaps).
-    const colDefs = columns
-      .map(col => `  "${col.name}" ${col.type}`)
-      .join(',\n');
+    /*
+     * 9. CREATE TABLE — NO IF NOT EXISTS (import must never mix into an existing
+     *    table). Identifiers are double-quoted (VALID_IDENTIFIER guarantees no
+     *    quotes inside). All user columns nullable (imported data has gaps).
+     */
+    const colDefs = columns.map(col => `  "${col.name}" ${col.type}`).join(',\n');
 
     const createSQL = `CREATE TABLE "${tableName}" (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -222,22 +214,24 @@ ${colDefs}
       return json({ error: err }, { status: 500 });
     }
 
-    // 10. Chunked inserts. Accumulate rows until ~512KB of SQL, min 1 row/stmt.
-    //     Identifiers double-quoted; values are parameterized ($1, $2, ...).
-    //     Placeholders are recomputed per flush starting at $1.
+    /*
+     * 10. Chunked inserts. Accumulate rows until ~512KB of SQL, min 1 row/stmt.
+     *     Identifiers double-quoted; values are parameterized ($1, $2, ...).
+     *     Placeholders are recomputed per flush starting at $1.
+     */
     const colList = columns.map(c => `"${c.name}"`).join(', ');
     let inserted = 0;
 
     const flush = async (batch: typeof rows) => {
-      if (batch.length === 0) return;
+      if (batch.length === 0) {
+        return;
+      }
 
       const params: unknown[] = [];
       let placeholderIdx = 1;
       const valuesSql = batch
         .map(row => {
-          const ph = row
-            .map(() => `$${placeholderIdx++}`)
-            .join(', ');
+          const ph = row.map(() => `$${placeholderIdx++}`).join(', ');
 
           params.push(...row);
 
@@ -274,15 +268,14 @@ ${colDefs}
       // 11. Best-effort DROP TABLE — safe because step 9 proved we created it.
       await runAppQuery(chat.user_id, `DROP TABLE IF EXISTS "${tableName}"`).catch(() => {});
 
-      return json(
-        { error: insertErr instanceof Error ? insertErr.message : 'Insert failed' },
-        { status: 500 }
-      );
+      return json({ error: insertErr instanceof Error ? insertErr.message : 'Insert failed' }, { status: 500 });
     }
 
-    // 12. Register the table in app_tables so getSchemaContext + the data proxy
-    //     can find it. ON CONFLICT DO NOTHING — if a stale row exists, the
-    //     UNIQUE(schema_name, table_name) above would have 409'd at CREATE.
+    /*
+     * 12. Register the table in app_tables so getSchemaContext + the data proxy
+     *     can find it. ON CONFLICT DO NOTHING — if a stale row exists, the
+     *     UNIQUE(schema_name, table_name) above would have 409'd at CREATE.
+     */
     const pool = getPostgresPool();
     const regClient = await pool.connect();
 
@@ -321,7 +314,9 @@ ${colDefs}
 function cryptoRandomId(): string {
   const g = globalThis as unknown as { crypto?: { randomUUID?: () => string } };
 
-  if (g.crypto?.randomUUID) return g.crypto.randomUUID();
+  if (g.crypto?.randomUUID) {
+    return g.crypto.randomUUID();
+  }
 
   return 'tbl_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }

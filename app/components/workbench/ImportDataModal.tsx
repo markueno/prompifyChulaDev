@@ -75,6 +75,7 @@ export const ImportDataModal = memo(({ chatId, onClose, onImported }: ImportData
           return obj;
         });
       } else if (ext === 'xlsx' || ext === 'xls') {
+        // eslint-disable-next-line @typescript-eslint/naming-convention
         const ExcelJS = (await import('exceljs')).default;
         const buf = await file.arrayBuffer();
         const wb = new ExcelJS.Workbook();
@@ -138,7 +139,9 @@ export const ImportDataModal = memo(({ chatId, onClose, onImported }: ImportData
   }, []);
 
   const handleImport = useCallback(async () => {
-    if (!payload) return;
+    if (!payload) {
+      return;
+    }
 
     setError(null);
     setImporting(true);
@@ -197,7 +200,10 @@ export const ImportDataModal = memo(({ chatId, onClose, onImported }: ImportData
                 accept=".csv,.xlsx,.xls"
                 onChange={e => {
                   const f = e.target.files?.[0];
-                  if (f) handleFile(f);
+
+                  if (f) {
+                    handleFile(f);
+                  }
                 }}
                 className="hidden"
               />
@@ -217,9 +223,8 @@ export const ImportDataModal = memo(({ chatId, onClose, onImported }: ImportData
                 </p>
               </button>
               <div className="mt-3 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-xs text-bolt-elements-textSecondary">
-                Parsed in your browser — the server receives normalized JSON only. Cells with quotes,
-                newlines, and unicode are handled. Auto-added: <code>id</code>, <code>created_at</code>,{' '}
-                <code>updated_at</code>.
+                Parsed in your browser — the server receives normalized JSON only. Cells with quotes, newlines, and
+                unicode are handled. Auto-added: <code>id</code>, <code>created_at</code>, <code>updated_at</code>.
               </div>
             </div>
           )}
@@ -228,9 +233,7 @@ export const ImportDataModal = memo(({ chatId, onClose, onImported }: ImportData
             <>
               {/* Table name */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-bolt-elements-textSecondary">
-                  Table name
-                </label>
+                <label className="mb-1 block text-xs font-medium text-bolt-elements-textSecondary">Table name</label>
                 <input
                   type="text"
                   value={tableName}
@@ -278,7 +281,11 @@ export const ImportDataModal = memo(({ chatId, onClose, onImported }: ImportData
                         <tr key={i} className="border-t border-bolt-elements-borderColor">
                           {row.map((cell, j) => (
                             <td key={j} className="px-2 py-1 text-bolt-elements-textPrimary">
-                              {cell === null ? <span className="text-bolt-elements-textTertiary">null</span> : String(cell)}
+                              {cell === null ? (
+                                <span className="text-bolt-elements-textTertiary">null</span>
+                              ) : (
+                                String(cell)
+                              )}
                             </td>
                           ))}
                         </tr>
@@ -306,9 +313,7 @@ export const ImportDataModal = memo(({ chatId, onClose, onImported }: ImportData
             disabled={!payload || importing}
             className={classNames(
               'rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors',
-              !payload || importing
-                ? 'cursor-not-allowed bg-blue-500/50'
-                : 'bg-blue-600 hover:bg-blue-700'
+              !payload || importing ? 'cursor-not-allowed bg-blue-500/50' : 'bg-blue-600 hover:bg-blue-700'
             )}
           >
             {importing ? 'Importing…' : `Import${payload ? ` (${payload.rows.length} rows)` : ''}`}

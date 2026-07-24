@@ -15,8 +15,10 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
       return json({ error: 'Chat ID is required' }, { status: 400 });
     }
 
-    // 'personal' (DEFAULT_PROJECT_ID) is a synthetic URL slug, not a real project id — personal
-    // chats live under proj_personal_<userId>. Don't filter by it or the lookup never matches.
+    /*
+     * 'personal' (DEFAULT_PROJECT_ID) is a synthetic URL slug, not a real project id — personal
+     * chats live under proj_personal_<userId>. Don't filter by it or the lookup never matches.
+     */
     const effectiveProjectId = projectId === DEFAULT_PROJECT_ID ? undefined : projectId;
     const chat = await getChatById(chatId, user.id, user.isModerator, effectiveProjectId);
 
