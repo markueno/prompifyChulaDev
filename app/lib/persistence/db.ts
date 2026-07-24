@@ -42,7 +42,7 @@ export async function openDatabase(): Promise<IDBDatabase | undefined> {
       }
 
       if (!db.objectStoreNames.contains('counters')) {
-        db.createObjectStore('counters');
+        db.createObjectStore('counters', { keyPath: 'key' });
       }
     };
 
