@@ -861,6 +861,11 @@ export const ChatImpl = memo(
         setIsInitialBuild(true);
         setFakeLoading(true);
 
+        const summary =
+          messageContent.length > 80
+            ? messageContent.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 80) + '…'
+            : messageContent;
+
         if (autoSelectTemplate) {
           const templateMessage = messageContent.length > 500 ? messageContent.substring(0, 500) : messageContent;
 
@@ -889,6 +894,7 @@ export const ChatImpl = memo(
                   role: 'user',
                   content: messageContent,
                   author: messageAuthor,
+                  annotations: ['wizard-prompt', `summary:${summary}`],
                 } as any,
                 {
                   id: `2-${new Date().getTime()}`,
@@ -927,6 +933,7 @@ export const ChatImpl = memo(
               })),
             ] as any,
             author: messageAuthor,
+            annotations: ['wizard-prompt', `summary:${summary}`],
           } as any,
         ]);
         reload();

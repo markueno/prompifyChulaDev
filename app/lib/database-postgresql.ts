@@ -1048,17 +1048,17 @@ async function resolveWritableProjectId(client: PoolClient, userId: string, proj
 
   const access = await client.query(
     `
-      SELECT 1
+      SELECT p.id as project_id
       FROM projects p
       LEFT JOIN project_members pm ON p.id = pm.project_id AND pm.user_id = $2
-      WHERE p.id = $1 AND (p.owner_user_id = $2 OR pm.user_id = $2)
+      WHERE (p.id = $1 OR p.slug = $1) AND (p.owner_user_id = $2 OR pm.user_id = $2)
       LIMIT 1
     `,
     [projectId, userId]
   );
 
   if (access.rows.length > 0) {
-    return projectId;
+    return access.rows[0].project_id;
   }
 
   return ensureDefaultProjectForUser(client, userId);
@@ -1100,8 +1100,8 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
       resolvedProjectId,
       resolvedUrlId,
       description,
-      JSON.stringify(messages),
-      JSON.stringify(metadata),
+      JSON.stringify(messages, (_key, value) => (typeof value === 'string' ? value.replace(/\u0000/g, '') : value)),
+      JSON.stringify(metadata, (_key, value) => (typeof value === 'string' ? value.replace(/\u0000/g, '') : value)),
     ]);
     const savedId = result.rows[0]?.id || null;
 
@@ -1293,7 +1293,8 @@ export async function getChatByIdPostgres(
         SELECT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
         FROM chats c
         WHERE (c.id = $1 OR c.url_id = $1)
-          AND ($2::text IS NULL OR c.project_id = $2)
+          AND ($2::text IS NULL OR c.project_id = $2
+              OR c.project_id = (SELECT p2.id FROM projects p2 WHERE p2.slug = $2 LIMIT 1))
       `,
         [chatId, projectId ?? null]
       );

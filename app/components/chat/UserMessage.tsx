@@ -3,9 +3,23 @@ import { Markdown } from './Markdown';
 
 interface UserMessageProps {
   content: string | Array<{ type: string; text?: string; image?: string }>;
+  annotations?: string[];
 }
 
-export function UserMessage({ content }: UserMessageProps) {
+export function UserMessage({ content, annotations }: UserMessageProps) {
+  const wizardSummary = annotations?.find(a => a.startsWith('summary:'));
+
+  if (wizardSummary) {
+    const summary = wizardSummary.replace('summary:', '');
+    return (
+      <div className="overflow-hidden pt-[4px]">
+        <p className="text-sm text-bolt-elements-textSecondary italic">
+          {summary} <span className="text-xs text-bolt-elements-textTertiary not-italic">(generated prompt)</span>
+        </p>
+      </div>
+    );
+  }
+
   if (Array.isArray(content)) {
     const textItem = content.find(item => item.type === 'text');
     const textContent = stripMetadata(textItem?.text || '');

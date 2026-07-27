@@ -255,23 +255,11 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
           animation: 'pulse-glow 2s ease-in-out infinite',
         }}
       />
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '16px 32px',
-          borderRadius: 16,
-          background: 'rgba(10, 10, 10, 0.7)',
-          border: `1px solid ${color.glow}40`,
-          boxShadow: `0 0 32px 8px ${color.shadow}`,
-          transition: 'border-color 0.8s ease, box-shadow 0.8s ease',
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div
           style={{
-            width: 20,
-            height: 20,
+            width: 16,
+            height: 16,
             borderRadius: '50%',
             border: `2px solid ${color.glow}`,
             borderTopColor: 'transparent',
@@ -281,13 +269,13 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
         <span
           style={{
             color: 'rgba(255,255,255,0.95)',
-            fontSize: 26,
+            fontSize: 18,
             fontWeight: 600,
             whiteSpace: 'nowrap',
             opacity: wordVisible ? 1 : 0,
             transform: wordVisible ? 'translateY(0)' : 'translateY(6px)',
             transition: 'opacity 0.25s ease, transform 0.25s ease',
-            minWidth: 200,
+            minWidth: 160,
             display: 'inline-block',
           }}
         >
@@ -296,9 +284,9 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
         <span
           style={{
             color: color.glow,
-            fontSize: 28,
+            fontSize: 20,
             fontWeight: 700,
-            minWidth: 28,
+            minWidth: 22,
             transition: 'color 0.8s ease',
           }}
         >
