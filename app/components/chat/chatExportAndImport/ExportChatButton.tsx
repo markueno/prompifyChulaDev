@@ -1,6 +1,5 @@
 import WithTooltip from '~/components/ui/Tooltip';
 import { IconButton } from '~/components/ui/IconButton';
-import React from 'react';
 
 export const ExportChatButton = ({ exportChat }: { exportChat?: () => void }) => {
   return (

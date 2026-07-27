@@ -3,7 +3,7 @@ import { verifyKooGallerySignature } from '~/lib/koogallery/signature';
 import { createInstance, getInstanceByOrderId } from '~/lib/koogallery/instance-manager';
 import { logKooGalleryRequest } from '~/lib/koogallery/logger';
 
-export const action = async ({ request, context }: ActionFunctionArgs) => {
+export const action = async ({ request, context: _context }: ActionFunctionArgs) => {
   try {
     // Parse request body
     const body = (await request.json()) as any;
@@ -66,7 +66,7 @@ export const action = async ({ request, context }: ActionFunctionArgs) => {
 
     // Create new instance
     const instanceId = businessId; // Use businessId as recommended by KooGallery
-    const instance = await createInstance({
+    await createInstance({
       instanceId,
       orderId,
       orderLineId,

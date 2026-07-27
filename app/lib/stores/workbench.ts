@@ -10,6 +10,7 @@ import { EditorStore } from './editor';
 import { FilesStore, type FileMap } from './files';
 import { PreviewsStore } from './previews';
 import { TerminalStore } from './terminal';
+import { isBinary } from 'istextorbinary';
 import JSZip from 'jszip';
 import fileSaver from 'file-saver';
 import { Octokit, type RestEndpointMethodTypes } from '@octokit/rest';
@@ -17,6 +18,8 @@ import { path } from '~/utils/path';
 import { extractRelativePath } from '~/utils/diff';
 import Cookies from 'js-cookie';
 import { createSampler } from '~/utils/sampler';
+import { snapshotPathToRelative } from '~/lib/snapshots/loadSnapshot';
+import { scheduleSnapshotSave } from '~/lib/snapshots/scheduleSnapshot';
 import type { ActionAlert } from '~/types/actions';
 import { addError, parseFileAndLine } from '~/lib/stores/errors';
 
@@ -45,6 +48,15 @@ export class WorkbenchStore {
 
   #reloadedMessages = new Set<string>();
 
+  /**
+   * Day 9b — set true when the current chat's files were restored from a codebase snapshot.
+   * While set, historical FILE-action replay (from reloaded/historical messages) is skipped in
+   * `_runAction` so the instant snapshot mount isn't overwritten by slow per-file re-writes.
+   * Shell/start actions still replay (the dev server boots with the project's own command), and
+   * new generations are unaffected because their messageIds are never in `#reloadedMessages`.
+   */
+  #restoredFromSnapshot = false;
+
   artifacts: Artifacts = import.meta.hot?.data.artifacts ?? map({});
 
   showWorkbench: WritableAtom<boolean> = import.meta.hot?.data.showWorkbench ?? atom(false);
@@ -58,6 +70,7 @@ export class WorkbenchStore {
   modifiedFiles = new Set<string>();
   artifactIdList: string[] = [];
   #globalExecutionQueue = Promise.resolve();
+  #autoSaveTimer: ReturnType<typeof setTimeout> | undefined;
   constructor() {
     if (!this.actionAlert.get() && this.#alertQueue.length > 0) {
       this.actionAlert.set(this.#alertQueue[0]);
@@ -251,6 +264,16 @@ export class WorkbenchStore {
 
       this.unsavedFiles.set(newUnsavedFiles);
     }
+
+    // Auto-save 3 seconds after the last edit
+    if (this.#autoSaveTimer) {
+      clearTimeout(this.#autoSaveTimer);
+    }
+
+    this.#autoSaveTimer = setTimeout(() => {
+      this.#autoSaveTimer = undefined;
+      this.saveCurrentDocument().catch(() => {});
+    }, 3000);
   }
 
   setCurrentDocumentScrollPosition(position: ScrollPosition) {
@@ -279,6 +302,12 @@ export class WorkbenchStore {
 
     await this.#filesStore.saveFile(filePath, document.value);
 
+    /*
+     * Day 19 — pass a manual-edit label + the changed file path so the version name
+     * reflects the change instead of the chat title.
+     */
+    scheduleSnapshotSave(this.#filesStore.files.get(), undefined, undefined, false, 'Manual edit', filePath);
+
     const newUnsavedFiles = new Set(this.unsavedFiles.get());
     newUnsavedFiles.delete(filePath);
 
@@ -293,6 +322,29 @@ export class WorkbenchStore {
     }
 
     await this.saveFile(currentDocument.filePath);
+  }
+
+  async saveCurrentDocumentWithContent(content: string) {
+    const currentDocument = this.currentDocument.get();
+
+    if (currentDocument === undefined) {
+      return;
+    }
+
+    const filePath = currentDocument.filePath;
+
+    // Write the live editor content directly, bypassing the debounced store
+    await this.#filesStore.saveFile(filePath, content);
+
+    // Sync the editor store so the UI doesn't show stale content
+    this.#editorStore.updateFile(filePath, content);
+
+    // Day 19 — manual-edit label + changed file path for a meaningful version name.
+    scheduleSnapshotSave(this.#filesStore.files.get(), undefined, undefined, true, 'Manual edit', filePath);
+
+    const newUnsavedFiles = new Set(this.unsavedFiles.get());
+    newUnsavedFiles.delete(filePath);
+    this.unsavedFiles.set(newUnsavedFiles);
   }
 
   resetCurrentDocument() {
@@ -335,6 +387,87 @@ export class WorkbenchStore {
 
   setReloadedMessages(messages: string[]) {
     this.#reloadedMessages = new Set(messages);
+  }
+
+  /**
+   * Day 9b — mark (or clear) that the current chat was restored from a codebase snapshot.
+   * Reset to false at the start of every chat load; set to true only after a successful mount.
+   */
+  setRestoredFromSnapshot(value: boolean) {
+    this.#restoredFromSnapshot = value;
+  }
+
+  /*
+   * NOTE: the former resetForNewChat() (Day 10) was removed. "Start new chat" is a hard
+   * <a> navigation, so a full page load resets all stores and boots a fresh WebContainer —
+   * an in-place async wipe (rm -rf of the workdir) could race the new chat's first file
+   * writes and once killed the shell spawner (kill -9 -- -1 → SharedArrayBuffer error).
+   */
+
+  /**
+   * Day 9b — write a restored snapshot's files straight into the WebContainer FS, bypassing
+   * message replay (mirrors ActionRunner#runFileAction: mkdir -p + writeFile, and upstream
+   * bolt.diy's restoreSnapshot). Snapshot keys are absolute under a per-session workdir, so
+   * strip the `/home/<workdir>/` prefix to a workdir-relative path. The FilesStore watcher
+   * (`${WORK_DIR}/**`) picks the writes up, so the IDE shows the files without any replay.
+   */
+  async mountSnapshot(files: Record<string, string>, options?: { removeOrphans?: boolean }) {
+    const wc = await webcontainer;
+
+    /*
+     * Day 17 — for IN-PLACE restores (history dropdown), files created after the restored
+     * version must be deleted, or the workdir ends up a mix of two versions. Not needed on
+     * fresh page loads (empty container). Collect the delete list BEFORE writing.
+     */
+    const orphans: string[] = [];
+
+    if (options?.removeOrphans) {
+      const keep = new Set(Object.keys(files).map(snapshotPathToRelative).filter(Boolean));
+
+      for (const [absPath, dirent] of Object.entries(this.#filesStore.files.get())) {
+        if (dirent?.type !== 'file') {
+          continue;
+        }
+
+        const relPath = snapshotPathToRelative(absPath);
+
+        if (relPath && !keep.has(relPath) && !relPath.startsWith('node_modules/')) {
+          orphans.push(relPath);
+        }
+      }
+    }
+
+    for (const [absPath, content] of Object.entries(files)) {
+      const relPath = snapshotPathToRelative(absPath);
+
+      if (!relPath) {
+        continue;
+      }
+
+      const folder = path.dirname(relPath);
+
+      if (folder && folder !== '.') {
+        await wc.fs.mkdir(folder, { recursive: true });
+      }
+
+      // Decode base64-encoded binary content back to raw bytes on restore.
+      const isBinaryFile = isBinary(relPath, null) === true;
+
+      if (isBinaryFile) {
+        const binary = Uint8Array.from(atob(content), c => c.charCodeAt(0));
+        await wc.fs.writeFile(relPath, binary);
+      } else {
+        await wc.fs.writeFile(relPath, content);
+      }
+    }
+
+    for (const relPath of orphans) {
+      try {
+        await wc.fs.rm(relPath);
+      } catch {
+        // best-effort — a leftover file is cosmetic, the restored content is authoritative
+      }
+    }
   }
 
   addArtifact({ messageId, title, id, type }: ArtifactCallbackData) {
@@ -415,6 +548,17 @@ export class WorkbenchStore {
       return;
     }
 
+    /*
+     * Day 9b — files already came from the snapshot mount; skip replaying historical FILE
+     * writes so we don't overwrite the restore with slow per-file re-writes. Only file actions
+     * from reloaded (historical) messages are skipped — shell/start actions still replay so the
+     * dev server boots, and new generations (fresh messageIds) are never suppressed.
+     */
+    if (this.#restoredFromSnapshot && data.action.type === 'file' && this.#reloadedMessages.has(messageId)) {
+      artifact.runner.actions.setKey(data.actionId, { ...action, status: 'complete', executed: true });
+      return;
+    }
+
     if (data.action.type === 'file') {
       const wc = await webcontainer;
       const fullPath = path.join(wc.workdir, data.action.filePath);
@@ -456,7 +600,7 @@ export class WorkbenchStore {
   async downloadZip() {
     const zip = new JSZip();
     const files = this.files.get();
-    const { description } = await import('~/lib/persistence/useChatHistory');
+    const { description } = await import('~/lib/snapshots/scheduleSnapshot');
 
     // Get the project name from the description input, or use a default name
     const projectName = (description.value ?? 'project').toLocaleLowerCase().split(' ').join('_');

@@ -1,9 +1,9 @@
 import { type ActionFunctionArgs, json } from '@remix-run/cloudflare';
 import crypto from 'crypto';
 import type { NetlifySiteInfo } from '~/types/netlify';
-import { optionalAuth } from '~/lib/auth';
+import { requireAuth } from '~/lib/auth';
 import { updateAppStatus, addAuditLog } from '~/lib/database';
-import { isSupabaseConfigured, schemaForChat } from '~/lib/supabase-provision.server';
+import { issueDataApiToken } from '~/lib/.server/data-token';
 
 interface DeployRequestBody {
   siteId?: string;
@@ -15,7 +15,7 @@ interface DeployRequestBody {
 
 export async function action({ request, context }: ActionFunctionArgs) {
   try {
-    const user = await optionalAuth(request, context);
+    const user = await requireAuth(request, context);
     const { siteId, files, token, chatId, projectId, companyId } = (await request.json()) as DeployRequestBody & {
       token: string;
     };
@@ -111,19 +111,39 @@ export async function action({ request, context }: ActionFunctionArgs) {
       }
     }
 
-    // Inject Supabase env-config.js so deployed apps auto-connect to their schema
+    /*
+     * Inject env-config.js so deployed apps connect to the Prompify data proxy
+     * (self-hosted, no Supabase). The token is short-lived (15 min) — a proper
+     * refresh-on-401 flow is a hardening task; v1 covers the in-IDE preview
+     * (same-origin, cookie auth) and short deploy demos.
+     */
     const cfEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
 
-    if (chatId && isSupabaseConfigured(cfEnv)) {
-      const supabaseUrl = (cfEnv.SUPABASE_URL as string) || process.env.SUPABASE_URL || '';
-      const anonKey = (cfEnv.SUPABASE_ANON_KEY as string) || process.env.SUPABASE_ANON_KEY || '';
-      const schema = schemaForChat(chatId);
+    if (chatId) {
+      const publicUrl = (cfEnv.PROMPIFY_PUBLIC_URL as string) || process.env.PROMPIFY_PUBLIC_URL || '';
+      const apiUrl = publicUrl ? `${publicUrl.replace(/\/$/, '')}/api/data` : '/api/data';
 
-      // Inject env-config.js
+      /*
+       * Best-effort token issuance; when no DATA_API_SECRET/JWT_SECRET is set or
+       * the user is unauthenticated (optionalAuth), the deployed app falls back
+       * to the session-cookie path (works only same-origin).
+       */
+      let token = '';
+
+      try {
+        const envForToken = cfEnv as Record<string, unknown>;
+
+        if (user?.id) {
+          token = issueDataApiToken(user.id, chatId, envForToken);
+        }
+      } catch {
+        // token stays empty — the in-IDE preview still works via cookie
+      }
+
       const envConfigContent = `window.__PROMPIFY_CONFIG = ${JSON.stringify({
-        supabaseUrl,
-        supabaseAnonKey: anonKey,
-        supabaseSchema: schema,
+        apiUrl,
+        chatId,
+        token,
       })};`;
       files['env-config.js'] = envConfigContent;
       files['/env-config.js'] = envConfigContent;
@@ -134,6 +154,16 @@ export async function action({ request, context }: ActionFunctionArgs) {
       if (indexKey && !files[indexKey].includes('env-config.js')) {
         files[indexKey] = files[indexKey].replace(/(<head[^>]*>)/i, '$1\n  <script src="/env-config.js"></script>');
       }
+    }
+
+    // Inject generator meta tag for attribution (all deploys)
+    const metaIndexKey = Object.keys(files).find(k => k === 'index.html' || k === '/index.html');
+
+    if (metaIndexKey && !files[metaIndexKey].includes('name="generator"')) {
+      files[metaIndexKey] = files[metaIndexKey].replace(
+        '</head>',
+        '  <meta name="generator" content="Prompify">\n  </head>'
+      );
     }
 
     // Create file digests

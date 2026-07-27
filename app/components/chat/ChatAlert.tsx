@@ -57,7 +57,7 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
     const signature = `${source ?? 'unknown'}::${description ?? ''}::${content}`;
 
     if (autoPromptedSignatureRef.current === signature) {
-      return;
+      return undefined;
     }
 
     const count = parseInt(sessionStorage.getItem(consecutiveScopeKey) ?? '0', 10);

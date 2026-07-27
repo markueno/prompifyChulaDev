@@ -12,7 +12,7 @@ interface ResetPasswordResponse {
   message?: string;
 }
 
-const saltRounds = 10;
+const saltRounds = 12;
 
 export async function action({ request }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
@@ -30,6 +30,13 @@ export async function action({ request }: ActionFunctionArgs) {
     if (!newPassword || newPassword.length < 8) {
       return json<ResetPasswordResponse>(
         { success: false, message: 'Password must be at least 8 characters long' },
+        { status: 400 }
+      );
+    }
+
+    if (newPassword.length > 72) {
+      return json<ResetPasswordResponse>(
+        { success: false, message: 'Password must be at most 72 characters' },
         { status: 400 }
       );
     }

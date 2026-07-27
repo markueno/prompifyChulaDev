@@ -4,14 +4,6 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { isEmailVerificationRequired } from '~/lib/auth';
 
-interface User {
-  id: string;
-  email: string;
-  passwordHash: string;
-  isVerified: boolean;
-  createdAt: Date;
-}
-
 interface LoginRequest {
   email: string;
   password: string;

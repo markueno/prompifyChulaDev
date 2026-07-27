@@ -2,7 +2,6 @@ import ignore from 'ignore';
 import type { ProviderInfo } from '~/types/model';
 import type { Template } from '~/types/template';
 import { STARTER_TEMPLATES } from './constants';
-import Cookies from 'js-cookie';
 
 const starterTemplateSelectionPrompt = (templates: Template[]) => `
 You are an experienced developer who helps people choose the best starter template for their projects.
@@ -111,81 +110,35 @@ export const selectStarterTemplate = async (options: { message: string; model: s
   }
 };
 
-const getGitHubRepoContent = async (
-  repoName: string,
-  path: string = ''
-): Promise<{ name: string; path: string; content: string }[]> => {
-  const baseUrl = 'https://api.github.com';
-
+/*
+ * Fetch template files through our own server route (mirrors upstream bolt.diy).
+ *
+ * The previous implementation walked the GitHub Contents API from the BROWSER — one request
+ * per directory and per file (~40 per import), unauthenticated (60/hour IP limit), so a
+ * couple of imports rate-limited the user for an hour and every template fell back to blank.
+ * The server route downloads the repo as a single zip (codeload first, which is not governed
+ * by the API rate limit) and returns the extracted file list.
+ */
+const getGitHubRepoContent = async (repoName: string): Promise<{ name: string; path: string; content: string }[]> => {
   try {
-    const token = Cookies.get('githubToken') || import.meta.env.VITE_GITHUB_ACCESS_TOKEN;
-
-    const headers: HeadersInit = {
-      Accept: 'application/vnd.github.v3+json',
-    };
-
-    // Add your GitHub token if needed
-    if (token) {
-      headers.Authorization = 'token ' + token;
-    }
-
-    // Fetch contents of the path
-    const response = await fetch(`${baseUrl}/repos/${repoName}/contents/${path}`, {
-      headers,
-    });
+    const response = await fetch(`/api/github-template?repo=${encodeURIComponent(repoName)}`);
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+      let details = '';
 
-    const data: any = await response.json();
-
-    // If it's a single file, return its content
-    if (!Array.isArray(data)) {
-      if (data.type === 'file') {
-        // If it's a file, get its content
-        const content = atob(data.content); // Decode base64 content
-        return [
-          {
-            name: data.name,
-            path: data.path,
-            content,
-          },
-        ];
+      try {
+        const body = (await response.json()) as { error?: string; details?: string };
+        details = body.error || body.details || '';
+      } catch {
+        // ignore unparseable body
       }
+
+      throw new Error(`Failed to fetch template (status ${response.status})${details ? `: ${details}` : ''}`);
     }
 
-    // Process directory contents recursively
-    const contents = await Promise.all(
-      data.map(async (item: any) => {
-        if (item.type === 'dir') {
-          // Recursively get contents of subdirectories
-          return await getGitHubRepoContent(repoName, item.path);
-        } else if (item.type === 'file') {
-          // Fetch file content
-          const fileResponse = await fetch(item.url, {
-            headers,
-          });
-          const fileData: any = await fileResponse.json();
-          const content = atob(fileData.content); // Decode base64 content
-
-          return [
-            {
-              name: item.name,
-              path: item.path,
-              content,
-            },
-          ];
-        }
-
-        return [];
-      })
-    );
-
-    // Flatten the array of contents
-    return contents.flat();
+    return (await response.json()) as { name: string; path: string; content: string }[];
   } catch (error) {
-    console.error('Error fetching repo contents:', error);
+    console.error('Error fetching template contents:', error);
     throw error;
   }
 };

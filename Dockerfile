@@ -6,10 +6,7 @@ WORKDIR /app
 # Install dependencies (this step is cached as long as the dependencies don't change)
 COPY package.json pnpm-lock.yaml ./
 
-#RUN npm install -g corepack@latest
-
-#RUN corepack enable pnpm && pnpm install
-RUN npm install -g pnpm && pnpm install
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
 
 # Copy the rest of your app's source code
 COPY . .
@@ -35,12 +32,13 @@ ARG TOGETHER_API_KEY
 ARG TOGETHER_API_BASE_URL
 ARG AWS_BEDROCK_CONFIG
 ARG VITE_LOG_LEVEL=debug
+ARG VITE_SNAPSHOTS_ENABLED=true
 ARG DEFAULT_NUM_CTX
 ARG AUTH_DISABLED
 
 ENV WRANGLER_SEND_METRICS=false \
     GROQ_API_KEY=${GROQ_API_KEY} \
-    HuggingFace_KEY=${HuggingFace_API_KEY} \
+    HuggingFace_API_KEY=${HuggingFace_API_KEY} \
     OPENAI_API_KEY=${OPENAI_API_KEY} \
     ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY} \
     OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY} \
@@ -51,24 +49,21 @@ ENV WRANGLER_SEND_METRICS=false \
     TOGETHER_API_BASE_URL=${TOGETHER_API_BASE_URL} \
     AWS_BEDROCK_CONFIG=${AWS_BEDROCK_CONFIG} \
     VITE_LOG_LEVEL=${VITE_LOG_LEVEL} \
+    VITE_SNAPSHOTS_ENABLED=${VITE_SNAPSHOTS_ENABLED} \
     DEFAULT_NUM_CTX=${DEFAULT_NUM_CTX}\
     RUNNING_IN_DOCKER=true \
     AUTH_DISABLED=${AUTH_DISABLED:-false}
 
-# Pre-configure wrangler to disable metrics
-RUN mkdir -p /root/.config/.wrangler && \
-    echo '{"enabled":false}' > /root/.config/.wrangler/metrics.json
-
 RUN pnpm run build
 
-CMD [ "pnpm", "run", "dockerstart"]
+CMD [ "node", "server.js" ]
 
 # Development image
 FROM base AS bolt-ai-development
 
 # Define the same environment variables for development
 ARG GROQ_API_KEY
-ARG HuggingFace 
+ARG HuggingFace_API_KEY
 ARG OPENAI_API_KEY
 ARG ANTHROPIC_API_KEY
 ARG OPEN_ROUTER_API_KEY
@@ -99,3 +94,28 @@ ENV GROQ_API_KEY=${GROQ_API_KEY} \
 
 RUN mkdir -p ${WORKDIR}/run
 CMD pnpm run dev --host
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Compiled Node production image (Day 13 — IMPLEMENTATION-PLAN :840-874).
+# Additive target: runs `node server.js` over the `remix vite:build` output.
+# Does NOT modify or replace the existing bolt-ai-production/development targets,
+# so Day 14 can switch compose to this target and roll back by switching back.
+#
+#   docker build --target bolt-ai-prod-node -t prompify-prod-node .
+#   docker run --rm -p 5173:5173 --env-file .env prompify-prod-node
+#   curl -I localhost:5173/api/health   # expect 200 + Cross-Origin-Embedder-Policy
+# ─────────────────────────────────────────────────────────────────────────────
+FROM base AS bolt-ai-prod-node
+
+ARG VITE_SNAPSHOTS_ENABLED=true
+
+ENV RUNNING_IN_DOCKER=true \
+    NODE_ENV=production \
+    NODE_OPTIONS=--max-old-space-size=4096 \
+    VITE_SNAPSHOTS_ENABLED=${VITE_SNAPSHOTS_ENABLED}
+
+RUN pnpm run build
+
+EXPOSE 5173
+
+CMD ["node", "server.js"]

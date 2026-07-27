@@ -15,6 +15,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      # Dev-only seed (admin-bypass user for AUTH_DISABLED). Runs after schema.sql (filename
+      # sorts later). NOT mounted in prod, so this privileged row never reaches production.
+      - ./data/seed-dev.sql:/docker-entrypoint-initdb.d/seed-dev.sql
     ports:
       - "5432:5432"
     networks:

@@ -1,7 +1,18 @@
-import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import {
+  json,
+  redirect,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+  type MetaFunction,
+} from '@remix-run/cloudflare';
 import { useActionData, useLoaderData } from '@remix-run/react';
 import { requireAuth } from '~/lib/auth';
 import { acceptInvitationByToken } from '~/lib/database';
+
+export const meta: MetaFunction = () => [
+  { name: 'robots', content: 'noindex, nofollow' },
+  { title: 'Accept Invitation — Prompify' },
+];
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   const user = await requireAuth(request, context);

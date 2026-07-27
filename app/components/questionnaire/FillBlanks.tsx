@@ -21,7 +21,7 @@ export function FillBlanks({ template, onContinue }: FillBlanksProps) {
       if (i < template.blanks.length) {
         const blank = template.blanks[i];
         const el = inputRefs.current[blank.id];
-        const val = el?.value.trim() || blank.options[0] || '___';
+        const val = el?.value.trim() || '___';
         sentence += val;
       }
     });
@@ -56,12 +56,12 @@ export function FillBlanks({ template, onContinue }: FillBlanksProps) {
                     inputRefs.current[template.blanks[i].id] = el;
                   }}
                   type="text"
-                  defaultValue={template.blanks[i].options[0] ?? ''}
+                  defaultValue=""
+                  placeholder="Select..."
                   list={`list-${template.blanks[i].id}`}
                   autoComplete="off"
                   spellCheck={false}
-                  className="border-b-2 border-accent-500 bg-transparent text-accent-600 font-semibold focus:outline-none px-1 min-w-24 text-base"
-                  style={{ width: `${Math.max(template.blanks[i].options[0]?.length ?? 8, 8) + 2}ch` }}
+                  className="border-b-2 border-accent-500 bg-transparent text-accent-600 font-semibold focus:outline-none px-1 min-w-[120px] text-base placeholder:text-bolt-elements-textTertiary placeholder:font-normal"
                 />
                 <datalist id={`list-${template.blanks[i].id}`}>
                   {template.blanks[i].options.map(opt => (

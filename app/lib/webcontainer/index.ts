@@ -57,6 +57,20 @@ if (!import.meta.env.SSR) {
         webcontainerContext.loaded = true;
         console.log('[WebContainer] Booted successfully with workdir:', webcontainer.workdir);
 
+        /*
+         * Boot does not materialize the custom per-session workdir until the first fs
+         * operation, so early watchers (FilesStore.watchPaths, PreviewsStore fs.watch)
+         * fired ENOENT "no such file or directory, watch <workdir>" and silently died for
+         * the whole session. Create the directory before anyone watches it. (fs paths
+         * resolve relative to the workdir, so use spawn with cwd '/'.)
+         */
+        try {
+          const mkdir = await webcontainer.spawn('mkdir', ['-p', webcontainer.workdir], { cwd: '/' });
+          await mkdir.exit;
+        } catch (error) {
+          console.warn('[WebContainer] Could not pre-create workdir:', error);
+        }
+
         const { workbenchStore } = await import('~/lib/stores/workbench');
 
         // Listen for preview errors (runtime exceptions, promise rejections, and compile/build errors via console.error)

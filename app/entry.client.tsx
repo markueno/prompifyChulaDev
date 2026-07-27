@@ -1,3 +1,4 @@
+import '~/utils/process-shim';
 import { RemixBrowser } from '@remix-run/react';
 import { startTransition } from 'react';
 import { hydrateRoot } from 'react-dom/client';

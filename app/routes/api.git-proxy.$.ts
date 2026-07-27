@@ -1,12 +1,15 @@
 import { json } from '@remix-run/cloudflare';
+import { requireAuth } from '~/lib/auth';
 import type { ActionFunctionArgs, LoaderFunctionArgs } from '@remix-run/cloudflare';
 
 // Handle all HTTP methods
-export async function action({ request, params }: ActionFunctionArgs) {
+export async function action({ request, params, context }: ActionFunctionArgs) {
+  await requireAuth(request, context);
   return handleProxyRequest(request, params['*']);
 }
 
-export async function loader({ request, params }: LoaderFunctionArgs) {
+export async function loader({ request, params, context }: LoaderFunctionArgs) {
+  await requireAuth(request, context);
   return handleProxyRequest(request, params['*']);
 }
 
@@ -92,7 +95,7 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
 
     try {
       parsedURL = new URL(targetURL);
-    } catch (error) {
+    } catch {
       return json({ error: 'Invalid URL format' }, { status: 400 });
     }
 
@@ -107,15 +110,19 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
       );
     }
 
-    // Forward the request to the target URL
+    /*
+     * Forward the request to the target URL
+     * Strip sensitive headers to avoid leaking auth tokens to Git providers
+     */
+    const safeHeaders = new Headers(request.headers);
+    safeHeaders.delete('cookie');
+    safeHeaders.delete('authorization');
+    safeHeaders.delete('x-auth-token');
+    safeHeaders.set('host', new URL(targetURL).host);
+
     const response = await fetch(targetURL, {
       method: request.method,
-      headers: {
-        ...Object.fromEntries(request.headers),
-
-        // Override host header with the target host
-        host: new URL(targetURL).host,
-      },
+      headers: Object.fromEntries(safeHeaders.entries()),
       body: ['GET', 'HEAD'].includes(request.method) ? null : await request.arrayBuffer(),
     });
 
@@ -144,8 +151,7 @@ async function handleProxyRequest(request: Request, path: string | undefined) {
       status: response.status,
       headers: responseHeaders,
     });
-  } catch (error) {
-    console.error('Git proxy error:', error);
+  } catch {
     return json({ error: 'Proxy error' }, { status: 500 });
   }
 }

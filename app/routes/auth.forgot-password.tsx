@@ -1,10 +1,21 @@
-import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import {
+  json,
+  redirect,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+  type MetaFunction,
+} from '@remix-run/cloudflare';
 import { Form, useActionData, useNavigation } from '@remix-run/react';
 import { Button } from '~/components/ui/Button';
 import { Card } from '~/components/ui/Card';
 import { Input } from '~/components/ui/Input';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 import { isAuthDisabled, optionalAuth } from '~/lib/auth';
+
+export const meta: MetaFunction = () => [
+  { name: 'robots', content: 'noindex, nofollow' },
+  { title: 'Forgot Password — Prompify' },
+];
 
 interface ActionData {
   error?: string;
@@ -136,6 +147,17 @@ export default function ForgotPasswordPage() {
           </a>
         </div>
       </Card>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <p className="mt-2 text-gray-500">Please refresh the page and try again.</p>
+      </div>
     </div>
   );
 }

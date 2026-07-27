@@ -1,21 +1,37 @@
 import { useLoaderData, useNavigate, useSearchParams } from '@remix-run/react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { atom } from 'nanostores';
 import type { Message } from 'ai';
 import { toast } from 'react-toastify';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { logStore } from '~/lib/stores/logs'; // Import logStore
+import { logStore } from '~/lib/stores/logs';
 import {
   getMessages,
   getNextId,
   getUrlId,
-  openDatabase,
   setMessages,
   duplicateChat,
   createChatFromMessages,
   type IChatMetadata,
 } from './db';
+import { loadSnapshot, loadSnapshotVersion } from '~/lib/snapshots/loadSnapshot';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID, resolveProjectIdFromPathname } from '~/utils/chatRoutes';
+import {
+  db,
+  snapshotsEnabled,
+  chatId,
+  description,
+  scheduleSnapshotSave,
+  refreshSnapshotCache,
+  ensureChatIdForSave,
+} from '~/lib/snapshots/scheduleSnapshot';
+import { MODEL_REGEX, PROVIDER_REGEX } from '~/utils/constants';
+
+/*
+ * Re-export so the `persistence/index.ts` barrel and direct imports from
+ * `useChatHistory` continue to resolve these shared atoms.
+ */
+export { db, chatId, description };
 
 export interface ChatHistoryItem {
   id: string;
@@ -26,14 +42,123 @@ export interface ChatHistoryItem {
   metadata?: IChatMetadata;
 }
 
+/**
+ * Day 19 — extract a per-version label from the last USER message's text content, stripping
+ * the leading `[Model: ...]` / `[Provider: ...]` prefixes that bolt.diy injects (mirrors the
+ * server-side extractPropertiesFromMessage strip, but client-safe). Truncates to ~60 chars.
+ * Returns undefined when there is no usable user prompt (e.g. manual saves).
+ */
+function labelFromMessages(messages: Message[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+
+    if (msg.role !== 'user') {
+      continue;
+    }
+
+    const raw = Array.isArray(msg.content)
+      ? (msg.content.find(part => part.type === 'text')?.text ?? '')
+      : typeof msg.content === 'string'
+        ? msg.content
+        : '';
+
+    if (!raw) {
+      continue;
+    }
+
+    const cleaned = raw.replace(MODEL_REGEX, '').replace(PROVIDER_REGEX, '').trim();
+
+    if (!cleaned) {
+      continue;
+    }
+
+    // Collapse newlines/extra whitespace for a single-line label.
+    const singleLine = cleaned.replace(/\s+/g, ' ').slice(0, 60);
+
+    return singleLine || undefined;
+  }
+
+  return undefined;
+}
+
+/**
+ * Day 9b — restore a chat's codebase from its latest snapshot, then mount it into the
+ * WebContainer and flag the workbench so historical FILE-write replay is suppressed. Returns
+ * true on a successful mount (caller suppresses nothing extra — the guard handles it), false
+ * when there is no snapshot or any step fails, in which case the caller falls through to the
+ * existing message-replay path (Tier 3). Best-effort and fully isolated: a restore failure
+ * must never break chat loading. Must run BEFORE setInitialMessages so the mount + guard are
+ * in place before the Chat component replays messages.
+ */
+/**
+ * Day 17 — restore the codebase state mapped to a rewind target. Snapshot versions record the
+ * message they were saved after (message_id), so the newest version belonging to any KEPT
+ * message is exactly the codebase state at the rewind point. Returns false (→ fall back to
+ * message replay) when no mapped version exists — e.g. history from before Day 17.
+ */
+async function restoreSnapshotForRewind(id: string, keptMessages: Message[]): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/chats/${id}/versions`);
+
+    if (!res.ok) {
+      return false;
+    }
+
+    const { versions } = (await res.json()) as {
+      versions: { versionNumber: number; messageId: string | null }[];
+    };
+
+    const keptIds = new Set(keptMessages.map(m => m.id));
+
+    // List is newest-first, so the first hit is the latest state within the kept range.
+    const match = versions.find(v => v.messageId !== null && keptIds.has(v.messageId));
+
+    if (!match) {
+      return false;
+    }
+
+    const snapshot = await loadSnapshotVersion(id, match.versionNumber);
+
+    if (!snapshot) {
+      return false;
+    }
+
+    await workbenchStore.mountSnapshot(snapshot.files);
+    workbenchStore.setRestoredFromSnapshot(true);
+
+    return true;
+  } catch (error) {
+    console.warn('Rewind snapshot restore failed (falling back to message replay):', error);
+    return false;
+  }
+}
+
+async function restoreCodebaseSnapshot(id: string): Promise<boolean> {
+  try {
+    const snapshot = await loadSnapshot(id);
+
+    if (!snapshot) {
+      return false; // no snapshot (never saved, or unreachable) — fall back to message replay
+    }
+
+    await workbenchStore.mountSnapshot(snapshot.files);
+    workbenchStore.setRestoredFromSnapshot(true);
+
+    return true;
+  } catch (error) {
+    console.warn('Snapshot restore failed (falling back to message replay):', error);
+    return false;
+  }
+}
+
+export const chatMetadata = atom<IChatMetadata | undefined>(undefined);
+
 const persistenceEnabled = !import.meta.env.VITE_DISABLE_PERSISTENCE;
 
-export const db = persistenceEnabled ? await openDatabase() : undefined;
-
-export const chatId = atom<string | undefined>(undefined);
-export const description = atom<string | undefined>(undefined);
-export const chatMetadata = atom<IChatMetadata | undefined>(undefined);
 export function useChatHistory() {
+  // Local ref for TypeScript narrowing (module-level const imports aren't narrowed)
+  const _hookDb = db;
+
   const navigate = useNavigate();
   const { id: mixedId, user, projectId } = useLoaderData<{ id?: string; projectId?: string; user?: any }>();
   const [searchParams] = useSearchParams();
@@ -52,9 +177,15 @@ export function useChatHistory() {
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [ready, setReady] = useState<boolean>(false);
   const [urlId, setUrlId] = useState<string | undefined>();
+  const activeRef = useRef(true);
 
   useEffect(() => {
-    if (!db) {
+    activeRef.current = true;
+
+    // Local ref for TypeScript narrowing — module-level const imports aren't narrowed.
+    const _db = db;
+
+    if (!_db) {
       setReady(true);
 
       if (persistenceEnabled) {
@@ -69,13 +200,56 @@ export function useChatHistory() {
     if (mixedId) {
       const loadChat = async () => {
         try {
-          const storedMessages = await getMessages(db, mixedId);
+          if (!activeRef.current) {
+            return;
+          }
+
+          // Day 9b — clear any restore flag from a previously-loaded chat before this load.
+          if (snapshotsEnabled) {
+            workbenchStore.setRestoredFromSnapshot(false);
+          }
+
+          const storedMessages = await getMessages(_db, mixedId);
+
+          if (!activeRef.current) {
+            return;
+          }
 
           if (storedMessages && storedMessages.messages.length > 0) {
             const rewindId = searchParams.get('rewindTo');
             const filteredMessages = rewindId
               ? storedMessages.messages.slice(0, storedMessages.messages.findIndex(m => m.id === rewindId) + 1)
               : storedMessages.messages;
+
+            /*
+             * Day 9b — restore + mount the codebase snapshot BEFORE messages are set, so the
+             * mount and the file-replay guard are in place before the Chat component replays.
+             * Day 17 — a rewind restores the version MAPPED to the rewind point (exact state,
+             * fresh container from the full-page rewind reload); if no mapping exists it
+             * falls back to replaying the kept messages, as before.
+             */
+            if (snapshotsEnabled) {
+              if (rewindId) {
+                await restoreSnapshotForRewind(storedMessages.id, filteredMessages);
+              } else {
+                await restoreCodebaseSnapshot(storedMessages.id);
+              }
+            }
+
+            if (!activeRef.current) {
+              return;
+            }
+
+            /*
+             * Day 9b fix — arm the reloaded-messages set SYNCHRONOUSLY before the messages
+             * render. The Chat component's useEffect (Chat.client.tsx) also sets this, but
+             * React runs child effects before parent effects, so ChatImpl can start replaying
+             * historical actions before that effect fires — letting early FILE writes race the
+             * snapshot mount (observed: template files overwrote restored files
+             * nondeterministically). Arming here closes that window; the useEffect stays as a
+             * safety net for subsequent message updates.
+             */
+            workbenchStore.setReloadedMessages(filteredMessages.map((m: Message) => m.id));
 
             setInitialMessages(filteredMessages);
             setUrlId(storedMessages.urlId);
@@ -94,15 +268,35 @@ export function useChatHistory() {
                 const filteredMessages = rewindId
                   ? chat.messages.slice(0, chat.messages.findIndex((m: any) => m.id === rewindId) + 1)
                   : chat.messages;
+
+                /*
+                 * Day 9b — restore from snapshot before setting messages (same as the
+                 * IndexedDB path above). Day 17 — rewinds restore the mapped version.
+                 */
+                if (snapshotsEnabled) {
+                  if (rewindId) {
+                    await restoreSnapshotForRewind(chat.id, filteredMessages);
+                  } else {
+                    await restoreCodebaseSnapshot(chat.id);
+                  }
+                }
+
+                if (!activeRef.current) {
+                  return;
+                }
+
+                // Day 9b fix — same synchronous guard arming as the IndexedDB path above.
+                workbenchStore.setReloadedMessages(filteredMessages.map((m: Message) => m.id));
+
                 setInitialMessages(filteredMessages);
                 setUrlId(chat.url_id);
                 description.set(chat.description);
                 chatId.set(chat.id);
                 chatMetadata.set(chat.metadata);
 
-                if (db) {
+                if (_db) {
                   await setMessages(
-                    db,
+                    _db,
                     chat.id,
                     chat.messages,
                     chat.url_id,
@@ -112,10 +306,49 @@ export function useChatHistory() {
                   );
                 }
               } else {
-                navigate('/', { replace: true });
+                /*
+                 * No messages on the server. A snapshot may still exist locally (e.g. an
+                 * edit-only chat saved before the first AI response — the fc60c0b chatId-race
+                 * fix writes the snapshot but no chat record). Restore it instead of bouncing
+                 * home and losing the user's work.
+                 */
+                let restored = false;
+
+                if (snapshotsEnabled) {
+                  const restoreId = chat?.id ?? mixedId;
+                  restored = await restoreCodebaseSnapshot(restoreId);
+                }
+
+                if (restored) {
+                  if (chat) {
+                    setUrlId(chat.url_id);
+                    description.set(chat.description);
+                    chatId.set(chat.id);
+                    chatMetadata.set(chat.metadata);
+                  } else {
+                    chatId.set(mixedId);
+                  }
+                } else {
+                  navigate('/', { replace: true });
+                }
               }
             } else {
-              navigate('/', { replace: true });
+              /*
+               * Server unreachable / error. Try the local IndexedDB snapshot before
+               * giving up — the optimistic Tier-1 cache may have the latest files even
+               * when the server is down.
+               */
+              let restored = false;
+
+              if (snapshotsEnabled) {
+                restored = await restoreCodebaseSnapshot(mixedId);
+              }
+
+              if (restored) {
+                chatId.set(mixedId);
+              } else {
+                navigate('/', { replace: true });
+              }
             }
           } else {
             navigate('/', { replace: true });
@@ -128,33 +361,34 @@ export function useChatHistory() {
               : 'Failed to load chat'
           );
         } finally {
-          setReady(true);
+          if (activeRef.current) {
+            setReady(true);
+          }
         }
       };
       loadChat();
+    } else {
+      /*
+       * New chat — nothing to load. "Start new chat" is a hard <a> navigation (full page
+       * load), which already resets chatId, the workbench stores, and the WebContainer
+       * itself, so no manual reset is needed here. (A previous in-effect reset wiped the
+       * container workdir asynchronously and could race the first prompt's file writes.)
+       * The previous chat's snapshots are saved incrementally by storeMessageHistory /
+       * scheduleSnapshotSave during the chat itself.
+       */
+      setReady(true);
     }
+
+    return () => {
+      activeRef.current = false;
+    };
   }, [activeProjectId, mixedId, user?.id, searchParams, navigate]);
 
-  const ensureChatId = async (): Promise<string | undefined> => {
-    if (!db) {
-      return chatId.get();
-    }
-
-    const current = chatId.get();
-
-    if (current) {
-      return current;
-    }
-
-    const nextId = await getNextId(db);
-    chatId.set(nextId);
-
-    if (!urlId) {
-      navigateChat(nextId, activeProjectId);
-    }
-
-    return nextId;
-  };
+  /*
+   * Delegates to the shared single-flight allocator so a concurrent workbench save
+   * (scheduleSnapshotSave) and a message send cannot allocate two different chat ids.
+   */
+  const ensureChatId = (): Promise<string | undefined> => ensureChatIdForSave(activeProjectId);
 
   return {
     ready: !mixedId || ready,
@@ -163,27 +397,27 @@ export function useChatHistory() {
     updateChatMestaData: async (metadata: IChatMetadata) => {
       const id = chatId.get();
 
-      if (!db || !id) {
+      if (!_hookDb || !id) {
         return;
       }
 
       try {
-        await setMessages(db, id, initialMessages, urlId, description.get(), undefined, metadata);
+        await setMessages(_hookDb, id, initialMessages, urlId, description.get(), undefined, metadata);
         chatMetadata.set(metadata);
       } catch (error) {
         toast.error('Failed to update chat metadata');
         console.error(error);
       }
     },
-    storeMessageHistory: async (messages: Message[]) => {
-      if (!db || messages.length === 0) {
+    storeMessageHistory: async (messages: Message[], isLoading: boolean = false) => {
+      if (!_hookDb || messages.length === 0) {
         return;
       }
 
       const { firstArtifact } = workbenchStore;
 
       if (!urlId && firstArtifact?.id) {
-        const urlId = await getUrlId(db, firstArtifact.id);
+        const urlId = await getUrlId(_hookDb, firstArtifact.id);
 
         navigateChat(urlId, activeProjectId);
         setUrlId(urlId);
@@ -194,7 +428,7 @@ export function useChatHistory() {
       }
 
       if (initialMessages.length === 0 && !chatId.get()) {
-        const nextId = await getNextId(db);
+        const nextId = await getNextId(_hookDb);
 
         chatId.set(nextId);
 
@@ -204,7 +438,15 @@ export function useChatHistory() {
       }
 
       // Save to IndexedDB (existing functionality)
-      await setMessages(db, chatId.get() as string, messages, urlId, description.get(), undefined, chatMetadata.get());
+      await setMessages(
+        _hookDb,
+        chatId.get() as string,
+        messages,
+        urlId,
+        description.get(),
+        undefined,
+        chatMetadata.get()
+      );
 
       // Also save to PostgreSQL if user is authenticated
       try {
@@ -235,14 +477,47 @@ export function useChatHistory() {
         console.warn('Error saving chat to PostgreSQL:', error);
         // Don't throw error - IndexedDB save was successful
       }
+
+      /*
+       * Day 9a — snapshot save (flag-gated, debounced, best-effort).
+       * Day 17 — record the last message id so the version maps to this point in the chat.
+       * Day 19 — pass the triggering user prompt (stripped of [Model:]/[Provider:] prefixes,
+       * truncated) as the per-version label so the version name reflects WHAT changed rather
+       * than the chat title (Fix B).
+       *
+       * Day 20 — coalesce to ONE version per AI turn. While streaming, storeMessageHistory is
+       * re-invoked every ~50ms by processSampledMessages; previously each call re-armed the 3s
+       * debounce, which fired once per >3s quiet gap during generation → ~10 versions per turn.
+       * Now: while streaming, only refresh the optimistic IndexedDB cache (no version row, no
+       * server round-trip — keeps refresh-restore working). At turn end (isLoading=false) we
+       * fire scheduleSnapshotSave ONCE; the 3s trailing debounce then fires a single time,
+       * giving the action-runner queue time to flush the last file writes. buildSnapshot
+       * excludes node_modules, so a trailing shell action never leaves the manifest incomplete.
+       * The server no-op guard (Day 19) then skips the turn-end save for question-only turns.
+       */
+      if (user?.id) {
+        if (isLoading) {
+          refreshSnapshotCache(workbenchStore.files.get(), chatId.get()).catch(error =>
+            console.warn('Streaming snapshot cache refresh failed:', error)
+          );
+        } else {
+          scheduleSnapshotSave(
+            workbenchStore.files.get(),
+            chatId.get(),
+            messages[messages.length - 1]?.id,
+            false,
+            labelFromMessages(messages)
+          );
+        }
+      }
     },
     duplicateCurrentChat: async (listItemId: string) => {
-      if (!db || (!mixedId && !listItemId)) {
+      if (!_hookDb || (!mixedId && !listItemId)) {
         return;
       }
 
       try {
-        const newId = await duplicateChat(db, mixedId || listItemId);
+        const newId = await duplicateChat(_hookDb, mixedId || listItemId);
         navigate(buildProjectChatPath(activeProjectId, newId));
         toast.success('Chat duplicated successfully');
       } catch (error) {
@@ -251,12 +526,12 @@ export function useChatHistory() {
       }
     },
     importChat: async (description: string, messages: Message[], metadata?: IChatMetadata) => {
-      if (!db) {
+      if (!_hookDb) {
         return;
       }
 
       try {
-        const newId = await createChatFromMessages(db, description, messages, metadata);
+        const newId = await createChatFromMessages(_hookDb, description, messages, metadata);
         window.location.href = buildProjectChatPath(activeProjectId, newId);
         toast.success('Chat imported successfully');
       } catch (error) {
@@ -268,11 +543,11 @@ export function useChatHistory() {
       }
     },
     exportChat: async (id = urlId) => {
-      if (!db || !id) {
+      if (!_hookDb || !id) {
         return;
       }
 
-      const chat = await getMessages(db, id);
+      const chat = await getMessages(_hookDb, id);
       const chatData = {
         messages: chat.messages,
         description: chat.description,

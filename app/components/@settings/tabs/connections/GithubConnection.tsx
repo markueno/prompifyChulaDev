@@ -258,7 +258,7 @@ export function GithubConnection() {
                 'bg-[#F8F8F8] dark:bg-[#1A1A1A]',
                 'border border-[#E5E5E5] dark:border-[#333333]',
                 'text-bolt-elements-textPrimary',
-                'focus:outline-none focus:ring-1 focus:ring-purple-500',
+                'focus:outline-none focus:ring-1 focus:ring-[#f97316]',
                 'disabled:opacity-50'
               )}
             >
@@ -284,7 +284,7 @@ export function GithubConnection() {
                 'bg-[#F8F8F8] dark:bg-[#1A1A1A]',
                 'border border-[#E5E5E5] dark:border-[#333333]',
                 'text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary',
-                'focus:outline-none focus:ring-1 focus:ring-purple-500',
+                'focus:outline-none focus:ring-1 focus:ring-[#f97316]',
                 'disabled:opacity-50'
               )}
             />
@@ -293,7 +293,7 @@ export function GithubConnection() {
                 href={`https://github.com/settings/tokens${connection.tokenType === 'fine-grained' ? '/beta' : '/new'}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-purple-500 hover:underline inline-flex items-center gap-1"
+                className="text-[#f97316] hover:underline inline-flex items-center gap-1"
               >
                 Get your token
                 <div className="i-ph:arrow-square-out w-10 h-5" />
@@ -316,8 +316,8 @@ export function GithubConnection() {
               disabled={isConnecting || !connection.token}
               className={classNames(
                 'px-4 py-2 rounded-lg text-sm flex items-center gap-2',
-                'bg-purple-500 text-white',
-                'hover:bg-purple-600',
+                'bg-[#f97316] text-white',
+                'hover:bg-[#ea5a0c]',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
             >
@@ -429,7 +429,7 @@ export function GithubConnection() {
                       .map(([language]) => (
                         <span
                           key={language}
-                          className="px-3 py-1 text-xs rounded-full bg-purple-500/10 text-purple-500 dark:bg-purple-500/20"
+                          className="px-3 py-1 text-xs rounded-full bg-[#f97316]/10 text-[#f97316] dark:bg-[#f97316]/20"
                         >
                           {language}
                         </span>
@@ -451,7 +451,7 @@ export function GithubConnection() {
                             href={`https://github.com/${event.repo.name}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-purple-500 hover:underline"
+                            className="text-[#f97316] hover:underline"
                           >
                             {event.repo.name}
                           </a>

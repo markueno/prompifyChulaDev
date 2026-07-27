@@ -1,6 +1,6 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
-const IV_LENGTH = 16;
+const IV_LENGTH = 12;
 
 export async function encrypt(key: string, data: string) {
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
@@ -8,7 +8,7 @@ export async function encrypt(key: string, data: string) {
 
   const ciphertext = await crypto.subtle.encrypt(
     {
-      name: 'AES-CBC',
+      name: 'AES-GCM',
       iv,
     },
     cryptoKey,
@@ -33,7 +33,7 @@ export async function decrypt(key: string, payload: string) {
 
   const plaintext = await crypto.subtle.decrypt(
     {
-      name: 'AES-CBC',
+      name: 'AES-GCM',
       iv,
     },
     cryptoKey,
@@ -44,7 +44,7 @@ export async function decrypt(key: string, payload: string) {
 }
 
 async function getKey(key: string) {
-  return await crypto.subtle.importKey('raw', encodeBase64(key), { name: 'AES-CBC' }, false, ['encrypt', 'decrypt']);
+  return await crypto.subtle.importKey('raw', encodeBase64(key), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
 }
 
 function decodeBase64(encoded: Uint8Array) {

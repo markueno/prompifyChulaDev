@@ -50,3 +50,5 @@ changelogUI.md
 docs/instructions/Roadmap.md
 .cursorrules
 *.md
+!app/lib/design-md/*.md
+graphify-out/

@@ -39,11 +39,15 @@ export function NotificationBell() {
 
   const trigger = (
     <DropdownMenu.Trigger asChild>
-      <Button variant="ghost" size="icon" className="relative !text-zinc-900 hover:!text-black">
-        <div className="i-ph:bell text-xl !text-zinc-900" />
+      <Button
+        variant="ghost"
+        size="icon"
+        className="relative rounded-lg border border-[#fed7aa]/60 bg-[#f0e4d5] text-[#231710] hover:border-[#f97316] hover:bg-[#fed7aa] transition-colors"
+      >
+        <div className="i-ph:bell text-xl text-[#231710]" />
         {invitations.length > 0 && (
           <span
-            className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-medium text-white"
+            className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#f97316] text-[10px] font-medium text-white"
             aria-label={`${invitations.length} pending invitations`}
           >
             {invitations.length > 9 ? '9+' : invitations.length}
@@ -59,9 +63,8 @@ export function NotificationBell() {
       <DropdownMenu.Portal>
         <DropdownMenu.Content
           className={classNames(
-            'min-w-[320px] rounded-lg overflow-hidden',
-            'bg-bolt-elements-background-depth-2',
-            'border border-bolt-elements-borderColor',
+            'min-w-[320px] rounded-xl overflow-hidden',
+            'bg-[#f0e4d5] border border-[#fed7aa]/60',
             'shadow-lg',
             'animate-in fade-in-80 zoom-in-95',
             'data-[side=bottom]:slide-in-from-top-2',
@@ -70,7 +73,7 @@ export function NotificationBell() {
           sideOffset={8}
           align="end"
         >
-          <div className="border-b border-bolt-elements-borderColor">
+          <div className="border-b border-[#fed7aa]/40">
             <div className="flex">
               <button
                 type="button"
@@ -78,8 +81,8 @@ export function NotificationBell() {
                 className={classNames(
                   'flex-1 px-4 py-3 text-sm font-medium transition-colors',
                   activeTab === 'notifications'
-                    ? 'text-bolt-elements-textPrimary border-b-2 border-bolt-elements-textPrimary -mb-px'
-                    : 'text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary'
+                    ? 'text-[#231710] border-b-2 border-[#f97316] -mb-px'
+                    : 'text-[#231710]/50 hover:text-[#231710]'
                 )}
               >
                 Notifications
@@ -90,8 +93,8 @@ export function NotificationBell() {
                 className={classNames(
                   'flex-1 px-4 py-3 text-sm font-medium transition-colors',
                   activeTab === 'news'
-                    ? 'text-bolt-elements-textPrimary border-b-2 border-bolt-elements-textPrimary -mb-px'
-                    : 'text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary'
+                    ? 'text-[#231710] border-b-2 border-[#f97316] -mb-px'
+                    : 'text-[#231710]/50 hover:text-[#231710]'
                 )}
               >
                 Latest news

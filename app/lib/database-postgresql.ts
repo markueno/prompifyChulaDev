@@ -1,9 +1,15 @@
 import pg from 'pg';
 import crypto from 'crypto';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
+// Codebase-snapshot persistence deps (ported from feat/persistence-architecture-v2).
+import { keyForHash } from '~/lib/.server/storage';
+import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
+import { diffManifests } from '~/lib/snapshots/diffManifests';
 // Database schema, inlined at build time. schema.sql is the single source of truth.
+// eslint-disable-next-line no-restricted-imports
 import schemaSql from '../../schema.sql?raw';
 
+// eslint-disable-next-line @typescript-eslint/naming-convention
 const { Pool } = pg;
 type PoolClient = pg.PoolClient;
 
@@ -62,6 +68,7 @@ export function getPostgresPool(): InstanceType<typeof Pool> {
 
 export async function createPostgresTables() {
   migrationRunning = true;
+
   const pool = getPostgresPool();
   let client: PoolClient | undefined;
 
@@ -402,7 +409,7 @@ export async function verifyUserPostgres(userId: string) {
   } catch (error: any) {
     try {
       await client.query('ROLLBACK');
-    } catch (_) {}
+    } catch {}
     console.error('Error verifying user:', error);
 
     return false;
@@ -2463,6 +2470,607 @@ export async function getAuditLogsPostgres(
   } catch (error) {
     console.error('Error getting audit logs:', error);
     return [];
+  } finally {
+    client.release();
+  }
+}
+
+/*
+ * ============================================================================
+ * Codebase snapshot persistence — ported from feat/persistence-architecture-v2.
+ * Model-agnostic (operates on codebase_versions/codebase_blobs/app_tables +
+ * chats.user_id/chat_id, all present in the EulerOS schema). Tables live in schema.sql.
+ * ============================================================================
+ */
+
+/*
+ * Day 20 — lazy, self-contained schema ensure for the codebase-version path.
+ * saveCodebaseVersionPostgres uses getPostgresPool(), which (unlike getPostgresDatabase() in
+ * database.ts) does NOT run createPostgresTables(). On prod, createPostgresTables() is also
+ * fire-and-forget AND throws before reaching the change_summary ALTER (the project_id FK
+ * migration at ~line 369-383 aborts on orphan chats), so the change_summary column never got
+ * added → every version save 500'd with "column change_summary does not exist".
+ *
+ * This makes version saves self-sufficient: it idempotently creates the two tables, the
+ * change_summary column, and the indexes once per process, on the SAME pool the version save
+ * uses. Gated by a module flag so it runs effectively once. All statements are IF NOT EXISTS.
+ */
+let codebaseSchemaEnsured = false;
+
+async function ensureCodebaseVersionSchema(): Promise<void> {
+  if (codebaseSchemaEnsured) {
+    return;
+  }
+
+  codebaseSchemaEnsured = true; // set first so a concurrent call doesn't re-run DDL
+
+  try {
+    const p = getPostgresPool();
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS codebase_versions (
+        id SERIAL PRIMARY KEY,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        version_number INTEGER NOT NULL,
+        is_latest BOOLEAN NOT NULL DEFAULT false,
+        manifest JSONB NOT NULL,
+        description TEXT,
+        file_count INTEGER NOT NULL DEFAULT 0,
+        total_bytes INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(chat_id, version_number)
+      )
+    `);
+    await p.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_versions_latest_per_chat ON codebase_versions(chat_id) WHERE is_latest = true'
+    );
+    await p.query(
+      'CREATE INDEX IF NOT EXISTS idx_versions_chat_latest ON codebase_versions(chat_id, version_number DESC)'
+    );
+    await p.query(
+      'CREATE INDEX IF NOT EXISTS idx_versions_chat_created ON codebase_versions(chat_id, created_at DESC)'
+    );
+    // Day 19 column — idempotent on existing DBs; this is the line createPostgresTables was missing.
+    await p.query('ALTER TABLE codebase_versions ADD COLUMN IF NOT EXISTS change_summary TEXT');
+    await p.query('ALTER TABLE codebase_versions ADD COLUMN IF NOT EXISTS message_id TEXT');
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS codebase_blobs (
+        sha256 TEXT PRIMARY KEY,
+        size_bytes INTEGER NOT NULL,
+        compressed_size_bytes INTEGER,
+        r2_key TEXT NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        ref_count INTEGER NOT NULL DEFAULT 1
+      )
+    `);
+    await p.query('CREATE INDEX IF NOT EXISTS idx_blobs_ref_count ON codebase_blobs(ref_count) WHERE ref_count > 0');
+  } catch (error) {
+    /*
+     * Reset so a future save retries; never block the version save on a migration failure
+     * (the optimistic client cache keeps edits safe regardless).
+     */
+    codebaseSchemaEnsured = false;
+    console.error('ensureCodebaseVersionSchema failed (will retry next save):', error);
+  }
+}
+
+/*
+ * Day 20 — same hazard class as ensureCodebaseVersionSchema, for the self-hosted runtime
+ * app-data layer. The data-provision routes (api.data.*, api.import-data) query/insert
+ * `app_tables` via getPostgresPool(), which never runs createPostgresTables(); and
+ * createPostgresTables() throws before reaching the app_tables CREATE (~line 662) on prod
+ * (the project_id FK migration aborts on orphan chats). So `app_tables` may not exist on a
+ * cold/partially-migrated DB → every data route 500s with "relation app_tables does not exist".
+ * This idempotently ensures the registry table + indexes once per process, on the same pool.
+ */
+let appTablesSchemaEnsured = false;
+
+export async function ensureAppTablesSchema(): Promise<void> {
+  if (appTablesSchemaEnsured) {
+    return;
+  }
+
+  appTablesSchemaEnsured = true;
+
+  try {
+    const p = getPostgresPool();
+
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS app_tables (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+        schema_name TEXT NOT NULL,
+        table_name TEXT NOT NULL,
+        logical_name TEXT NOT NULL,
+        columns JSONB NOT NULL DEFAULT '[]'::jsonb,
+        row_count INTEGER NOT NULL DEFAULT 0,
+        source TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(schema_name, table_name),
+        UNIQUE(chat_id, logical_name)
+      )
+    `);
+    await p.query('CREATE INDEX IF NOT EXISTS idx_app_tables_user ON app_tables(user_id)');
+    await p.query('CREATE INDEX IF NOT EXISTS idx_app_tables_chat ON app_tables(chat_id)');
+  } catch (error) {
+    appTablesSchemaEnsured = false;
+    console.error('ensureAppTablesSchema failed (will retry next call):', error);
+  }
+}
+
+export async function saveCodebaseVersionPostgres(params: {
+  chatId: string;
+  userId: string;
+  manifest: Record<string, string>; // path -> sha256
+  blobSizes: Record<string, number>; // sha256 -> size_bytes
+  description?: string;
+  /** Day 17 — chat message this version was saved after (null for manual IDE-edit saves). */
+  messageId?: string;
+  /**
+   * Day 19 — optional client-supplied label (the triggering user prompt, truncated) that
+   * overrides the chat-title description for AI turns. When absent the caller-supplied
+   * description (or a server-computed diff summary) is used.
+   */
+  label?: string;
+  /** Day 19 — compact added/modified/removed summary to show on the history metadata line. */
+  changeSummary?: string;
+}): Promise<number> {
+  const { chatId, userId, manifest, blobSizes, messageId, label, changeSummary: clientChangeSummary } = params;
+  const { fileCount, totalBytes, hashes } = computeVersionMeta(manifest, blobSizes);
+
+  /*
+   * Day 20 — ensure the codebase-version schema exists on THIS pool before touching it. The
+   * version-save path uses getPostgresPool(), which doesn't run createPostgresTables(); this
+   * idempotently guarantees the tables + the change_summary column exist (the missing column
+   * was causing every save to 500 with "column change_summary does not exist").
+   */
+  await ensureCodebaseVersionSchema();
+
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Serialize concurrent saves for this chat (the lock the whole design hinges on).
+    await client.query('SELECT 1 FROM chats WHERE id = $1 FOR UPDATE', [chatId]);
+
+    /*
+     * Day 19 — Fix A: no-op guard. Load the current is_latest manifest and deep-compare it to
+     * the incoming manifest. If IDENTICAL, this turn changed no files (e.g. a question-only
+     * assistant response). Skip the insert + ref_count bump entirely, but update the latest
+     * version's message_id so rewind-to-latest stays exact (OPEN DECISION #2 = skip-but-update).
+     * Race-safe: the FOR UPDATE lock above already serializes concurrent saves.
+     *
+     * Day 20 — the SELECT reads only version_number + manifest (NOT change_summary): the guard
+     * recomputes the summary from the manifest via diffSummaryFor, so it must not depend on the
+     * change_summary column existing.
+     */
+    const latestRes = await client.query(
+      'SELECT version_number, manifest FROM codebase_versions WHERE chat_id = $1 AND is_latest = true LIMIT 1',
+      [chatId]
+    );
+
+    if (latestRes.rows.length > 0) {
+      const latestRow = latestRes.rows[0];
+      const latestManifest =
+        typeof latestRow.manifest === 'string' ? JSON.parse(latestRow.manifest) : latestRow.manifest;
+      const diff = diffManifests(latestManifest, manifest);
+
+      if (!diff.changed) {
+        // No file change — update message_id (if provided) so rewind mapping stays current.
+        if (messageId) {
+          await client.query('UPDATE codebase_versions SET message_id = $1 WHERE chat_id = $2 AND is_latest = true', [
+            messageId,
+            chatId,
+          ]);
+        }
+
+        await client.query('COMMIT');
+
+        return Number(latestRow.version_number);
+      }
+    }
+
+    /*
+     * Resolve the stored per-version description (Fix B): prefer the client label, else the
+     * caller-supplied description, else a server-computed diff summary as a last resort. This
+     * decouples version names from the chat title.
+     */
+    const serverChangeSummary = clientChangeSummary ?? diffSummaryFor(latestRes.rows[0]?.manifest, manifest);
+    const storedDescription = label ?? params.description ?? serverChangeSummary;
+
+    // 2. Next version number for this chat.
+    const versionRes = await client.query(
+      'SELECT COALESCE(MAX(version_number), 0) + 1 AS next FROM codebase_versions WHERE chat_id = $1',
+      [chatId]
+    );
+    const versionNumber = Number(versionRes.rows[0].next);
+
+    // 3. Demote the current latest, then 4. insert the new version as latest.
+    await client.query('UPDATE codebase_versions SET is_latest = false WHERE chat_id = $1 AND is_latest = true', [
+      chatId,
+    ]);
+    await client.query(
+      `INSERT INTO codebase_versions
+         (chat_id, user_id, version_number, is_latest, manifest, description, file_count, total_bytes, message_id, change_summary)
+       VALUES ($1, $2, $3, true, $4::jsonb, $5, $6, $7, $8, $9)`,
+      [
+        chatId,
+        userId,
+        versionNumber,
+        JSON.stringify(manifest),
+        storedDescription ?? null,
+        fileCount,
+        totalBytes,
+        messageId ?? null,
+        serverChangeSummary ?? null,
+      ]
+    );
+
+    if (hashes.length > 0) {
+      // 5. Bump ref_count for blobs that already exist.
+      await client.query('UPDATE codebase_blobs SET ref_count = ref_count + 1 WHERE sha256 = ANY($1)', [hashes]);
+
+      // 6. Insert any new blobs (ref_count defaults to 1); existing rows are no-ops.
+      const valuesSql: string[] = [];
+      const args: unknown[] = [];
+      let i = 1;
+
+      for (const sha of hashes) {
+        valuesSql.push(`($${i++}, $${i++}, $${i++})`);
+        args.push(sha, blobSizes[sha] ?? 0, keyForHash(sha));
+      }
+
+      await client.query(
+        `INSERT INTO codebase_blobs (sha256, size_bytes, r2_key)
+         VALUES ${valuesSql.join(', ')}
+         ON CONFLICT (sha256) DO NOTHING`,
+        args
+      );
+    }
+
+    await client.query('COMMIT');
+
+    return versionNumber;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Day 19 — compute a compact change-summary from the previous latest manifest (raw jsonb row
+ * value, may be string or already-parsed object) and the incoming manifest. When there is no
+ * prior version (the very first save of a chat), diff against an empty manifest so the first
+ * version is named "Added <files> (+N)" rather than getting no summary.
+ */
+function diffSummaryFor(previousManifestRaw: unknown, newManifest: Record<string, string>): string {
+  if (previousManifestRaw === undefined || previousManifestRaw === null) {
+    return diffManifests({}, newManifest).summary;
+  }
+
+  const previous = typeof previousManifestRaw === 'string' ? JSON.parse(previousManifestRaw) : previousManifestRaw;
+
+  return diffManifests(previous, newManifest).summary;
+}
+
+/**
+ * Fetch the latest codebase version's manifest for a chat (read-only).
+ * Returns null when the chat has no saved version yet. Source: ARCHITECTURE-v2.md:411-413 (Day 7).
+ */
+export async function getLatestCodebaseVersionPostgres(
+  chatId: string
+): Promise<{ versionNumber: number; manifest: Record<string, string> } | null> {
+  const pool = getPostgresPool();
+  const result = await pool.query(
+    'SELECT version_number, manifest FROM codebase_versions WHERE chat_id = $1 AND is_latest = true LIMIT 1',
+    [chatId]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  const manifest = typeof row.manifest === 'string' ? JSON.parse(row.manifest) : row.manifest;
+
+  return { versionNumber: Number(row.version_number), manifest };
+}
+
+/**
+ * Day 18 — garbage collection (ARCHITECTURE-v2.md:504-526), one transaction:
+ *   1. delete non-latest versions beyond the retention window (keep `retainPerChat` per chat),
+ *   2. decrement ref_count once per deleted version per referenced blob,
+ *   3. delete blob rows whose ref_count dropped to <= 0.
+ * Returns the deleted versions count and the ORPHANED blob hashes — the caller deletes those
+ * keys from object storage AFTER commit (a stray object in OBS is harmless; a dangling DB row
+ * pointing at a deleted object is not, hence DB-first ordering).
+ * `dryRun` executes everything and ROLLS BACK, returning what WOULD happen — the plan's
+ * mandatory first-run mode (Step 18.5: never enable real deletion until a dry run is sane).
+ */
+export async function gcCodebaseVersionsPostgres(options: {
+  retainPerChat?: number;
+  dryRun: boolean;
+}): Promise<{ versionsDeleted: number; blobsDeleted: number; orphanHashes: string[] }> {
+  const retain = options.retainPerChat ?? 30;
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    /*
+     * 1. Delete versions beyond retention (never the latest), returning manifests so we know
+     *    which blob refs to release.
+     */
+    const deleted = await client.query(
+      `DELETE FROM codebase_versions
+       WHERE id IN (
+         SELECT id FROM (
+           SELECT id, ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY version_number DESC) AS rn
+           FROM codebase_versions
+           WHERE is_latest = false
+         ) ranked
+         WHERE rn > $1
+       )
+       RETURNING manifest`,
+      [retain]
+    );
+
+    /*
+     * 2. Decrement ref_count once per deleted version per referenced blob (mirrors the +1 per
+     *    version applied on save/rollback).
+     */
+    const decrements = new Map<string, number>();
+
+    for (const row of deleted.rows) {
+      const manifest: Record<string, string> =
+        typeof row.manifest === 'string' ? JSON.parse(row.manifest) : row.manifest;
+
+      for (const sha of new Set(Object.values(manifest))) {
+        decrements.set(sha, (decrements.get(sha) ?? 0) + 1);
+      }
+    }
+
+    for (const [sha, count] of decrements) {
+      await client.query('UPDATE codebase_blobs SET ref_count = ref_count - $2 WHERE sha256 = $1', [sha, count]);
+    }
+
+    // 3. Remove unreferenced blob rows; their hashes go back to the caller for OBS deletion.
+    const orphans = await client.query('DELETE FROM codebase_blobs WHERE ref_count <= 0 RETURNING sha256');
+
+    if (options.dryRun) {
+      await client.query('ROLLBACK');
+    } else {
+      await client.query('COMMIT');
+    }
+
+    return {
+      versionsDeleted: deleted.rowCount ?? 0,
+      blobsDeleted: orphans.rowCount ?? 0,
+      orphanHashes: orphans.rows.map(r => r.sha256 as string),
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Day 16 — transactional rollback: restore version N by APPENDING a copy of its manifest as
+ * the new latest version (never mutating history — you can roll back from a rollback, and
+ * nothing is ever deleted; ARCHITECTURE-v2.md:497). Blobs are shared, so only ref_counts are
+ * bumped. Same FOR UPDATE lock as saveCodebaseVersionPostgres so a concurrent save and
+ * rollback serialize instead of corrupting is_latest.
+ * Source: ARCHITECTURE-v2.md:461-494 (spec SQL reuses $2 for userId AND version; split here).
+ * Returns the new version number, or null when the target version does not exist.
+ */
+export async function rollbackCodebaseVersionPostgres(
+  chatId: string,
+  userId: string,
+  targetVersion: number
+): Promise<number | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Lock for race safety (serializes with saves and other rollbacks on this chat).
+    await client.query('SELECT 1 FROM chats WHERE id = $1 FOR UPDATE', [chatId]);
+
+    // Target must exist (also snapshots its manifest for the ref_count bump below).
+    const target = await client.query(
+      'SELECT manifest, file_count, total_bytes FROM codebase_versions WHERE chat_id = $1 AND version_number = $2',
+      [chatId, targetVersion]
+    );
+
+    if (target.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    // Unmark current latest.
+    await client.query('UPDATE codebase_versions SET is_latest = false WHERE chat_id = $1 AND is_latest = true', [
+      chatId,
+    ]);
+
+    // Append a copy of the old manifest as the new max version (blobs shared, not copied).
+    const inserted = await client.query(
+      `INSERT INTO codebase_versions
+         (chat_id, user_id, version_number, is_latest, manifest, description, file_count, total_bytes)
+       SELECT chat_id, $3,
+         (SELECT COALESCE(MAX(version_number), 0) + 1 FROM codebase_versions WHERE chat_id = $1),
+         true, manifest,
+         'Rollback to v' || version_number,
+         file_count, total_bytes
+       FROM codebase_versions
+       WHERE chat_id = $1 AND version_number = $2
+       RETURNING version_number`,
+      [chatId, targetVersion, userId]
+    );
+
+    /*
+     * Bump ref_count on every blob the restored version references (once per blob — the
+     * IN(subquery) form updates each matching row a single time, matching the save path's
+     * one-bump-per-version semantics).
+     */
+    await client.query(
+      `UPDATE codebase_blobs SET ref_count = ref_count + 1
+       WHERE sha256 IN (
+         SELECT value FROM jsonb_each_text(
+           (SELECT manifest FROM codebase_versions WHERE chat_id = $1 AND version_number = $2)
+         )
+       )`,
+      [chatId, targetVersion]
+    );
+
+    await client.query('COMMIT');
+
+    return Number(inserted.rows[0].version_number);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Day 15 — list a chat's version history (metadata only, no manifests; newest 50 rows).
+ * Powers GET /api/chats/:id/versions for the history panel (Days 16-17). Ownership is checked
+ * by the calling route via getChatByIdPostgres, same as the latest-version endpoint.
+ * Source: ARCHITECTURE-v2.md:450-458; IMPLEMENTATION-PLAN Day 15.
+ */
+export async function listCodebaseVersionsPostgres(chatId: string): Promise<
+  {
+    versionNumber: number;
+    description: string | null;
+    fileCount: number;
+    totalBytes: number;
+    isLatest: boolean;
+    messageId: string | null;
+    changeSummary: string | null;
+    createdAt: string;
+  }[]
+> {
+  const pool = getPostgresPool();
+  const result = await pool.query(
+    `SELECT version_number, description, file_count, total_bytes, is_latest, message_id, change_summary, created_at
+     FROM codebase_versions
+     WHERE chat_id = $1
+     ORDER BY version_number DESC
+     LIMIT 50`,
+    [chatId]
+  );
+
+  return result.rows.map(row => ({
+    versionNumber: Number(row.version_number),
+    description: row.description ?? null,
+    fileCount: Number(row.file_count),
+    totalBytes: Number(row.total_bytes),
+    isLatest: Boolean(row.is_latest),
+    messageId: row.message_id ?? null,
+    changeSummary: row.change_summary ?? null,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+  }));
+}
+
+/**
+ * Day 17 — fetch one specific version's manifest (for restoring the codebase state mapped to
+ * a chat message, or previewing an old version). Read-only sibling of
+ * getLatestCodebaseVersionPostgres. Returns null when the version does not exist.
+ */
+export async function getCodebaseVersionPostgres(
+  chatId: string,
+  versionNumber: number
+): Promise<{ versionNumber: number; manifest: Record<string, string> } | null> {
+  const pool = getPostgresPool();
+  const result = await pool.query(
+    'SELECT version_number, manifest FROM codebase_versions WHERE chat_id = $1 AND version_number = $2 LIMIT 1',
+    [chatId, versionNumber]
+  );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  const row = result.rows[0];
+  const manifest = typeof row.manifest === 'string' ? JSON.parse(row.manifest) : row.manifest;
+
+  return { versionNumber: Number(row.version_number), manifest };
+}
+
+export async function checkRateLimitPostgres(
+  key: string,
+  endpoint: string,
+  maxAttempts: number,
+  windowSeconds: number
+): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const now = new Date();
+
+    await client.query('BEGIN');
+
+    const existing = await client.query(
+      `SELECT attempts, first_attempt FROM rate_limits WHERE ip_address = $1 AND endpoint = $2 FOR UPDATE`,
+      [key, endpoint]
+    );
+
+    if (existing.rows.length === 0) {
+      await client.query(
+        `INSERT INTO rate_limits (id, ip_address, endpoint, attempts, first_attempt, last_attempt)
+         VALUES (gen_random_uuid()::text, $1, $2, 1, $3, $3)`,
+        [key, endpoint, now]
+      );
+      await client.query('COMMIT');
+
+      return { allowed: true };
+    }
+
+    const row = existing.rows[0];
+    const firstAttempt = new Date(row.first_attempt);
+    const elapsed = (now.getTime() - firstAttempt.getTime()) / 1000;
+
+    if (elapsed > windowSeconds) {
+      await client.query(
+        `UPDATE rate_limits SET attempts = 1, first_attempt = $1, last_attempt = $1 WHERE ip_address = $2 AND endpoint = $3`,
+        [now, key, endpoint]
+      );
+      await client.query('COMMIT');
+
+      return { allowed: true };
+    }
+
+    if (row.attempts >= maxAttempts) {
+      await client.query('COMMIT');
+
+      const retryAfterSeconds = Math.ceil(windowSeconds - elapsed);
+
+      return { allowed: false, retryAfterSeconds };
+    }
+
+    await client.query(
+      `UPDATE rate_limits SET attempts = attempts + 1, last_attempt = $1 WHERE ip_address = $2 AND endpoint = $3`,
+      [now, key, endpoint]
+    );
+    await client.query('COMMIT');
+
+    return { allowed: true };
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
   } finally {
     client.release();
   }

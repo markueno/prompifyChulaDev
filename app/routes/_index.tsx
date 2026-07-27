@@ -5,25 +5,43 @@ import { isAuthDisabled, optionalAuth } from '~/lib/auth';
 
 import landingStyles from '~/styles/landing.css?url';
 
+const SITE_URL = process.env.SITE_URL || 'https://prompify.com';
+
 export const links: LinksFunction = () => [
-  {
-    rel: 'stylesheet',
-    href: 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap',
-  },
-  {
-    rel: 'stylesheet',
-    href: 'https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap',
-  },
+  // Canonical host = https://prompify.com (pick ONE host; 301 the www variant at the edge/nginx).
+  { rel: 'canonical', href: `${SITE_URL}/` },
   { rel: 'stylesheet', href: landingStyles },
+  /*
+   * Note: Google Fonts are loaded async below (non-render-blocking) instead of via blocking
+   * <link rel=stylesheet> — improves LCP / Core Web Vitals. Inter is also loaded globally by
+   * root.tsx; here we additionally pull Raleway for landing headings, non-blocking.
+   */
 ];
 
 export const meta: MetaFunction = () => {
   return [
-    { title: 'Prompify - Your Ideas' },
+    { title: 'Prompify — AI App Builder from Prompts' },
     {
       name: 'description',
-      content: 'Describe what you need in plain English and get a working, live app in your screen.',
+      content:
+        'Prompify turns plain-English prompts into working, live web apps you can run in your browser. Describe what you need and ship a real app — no code required.',
     },
+    { property: 'og:title', content: 'Prompify — AI App Builder from Prompts' },
+    {
+      property: 'og:description',
+      content: 'Describe what you need in plain English and get a working, live web app in your browser.',
+    },
+    { property: 'og:type', content: 'website' },
+    { property: 'og:url', content: `${SITE_URL}/` },
+    { property: 'og:site_name', content: 'Prompify' },
+    { property: 'og:image', content: `${SITE_URL}/prompify1.png` },
+    { name: 'twitter:card', content: 'summary_large_image' },
+    { name: 'twitter:title', content: 'Prompify — AI App Builder from Prompts' },
+    {
+      name: 'twitter:description',
+      content: 'Describe what you need in plain English and get a working, live web app in your browser.',
+    },
+    { name: 'twitter:image', content: `${SITE_URL}/prompify1.png` },
   ];
 };
 
@@ -41,6 +59,51 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   return json({});
 }
 
+/*
+ * Organization + WebSite JSON-LD. No fabricated stats/bios/dates — fields left empty where no
+ * real data exists yet (the owner fills them on /about).
+ */
+const orgSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'Prompify',
+  url: SITE_URL,
+  logo: `${SITE_URL}/prompify1.png`,
+  description: 'Prompify turns plain-English prompts into working, live web apps you can run in your browser.',
+  founder: { '@type': 'Person', name: '' },
+  foundingDate: '',
+  contactPoint: [{ '@type': 'ContactPoint', contactType: 'support', email: '', url: `${SITE_URL}/about` }],
+};
+
+const websiteSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Prompify',
+  url: SITE_URL,
+  description: 'AI app builder from prompts — describe what you need in plain English and get a live web app.',
+};
+
+const asyncFontLoader = `
+(function () {
+  function loadFont(href) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    link.media = 'print';
+    link.onload = function () { this.media = 'all'; };
+    document.head.appendChild(link);
+  }
+  loadFont('https://fonts.googleapis.com/css2?family=Raleway:ital,wght@0,100..900;1,100..900&display=swap');
+})();
+`;
+
 export default function Index() {
-  return <LandingPage />;
+  return (
+    <>
+      <LandingPage />
+      <script dangerouslySetInnerHTML={{ __html: asyncFontLoader }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }} />
+    </>
+  );
 }

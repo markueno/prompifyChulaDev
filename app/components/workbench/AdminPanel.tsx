@@ -139,7 +139,7 @@ const UsersSection = memo(() => {
       if (invitationsData.invitations) {
         setInvitations(invitationsData.invitations);
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load users');
     } finally {
       setLoading(false);

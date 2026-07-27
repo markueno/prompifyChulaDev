@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { classNames } from '~/utils/classNames';
-import { ComboBox } from '../ui/ComboBox';
+import { ComboBox } from '~/components/ui/ComboBox';
 
 interface GuidedFormProps {
   onProceedToSolutionDesign: (applicationType: string, businessType: string, additionalDetails: string) => void;

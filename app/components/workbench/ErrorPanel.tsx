@@ -17,7 +17,7 @@ const SOURCE_COLOR: Record<string, string> = {
   terminal: 'bg-red-500/20 text-red-400 border border-red-500/30',
   runtime: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
   console: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
-  network: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+  network: 'bg-accent-500/20 text-accent-400 border border-accent-500/30',
   build: 'bg-red-500/20 text-red-400 border border-red-500/30',
   review: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
 };

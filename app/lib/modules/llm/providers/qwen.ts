@@ -6,6 +6,66 @@ import type { LanguageModelV1 } from 'ai';
 /** Alibaba Cloud Qwen - OpenAI compatible API */
 const DEFAULT_BASE_URL = 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1';
 
+/*
+ * DashScope qwen3 models default to "thinking" ON. While reasoning, the gateway streams
+ * only `reasoning_content` deltas, which @ai-sdk/openai@1.1.9 DROPS — so the UI shows
+ * "Generating Response" for the whole (possibly multi-minute) reasoning phase with no
+ * visible output (CONTEXT-HANDOFF-2026-07-10-EOD §4.4). Disable thinking by injecting
+ * `enable_thinking: false` into the request body AFTER the SDK has serialized it, so the
+ * SDK cannot strip the non-standard field. Unknown params are ignored by gateways that
+ * don't support it, so this is a safe no-op there.
+ */
+const disableThinkingFetch: typeof globalThis.fetch = async (input, init) => {
+  if (init?.body && typeof init.body === 'string') {
+    try {
+      const payload = JSON.parse(init.body);
+
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        payload.enable_thinking = false;
+        init = { ...init, body: JSON.stringify(payload) };
+      }
+    } catch {
+      // Body isn't JSON we can parse — forward it untouched.
+    }
+  }
+
+  const r = await globalThis.fetch(input, init);
+
+  // If no body (HEAD, 204, etc.), nothing to re-wrap — forward as-is.
+  if (!r.body) {
+    return r;
+  }
+
+  /*
+   * Re-wrap the response body through globalThis.ReadableStream so the AI SDK's
+   * pipeThrough(new TextDecoderStream()) operates on the same-realm ReadableStream.
+   * Without this, undici's ReadableStream fails instanceof checks inside the SDK
+   * when the Vite bundle creates TextDecoderStream from a different realm.
+   */
+  const reader = r.body.getReader();
+  const fixedBody = new globalThis.ReadableStream({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        controller.close();
+        return;
+      }
+
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      reader.cancel(reason);
+    },
+  });
+
+  return new globalThis.Response(fixedBody, {
+    headers: r.headers,
+    status: r.status,
+    statusText: r.statusText,
+  });
+};
+
 export default class QwenProvider extends BaseProvider {
   name = 'Qwen';
   getApiKeyLink = 'https://modelstudio.console.alibabacloud.com/?tab=playground#/api-key';
@@ -16,17 +76,8 @@ export default class QwenProvider extends BaseProvider {
   };
 
   staticModels: ModelInfo[] = [
-    /** Team / DashScope compatible-mode id (long API keys OK; Alibaba Model Studio naming). */
-    { name: 'qwen3.7-max', label: 'Qwen3.7-Max', provider: 'Qwen', maxTokenAllowed: 65536 },
-    { name: 'qwen3.7-plus', label: 'Qwen3.7-Plus', provider: 'Qwen', maxTokenAllowed: 65536 },
-    { name: 'qwen3.6-plus', label: 'Qwen3.6-Plus', provider: 'Qwen', maxTokenAllowed: 65536 },
-    { name: 'qwen3.6-flash', label: 'Qwen3.6-Flash', provider: 'Qwen', maxTokenAllowed: 32000 },
-    { name: 'qwen-max', label: 'Qwen-Max', provider: 'Qwen', maxTokenAllowed: 32000 },
-    { name: 'qwen-plus', label: 'Qwen-Plus', provider: 'Qwen', maxTokenAllowed: 32000 },
-    { name: 'qwen-turbo', label: 'Qwen-Turbo', provider: 'Qwen', maxTokenAllowed: 32000 },
-    { name: 'qwen3.5-plus', label: 'Qwen3.5-Plus', provider: 'Qwen', maxTokenAllowed: 32000 },
-    { name: 'qwen3.5-flash', label: 'Qwen3.5-Flash', provider: 'Qwen', maxTokenAllowed: 32000 },
-    { name: 'qwen3-max', label: 'Qwen3-Max', provider: 'Qwen', maxTokenAllowed: 32000 },
+    { name: 'qwen3.7-max', label: 'Qwen3.7-Max', provider: 'Qwen', maxTokenAllowed: 8192 },
+    { name: 'qwen3.7-plus', label: 'Qwen3.7-Plus', provider: 'Qwen', maxTokenAllowed: 8192 },
   ];
 
   getModelInstance(options: {
@@ -51,6 +102,6 @@ export default class QwenProvider extends BaseProvider {
 
     const effectiveBaseUrl = baseUrl || DEFAULT_BASE_URL;
 
-    return getOpenAILikeModel(effectiveBaseUrl, apiKey, model);
+    return getOpenAILikeModel(effectiveBaseUrl, apiKey, model, { fetch: disableThinkingFetch });
   }
 }

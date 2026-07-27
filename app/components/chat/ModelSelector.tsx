@@ -1,9 +1,8 @@
 import type { ProviderInfo } from '~/types/model';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import { classNames } from '~/utils/classNames';
-import * as React from 'react';
 
 interface ModelSelectorProps {
   model?: string;

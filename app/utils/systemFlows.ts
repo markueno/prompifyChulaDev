@@ -245,7 +245,7 @@ export const SYSTEM_FLOWS: Record<string, SystemFlow> = {
   },
 };
 
-export const generateSystemFlow = (appType: string, businessType: string): string => {
+export const generateSystemFlow = (appType: string, _businessType: string): string => {
   const flow = SYSTEM_FLOWS[appType];
 
   if (flow) {

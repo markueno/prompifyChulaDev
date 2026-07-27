@@ -1,7 +1,7 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { getUserByEmail, createUser, logEmail } from '~/lib/database';
+import { getUserByEmail, createUser, logEmail, checkRateLimit } from '~/lib/database';
 import { sendVerificationEmail } from '~/lib/email';
 import { isEmailVerificationRequired } from '~/lib/auth';
 
@@ -15,12 +15,6 @@ interface RegisterResponse {
   message?: string;
   verificationToken?: string;
 }
-
-// Rate limiting storage (in production, use Redis or database)
-const registrationAttempts = new Map<string, { count: number; lastAttempt: number }>();
-
-const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour
-const MAX_REGISTRATION_ATTEMPTS = 3;
 
 export async function action({ request, context }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
@@ -68,6 +62,17 @@ export async function action({ request, context }: ActionFunctionArgs) {
       );
     }
 
+    // bcrypt silently ignores bytes past 72 (CWE-521)
+    if (password.length > 72) {
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'Password must be at most 72 characters',
+        },
+        { status: 400 }
+      );
+    }
+
     if (!/(?=.*[a-z])/.test(password)) {
       return json<RegisterResponse>(
         {
@@ -108,45 +113,32 @@ export async function action({ request, context }: ActionFunctionArgs) {
       );
     }
 
-    // Rate limiting check
-    const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
-    const now = Date.now();
-    const attempts = registrationAttempts.get(clientIP);
+    // Rate limiting check (database-backed, shared across instances)
+    const clientIP =
+      request.headers.get('CF-Connecting-IP') ||
+      request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
+      'unknown';
+    const rateResult = await checkRateLimit(clientIP, 'register', 3, 3600);
 
-    if (attempts) {
-      if (now - attempts.lastAttempt < RATE_LIMIT_WINDOW) {
-        if (attempts.count >= MAX_REGISTRATION_ATTEMPTS) {
-          return json<RegisterResponse>(
-            {
-              success: false,
-              message: 'Too many registration attempts. Please try again in 1 hour.',
-            },
-            { status: 429 }
-          );
-        }
-      } else {
-        // Reset counter if window has passed
-        registrationAttempts.delete(clientIP);
-      }
+    if (!rateResult.allowed) {
+      return json<RegisterResponse>(
+        {
+          success: false,
+          message: 'Too many registration attempts. Please try again in 1 hour.',
+        },
+        { status: 429 }
+      );
     }
-
-    // Update rate limiting
-    const currentAttempts = registrationAttempts.get(clientIP) || { count: 0, lastAttempt: now };
-    currentAttempts.count += 1;
-    currentAttempts.lastAttempt = now;
-    registrationAttempts.set(clientIP, currentAttempts);
 
     // Check if user already exists
     const existingUser = await getUserByEmail(emailNormalized);
 
     if (existingUser) {
-      return json<RegisterResponse>(
-        {
-          success: false,
-          message: 'An account with this email already exists',
-        },
-        { status: 409 }
-      );
+      // Return generic success to prevent email enumeration (OWASP recommendation)
+      return json<RegisterResponse>({
+        success: true,
+        message: 'If this email is eligible, you will receive a verification link.',
+      });
     }
 
     // Hash password
@@ -187,13 +179,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
       // Check for specific database errors
       if (error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
-        return json<RegisterResponse>(
-          {
-            success: false,
-            message: 'An account with this email already exists',
-          },
-          { status: 409 }
-        );
+        return json<RegisterResponse>({
+          success: true,
+          message: 'If this email is eligible, you will receive a verification link.',
+        });
       }
 
       if (error.message?.includes('connection') || error.message?.includes('ECONNREFUSED')) {
@@ -222,9 +211,6 @@ export async function action({ request, context }: ActionFunctionArgs) {
       // Log email attempt
       await logEmail(userId, 'verification', emailSent, emailSent ? undefined : 'Email service not configured');
     }
-
-    // Clear rate limiting on successful registration
-    registrationAttempts.delete(clientIP);
 
     return json<RegisterResponse>({
       success: true,

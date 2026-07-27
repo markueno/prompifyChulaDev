@@ -1,0 +1,27 @@
+# Lines to APPEND to prod's existing /data/prompify/.env — ONLY if missing.
+# Do NOT overwrite the whole file. Check first:
+#   grep -E 'REDIS_PASSWORD|CRON_SECRET|S3_' /data/prompify/.env
+# Then add whichever of these are absent.
+#
+# NOTE: real secret VALUES are intentionally NOT in this committed file.
+# The REDIS_PASSWORD value is in the password manager — paste it in during the window.
+
+# MANDATORY — old prod had no Redis auth; the stack won't boot without it.
+REDIS_PASSWORD=<from password manager — 32-byte hex, generated 2026-07-24>
+
+# Add ONLY if prod's .env doesn't already have CRON_SECRET.
+# (If prod already has one, KEEP prod's — don't replace it.)
+# Generate if needed:  openssl rand -hex 32
+# CRON_SECRET=<generate-or-keep-prod-existing>
+
+# Add ONLY if prod's .env is missing the S3 block (same shared bucket verified from staging):
+# S3_ENDPOINT=https://obs.ap-southeast-3.myhuaweicloud.com
+# S3_REGION=ap-southeast-3
+# S3_BUCKET=prompify-snapshots
+# S3_ACCESS_KEY_ID=<from staging .env / password manager>
+# S3_SECRET_ACCESS_KEY=<from staging .env / password manager>
+# SNAPSHOTS_ENABLED=true
+# VITE_SNAPSHOTS_ENABLED=true
+
+# VERIFY (do not change) — prod MUST have this:
+#   AUTH_DISABLED=false

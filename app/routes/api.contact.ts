@@ -6,7 +6,7 @@ import {
   getContactDialCodeForCountry,
   type ContactEnquiryValue,
 } from '~/lib/contact-form-options';
-import { insertContactSubmission } from '~/lib/database';
+import { insertContactSubmission, checkRateLimit } from '~/lib/database';
 
 type ContactResponse = { error?: string; success?: string };
 
@@ -20,9 +20,19 @@ function isContactEnquiryValue(v: string): v is ContactEnquiryValue {
   return (CONTACT_ENQUIRY_VALUES as readonly string[]).includes(v);
 }
 
-export async function action({ request }: ActionFunctionArgs) {
+export async function action({ request, context: _context }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
     return json<ContactResponse>({ error: 'Method not allowed' }, { status: 405 });
+  }
+
+  const clientIP =
+    request.headers.get('CF-Connecting-IP') ||
+    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
+    'unknown';
+  const rateResult = await checkRateLimit(clientIP, 'contact', 10, 60);
+
+  if (!rateResult.allowed) {
+    return json<ContactResponse>({ error: 'Too many submissions. Please try again in a moment.' }, { status: 429 });
   }
 
   const formData = await request.formData();

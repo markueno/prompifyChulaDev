@@ -4,6 +4,7 @@ import {
   type ActionFunctionArgs,
   type LinksFunction,
   type LoaderFunctionArgs,
+  type MetaFunction,
 } from '@remix-run/cloudflare';
 import { Form, useActionData, useLoaderData, useNavigation } from '@remix-run/react';
 import { useState } from 'react';
@@ -19,6 +20,11 @@ interface ActionData {
   error?: string;
   success?: boolean;
 }
+
+export const meta: MetaFunction = () => [
+  { name: 'robots', content: 'noindex, nofollow' },
+  { title: 'Reset Password — Prompify' },
+];
 
 export const links: LinksFunction = () => [
   {
@@ -267,6 +273,17 @@ export default function ResetPasswordPage() {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <p className="mt-2 text-gray-500">Please refresh the page and try again.</p>
+      </div>
     </div>
   );
 }

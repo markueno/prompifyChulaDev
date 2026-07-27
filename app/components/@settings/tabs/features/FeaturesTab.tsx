@@ -90,7 +90,7 @@ const FeatureSection = memo(
       transition={{ duration: 0.3 }}
     >
       <div className="flex items-center gap-3">
-        <div className={classNames(icon, 'text-xl text-purple-500')} />
+        <div className={classNames(icon, 'text-xl text-[#f97316]')} />
         <div>
           <h3 className="text-lg font-medium text-bolt-elements-textPrimary">{title}</h3>
           <p className="text-sm text-bolt-elements-textSecondary">{description}</p>
@@ -286,13 +286,13 @@ export default function FeaturesTab() {
               'p-2 rounded-lg text-xl',
               'bg-bolt-elements-background-depth-3 group-hover:bg-bolt-elements-background-depth-4',
               'transition-colors duration-200',
-              'text-purple-500'
+              'text-[#f97316]'
             )}
           >
             <div className="i-ph:book" />
           </div>
           <div className="flex-1">
-            <h4 className="text-sm font-medium text-bolt-elements-textPrimary group-hover:text-purple-500 transition-colors">
+            <h4 className="text-sm font-medium text-bolt-elements-textPrimary group-hover:text-[#f97316] transition-colors">
               Prompt Library
             </h4>
             <p className="text-xs text-bolt-elements-textSecondary mt-0.5">
@@ -312,8 +312,8 @@ export default function FeaturesTab() {
               onClick={() => fileInputRef.current?.click()}
               className={classNames(
                 'px-3 py-1.5 rounded-lg text-xs font-medium',
-                'bg-purple-500/10 text-purple-500',
-                'hover:bg-purple-500/20',
+                'bg-[#f97316]/10 text-[#f97316]',
+                'hover:bg-[#f97316]/20',
                 'transition-all duration-200',
                 'flex items-center gap-1.5'
               )}
@@ -333,8 +333,8 @@ export default function FeaturesTab() {
                 'p-2 rounded-lg text-sm min-w-[200px]',
                 'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
                 'text-bolt-elements-textPrimary',
-                'focus:outline-none focus:ring-2 focus:ring-purple-500/30',
-                'group-hover:border-purple-500/30',
+                'focus:outline-none focus:ring-2 focus:ring-[#f97316]/30',
+                'group-hover:border-[#f97316]/30',
                 'transition-all duration-200'
               )}
             >

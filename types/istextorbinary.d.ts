@@ -12,4 +12,6 @@ declare module 'istextorbinary' {
   }
 
   export function getEncoding(buffer: Buffer | null, opts?: EncodingOpts): 'utf8' | 'binary' | null;
+
+  export function isBinary(filename?: string | null, buffer?: Buffer | null): boolean | null;
 }

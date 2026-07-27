@@ -15,6 +15,26 @@ import {
   deleteSupabaseRow,
 } from '~/lib/stores/supabase-admin';
 import { CreateTableModal } from './CreateTableModal';
+import { ImportDataModal } from './ImportDataModal';
+import {
+  listProxyTables,
+  fetchProxyRows,
+  insertProxyRow,
+  updateProxyRow,
+  deleteProxyRow,
+} from '~/lib/stores/data-proxy-client';
+
+/** Supabase logo mark (green). Used as a logo-only affordance (no text). */
+function SupabaseMark({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
+      <path
+        fill="#3ECF8E"
+        d="M13.4 1.2 3.1 11.5c-.9.9-.4 2.5 1 2.7l7.6 1.3-1.9 17.9c-.2 1.9 2.3 2.9 3.4 1.3L21 24c.6-.9 0-2.1-1-2.2l-7.2-1 1.8-18.4c.1-1.2-1.4-1.9-2.2-1.2z"
+      />
+    </svg>
+  );
+}
 
 type Step = 'loading' | 'connect' | 'tables' | 'data';
 
@@ -290,6 +310,7 @@ export const AdminDataSection = memo(() => {
   const [tables, setTables] = useState<SupabaseTable[]>([]);
   const [selectedTable, setSelectedTable] = useState<SupabaseTable | null>(null);
   const [showCreateTable, setShowCreateTable] = useState(false);
+  const [showImportData, setShowImportData] = useState(false);
 
   const [rows, setRows] = useState<SupabaseRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
@@ -320,6 +341,26 @@ export const AdminDataSection = memo(() => {
     }
 
     const run = async () => {
+      /*
+       * ── Priority 0: self-hosted data proxy (no Supabase). This is the default
+       *    platform path now that Supabase is dropped. ALWAYS use it — even on a
+       *    fresh chat with zero tables — so the Import Data button is reachable
+       *    (the empty state renders it). Falls through only if the proxy is
+       *    unreachable, so a user can still connect a custom Supabase manually.
+       */
+      try {
+        const proxyTables = await listProxyTables(currentChatId);
+
+        setSavedConfig(null);
+        setPlatformMode(true);
+        setTables(proxyTables);
+        setStep('tables');
+
+        return;
+      } catch {
+        // proxy unreachable — fall through to Supabase/localStorage paths
+      }
+
       // ── Priority 1: server-configured platform Supabase ─────────────────
       try {
         const res = await fetch(`/api/supabase/config?chatId=${encodeURIComponent(currentChatId)}`);
@@ -417,24 +458,55 @@ export const AdminDataSection = memo(() => {
     setStep('connect');
   };
 
+  const refreshTables = useCallback(async () => {
+    if (platformMode && currentChatId) {
+      const proxyTables = await listProxyTables(currentChatId);
+      setTables(proxyTables);
+    } else if (savedConfig) {
+      const result = await testSupabaseConnection(savedConfig);
+
+      if (result.success && result.tables) {
+        setTables(result.tables);
+      }
+    }
+  }, [platformMode, currentChatId, savedConfig]);
+
   const handleTableCreated = useCallback(
     async (tableName: string) => {
       setShowCreateTable(false);
       toast.success(`Table "${tableName}" created`);
-
-      if (savedConfig) {
-        const result = await testSupabaseConnection(savedConfig);
-
-        if (result.success && result.tables) {
-          setTables(result.tables);
-        }
-      }
+      await refreshTables();
     },
-    [savedConfig]
+    [refreshTables]
+  );
+
+  const handleImported = useCallback(
+    async (tableName: string) => {
+      setShowImportData(false);
+      toast.success(`Imported "${tableName}"`);
+      await refreshTables();
+    },
+    [refreshTables]
   );
 
   const doLoadData = useCallback(
     async (table: SupabaseTable, pg: number, sc?: string, sa?: boolean) => {
+      if (platformMode && currentChatId) {
+        setLoading(true);
+
+        const result = await fetchProxyRows(currentChatId, table.name, pg, PAGE_SIZE, sc, sa);
+        setLoading(false);
+
+        if (result.error) {
+          toast.error(result.error);
+        } else {
+          setRows(result.data);
+          setTotalRows(result.count);
+        }
+
+        return;
+      }
+
       if (!savedConfig) {
         return;
       }
@@ -451,7 +523,7 @@ export const AdminDataSection = memo(() => {
         setTotalRows(result.count);
       }
     },
-    [savedConfig]
+    [platformMode, currentChatId, savedConfig]
   );
 
   const handleSelectTable = (table: SupabaseTable) => {
@@ -514,7 +586,7 @@ export const AdminDataSection = memo(() => {
   const handleSaveRow = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!savedConfig || !selectedTable) {
+    if (!selectedTable || (!savedConfig && !(platformMode && currentChatId))) {
       return;
     }
 
@@ -553,13 +625,24 @@ export const AdminDataSection = memo(() => {
 
     let error: string | undefined;
 
-    if (rowModalMode === 'add') {
-      const res = await insertSupabaseRow(savedConfig, selectedTable.name, payload);
-      error = res.error;
-    } else if (editingRow) {
-      const pkVal = editingRow[selectedTable.primaryKey];
-      const res = await updateSupabaseRow(savedConfig, selectedTable.name, selectedTable.primaryKey, pkVal, payload);
-      error = res.error;
+    if (platformMode && currentChatId) {
+      if (rowModalMode === 'add') {
+        const res = await insertProxyRow(currentChatId, selectedTable.name, payload);
+        error = res.error;
+      } else if (editingRow) {
+        const pkVal = String(editingRow[selectedTable.primaryKey]);
+        const res = await updateProxyRow(currentChatId, selectedTable.name, pkVal, payload);
+        error = res.error;
+      }
+    } else if (savedConfig) {
+      if (rowModalMode === 'add') {
+        const res = await insertSupabaseRow(savedConfig, selectedTable.name, payload);
+        error = res.error;
+      } else if (editingRow) {
+        const pkVal = editingRow[selectedTable.primaryKey];
+        const res = await updateSupabaseRow(savedConfig, selectedTable.name, selectedTable.primaryKey, pkVal, payload);
+        error = res.error;
+      }
     }
 
     setSaving(false);
@@ -574,22 +657,32 @@ export const AdminDataSection = memo(() => {
   };
 
   const handleDelete = async () => {
-    if (!savedConfig || !selectedTable || !deleteTarget) {
+    if (!selectedTable || !deleteTarget || (!savedConfig && !(platformMode && currentChatId))) {
       return;
     }
 
     setDeleting(true);
 
-    const res = await deleteSupabaseRow(
-      savedConfig,
-      selectedTable.name,
-      selectedTable.primaryKey,
-      deleteTarget[selectedTable.primaryKey]
-    );
+    let error: string | undefined;
+
+    if (platformMode && currentChatId) {
+      const pkVal = String(deleteTarget[selectedTable.primaryKey]);
+      const res = await deleteProxyRow(currentChatId, selectedTable.name, pkVal);
+      error = res.error;
+    } else if (savedConfig) {
+      const res = await deleteSupabaseRow(
+        savedConfig,
+        selectedTable.name,
+        selectedTable.primaryKey,
+        deleteTarget[selectedTable.primaryKey]
+      );
+      error = res.error;
+    }
+
     setDeleting(false);
 
-    if (res.error) {
-      toast.error(res.error);
+    if (error) {
+      toast.error(error);
     } else {
       toast.success('Row deleted');
       setDeleteTarget(null);
@@ -629,40 +722,53 @@ export const AdminDataSection = memo(() => {
   if (step === 'tables') {
     return (
       <div>
-        {/* Connection bar */}
-        <div className="flex items-center justify-between mb-6 px-3 py-2 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-            {platformMode ? (
-              <>
-                <span className="text-sm text-bolt-elements-textSecondary">Platform database</span>
-                <span className="text-xs px-1.5 py-0.5 rounded bg-accent-500/15 text-accent-500 font-medium shrink-0">
-                  auto
+        {/* Connection bar — vertical so the action buttons never overlap on a narrow panel */}
+        <div className="flex flex-col gap-3 mb-6 px-3 py-3 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor">
+          {/* Status row */}
+          <div className="flex items-center justify-between min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+              {platformMode ? (
+                <>
+                  <span className="text-sm text-bolt-elements-textSecondary">Platform database</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-accent-500/15 text-accent-500 font-medium shrink-0">
+                    auto
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm text-bolt-elements-textSecondary truncate">
+                  {savedConfig?.projectName || savedConfig?.url}
                 </span>
-              </>
-            ) : (
-              <span className="text-sm text-bolt-elements-textSecondary truncate">
-                {savedConfig?.projectName || savedConfig?.url}
-              </span>
-            )}
+              )}
+            </div>
             <span className="text-xs text-bolt-elements-textTertiary shrink-0">
               {tables.length} table{tables.length !== 1 ? 's' : ''}
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0 ml-2">
+
+          {/* Actions — stacked, full-width, separate */}
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={() => setShowImportData(true)}
+              className="flex items-center justify-center gap-1.5 text-xs px-2.5 py-1.5 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium w-full"
+            >
+              <span className="i-ph:upload-simple text-sm" />
+              Import Data
+            </button>
             <button
               onClick={() => setShowCreateTable(true)}
-              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
+              className="flex items-center justify-center gap-1.5 text-xs px-2.5 py-1.5 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium w-full"
             >
               <span className="i-ph:plus text-sm" />
               New Table
             </button>
             <button
               onClick={handleDisconnect}
-              className="text-xs px-2 py-1 rounded text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-2 transition-colors"
+              className="flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-2 transition-colors w-full"
               title={platformMode ? 'Connect to your own Supabase instead' : 'Disconnect'}
+              aria-label={platformMode ? 'Use custom Supabase' : 'Disconnect'}
             >
-              {platformMode ? 'Use custom Supabase' : 'Disconnect'}
+              <SupabaseMark className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -671,13 +777,22 @@ export const AdminDataSection = memo(() => {
           <div className="rounded-lg border border-dashed border-bolt-elements-borderColor p-12 text-center">
             <div className="i-ph:database text-4xl text-bolt-elements-textTertiary mx-auto mb-3" />
             <p className="text-sm text-bolt-elements-textTertiary mb-4">No tables yet.</p>
-            <button
-              onClick={() => setShowCreateTable(true)}
-              className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
-            >
-              <span className="i-ph:plus" />
-              Create your first table
-            </button>
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => setShowImportData(true)}
+                className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
+              >
+                <span className="i-ph:upload-simple" />
+                Import data
+              </button>
+              <button
+                onClick={() => setShowCreateTable(true)}
+                className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-bolt-elements-background-depth-2 text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary transition-colors"
+              >
+                <span className="i-ph:plus" />
+                Create a table
+              </button>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -706,6 +821,14 @@ export const AdminDataSection = memo(() => {
             chatId={currentChatId}
             onClose={() => setShowCreateTable(false)}
             onCreated={handleTableCreated}
+          />
+        )}
+
+        {showImportData && currentChatId && (
+          <ImportDataModal
+            chatId={currentChatId}
+            onClose={() => setShowImportData(false)}
+            onImported={handleImported}
           />
         )}
       </div>

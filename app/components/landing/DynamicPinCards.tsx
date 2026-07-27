@@ -1,7 +1,7 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense } from 'react';
 
 // React.lazy replaces next/dynamic — Remix handles SSR exclusion at the route level
-const PinCardsSection = lazy(() => import('./PinCards/PinCardsSection'))
+const PinCardsSection = lazy(() => import('./PinCards/PinCardsSection'));
 
 const Fallback = (
   <section
@@ -24,12 +24,12 @@ const Fallback = (
       }}
     />
   </section>
-)
+);
 
 export default function DynamicPinCards() {
   return (
     <Suspense fallback={Fallback}>
       <PinCardsSection />
     </Suspense>
-  )
+  );
 }

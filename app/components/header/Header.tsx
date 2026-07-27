@@ -5,6 +5,7 @@ import { chatStore } from '~/lib/stores/chat';
 import { classNames } from '~/utils/classNames';
 import { HeaderActionButtons } from './HeaderActionButtons.client';
 import { NotificationBell } from './NotificationBell.client';
+import { ConnectionStatusBanner } from '~/components/chat/ConnectionStatusBanner.client';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { UserProfile } from '~/components/auth/UserProfile';
@@ -28,8 +29,7 @@ export function Header() {
           <div className="i-ph:sidebar-simple-duotone text-xl" />
           <Link to="/app/" className="text-2xl font-semibold text-accent flex items-center">
             {/* <span className="i-bolt:logo-text?mask w-[46px] inline-block" /> */}
-            <img src="/logo-light-styled.png" alt="logo" className="w-[90px] inline-block dark:hidden" />
-            <img src="/logo-dark-styled.png" alt="logo" className="w-[90px] inline-block hidden dark:block" />
+            <img src="/prompify2.png" alt="Prompify" className="w-[40px] inline-block ml-1" />
           </Link>
         </div>
         {user ? (
@@ -38,7 +38,7 @@ export function Header() {
               to="/app/overview"
               className={classNames(
                 'header-nav-overview hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
-                onOverview ? 'bg-bolt-elements-background-depth-2 !text-zinc-900' : '!text-zinc-900 hover:!text-black'
+                onOverview ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white'
               )}
             >
               Overview
@@ -47,10 +47,10 @@ export function Header() {
               to="/app/pricing"
               className={classNames(
                 'header-nav-pricing hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
-                onPricing ? 'bg-bolt-elements-background-depth-2 !text-zinc-900' : '!text-zinc-900 hover:!text-black'
+                onPricing ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white'
               )}
             >
-              Plans
+              Pricing
             </Link>
             <ClientOnly>{() => <WorkspaceSwitcher />}</ClientOnly>
           </>
@@ -61,14 +61,17 @@ export function Header() {
           <ClientOnly>{() => <ChatDescription />}</ClientOnly>
         </span>
       ) : (
-        <span className="flex-1" />
+        <span className="flex-1 text-center text-lg font-bold text-white">Prompify</span>
       )}
       <ClientOnly>
         {() => (
           <div className="header-app-toolbar mr-1 flex items-center gap-2">
+            {/* Day 12 — offline/syncing/recovered indicator (ARCHITECTURE-v2.md:672-680). */}
+            <ConnectionStatusBanner />
             {chat.started && <HeaderActionButtons />}
             {user && (
               <>
+                <ClientOnly>{() => <WorkspaceSwitcher />}</ClientOnly>
                 <NotificationBell />
                 <UserProfile user={user} />
               </>

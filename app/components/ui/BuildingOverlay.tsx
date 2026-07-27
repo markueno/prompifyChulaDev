@@ -32,7 +32,7 @@ const STREAMING_WORDS = [
 const COLORS = [
   { glow: '#f97316', bg: 'rgba(249,115,22,0.15)', shadow: 'rgba(249,115,22,0.4)', hue: 0 },
   { glow: '#3b82f6', bg: 'rgba(59,130,246,0.15)', shadow: 'rgba(59,130,246,0.4)', hue: 130 },
-  { glow: '#8b5cf6', bg: 'rgba(139,92,246,0.15)', shadow: 'rgba(139,92,246,0.4)', hue: 200 },
+  { glow: '#c2410c', bg: 'rgba(194,65,12,0.15)', shadow: 'rgba(194,65,12,0.4)', hue: 200 },
   { glow: '#10b981', bg: 'rgba(16,185,129,0.15)', shadow: 'rgba(16,185,129,0.4)', hue: 90 },
 ];
 
@@ -197,14 +197,19 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
   }, [visible]);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
+
     const t = setInterval(() => setDotCount(d => (d % 3) + 1), 500);
+
     return () => clearInterval(t);
   }, [mounted]);
 
-  // Fade-out → swap word → fade-in every 2.2 s
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     const cycle = setInterval(() => {
       setWordVisible(false);
@@ -217,71 +222,92 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
     return () => clearInterval(cycle);
   }, [mounted]);
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return null;
+  }
 
   const dots = '.'.repeat(dotCount);
 
-  return (
+  return createPortal(
     <div
       style={{
-        position: 'absolute',
-        bottom: 20,
-        right: 20,
-        zIndex: 50,
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60,
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
-        gap: 8,
-        padding: '7px 14px 7px 10px',
-        borderRadius: 999,
-        background: 'rgba(10,10,10,0.82)',
-        backdropFilter: 'blur(10px)',
-        border: `1px solid ${color.glow}35`,
-        boxShadow: `0 0 18px 4px ${color.shadow}, 0 2px 8px rgba(0,0,0,0.4)`,
+        justifyContent: 'center',
+        gap: 28,
+        background: 'rgba(0, 0, 0, 0.55)',
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
         opacity: visible ? 1 : 0,
-        transform: visible ? 'translateY(0)' : 'translateY(8px)',
-        transition: 'opacity 0.3s ease, transform 0.3s ease, border-color 0.8s ease, box-shadow 0.8s ease',
+        transition: 'opacity 0.4s ease',
       }}
     >
-      {/* Small icon */}
       <img
-        src="/landing-pics/prompify.png"
-        alt=""
+        src="/prompify2.png"
+        alt="Prompify"
         style={{
-          width: 20,
-          height: 20,
-          objectFit: 'contain',
-          filter: `${iconFilter(color.hue)} drop-shadow(0 0 4px ${color.glow})`,
+          width: 120,
+          height: 'auto',
+          filter: `drop-shadow(0 0 24px ${color.glow})`,
           transition: 'filter 0.8s ease',
+          animation: 'pulse-glow 2s ease-in-out infinite',
         }}
       />
-      {/* Rotating fun word */}
-      <span
+      <div
         style={{
-          color: 'rgba(255,255,255,0.9)',
-          fontSize: 13,
-          fontWeight: 500,
-          whiteSpace: 'nowrap',
-          opacity: wordVisible ? 1 : 0,
-          transform: wordVisible ? 'translateY(0)' : 'translateY(4px)',
-          transition: 'opacity 0.25s ease, transform 0.25s ease',
-          minWidth: 118,
-          display: 'inline-block',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '16px 32px',
+          borderRadius: 16,
+          background: 'rgba(10, 10, 10, 0.7)',
+          border: `1px solid ${color.glow}40`,
+          boxShadow: `0 0 32px 8px ${color.shadow}`,
+          transition: 'border-color 0.8s ease, box-shadow 0.8s ease',
         }}
       >
-        {STREAMING_WORDS[wordIdx]}
-      </span>
-      {/* Animated dots */}
-      <span
-        style={{
-          color: color.glow,
-          fontSize: 14,
-          fontWeight: 700,
-          minWidth: 18,
-          transition: 'color 0.8s ease',
-        }}
-      >
-        {dots}
-      </span>
-    </div>
+        <div
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: '50%',
+            border: `2px solid ${color.glow}`,
+            borderTopColor: 'transparent',
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
+        <span
+          style={{
+            color: 'rgba(255,255,255,0.95)',
+            fontSize: 26,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            opacity: wordVisible ? 1 : 0,
+            transform: wordVisible ? 'translateY(0)' : 'translateY(6px)',
+            transition: 'opacity 0.25s ease, transform 0.25s ease',
+            minWidth: 200,
+            display: 'inline-block',
+          }}
+        >
+          {STREAMING_WORDS[wordIdx]}
+        </span>
+        <span
+          style={{
+            color: color.glow,
+            fontSize: 28,
+            fontWeight: 700,
+            minWidth: 28,
+            transition: 'color 0.8s ease',
+          }}
+        >
+          {dots}
+        </span>
+      </div>
+    </div>,
+    document.body
   );
 }

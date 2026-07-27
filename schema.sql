@@ -425,3 +425,54 @@ CREATE INDEX IF NOT EXISTS idx_contact_submissions_created_at ON contact_submiss
 CREATE INDEX IF NOT EXISTS idx_contact_submissions_enquiry_type ON contact_submissions(enquiry_type);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_company ON audit_logs(company_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_project ON audit_logs(project_id);
+
+-- ============================================================================
+-- Codebase snapshots (ARCHITECTURE-v2 Phase 1) — content-addressed version history.
+-- Ported from feat/persistence-architecture-v2. Backs offline/refresh persistence,
+-- manual-edit snapshots, and the version-history button (named by change_summary).
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS codebase_versions (
+    id SERIAL PRIMARY KEY,
+    chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL,
+    is_latest BOOLEAN NOT NULL DEFAULT false,
+    manifest JSONB NOT NULL,
+    description TEXT,
+    file_count INTEGER NOT NULL DEFAULT 0,
+    total_bytes INTEGER NOT NULL DEFAULT 0,
+    message_id TEXT,
+    change_summary TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(chat_id, version_number)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_versions_latest_per_chat ON codebase_versions(chat_id) WHERE is_latest = true;
+CREATE INDEX IF NOT EXISTS idx_versions_chat_latest ON codebase_versions(chat_id, version_number DESC);
+CREATE INDEX IF NOT EXISTS idx_versions_chat_created ON codebase_versions(chat_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS codebase_blobs (
+    sha256 TEXT PRIMARY KEY,
+    size_bytes INTEGER NOT NULL,
+    compressed_size_bytes INTEGER,
+    r2_key TEXT NOT NULL,
+    ref_count INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_blobs_ref_count ON codebase_blobs(ref_count) WHERE ref_count > 0;
+
+CREATE TABLE IF NOT EXISTS app_tables (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    schema_name TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    logical_name TEXT NOT NULL,
+    columns JSONB NOT NULL DEFAULT '[]'::jsonb,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    source TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(schema_name, table_name),
+    UNIQUE(chat_id, logical_name)
+);
+CREATE INDEX IF NOT EXISTS idx_app_tables_user ON app_tables(user_id);
+CREATE INDEX IF NOT EXISTS idx_app_tables_chat ON app_tables(chat_id);

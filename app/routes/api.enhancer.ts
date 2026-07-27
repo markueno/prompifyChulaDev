@@ -4,6 +4,7 @@ import { stripIndents } from '~/utils/stripIndent';
 import type { ProviderInfo } from '~/types/model';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
+import { requireAuth } from '~/lib/auth';
 
 export async function action(args: ActionFunctionArgs) {
   return enhancerAction(args);
@@ -12,6 +13,8 @@ export async function action(args: ActionFunctionArgs) {
 const logger = createScopedLogger('api.enhancher');
 
 async function enhancerAction({ context, request }: ActionFunctionArgs) {
+  await requireAuth(request, context);
+
   const { message, model, provider } = await request.json<{
     message: string;
     model: string;
@@ -116,7 +119,7 @@ async function enhancerAction({ context, request }: ActionFunctionArgs) {
       },
     });
   } catch (error: unknown) {
-    console.log(error);
+    logger.error('Enhancer error:', error);
 
     if (error instanceof Error && error.message?.includes('API key')) {
       throw new Response('Invalid or missing API key', {

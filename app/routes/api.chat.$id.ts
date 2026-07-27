@@ -1,6 +1,7 @@
 import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
 import { getChatById, logUserActivity } from '~/lib/database';
+import { DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 
 // Get a specific chat by ID
 export async function loader({ request, context, params }: LoaderFunctionArgs) {
@@ -14,7 +15,12 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
       return json({ error: 'Chat ID is required' }, { status: 400 });
     }
 
-    const chat = await getChatById(chatId, user.id, user.isModerator, projectId);
+    /*
+     * 'personal' (DEFAULT_PROJECT_ID) is a synthetic URL slug, not a real project id — personal
+     * chats live under proj_personal_<userId>. Don't filter by it or the lookup never matches.
+     */
+    const effectiveProjectId = projectId === DEFAULT_PROJECT_ID ? undefined : projectId;
+    const chat = await getChatById(chatId, user.id, user.isModerator, effectiveProjectId);
 
     if (!chat) {
       return json({ error: 'Chat not found' }, { status: 404 });

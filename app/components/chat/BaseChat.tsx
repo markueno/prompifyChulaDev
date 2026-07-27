@@ -1,7 +1,3 @@
-/*
- * @ts-nocheck
- * Preventing TS checks with files presented in the video for a better presentation.
- */
 import type { JSONValue, Message } from 'ai';
 import React, { type RefCallback, useCallback, useEffect, useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
@@ -37,6 +33,7 @@ import type { ProgressAnnotation } from '~/types/context';
 import type { ActionRunner } from '~/lib/runtime/action-runner';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
 import { PromptingMultipleChoice } from './PromptingMultipleChoice';
+import { useCircuitOpen } from '~/lib/hooks/useCircuitOpen';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -117,6 +114,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     ref
   ) => {
     const TEXTAREA_MAX_HEIGHT = chatStarted ? 400 : 200;
+
+    /*
+     * Day 12 — disable ONLY the chat input while the circuit is open (AI generation needs the
+     * server). IDE editing, preview, and terminal are browser-only and must stay enabled
+     * (ARCHITECTURE-v2.md:674-677).
+     */
+    const circuitOpen = useCircuitOpen();
     const [apiKeys, setApiKeys] = useState<Record<string, string>>(getApiKeysFromCookies());
     const [modelList, setModelList] = useState<ModelInfo[]>([]);
     const [isModelSettingsCollapsed, setIsModelSettingsCollapsed] = useState(true);
@@ -567,18 +571,20 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       // Original textarea for chat mode
                       <textarea
                         ref={textareaRef}
+                        disabled={circuitOpen}
                         className={classNames(
                           'w-full pl-4 pt-4 pr-16 outline-none resize-none text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary bg-transparent text-sm',
                           'transition-all duration-200',
-                          'hover:border-bolt-elements-focus'
+                          'hover:border-bolt-elements-focus',
+                          { 'opacity-60 cursor-not-allowed': circuitOpen }
                         )}
                         onDragEnter={e => {
                           e.preventDefault();
-                          e.currentTarget.style.border = '2px solid #1488fc';
+                          e.currentTarget.style.border = '2px solid #f97316';
                         }}
                         onDragOver={e => {
                           e.preventDefault();
-                          e.currentTarget.style.border = '2px solid #1488fc';
+                          e.currentTarget.style.border = '2px solid #f97316';
                         }}
                         onDragLeave={e => {
                           e.preventDefault();
@@ -632,7 +638,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                           minHeight: TEXTAREA_MIN_HEIGHT,
                           maxHeight: TEXTAREA_MAX_HEIGHT,
                         }}
-                        placeholder="Tell me your dream app idea"
+                        placeholder={
+                          circuitOpen
+                            ? 'Working offline — chat is paused, but you can keep editing files'
+                            : 'Tell me your dream app idea'
+                        }
                         translate="no"
                       />
                     )}
@@ -646,7 +656,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                               : Boolean(input.length > 0)
                           }
                           isStreaming={isStreaming}
-                          disabled={!providerList || providerList.length === 0}
+                          /*
+                           * Day 12 — sending needs the server; block while the circuit is open
+                           * (covers both the chat textarea and the first-prompt wizard path).
+                           */
+                          disabled={!providerList || providerList.length === 0 || circuitOpen}
                           onClick={event => {
                             if (isStreaming) {
                               handleStop?.();

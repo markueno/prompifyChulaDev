@@ -54,19 +54,6 @@ export class PreviewsStore {
     this.#init();
   }
 
-  // Generate a unique ID for this tab
-  private _getTabId(): string {
-    if (typeof window !== 'undefined') {
-      if (!window._tabId) {
-        window._tabId = Math.random().toString(36).substring(2, 15);
-      }
-
-      return window._tabId;
-    }
-
-    return '';
-  }
-
   async #init() {
     const webcontainer = await this.#webcontainer;
 
@@ -99,26 +86,38 @@ export class PreviewsStore {
       this.broadcastUpdate(url);
     });
 
-    try {
-      // Watch for file changes
-      const watcher = await webcontainer.fs.watch('**/*', { persistent: true });
+    /*
+     * Watch for file changes. The workdir may not be fully materialized when this first
+     * runs right after boot (observed: ENOENT "no such file or directory, watch" which
+     * silently killed preview auto-refresh for the whole session), so retry a few times
+     * before giving up.
+     */
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const watcher = await webcontainer.fs.watch('**/*', { persistent: true });
 
-      // Use the native watch events
-      (watcher as any).addEventListener('change', async () => {
-        const previews = this.previews.get();
+        // Use the native watch events
+        (watcher as any).addEventListener('change', async () => {
+          const previews = this.previews.get();
 
-        for (const preview of previews) {
-          const previewId = this.getPreviewId(preview.baseUrl);
+          for (const preview of previews) {
+            const previewId = this.getPreviewId(preview.baseUrl);
 
-          if (previewId) {
-            // Direct call for the current tab (BroadcastChannel won't self-deliver)
-            this.refreshPreview(previewId);
-            this.broadcastFileChange(previewId);
+            if (previewId) {
+              // Direct call for the current tab (BroadcastChannel won't self-deliver)
+              this.refreshPreview(previewId);
+              this.broadcastFileChange(previewId);
+            }
           }
+        });
+        break;
+      } catch (error) {
+        if (attempt === 3) {
+          console.error('[Preview] Error setting up watchers (giving up):', error);
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
         }
-      });
-    } catch (error) {
-      console.error('[Preview] Error setting up watchers:', error);
+      }
     }
 
     // Listen for port events

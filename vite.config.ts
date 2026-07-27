@@ -7,7 +7,7 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import * as dotenv from 'dotenv';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 
 dotenv.config();
 
@@ -94,11 +94,14 @@ export default defineConfig(config => {
       host: '0.0.0.0',
       port: 5173,
       allowedHosts: true,
-      hmr: {
-        clientPort: 443
-      },
+      hmr: true,
       strictPort: false,
       cors: false
+    },
+    resolve: {
+      alias: {
+        '~': resolve(__dirname, 'app'),
+      },
     },
     build: {
       target: 'esnext',
@@ -112,7 +115,8 @@ export default defineConfig(config => {
       // Prevent Vite import-analysis from parsing non-JS root files (e.g. .dockerignore)
       ignoreNonJsRootFilesPlugin(),
       nodePolyfills({
-        include: ['path', 'buffer', 'process'],
+        include: ['path', 'buffer'],
+        globals: { process: false },
       }),
       config.mode !== 'test' && remixCloudflareDevProxy(),
       remixVitePlugin({
@@ -179,6 +183,15 @@ function chrome129IssuePlugin() {
     name: 'chrome129IssuePlugin',
     configureServer(server: ViteDevServer) {
       server.middlewares.use((req, res, next) => {
+        /*
+         * COOP/COEP intentionally NOT set here. entry.server.tsx already sets
+         * 'Cross-Origin-Embedder-Policy: require-corp' + 'Cross-Origin-Opener-Policy:
+         * same-origin' on the SSR document (same as upstream bolt.diy), and the Remix dev
+         * server writes those AFTER this middleware, overriding anything set here for the
+         * document. Setting a conflicting 'credentialless' value here (former a129a49) only
+         * created confusion — and duplicated headers behind proxies like nginx-dev.conf,
+         * which makes browsers parse the policy as invalid → unsafe-none → no isolation.
+         */
         const raw = req.headers['user-agent']?.match(/Chrom(e|ium)\/([0-9]+)\./);
 
         if (raw) {

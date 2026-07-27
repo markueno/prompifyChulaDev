@@ -58,19 +58,29 @@ export default function IndustryVisual() {
 
     const logoImg = new Image();
     logoImg.src = PROMPIFY_LOGO_URL;
-    logoImg.onload = () => { s.logoLoaded = true; };
+
+    logoImg.onload = () => {
+      s.logoLoaded = true;
+    };
     s.logoImg = logoImg;
 
     s.icons.forEach(ind => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.src = ind.src;
-      img.onload = () => { ind.loaded = true; };
+
+      img.onload = () => {
+        ind.loaded = true;
+      };
       ind.img = img;
     });
 
     const canvas = canvasRef.current;
-    if (!canvas) return;
+
+    if (!canvas) {
+      return;
+    }
+
     const ctx = canvas.getContext('2d');
     const W = canvas.width;
     const H = canvas.height;
@@ -79,27 +89,35 @@ export default function IndustryVisual() {
     // Slightly smaller orbit so enlarged icons never clip
     const ORBIT_R = Math.min(W, H) * 0.36;
 
-    const onMove = (e) => {
+    const onMove = e => {
       const rect = canvas.getBoundingClientRect();
       s.mouseX = (e.clientX - rect.left) * (W / rect.width);
       s.mouseY = (e.clientY - rect.top) * (H / rect.height);
+
       let found = -1;
       s.icons.forEach((ind, i) => {
-        if (ind._px == null) return;
-        const dx = s.mouseX - ind._px, dy = s.mouseY - ind._py;
-        if (Math.sqrt(dx * dx + dy * dy) < 44) found = i;
+        if (ind._px == null) {
+          return;
+        }
+
+        const dx = s.mouseX - ind._px,
+          dy = s.mouseY - ind._py;
+
+        if (Math.sqrt(dx * dx + dy * dy) < 44) {
+          found = i;
+        }
       });
       s.hoveredIdx = found;
       canvas.style.cursor = found >= 0 ? 'pointer' : 'default';
     };
     canvas.addEventListener('mousemove', onMove);
 
-    const draw = (ts) => {
+    const draw = ts => {
       const t = ts / 1000;
       s.lastTs = ts;
       ctx.clearRect(0, 0, W, H);
 
-      const positions = s.icons.map((ind) => {
+      const positions = s.icons.map(ind => {
         const rad = (ind.angle * Math.PI) / 180;
         return {
           ...ind,
@@ -164,9 +182,7 @@ export default function IndustryVisual() {
         // Icon — grayscale filter for a cleaner, less colorful look
         if (ind.loaded && ind.img?.complete) {
           ctx.save();
-          ctx.filter = isHovered
-            ? 'grayscale(20%) brightness(0.82)'
-            : 'grayscale(55%) brightness(0.72)';
+          ctx.filter = isHovered ? 'grayscale(20%) brightness(0.82)' : 'grayscale(55%) brightness(0.72)';
           ctx.globalAlpha = isHovered ? 0.95 : 0.78;
           ctx.drawImage(ind.img, px - iconSize / 2, py - iconSize / 2, iconSize, iconSize);
           ctx.filter = 'none';
@@ -174,12 +190,8 @@ export default function IndustryVisual() {
         }
 
         // Label — dark neutral, no color
-        ctx.font = isHovered
-          ? `bold 11.5px Inter, sans-serif`
-          : `10px Inter, sans-serif`;
-        ctx.fillStyle = isHovered
-          ? 'rgba(15,15,22,0.82)'
-          : 'rgba(40,40,50,0.45)';
+        ctx.font = isHovered ? `bold 11.5px Inter, sans-serif` : `10px Inter, sans-serif`;
+        ctx.fillStyle = isHovered ? 'rgba(15,15,22,0.82)' : 'rgba(40,40,50,0.45)';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         ctx.fillText(ind.label, px, py + iconSize / 2 + 5);
@@ -198,6 +210,7 @@ export default function IndustryVisual() {
 
       // Center Prompify logo
       const logoSize = 100;
+
       if (s.logoLoaded && s.logoImg?.complete) {
         ctx.drawImage(s.logoImg, cx - logoSize / 2, cy - logoSize / 2, logoSize, logoSize);
       }
@@ -206,6 +219,7 @@ export default function IndustryVisual() {
     };
 
     animRef.current = requestAnimationFrame(draw);
+
     return () => {
       cancelAnimationFrame(animRef.current);
       canvas.removeEventListener('mousemove', onMove);
@@ -214,12 +228,7 @@ export default function IndustryVisual() {
 
   return (
     <div className="w-full h-full flex items-center justify-center" style={{ background: 'transparent' }}>
-      <canvas
-        ref={canvasRef}
-        width={680}
-        height={580}
-        style={{ width: '100%', height: 'auto', maxWidth: 380 }}
-      />
+      <canvas ref={canvasRef} width={680} height={580} style={{ width: '100%', height: 'auto', maxWidth: 380 }} />
     </div>
   );
 }

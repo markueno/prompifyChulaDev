@@ -196,6 +196,8 @@ export class FilesStore {
 
           if (!isBinary) {
             content = this.#decodeFileContent(buffer);
+          } else if (buffer) {
+            content = Buffer.from(buffer).toString('base64');
           }
 
           this.files.setKey(sanitizedPath, { type: 'file', content, isBinary });

@@ -141,7 +141,7 @@ export function escapeBoltArtifactTags(input: string) {
   // Regular expression to match boltArtifact tags and their content
   const regex = /(<boltArtifact[^>]*>)([\s\S]*?)(<\/boltArtifact>)/g;
 
-  return input.replace(regex, (match, openTag, content, closeTag) => {
+  return input.replace(regex, (_match, openTag, content, closeTag) => {
     // Escape the opening tag
     const escapedOpenTag = openTag.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -157,7 +157,7 @@ export function escapeBoltAActionTags(input: string) {
   // Regular expression to match boltArtifact tags and their content
   const regex = /(<boltAction[^>]*>)([\s\S]*?)(<\/boltAction>)/g;
 
-  return input.replace(regex, (match, openTag, content, closeTag) => {
+  return input.replace(regex, (_match, openTag, content, closeTag) => {
     // Escape the opening tag
     const escapedOpenTag = openTag.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 

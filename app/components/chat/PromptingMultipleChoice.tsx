@@ -1,5 +1,9 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { classNames } from '~/utils/classNames';
+import { FillBlanks } from '~/components/questionnaire/FillBlanks';
+import type { FillBlanksTemplate } from '~/lib/questionnaire/types';
+import { CompanyContextModal } from './CompanyContextModal';
+import { DESIGN_SYSTEMS } from '~/lib/design-systems';
 
 // ─── Color math ───────────────────────────────────────────────────────────────
 
@@ -9,55 +13,101 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  r /= 255;
+  g /= 255;
+  b /= 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
   const l = (max + min) / 2;
-  if (max === min) return [0, 0, l * 100];
+
+  if (max === min) {
+    return [0, 0, l * 100];
+  }
+
   const d = max - min;
   const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
   let h = 0;
-  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
-  else if (max === g) h = ((b - r) / d + 2) / 6;
-  else h = ((r - g) / d + 4) / 6;
+
+  if (max === r) {
+    h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  } else if (max === g) {
+    h = ((b - r) / d + 2) / 6;
+  } else {
+    h = ((r - g) / d + 4) / 6;
+  }
+
   return [h * 360, s * 100, l * 100];
 }
 
 function hslToHex(h: number, s: number, l: number): string {
-  h /= 360; s /= 100; l /= 100;
+  h /= 360;
+  s /= 100;
+  l /= 100;
+
   const hue2rgb = (p: number, q: number, t: number) => {
-    if (t < 0) t += 1; if (t > 1) t -= 1;
-    if (t < 1/6) return p + (q - p) * 6 * t;
-    if (t < 1/2) return q;
-    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    if (t < 0) {
+      t += 1;
+    }
+
+    if (t > 1) {
+      t -= 1;
+    }
+
+    if (t < 1 / 6) {
+      return p + (q - p) * 6 * t;
+    }
+
+    if (t < 1 / 2) {
+      return q;
+    }
+
+    if (t < 2 / 3) {
+      return p + (q - p) * (2 / 3 - t) * 6;
+    }
+
     return p;
   };
-  let r, g, b;
-  if (s === 0) { r = g = b = l; } else {
+  let r: number;
+  let g: number;
+  let b: number;
+
+  if (s === 0) {
+    r = g = b = l;
+  } else {
     const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
     const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1/3); g = hue2rgb(p, q, h); b = hue2rgb(p, q, h - 1/3);
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
   }
-  const toHex = (x: number) => Math.round(x * 255).toString(16).padStart(2, '0');
+
+  const toHex = (x: number) =>
+    Math.round(x * 255)
+      .toString(16)
+      .padStart(2, '0');
+
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
 }
 
 function generateShades(hex: string): string[] {
   const [r, g, b] = hexToRgb(hex);
   const [h, s] = rgbToHsl(r, g, b);
+
   return [96, 91, 82, 70, 58, 46, 36, 26, 16].map(l => hslToHex(h, Math.min(s, 88), l));
 }
 
-const SHADE_LABELS = ['50','100','200','300','400','500','600','700','800'];
+const SHADE_LABELS = ['50', '100', '200', '300', '400', '500', '600', '700', '800'];
 
 // ─── Quick palettes ───────────────────────────────────────────────────────────
 
 const QUICK_PALETTES = [
-  { name: 'Warm',   colors: ['#F97316', '#FED7AA', '#C2410C'] },
-  { name: 'Ocean',  colors: ['#0EA5E9', '#BAE6FD', '#0369A1'] },
+  { name: 'Warm', colors: ['#F97316', '#FED7AA', '#C2410C'] },
+  { name: 'Ocean', colors: ['#0EA5E9', '#BAE6FD', '#0369A1'] },
   { name: 'Forest', colors: ['#22C55E', '#BBF7D0', '#15803D'] },
-  { name: 'Violet', colors: ['#8B5CF6', '#EDE9FE', '#6D28D9'] },
-  { name: 'Rose',   colors: ['#F43F5E', '#FFE4E6', '#BE123C'] },
-  { name: 'Slate',  colors: ['#6366F1', '#E0E7FF', '#3730A3'] },
+  { name: 'Brand', colors: ['#F97316', '#FED7AA', '#231710'] },
+  { name: 'Rose', colors: ['#F43F5E', '#FFE4E6', '#BE123C'] },
+  { name: 'Slate', colors: ['#6366F1', '#E0E7FF', '#3730A3'] },
 ];
 
 const ROLE_LABELS = ['Primary', 'Secondary', 'Accent'];
@@ -68,56 +118,109 @@ const ROLE_HINTS = [
 ];
 
 const COLOR_PRESETS = [
-  // Reds & Pinks
-  '#FF3B30','#FF2D55','#E91E8C','#C2185B',
-  // Oranges & Yellows
-  '#FF6B00','#FF9500','#FFCC02','#F5A623',
-  // Greens
-  '#34C759','#30D158','#00C896','#00897B',
-  // Blues
-  '#007AFF','#0A84FF','#0057FF','#1A73E8',
-  // Purples & Indigos
-  '#5E5CE6','#7C3AED','#9333EA','#BF5AF2',
-  // Teals & Cyans
-  '#32ADE6','#00BCD4','#26C6DA','#0097A7',
-  // Neutrals (dark)
-  '#1C1C1E','#2C2C2E','#3A3A3C','#48484A',
-  // Warm neutrals & earth
-  '#8D6E63','#795548','#A1887F','#6D4C41',
+  '#FF3B30',
+  '#FF2D55',
+  '#F97316',
+  '#C2410C',
+  '#FF6B00',
+  '#FF9500',
+  '#FFCC02',
+  '#F5A623',
+  '#34C759',
+  '#30D158',
+  '#00C896',
+  '#00897B',
+  '#007AFF',
+  '#0A84FF',
+  '#0057FF',
+  '#1A73E8',
+  '#F97316',
+  '#EA580C',
+  '#C2410C',
+  '#FED7AA',
+  '#32ADE6',
+  '#00BCD4',
+  '#26C6DA',
+  '#0097A7',
+  '#1C1C1E',
+  '#2C2C2E',
+  '#3A3A3C',
+  '#48484A',
+  '#8D6E63',
+  '#795548',
+  '#A1887F',
+  '#6D4C41',
 ];
 
 // ─── Swatch popup ─────────────────────────────────────────────────────────────
 
-function SwatchPopup({ role, current, onPick, onClose }: {
-  role: string; current: string; onPick: (hex: string) => void; onClose: () => void;
+function SwatchPopup({
+  role,
+  current,
+  onPick,
+  onClose,
+}: {
+  role: string;
+  current: string;
+  onPick: (hex: string) => void;
+  onClose: () => void;
 }) {
   const [hexInput, setHexInput] = useState(current.replace('#', ''));
   const preview = hexInput.length === 6 ? `#${hexInput}` : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-white rounded-2xl p-5 w-72 shadow-2xl border border-gray-200" onClick={e => e.stopPropagation()}>
+      <div
+        className="bg-white rounded-2xl p-5 w-72 shadow-2xl border border-gray-200"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-gray-800">Pick <span className="text-accent-500">{role}</span> color</p>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">×</button>
+          <p className="text-sm font-semibold text-gray-800">
+            Pick <span className="text-accent-500">{role}</span> color
+          </p>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">
+            ×
+          </button>
         </div>
         <div className="grid grid-cols-8 gap-1.5 mb-4">
           {COLOR_PRESETS.map(hex => (
-            <button key={hex} onClick={() => onPick(hex)}
+            <button
+              key={hex}
+              onClick={() => onPick(hex)}
               className="w-7 h-7 rounded-md hover:scale-110 transition-transform border-2 shadow-sm"
-              style={{ background: hex, borderColor: current.toUpperCase() === hex.toUpperCase() ? '#000' : 'rgba(0,0,0,0.08)' }}
+              style={{
+                background: hex,
+                borderColor: current.toUpperCase() === hex.toUpperCase() ? '#000' : 'rgba(0,0,0,0.08)',
+              }}
             />
           ))}
         </div>
         <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
           <span className="text-sm text-gray-400 font-mono">#</span>
-          <input type="text" maxLength={6} placeholder="e.g. 3B82F6" value={hexInput}
+          <input
+            type="text"
+            maxLength={6}
+            placeholder="e.g. 3B82F6"
+            value={hexInput}
             onChange={e => setHexInput(e.target.value.replace(/[^0-9a-fA-F]/g, ''))}
-            onKeyDown={e => { if (e.key === 'Enter' && hexInput.length === 6) onPick(`#${hexInput.toUpperCase()}`); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && hexInput.length === 6) {
+                onPick(`#${hexInput.toUpperCase()}`);
+              }
+            }}
             className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-800 font-mono focus:outline-none focus:border-accent-500"
           />
-          {preview && <span className="w-7 h-7 rounded-md border border-gray-200 shrink-0 shadow-sm" style={{ background: preview }} />}
-          <button onClick={() => hexInput.length === 6 && onPick(`#${hexInput.toUpperCase()}`)} disabled={hexInput.length !== 6}
-            className="px-3 py-1.5 text-sm rounded-lg bg-accent-500 text-white disabled:opacity-40 hover:bg-accent-600 transition-colors">
+          {preview && (
+            <span
+              className="w-7 h-7 rounded-md border border-gray-200 shrink-0 shadow-sm"
+              style={{ background: preview }}
+            />
+          )}
+          <button
+            onClick={() => hexInput.length === 6 && onPick(`#${hexInput.toUpperCase()}`)}
+            disabled={hexInput.length !== 6}
+            className="px-3 py-1.5 text-sm rounded-lg bg-accent-500 text-white disabled:opacity-40 hover:bg-accent-600 transition-colors"
+          >
             Use
           </button>
         </div>
@@ -193,19 +296,226 @@ const QUESTIONS: Question[] = [
   },
 ];
 
-const APP_TYPE_TEXT: Record<string, string> = {
-  crm: 'CRM / Sales Forecasting platform',
-  inventory: 'Inventory Management system',
-  hr: 'HR management application',
-  appointment: 'Appointment scheduling application',
-  knowledge: 'Knowledge hub / document portal',
-  landing: 'Landing page / marketing website',
+const ARCHETYPE_NOTES: Record<string, { archetype: string; notes: string }> = {
+  crm: {
+    archetype: 'CRM / Sales Forecasting platform',
+    notes:
+      'Customer relationship management with contact records, deal pipeline, activity logging, and revenue forecasting. Role-based views for sales reps and managers. Reporting and target tracking built in.',
+  },
+  inventory: {
+    archetype: 'Inventory Management system',
+    notes:
+      'Stock-level tracking with product catalogue, quantity management, low-stock alerts, and reorder workflows. Supports physical products, raw materials, and digital stock. Audit trail on all stock movements.',
+  },
+  hr: {
+    archetype: 'HR management application',
+    notes:
+      'Staff-facing HR platform. Timesheet submission and approval, leave request management, expense claims with receipt upload, and payroll summary. Manager approval flows and admin oversight panel.',
+  },
+  appointment: {
+    archetype: 'Appointment / scheduling application',
+    notes:
+      'Calendar-based booking with configurable availability, time-slot management, booking confirmations, and reminders. Supports self-service booking by customers or staff-managed scheduling. Calendar sync integration.',
+  },
+  knowledge: {
+    archetype: 'Knowledge hub / document portal',
+    notes:
+      'Centralised content platform for sharing documents, guides, and dashboards. Category-based organisation with full-text search. Role-based access to control who can view or edit content. Version history on documents.',
+  },
+  landing: {
+    archetype: 'Landing page / marketing website',
+    notes:
+      'Public-facing website with static or CMS-managed content. SEO-optimised pages, blog or news section, contact/lead capture forms, and clear calls to action. Fast load times and mobile-first design.',
+  },
 };
 
-const USERS_TEXT: Record<string, string> = {
-  customers: 'External customers (public-facing)',
-  team: 'Internal team / staff only',
-  both: 'Both internal staff and external customers',
+const USER_SCOPE: Record<string, { scope: string; auth: string; payments: string }> = {
+  customers: {
+    scope: 'External customers (public-facing)',
+    auth: 'Public signup flow with email verification. OAuth social login support (Google, GitHub). Password reset. CDN and edge deployment for performance. SEO-optimised frontend.',
+    payments: 'Stripe integration for customer payments — subscriptions, one-time purchases, and invoicing.',
+  },
+  team: {
+    scope: 'Internal team / staff only',
+    auth: 'No public signup. Invite-only or company email domain restriction. SSO-ready (SAML/OIDC). Admin-controlled user creation. Admin-focused UI, no SEO requirement.',
+    payments: 'No customer-facing payments needed.',
+  },
+  both: {
+    scope: 'Both internal staff and external customers',
+    auth: 'Dual auth flows: invite-only or SSO for staff (admin panel), OAuth + email signup for customers (public-facing app). Role-based routing to separate interfaces.',
+    payments: 'Stripe for customer payments; admin billing portal for staff subscription management.',
+  },
+};
+
+const DIVIDER = '════════════════════════════════════════';
+
+const FILL_BLANKS_TEMPLATES: Record<string, FillBlanksTemplate> = {
+  crm: {
+    parts: ["I'm building a CRM for ", ' businesses, to help their ', ' sales team ', '.'],
+    blanks: [
+      {
+        id: 'industry',
+        options: [
+          'real estate',
+          'retail',
+          'finance',
+          'healthcare',
+          'tech',
+          'logistics',
+          'hospitality',
+          'e-commerce',
+          'construction',
+        ],
+      },
+      { id: 'team_size', options: ['small', 'growing', 'large', 'remote', 'multi-location'] },
+      {
+        id: 'goal',
+        options: [
+          'manage their pipeline',
+          'track customers',
+          'forecast revenue',
+          'close more deals',
+          'organise contacts',
+          'improve follow-ups',
+        ],
+      },
+    ],
+  },
+  inventory: {
+    parts: ["I'm building an inventory system for ", ' to track ', ' across ', '.'],
+    blanks: [
+      {
+        id: 'business_type',
+        options: [
+          'a retail store',
+          'a warehouse',
+          'a restaurant',
+          'a manufacturer',
+          'an e-commerce business',
+          'a pharmacy',
+          'a supplier',
+        ],
+      },
+      {
+        id: 'stock_type',
+        options: ['physical products', 'raw materials', 'ingredients', 'digital licenses', 'equipment', 'spare parts'],
+      },
+      {
+        id: 'locations',
+        options: ['one location', 'multiple warehouses', 'online and physical stores', 'multiple branches'],
+      },
+    ],
+  },
+  hr: {
+    parts: ["I'm building an HR app for a ", ' ', ' company to help manage ', '.'],
+    blanks: [
+      { id: 'company_size', options: ['small', 'growing', 'mid-sized', 'large'] },
+      {
+        id: 'industry',
+        options: [
+          'retail',
+          'tech',
+          'hospitality',
+          'healthcare',
+          'construction',
+          'logistics',
+          'financial',
+          'manufacturing',
+        ],
+      },
+      {
+        id: 'scope',
+        options: [
+          'timesheets and leave',
+          'expenses and payroll',
+          'all HR tasks',
+          'attendance and scheduling',
+          'employee onboarding',
+        ],
+      },
+    ],
+  },
+  appointment: {
+    parts: ["I'm building a booking app for ", ' where ', ' can schedule ', '.'],
+    blanks: [
+      {
+        id: 'business_type',
+        options: [
+          'a salon',
+          'a clinic',
+          'a consultancy',
+          'a fitness studio',
+          'a repair service',
+          'a coaching business',
+          'a dental practice',
+        ],
+      },
+      { id: 'booker', options: ['customers', 'staff', 'both customers and staff'] },
+      {
+        id: 'service_type',
+        options: ['appointments', 'classes and sessions', 'consultations', 'treatments', 'meetings', 'home visits'],
+      },
+    ],
+  },
+  knowledge: {
+    parts: ["I'm building a knowledge hub for ", ' to share ', ' about ', '.'],
+    blanks: [
+      { id: 'audience', options: ['our internal team', 'our company', 'our clients', 'our partners', 'the public'] },
+      {
+        id: 'content_type',
+        options: [
+          'documents and guides',
+          'training materials',
+          'policies and procedures',
+          'product knowledge',
+          'video tutorials',
+          'FAQs and wikis',
+        ],
+      },
+      {
+        id: 'topic',
+        options: [
+          'our products',
+          'our services',
+          'company processes',
+          'technical documentation',
+          'onboarding materials',
+        ],
+      },
+    ],
+  },
+  landing: {
+    parts: ["I'm building a ", ' for ', ' to ', '.'],
+    blanks: [
+      {
+        id: 'site_type',
+        options: ['business website', 'portfolio', 'blog', 'landing page', 'product showcase', 'personal brand site'],
+      },
+      {
+        id: 'business_type',
+        options: [
+          'a freelancer',
+          'a startup',
+          'a local business',
+          'an agency',
+          'a personal brand',
+          'a non-profit',
+          'a consultancy',
+        ],
+      },
+      {
+        id: 'goal',
+        options: [
+          'showcase our work',
+          'attract new clients',
+          'share our story',
+          'generate leads',
+          'promote a product',
+          'build an audience',
+        ],
+      },
+    ],
+  },
 };
 
 export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleChoiceProps) {
@@ -216,6 +526,28 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
   const [activeColorSlot, setActiveColorSlot] = useState<number | null>(null);
   const [context, setContext] = useState('');
   const [complete, setComplete] = useState(false);
+  const [contextModalOpen, setContextModalOpen] = useState(false);
+
+  const getCompanyContext = useCallback(() => {
+    try {
+      return localStorage.getItem('companyContext') || '';
+    } catch {
+      return '';
+    }
+  }, []);
+
+  const [hasCompanyContext, setHasCompanyContext] = useState(() => !!getCompanyContext());
+
+  const handleContextModalChange = useCallback(
+    (open: boolean) => {
+      setContextModalOpen(open);
+
+      if (!open) {
+        setHasCompanyContext(!!getCompanyContext());
+      }
+    },
+    [getCompanyContext]
+  );
 
   const totalSteps = QUESTIONS.length + 2;
   const currentQuestion = QUESTIONS[step];
@@ -259,41 +591,131 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
   };
 
   const buildPrompt = () => {
-    const appType = APP_TYPE_TEXT[answers.app_type || ''] || 'Web application';
-    const users = USERS_TEXT[answers.users || ''] || 'General users';
-    const styleLabels = multiAnswers
-      .map(id => {
-        const opt = QUESTIONS[2].options.find(o => o.id === id);
-        return opt ? `${opt.label} (${opt.description})` : id;
-      })
-      .join(', ');
+    const appTypeId = answers.app_type || '';
+    const archetype = ARCHETYPE_NOTES[appTypeId] ?? {
+      archetype: 'Web application',
+      notes: 'A production-ready web application with clear UX and scalable architecture.',
+    };
+    const userScope = USER_SCOPE[answers.users || ''] ?? USER_SCOPE.customers;
+    const contextSentence = context.trim();
+    const companyCtx = getCompanyContext();
 
-    const contextLine = context.trim()
-      ? `Project context: ${context.trim()}`
-      : 'Project context: Build a production-ready foundation with clear UX and scalable architecture.';
+    const lines: string[] = [];
 
-    return [
-      'You are an expert full-stack engineer.',
-      '',
-      'Build a pre-alpha scaffold for this product:',
-      `- App type: ${appType}`,
-      `- Target users: ${users}`,
-      styleLabels ? `- Visual style inspired by: ${styleLabels}` : '',
-      `- Brand palette: Primary ${palette[0]}, Secondary ${palette[1]}, Accent ${palette[2]}`,
-      '',
-      contextLine,
-      '',
-      'Deliver:',
-      '1) Directory structure',
-      '2) Core pages and routes',
-      '3) Authentication flow',
-      '4) Data model and CRUD APIs',
-      '5) .env.example and README',
-      '',
-      'Keep implementation lean and modular.',
-    ]
-      .filter(line => line !== '')
-      .join('\n');
+    lines.push('You are an expert full-stack software engineer and solution architect.');
+    lines.push('');
+
+    // ── WHAT I'M BUILDING ──
+    lines.push(DIVIDER);
+    lines.push("WHAT I'M BUILDING");
+    lines.push(DIVIDER);
+
+    if (contextSentence) {
+      lines.push(contextSentence);
+      lines.push('');
+    }
+
+    lines.push(`App type:  ${archetype.archetype}`);
+    lines.push('');
+
+    if (archetype.notes) {
+      lines.push(archetype.notes);
+      lines.push('');
+    }
+
+    // ── TARGET USERS & REQUIREMENTS ──
+    lines.push(DIVIDER);
+    lines.push('TARGET USERS & REQUIREMENTS');
+    lines.push(DIVIDER);
+    lines.push('User scope');
+    lines.push(`  ${userScope.scope}`);
+    lines.push('');
+    lines.push('Authentication');
+    lines.push(`  ${userScope.auth}`);
+    lines.push('');
+    lines.push('Payments');
+    lines.push(`  ${userScope.payments}`);
+    lines.push('');
+
+    // ── VISUAL DESIGN — COLOR PALETTE ──
+    lines.push(DIVIDER);
+    lines.push('VISUAL DESIGN — COLOR PALETTE');
+    lines.push(DIVIDER);
+    lines.push('Color palette (apply exactly — these are hard requirements):');
+    lines.push(`  Primary:    ${palette[0]}`);
+    lines.push(`  Secondary:  ${palette[1]}`);
+    lines.push(`  Accent:     ${palette[2]}`);
+    lines.push('');
+    lines.push('UI color rules:');
+    lines.push('  — Primary color: main CTAs, navigation active states, key interactive elements');
+    lines.push('  — Secondary color: backgrounds, card surfaces, sidebar fills');
+    lines.push('  — Accent color: highlights, badges, notifications, calls to attention');
+    lines.push('  Do not introduce any other brand colors. These are the only colors in the palette.');
+    lines.push('');
+
+    // ── VISUAL DESIGN INSPIRATION ──
+    if (multiAnswers.length > 0) {
+      lines.push(DIVIDER);
+      lines.push('VISUAL DESIGN INSPIRATION');
+      lines.push(DIVIDER);
+      lines.push(
+        'The following design system(s) define the visual style for this app. Use them as binding reference for component structure, spacing, typography, color usage, and interaction patterns when building all UI.'
+      );
+      lines.push('');
+
+      for (const brandId of multiAnswers) {
+        const md = DESIGN_SYSTEMS[brandId];
+
+        if (md) {
+          const brandLabel = QUESTIONS[2].options.find(o => o.id === brandId)?.label ?? brandId;
+          lines.push(`─── ${brandLabel.toUpperCase()} DESIGN SYSTEM ───`);
+          lines.push(md.trim());
+          lines.push('');
+        }
+      }
+    }
+
+    // ── COMPANY CONTEXT ──
+    if (companyCtx) {
+      lines.push(DIVIDER);
+      lines.push('YOUR COMPANY CONTEXT');
+      lines.push(DIVIDER);
+      lines.push(
+        'The following describes the company this tool is being built for. Use it throughout — for naming conventions, design decisions, feature scope, and UX tone.'
+      );
+      lines.push('');
+      lines.push(companyCtx.trim());
+      lines.push('');
+    }
+
+    // ── WHAT TO BUILD ──
+    lines.push(DIVIDER);
+    lines.push('WHAT TO BUILD — PRE-ALPHA SCAFFOLD');
+    lines.push(DIVIDER);
+    lines.push('Build the pre-alpha foundation of this app. This is the skeleton to start from.');
+    lines.push('');
+    lines.push('1)  Directory structure — scaffold the full project with proper separation of concerns');
+    lines.push('2)  Core pages and routes — all main views with working navigation');
+    lines.push('3)  Authentication flow — signup, login, password reset, session management');
+    lines.push('4)  Data model and CRUD APIs — database schema, migrations, REST or server actions');
+    lines.push('5)  .env.example and README — setup instructions, environment variables documented');
+    lines.push('');
+
+    // ── IMPORTANT NOTES ──
+    lines.push(DIVIDER);
+    lines.push('IMPORTANT NOTES');
+    lines.push(DIVIDER);
+
+    if (multiAnswers.length > 0) {
+      lines.push(
+        'Apply the selected design system(s) to all UI decisions — typography, spacing, elevation, color usage, and component patterns.'
+      );
+    }
+
+    lines.push('Keep the implementation lean and modular. Use TypeScript throughout.');
+    lines.push('Do not over-engineer — deliver the scaffold, not the final product.');
+
+    return lines.join('\n');
   };
 
   const completeFlow = () => {
@@ -348,6 +770,49 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
               </button>
             ))}
           </div>
+
+          {step === 0 && (
+            <div
+              className={classNames(
+                'flex items-center gap-2 px-3.5 py-2.5 rounded-lg border text-sm mt-2',
+                hasCompanyContext
+                  ? 'bg-green-50 border-green-200 text-green-800'
+                  : 'bg-[#fafafa] border-[#e8e8e8] text-[#999]'
+              )}
+            >
+              {hasCompanyContext ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                    <circle cx="7" cy="7" r="6" stroke="#16a34a" strokeWidth="1.5" />
+                    <path
+                      d="M4 7l2 2 4-4"
+                      stroke="#16a34a"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>Company context loaded</span>
+                  <button
+                    onClick={() => setContextModalOpen(true)}
+                    className="ml-auto text-green-700 hover:text-green-900 underline underline-offset-2 text-xs font-medium"
+                  >
+                    Edit
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>Optional: add your company context for more personalized prompts</span>
+                  <button
+                    onClick={() => setContextModalOpen(true)}
+                    className="ml-auto text-accent-600 hover:text-accent-700 underline underline-offset-2 text-xs font-medium whitespace-nowrap"
+                  >
+                    Add context →
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -435,17 +900,24 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
 
           {/* Quick palettes */}
           <div>
-            <p className="text-[10px] font-semibold text-bolt-elements-textTertiary uppercase tracking-wide mb-1.5">Quick palettes</p>
+            <p className="text-[10px] font-semibold text-bolt-elements-textTertiary uppercase tracking-wide mb-1.5">
+              Quick palettes
+            </p>
             <div className="flex flex-wrap gap-2">
               {QUICK_PALETTES.map(p => (
-                <button key={p.name} onClick={() => setPalette(p.colors)}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-bolt-elements-borderColor hover:border-accent-500 bg-bolt-elements-background-depth-2 transition-colors group">
+                <button
+                  key={p.name}
+                  onClick={() => setPalette(p.colors)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-bolt-elements-borderColor hover:border-accent-500 bg-bolt-elements-background-depth-2 transition-colors group"
+                >
                   <span className="flex gap-0.5">
                     {p.colors.map((c, i) => (
                       <span key={i} className="w-3 h-3 rounded-full border border-black/10" style={{ background: c }} />
                     ))}
                   </span>
-                  <span className="text-xs text-bolt-elements-textSecondary group-hover:text-bolt-elements-textPrimary transition-colors">{p.name}</span>
+                  <span className="text-xs text-bolt-elements-textSecondary group-hover:text-bolt-elements-textPrimary transition-colors">
+                    {p.name}
+                  </span>
                 </button>
               ))}
             </div>
@@ -456,43 +928,45 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
             {ROLE_LABELS.map((label, index) => {
               const hex = palette[index];
               const shades = generateShades(hex);
+
               return (
-                <div key={label} className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-3 space-y-2.5">
-                  {/* Header row */}
-                  <div className="flex items-center gap-2.5">
+                <div
+                  key={label}
+                  className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-3 space-y-2.5"
+                >
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={() => setActiveColorSlot(index)}
                       className="w-8 h-8 rounded-lg border-2 border-white/20 shadow-sm shrink-0 hover:scale-105 transition-transform"
                       style={{ background: hex }}
+                      title={`${label} — ${hex.toUpperCase()}`}
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-bolt-elements-textPrimary">{label}</span>
-                        <span className="font-mono text-[11px] text-bolt-elements-textSecondary">{hex.toUpperCase()}</span>
-                        <button onClick={() => setActiveColorSlot(index)}
-                          className="text-[10px] text-accent-500 hover:text-accent-600 underline underline-offset-1 transition-colors ml-auto">
-                          edit
-                        </button>
-                      </div>
+                    <div>
+                      <p className="text-sm font-semibold text-bolt-elements-textPrimary">{label}</p>
                       <p className="text-[11px] text-bolt-elements-textTertiary">{ROLE_HINTS[index]}</p>
                     </div>
+                    <span className="font-mono text-[11px] text-bolt-elements-textSecondary ml-auto">
+                      {hex.toUpperCase()}
+                    </span>
+                    <button
+                      onClick={() => setActiveColorSlot(index)}
+                      className="text-[10px] text-accent-500 hover:text-accent-600 underline underline-offset-1 transition-colors shrink-0"
+                    >
+                      edit
+                    </button>
                   </div>
-                  {/* Shade scale */}
-                  <div className="flex gap-1">
+                  <div className="flex gap-px rounded-md overflow-hidden">
                     {shades.map((shade, i) => (
-                      <div key={i} className="flex flex-col items-center gap-0.5 flex-1">
-                        <button
-                          title={`${SHADE_LABELS[i]} — ${shade}`}
-                          onClick={() => handleColorChange(index, shade)}
-                          className="w-full rounded hover:scale-110 transition-transform"
-                          style={{
-                            height: 20,
-                            background: shade,
-                            outline: shade.toUpperCase() === hex.toUpperCase() ? '2px solid rgba(0,0,0,0.4)' : 'none',
-                            outlineOffset: 1,
-                          }}
-                        />
-                        <span className="text-[8px] text-bolt-elements-textTertiary leading-none">{SHADE_LABELS[i]}</span>
+                      <div
+                        key={i}
+                        title={`${SHADE_LABELS[i]} — ${shade}`}
+                        onClick={() => handleColorChange(index, shade)}
+                        className="w-full h-7 rounded-sm hover:scale-110 transition-transform cursor-pointer"
+                        style={{ background: shade }}
+                      >
+                        <span className="text-[8px] text-white/70 leading-none block text-center mt-1.5 drop-shadow-sm">
+                          {SHADE_LABELS[i]}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -502,12 +976,16 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
           </div>
 
           <div className="flex items-center gap-3 pt-1">
-            <button onClick={() => setStep(QUESTIONS.length + 1)}
-              className="text-sm text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary underline underline-offset-2 transition-colors">
+            <button
+              onClick={() => setStep(QUESTIONS.length + 1)}
+              className="text-sm text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary underline underline-offset-2 transition-colors"
+            >
               Skip — use defaults
             </button>
-            <button onClick={() => setStep(QUESTIONS.length + 1)}
-              className="ml-auto rounded-xl bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-600 transition-colors">
+            <button
+              onClick={() => setStep(QUESTIONS.length + 1)}
+              className="ml-auto rounded-xl bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-accent-600 transition-colors"
+            >
               Use these colors →
             </button>
           </div>
@@ -516,30 +994,30 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
             <SwatchPopup
               role={ROLE_LABELS[activeColorSlot]}
               current={palette[activeColorSlot]}
-              onPick={hex => { handleColorChange(activeColorSlot, hex); setActiveColorSlot(null); }}
+              onPick={hex => {
+                handleColorChange(activeColorSlot, hex);
+                setActiveColorSlot(null);
+              }}
               onClose={() => setActiveColorSlot(null)}
             />
           )}
         </div>
       )}
 
-      {/* Context step */}
+      {/* Context step — fill in the blanks */}
       {!complete && step === QUESTIONS.length + 1 && (
         <div className="space-y-4">
           <h3 className="text-xl font-semibold text-bolt-elements-textPrimary">Tell us about your app</h3>
-          <p className="text-sm text-bolt-elements-textSecondary">Add key context, features, and constraints.</p>
-          <textarea
-            value={context}
-            onChange={e => setContext(e.target.value)}
-            placeholder="Example: Multi-tenant dashboard, role-based access, English + Japanese support, mobile-first."
-            className="min-h-[120px] w-full rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-4 text-sm text-bolt-elements-textPrimary placeholder-bolt-elements-textTertiary"
+          <p className="text-sm text-bolt-elements-textSecondary">
+            Fill in the blanks — click each highlighted word to choose, or type your own.
+          </p>
+          <FillBlanks
+            template={FILL_BLANKS_TEMPLATES[answers.app_type || '']}
+            onContinue={sentence => {
+              setContext(sentence);
+              completeFlow();
+            }}
           />
-          <button
-            onClick={completeFlow}
-            className="rounded-lg bg-accent-500 px-4 py-2 text-sm font-medium text-white hover:bg-accent-600"
-          >
-            Get my prompt
-          </button>
         </div>
       )}
 
@@ -569,6 +1047,8 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
           Back
         </button>
       </div>
+
+      <CompanyContextModal open={contextModalOpen} onOpenChange={handleContextModalChange} />
     </div>
   );
 }

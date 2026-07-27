@@ -5,6 +5,16 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: prompify-postgres
+    # Day 18 — continuous WAL archiving to the shared volume; the backup container uploads
+    # segments to OBS. `archive_command = test+cp` returns in microseconds (never blocks
+    # Postgres); `archive_timeout=300` bounds idle WAL growth to 5 minutes.
+    # Rollback: remove this command block (Postgres reverts to internal checkpointing).
+    command: >
+      postgres
+      -c wal_level=replica
+      -c archive_mode=on
+      -c archive_command='test ! -f /wal_archive/%f && cp %p /wal_archive/%f'
+      -c archive_timeout=300
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-prompify}
       POSTGRES_USER: ${POSTGRES_USER:-prompify_user}
@@ -12,8 +22,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+      - wal_archive:/wal_archive
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     networks:
       - prompify-network
     restart: unless-stopped
@@ -22,36 +33,46 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
     profiles: ['production']
 
-  # Redis for session storage
+  # Redis for session storage (not yet used by application code —
+  # present for future connection pooling / rate-limiting / caching)
   redis:
     image: redis:7-alpine
     container_name: prompify-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     networks:
       - prompify-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
     profiles: ['production']
 
   app:
-    image: bolt-ai:development
+    image: bolt-ai:production
     build:
       context: .
-      target: bolt-ai-development
+      # Day 14 — compiled Node server (verified Day 13 target). Vite is build-time only:
+      # `remix vite:build` runs during image build; at runtime only `node server.js` runs.
+      # Rollback: set target back to `bolt-ai-production` and command to `pnpm run dev --host`.
+      target: bolt-ai-prod-node
     container_name: prompify-app
     env_file: '.env'
     environment:
       # Core
-      - NODE_ENV=development
+      - NODE_ENV=production
       - PORT=5173
       - RUNNING_IN_DOCKER=true
       - APP_URL=${APP_URL:-https://www.prompify.com}
@@ -64,7 +85,7 @@ services:
       # Database
       - DATABASE_TYPE=postgresql
       - DATABASE_URL=postgresql://${POSTGRES_USER:-prompify_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-prompify}
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
 
       # Supabase (per-app databases)
       - SUPABASE_URL=${SUPABASE_URL}
@@ -101,12 +122,22 @@ services:
       - KOOGALLERY_ENABLED=${KOOGALLERY_ENABLED:-false}
       - CRON_SECRET=${CRON_SECRET}
 
-      # Dev server HMR (needed because we run pnpm dev inside Docker)
-      - VITE_HMR_PROTOCOL=wss
-      - VITE_HMR_HOST=localhost
-      - VITE_HMR_PORT=5173
-      - CHOKIDAR_USEPOLLING=true
-      - WATCHPACK_POLLING=true
+      # Snapshots
+      - SNAPSHOTS_ENABLED=${SNAPSHOTS_ENABLED:-true}
+
+      # Data API
+      - DATA_API_SECRET=${DATA_API_SECRET}
+
+      # Additional AI providers (passthrough from .env)
+      - PERPLEXITY_API_KEY=${PERPLEXITY_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - COHERE_API_KEY=${COHERE_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - HYPERBOLIC_API_KEY=${HYPERBOLIC_API_KEY}
+      - HYPERBOLIC_API_BASE_URL=${HYPERBOLIC_API_BASE_URL}
+      - LMSTUDIO_API_BASE_URL=${LMSTUDIO_API_BASE_URL}
+      - OPENAI_LIKE_API_BASE_URL=${OPENAI_LIKE_API_BASE_URL}
+      - OPENAI_LIKE_API_KEY=${OPENAI_LIKE_API_KEY}
 
       # Logging
       - VITE_LOG_LEVEL=${VITE_LOG_LEVEL:-info}
@@ -117,8 +148,7 @@ services:
     volumes:
       - /root/qa/ssl:/app/ssl:ro
     ports:
-      - '5173:5173'
-      - '5174:5174'
+      - '127.0.0.1:5173:5173'
     networks:
       - prompify-network
     depends_on:
@@ -126,10 +156,58 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: pnpm run dev --host 0.0.0.0
+    command: node server.js
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5173/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
     profiles: ['production']
 
-  # Cron — sleeps inactive container apps every 15 minutes
+  # Day 18 — three-layer database backups (WAL 60s -> OBS, pg_dump daily, pg_basebackup
+  # weekly) with retention. Same image as postgres (ships pg_dump/pg_basebackup/psql).
+  # If this container dies, WAL segments accumulate harmlessly on the shared volume.
+  backup:
+    image: postgres:15-alpine
+    container_name: prompify-backup
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-prompify_user}
+      POSTGRES_DB: ${POSTGRES_DB:-prompify}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+    volumes:
+      - wal_archive:/wal_archive
+      - ./scripts/backup-runner.sh:/backup-runner.sh:ro
+    entrypoint: >
+      /bin/sh -c "
+        apk add --no-cache aws-cli > /dev/null 2>&1 &&
+        echo '[backup] Container started' &&
+        sh /backup-runner.sh
+      "
+    networks:
+      - prompify-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles: ['production']
+
+  # Cron — sleeps inactive container apps every 15 minutes; nightly snapshot GC at ~03:30 UTC.
+  # GC runs DRY-RUN by default: switch to '/api/cron/gc?apply=true' ONLY after the Day 18
+  # restore test has passed (backups are the recovery path for GC mistakes).
   cron:
     image: curlimages/curl:latest
     container_name: prompify-cron
@@ -145,6 +223,10 @@ services:
         while true; do
           sleep 900;
           curl -s -X POST http://app:5173/api/cron/sleep-check -H \"Authorization: Bearer $$CRON_SECRET\" -H \"Content-Type: application/json\";
+          H=$$(date -u +%H); M=$$(date -u +%M);
+          if [ \"$$H\" = \"03\" ] && [ \"$$M\" -ge 30 ] && [ \"$$M\" -lt 45 ]; then
+            curl -s -X POST \"http://app:5173/api/cron/gc\" -H \"Authorization: Bearer $$CRON_SECRET\" -H \"Content-Type: application/json\";
+          fi;
         done
       "
     profiles: ['production']
@@ -159,6 +241,7 @@ services:
       - certbot-var:/var/lib/letsencrypt:ro
       - certbot-webroot:/var/www/certbot:ro
       - ./ssl_prompifycom:/etc/nginx/ssl_prompifycom:ro
+      - /etc/nginx/dhparam.pem:/etc/nginx/dhparam.pem:ro
     ports:
       - "80:80"
       - "443:443"
@@ -188,6 +271,10 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  # Day 18 — WAL staging area shared between postgres (writes segments) and backup (uploads
+  # to OBS then deletes). If backup is down, segments accumulate here without affecting PG.
+  wal_archive:
     driver: local
   certbot-etc:
     driver: local

@@ -1,6 +1,8 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
+import { getChatById } from '~/lib/database';
 import { schemaForChat, runAdminQuery, isSupabaseConfigured } from '~/lib/supabase-provision.server';
+import { formatDefaultValue } from '~/utils/sqlDefaultValue';
 
 const RESERVED_NAMES = new Set(['id', 'created_at', 'updated_at']);
 const VALID_IDENTIFIER = /^[a-z][a-z0-9_]{0,62}$/;
@@ -31,33 +33,39 @@ function validateIdentifier(name: string, label: string): string | null {
 }
 
 function buildCreateTableSQL(schema: string, tableName: string, columns: ColumnInput[]): string {
-  const colDefs = columns.map(col => {
+  const userColDefs = columns.map(col => {
     const pgType = PG_TYPES[col.type] || 'text';
     const nullable = col.nullable ? '' : ' NOT NULL';
-    const def = col.defaultValue ? ` DEFAULT ${col.defaultValue}` : '';
 
-    return `  ${col.name} ${pgType}${nullable}${def}`;
+    // Callers validate defaults via formatDefaultValue before reaching here.
+    const safeDefault = col.defaultValue ? formatDefaultValue(pgType, col.defaultValue) : null;
+    const def = safeDefault ? ` DEFAULT ${safeDefault}` : '';
+
+    return `  "${col.name}" ${pgType}${nullable}${def}`;
   });
 
-  return (
-    [
-      `CREATE TABLE IF NOT EXISTS ${schema}.${tableName} (`,
-      `  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),`,
-      `  created_at timestamptz NOT NULL DEFAULT now(),`,
-      `  updated_at timestamptz NOT NULL DEFAULT now(),`,
-      ...colDefs.map(d => `${d},`),
-      // Remove trailing comma from last column
-    ]
-      .join('\n')
-      .replace(/,\n\)/, '\n)') + ');'
-  );
+  const allDefs = [
+    '  id uuid PRIMARY KEY DEFAULT gen_random_uuid()',
+    '  created_at timestamptz NOT NULL DEFAULT now()',
+    '  updated_at timestamptz NOT NULL DEFAULT now()',
+    ...userColDefs,
+  ];
+
+  /*
+   * Join with ",\n" so there is never a trailing comma before the closing ")".
+   * (The previous build appended ",);" — a trailing comma that produced
+   * "syntax error at or near ')'" on every table create, identical to the bug
+   * fixed in api.data.$chatId.schema.ts.)
+   */
+  return `CREATE TABLE IF NOT EXISTS "${schema}"."${tableName}" (\n${allDefs.join(',\n')}\n);`;
 }
 
 // GET /api/supabase/schema?chatId=X  — list tables in the app schema
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  try {
-    await requireAuth(request, context);
+  // requireAuth throws a redirect Response when unauthenticated — keep it outside try/catch.
+  const user = await requireAuth(request, context);
 
+  try {
     const cfEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
 
     if (!isSupabaseConfigured(cfEnv)) {
@@ -71,9 +79,19 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       return json({ error: 'chatId is required' }, { status: 400 });
     }
 
+    /*
+     * H-4 — the schema name is derived from the chat id, so anyone could read another
+     * tenant's schema by passing their chat id. Reuse the access query; null => no access.
+     */
+    const chat = await getChatById(chatId, user.id, user.isModerator);
+
+    if (!chat) {
+      return json({ error: 'Not found' }, { status: 404 });
+    }
+
     const supabaseUrl = (cfEnv.SUPABASE_URL as string) || process.env.SUPABASE_URL || '';
     const serviceKey = (cfEnv.SUPABASE_SERVICE_ROLE_KEY as string) || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-    const schema = schemaForChat(chatId);
+    const schema = schemaForChat(chat.id);
 
     const res = await fetch(`${supabaseUrl.replace(/\/$/, '')}/pg/tables?schema=${schema}`, {
       headers: {
@@ -97,9 +115,10 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
 // POST /api/supabase/schema  — create a new table
 export async function action({ request, context }: ActionFunctionArgs) {
-  try {
-    await requireAuth(request, context);
+  // requireAuth throws a redirect Response when unauthenticated — keep it outside try/catch.
+  const user = await requireAuth(request, context);
 
+  try {
     const cfEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
 
     if (!isSupabaseConfigured(cfEnv)) {
@@ -143,9 +162,24 @@ export async function action({ request, context }: ActionFunctionArgs) {
       if (!PG_TYPES[col.type]) {
         return json({ error: `Unknown column type "${col.type}"` }, { status: 400 });
       }
+
+      // H-3 — reject defaults that can't be represented as a safe literal/allowlisted function.
+      if (col.defaultValue && formatDefaultValue(PG_TYPES[col.type], col.defaultValue) === null) {
+        return json({ error: `Default value for "${col.name}" is not valid for type ${col.type}` }, { status: 400 });
+      }
     }
 
-    const schema = schemaForChat(chatId);
+    /*
+     * H-4 — verify the requesting user actually has access to this chat before touching
+     * its schema. Reuse the existing access query; null => no access (or no such chat).
+     */
+    const chat = await getChatById(chatId, user.id, user.isModerator);
+
+    if (!chat) {
+      return json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const schema = schemaForChat(chat.id);
     const createSQL = buildCreateTableSQL(schema, tableName, columns || []);
 
     const result = await runAdminQuery(createSQL, cfEnv);

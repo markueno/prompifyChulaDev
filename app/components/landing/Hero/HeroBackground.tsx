@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef } from 'react';
 
 const HeroBackground = forwardRef<HTMLDivElement>((_, ref) => (
   <div className="hero-bg" ref={ref}>
@@ -16,7 +16,7 @@ const HeroBackground = forwardRef<HTMLDivElement>((_, ref) => (
     <div className="gradient-overlay" />
     <div className="vignette" />
   </div>
-))
+));
 
-HeroBackground.displayName = 'HeroBackground'
-export default HeroBackground
+HeroBackground.displayName = 'HeroBackground';
+export default HeroBackground;

@@ -77,10 +77,10 @@ export default function ProfileTab({ user }: ProfileTabProps) {
     'border border-gray-200 dark:border-gray-700/50',
     'text-gray-900 dark:text-white',
     'placeholder-gray-400 dark:placeholder-gray-500',
-    'focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50',
+    'focus:outline-none focus:ring-2 focus:ring-[#f97316]/50 focus:border-[#f97316]/50',
     'transition-all duration-300 ease-out'
   );
-  const iconClass = 'w-5 h-5 text-gray-400 dark:text-gray-500 transition-colors group-focus-within:text-purple-500';
+  const iconClass = 'w-5 h-5 text-gray-400 dark:text-gray-500 transition-colors group-focus-within:text-[#f97316]';
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -96,8 +96,8 @@ export default function ProfileTab({ user }: ProfileTabProps) {
                 'ring-1 ring-gray-200 dark:ring-gray-700',
                 'relative group',
                 'transition-all duration-300 ease-out',
-                'hover:ring-purple-500/30 dark:hover:ring-purple-500/30',
-                'hover:shadow-lg hover:shadow-purple-500/10'
+                'hover:ring-[#f97316]/30 dark:hover:ring-[#f97316]/30',
+                'hover:shadow-lg hover:shadow-[#f97316]/10'
               )}
             >
               {profile.avatar ? (
@@ -111,7 +111,7 @@ export default function ProfileTab({ user }: ProfileTabProps) {
                   )}
                 />
               ) : (
-                <div className="i-ph:robot-fill w-16 h-16 text-gray-400 dark:text-gray-500 transition-colors group-hover:text-purple-500/70 transform -translate-y-1" />
+                <div className="i-ph:robot-fill w-16 h-16 text-gray-400 dark:text-gray-500 transition-colors group-hover:text-[#f97316]/70 transform -translate-y-1" />
               )}
 
               <label

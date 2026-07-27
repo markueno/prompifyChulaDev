@@ -1,12 +1,22 @@
-import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import {
+  json,
+  redirect,
+  type ActionFunctionArgs,
+  type LoaderFunctionArgs,
+  type MetaFunction,
+} from '@remix-run/cloudflare';
 import { Form, useActionData, useNavigation, useSearchParams } from '@remix-run/react';
 import { useState } from 'react';
 import { Button } from '~/components/ui/Button';
 import { Card } from '~/components/ui/Card';
 import { Input } from '~/components/ui/Input';
-import { Label } from '~/components/ui/Label';
 import BackgroundRays from '~/components/ui/BackgroundRays';
 import { isAuthDisabled, optionalAuth, createAuthCookie } from '~/lib/auth';
+
+export const meta: MetaFunction = () => [
+  { name: 'robots', content: 'noindex, nofollow' },
+  { title: 'Sign In — Prompify' },
+];
 
 interface ActionData {
   error?: string;
@@ -28,9 +38,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       console.log('✅ User already authenticated, redirecting to app');
       return redirect('/app/');
     }
-  } catch (error) {
+  } catch {
     // User is not authenticated, continue to login page
-    console.log('ℹ️ User not authenticated, showing login page');
   }
 
   // Retire standalone login page: open login modal on homepage instead.
@@ -174,6 +183,17 @@ export default function LoginPage() {
           </a>
         </div>
       </Card>
+    </div>
+  );
+}
+
+export function ErrorBoundary() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold">Something went wrong</h1>
+        <p className="mt-2 text-gray-500">Please refresh the page and try again.</p>
+      </div>
     </div>
   );
 }
