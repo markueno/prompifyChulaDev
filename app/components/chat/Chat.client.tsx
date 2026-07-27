@@ -860,6 +860,12 @@ export const ChatImpl = memo(
       if (!chatStarted) {
         setIsInitialBuild(true);
         setFakeLoading(true);
+        /*
+         * Clear the wizard/generation prompt from the input box. Both wizard paths below
+         * `return` before the normal setInput('') further down, so without this the raw
+         * prompt stays visible in the textarea after generating.
+         */
+        setInput('');
 
         const summary =
           messageContent.length > 80
