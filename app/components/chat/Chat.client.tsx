@@ -840,7 +840,7 @@ export const ChatImpl = memo(
       setChatStarted(true);
     };
 
-    const sendMessage = async (_event: React.UIEvent, messageInput?: string) => {
+    const sendMessage = async (_event: React.UIEvent, messageInput?: string, summaryInput?: string) => {
       const messageContent = messageInput || input;
 
       if (!messageContent?.trim()) {
@@ -867,10 +867,15 @@ export const ChatImpl = memo(
          */
         setInput('');
 
+        /*
+         * Prefer the wizard-built summary (the user's answers). Fall back to a cleaned,
+         * truncated slice of the raw prompt only when no summary was passed.
+         */
         const summary =
-          messageContent.length > 80
+          summaryInput?.trim() ||
+          (messageContent.length > 80
             ? messageContent.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 80) + '…'
-            : messageContent;
+            : messageContent);
 
         if (autoSelectTemplate) {
           const templateMessage = messageContent.length > 500 ? messageContent.substring(0, 500) : messageContent;
@@ -900,7 +905,7 @@ export const ChatImpl = memo(
                   role: 'user',
                   content: messageContent,
                   author: messageAuthor,
-                  annotations: ['wizard-prompt', `summary:${summary}`],
+                  annotations: ['wizard-prompt', `summary:${title ? `${title} — ${summary}` : summary}`],
                 } as any,
                 {
                   id: `2-${new Date().getTime()}`,

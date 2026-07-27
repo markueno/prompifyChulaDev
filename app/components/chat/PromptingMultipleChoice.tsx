@@ -254,7 +254,7 @@ interface Question {
 }
 
 interface PromptingMultipleChoiceProps {
-  onPromptChange: (prompt: string) => void;
+  onPromptChange: (prompt: string, summary?: string) => void;
 }
 
 const QUESTIONS: Question[] = [
@@ -724,9 +724,39 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
     return lines.join('\n');
   };
 
+  /*
+   * Short, human-readable summary of the wizard answers — shown in the chat instead of the
+   * full generated prompt (consumed via UserMessage.tsx's `summary:` annotation).
+   */
+  const buildSummary = () => {
+    const parts: string[] = [];
+    const archetype = ARCHETYPE_NOTES[answers.app_type || '']?.archetype;
+
+    if (archetype) {
+      parts.push(archetype);
+    }
+
+    const usersOpt = QUESTIONS.find(q => q.id === 'users')?.options.find(o => o.id === answers.users);
+
+    if (usersOpt) {
+      parts.push(`for ${usersOpt.label.toLowerCase()}`);
+    }
+
+    const styleOpt = QUESTIONS.find(q => q.id === 'website_style')?.options.find(o => o.id === answers.website_style);
+
+    if (styleOpt) {
+      parts.push(`${styleOpt.label} style`);
+    }
+
+    const base = parts.join(' · ') || 'Custom app';
+    const ctx = context.trim();
+
+    return ctx ? `${ctx.length > 50 ? ctx.slice(0, 50) + '…' : ctx} — ${base}` : base;
+  };
+
   const completeFlow = () => {
     setComplete(true);
-    onPromptChange(buildPrompt());
+    onPromptChange(buildPrompt(), buildSummary());
   };
 
   const goBack = () => {

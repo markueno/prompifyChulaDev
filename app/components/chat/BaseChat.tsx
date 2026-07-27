@@ -56,7 +56,7 @@ interface BaseChatProps {
   setProvider?: (provider: ProviderInfo) => void;
   providerList?: ProviderInfo[];
   handleStop?: () => void;
-  sendMessage?: (event: React.UIEvent, messageInput?: string) => void;
+  sendMessage?: (event: React.UIEvent, messageInput?: string, summaryInput?: string) => void;
   handleInputChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
   setInput?: (value: string) => void;
   enhancePrompt?: () => void;
@@ -133,7 +133,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
 
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
-    const setWizardPrompt = (prompt: string) => {
+    const setWizardPrompt = (prompt: string, summary?: string) => {
       if (setInput) {
         setInput(prompt);
       } else if (handleInputChange) {
@@ -143,7 +143,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       if (sendMessage) {
         setTimeout(() => {
           const syntheticEvent = { preventDefault: () => {}, stopPropagation: () => {} } as React.UIEvent;
-          sendMessage(syntheticEvent, prompt);
+          sendMessage(syntheticEvent, prompt, summary);
         }, 150);
       }
     };
