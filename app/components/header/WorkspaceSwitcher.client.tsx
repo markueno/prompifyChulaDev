@@ -80,7 +80,7 @@ export function WorkspaceSwitcher() {
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium !text-zinc-900 hover:bg-bolt-elements-background-depth-2"
+        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#372a1a] text-[#231710] dark:text-[#f0e4d5] hover:border-[#f97316] hover:bg-[#fed7aa] dark:hover:bg-[#423322] transition-colors"
       >
         <span className="i-ph:buildings-duotone text-base" />
         <span className="max-w-[140px] truncate">{current?.name ?? 'Workspace'}</span>

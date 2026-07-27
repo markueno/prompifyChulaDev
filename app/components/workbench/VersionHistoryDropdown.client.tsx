@@ -189,7 +189,7 @@ export function VersionHistoryDropdown() {
           'relative ml-1 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm transition-colors',
           open
             ? 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
-            : 'text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive'
+            : 'bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive'
         )}
         onClick={() => setOpen(v => !v)}
         title="Version history — restore any earlier state of this project"

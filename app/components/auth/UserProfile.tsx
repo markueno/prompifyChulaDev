@@ -23,7 +23,7 @@ export function UserProfile({ user }: UserProfileProps) {
   }
 
   const trigger = (
-    <button className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium border border-[#fed7aa]/60 bg-[#f0e4d5] text-[#231710] hover:border-[#f97316] hover:bg-[#fed7aa] transition-colors">
+    <button className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#372a1a] text-[#231710] dark:text-[#f0e4d5] hover:border-[#f97316] hover:bg-[#fed7aa] dark:hover:bg-[#423322] transition-colors">
       <div className="w-6 h-6 bg-[#f97316] rounded-full flex items-center justify-center text-white text-xs font-semibold">
         {displayInitial}
       </div>
@@ -34,11 +34,13 @@ export function UserProfile({ user }: UserProfileProps) {
 
   return (
     <Dropdown trigger={trigger}>
-      <div className="w-56 rounded-xl border border-[#fed7aa]/60 bg-[#f0e4d5] p-1.5 shadow-lg">
-        <div className="px-2.5 py-2 border-b border-[#fed7aa]/40 flex items-start justify-between gap-2">
-          <p className="text-sm font-medium text-[#231710]">{displayName || user.email}</p>
+      <div className="w-56 rounded-xl border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#2d2014] p-1.5 shadow-lg">
+        <div className="px-2.5 py-2 border-b border-[#fed7aa]/40 dark:border-[#423322] flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-[#231710] dark:text-[#f0e4d5]">{displayName || user.email}</p>
           {user.accountTier ? (
-            <span className="text-xs font-medium text-[#231710]/50 shrink-0">{user.accountTier}</span>
+            <span className="text-xs font-medium text-[#231710]/50 dark:text-[#c4b19a] shrink-0">
+              {user.accountTier}
+            </span>
           ) : null}
         </div>
 
@@ -46,7 +48,7 @@ export function UserProfile({ user }: UserProfileProps) {
           <>
             <button
               type="button"
-              className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 hover:bg-[#fed7aa]/50 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"
               onClick={() => controlPanelOpenStore.set(true)}
             >
               <div className="i-ph:gear text-lg" />
@@ -54,7 +56,7 @@ export function UserProfile({ user }: UserProfileProps) {
             </button>
             <button
               type="button"
-              className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 hover:bg-[#fed7aa]/50 rounded-lg transition-colors"
+              className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"
               onClick={() => {
                 controlPanelInitialTabStore.set('profile');
                 controlPanelOpenStore.set(true);
@@ -66,7 +68,7 @@ export function UserProfile({ user }: UserProfileProps) {
           </>
         )}
 
-        <div className="my-1 border-t border-[#fed7aa]/40" />
+        <div className="my-1 border-t border-[#fed7aa]/40 dark:border-[#423322]" />
 
         <DropdownItem asChild>
           <button

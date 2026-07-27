@@ -483,7 +483,7 @@ export const Workbench = memo(
                     className={`relative ml-1 flex items-center gap-1 px-2.5 py-0.5 rounded-full text-sm transition-colors ${
                       selectedView === 'problems'
                         ? 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
-                        : 'text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive'
+                        : 'bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive'
                     }`}
                     onClick={() => setSelectedView('problems')}
                     title="Problems panel"
@@ -493,7 +493,7 @@ export const Workbench = memo(
                   </button>
                   {/* Review button — on-demand AI scan of modified files (Layer 5) */}
                   <button
-                    className="relative ml-1 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="relative ml-1 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     onClick={handleReview}
                     disabled={isReviewing}
                     title="Ask AI to review recently modified files for bugs (low token cost)"
