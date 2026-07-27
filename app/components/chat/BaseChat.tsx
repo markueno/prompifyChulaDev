@@ -139,6 +139,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       } else if (handleInputChange) {
         handleInputChange({ target: { value: prompt } } as React.ChangeEvent<HTMLTextAreaElement>);
       }
+
+      if (sendMessage) {
+        setTimeout(() => {
+          const syntheticEvent = { preventDefault: () => {}, stopPropagation: () => {} } as React.UIEvent;
+          sendMessage(syntheticEvent, prompt);
+        }, 150);
+      }
     };
 
     useEffect(() => {

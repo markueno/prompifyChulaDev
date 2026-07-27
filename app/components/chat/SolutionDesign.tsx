@@ -20,7 +20,7 @@ const DraggableStep: React.FC<DraggableStepProps> = ({ step, index, onDragStart,
       onDragOver={onDragOver}
       onDrop={e => onDrop(e, index)}
       className={classNames(
-        'flex items-center gap-3 p-3 bg-white border border-gray-300 rounded-lg cursor-move transition-all duration-200',
+        'flex items-center gap-3 p-3 bg-white dark:bg-[#2d2014] border border-gray-300 dark:border-[#423322] rounded-lg cursor-move transition-all duration-200',
         isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md',
         'hover:border-blue-300'
       )}
@@ -28,7 +28,7 @@ const DraggableStep: React.FC<DraggableStepProps> = ({ step, index, onDragStart,
       <div className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">
         {index + 1}
       </div>
-      <span className="flex-1 text-sm text-gray-900">{step}</span>
+      <span className="flex-1 text-sm text-gray-900 dark:text-[#f0e4d5]">{step}</span>
       <div className="flex-shrink-0 text-gray-400">
         <div className="i-ph:dots-six-vertical text-sm"></div>
       </div>
@@ -194,19 +194,19 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       icon: 'i-ph:file-text',
       content: (
         <div className="space-y-4">
-          <div className="bg-white p-4 rounded-lg border border-gray-300">
+          <div className="bg-white dark:bg-[#2d2014] p-4 rounded-lg border border-gray-300 dark:border-[#423322]">
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-2">Project Overview</h4>
             <textarea
               value={projectOverview}
               onChange={e => setProjectOverview(e.target.value)}
-              className="w-full p-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              className="w-full p-3 text-sm text-gray-900 dark:text-[#f0e4d5] bg-white dark:bg-[#2d2014] border border-gray-300 dark:border-[#423322] rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
               rows={4}
               placeholder="Enter project overview..."
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white p-4 rounded-lg border border-gray-300">
+            <div className="bg-white dark:bg-[#2d2014] p-4 rounded-lg border border-gray-300 dark:border-[#423322]">
               <h4 className="font-semibold text-bolt-elements-textPrimary mb-2">Key Features</h4>
               <div className="space-y-2">
                 {keyFeatures.map((feature, index) => (
@@ -215,7 +215,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                       type="text"
                       value={feature}
                       onChange={e => updateItem(keyFeatures, setKeyFeatures, index, e.target.value)}
-                      className="flex-1 p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 p-2 text-sm text-gray-900 dark:text-[#f0e4d5] bg-white dark:bg-[#2d2014] border border-gray-300 dark:border-[#423322] rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Enter feature..."
                     />
                     <button
@@ -237,7 +237,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-lg border border-gray-300">
+            <div className="bg-white dark:bg-[#2d2014] p-4 rounded-lg border border-gray-300 dark:border-[#423322]">
               <h4 className="font-semibold text-bolt-elements-textPrimary mb-2">Target Users</h4>
               <div className="space-y-2">
                 {targetUsers.map((user, index) => (
@@ -246,7 +246,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                       type="text"
                       value={user}
                       onChange={e => updateItem(targetUsers, setTargetUsers, index, e.target.value)}
-                      className="flex-1 p-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 p-2 text-sm text-gray-900 dark:text-[#f0e4d5] bg-white dark:bg-[#2d2014] border border-gray-300 dark:border-[#423322] rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Enter target user..."
                     />
                     <button
@@ -277,9 +277,9 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       icon: 'i-ph:lightbulb',
       content: (
         <div className="space-y-6">
-          <div className="bg-white p-4 rounded-lg border border-gray-300">
+          <div className="bg-white dark:bg-[#2d2014] p-4 rounded-lg border border-gray-300 dark:border-[#423322]">
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">System Flow</h4>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-gray-500 dark:text-[#968878] mb-3">
               Drag and drop the steps to reorder the system flow. The numbered index will automatically update.
             </p>
             <div className="space-y-2">
@@ -332,13 +332,15 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
       icon: 'i-ph:map-trifold',
       content: (
         <div className="space-y-6">
-          <div className="bg-white p-4 rounded-lg border border-gray-300">
+          <div className="bg-white dark:bg-[#2d2014] p-4 rounded-lg border border-gray-300 dark:border-[#423322]">
             <h4 className="font-semibold text-bolt-elements-textPrimary mb-3">Technology Stack</h4>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div
                 className={classNames(
                   'text-center p-3 border rounded-lg transition-all duration-200',
-                  disableFramework ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-gray-300'
+                  disableFramework
+                    ? 'bg-gray-100 dark:bg-[#372a1a] border-gray-200 dark:border-[#372a1a] opacity-60'
+                    : 'bg-white dark:bg-[#2d2014] border-gray-300 dark:border-[#423322]'
                 )}
               >
                 <div className="text-2xl mb-1">
@@ -356,7 +358,9 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   disabled={disableFramework}
                   className={classNames(
                     'w-full text-xs border-0 focus:ring-0 focus:outline-none text-center',
-                    disableFramework ? 'text-gray-500 bg-gray-100 cursor-not-allowed' : 'text-gray-900 bg-white'
+                    disableFramework
+                      ? 'text-gray-500 dark:text-[#968878] bg-gray-100 dark:bg-[#372a1a] cursor-not-allowed'
+                      : 'text-gray-900 dark:text-[#f0e4d5] bg-white dark:bg-[#2d2014]'
                   )}
                 >
                   <option value="React">React</option>
@@ -367,12 +371,14 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   <option value="Nuxt.js">Nuxt.js</option>
                   <option value="Vanilla JavaScript">Vanilla JavaScript</option>
                 </select>
-                {disableFramework && <div className="text-xs text-gray-500 mt-1">Disabled</div>}
+                {disableFramework && <div className="text-xs text-gray-500 dark:text-[#968878] mt-1">Disabled</div>}
               </div>
               <div
                 className={classNames(
                   'text-center p-3 border rounded-lg transition-all duration-200',
-                  disableLanguage ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-gray-300'
+                  disableLanguage
+                    ? 'bg-gray-100 dark:bg-[#372a1a] border-gray-200 dark:border-[#372a1a] opacity-60'
+                    : 'bg-white dark:bg-[#2d2014] border-gray-300 dark:border-[#423322]'
                 )}
               >
                 <div className="text-2xl mb-1">
@@ -388,18 +394,22 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   disabled={disableLanguage}
                   className={classNames(
                     'w-full text-xs border-0 focus:ring-0 focus:outline-none text-center',
-                    disableLanguage ? 'text-gray-500 bg-gray-100 cursor-not-allowed' : 'text-gray-900 bg-white'
+                    disableLanguage
+                      ? 'text-gray-500 dark:text-[#968878] bg-gray-100 dark:bg-[#372a1a] cursor-not-allowed'
+                      : 'text-gray-900 dark:text-[#f0e4d5] bg-white dark:bg-[#2d2014]'
                   )}
                 >
                   <option value="TypeScript">TypeScript</option>
                   <option value="JavaScript">JavaScript</option>
                 </select>
-                {disableLanguage && <div className="text-xs text-gray-500 mt-1">Disabled</div>}
+                {disableLanguage && <div className="text-xs text-gray-500 dark:text-[#968878] mt-1">Disabled</div>}
               </div>
               <div
                 className={classNames(
                   'text-center p-3 border rounded-lg transition-all duration-200',
-                  disableCssFramework ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-gray-300'
+                  disableCssFramework
+                    ? 'bg-gray-100 dark:bg-[#372a1a] border-gray-200 dark:border-[#372a1a] opacity-60'
+                    : 'bg-white dark:bg-[#2d2014] border-gray-300 dark:border-[#423322]'
                 )}
               >
                 <div className="text-2xl mb-1">
@@ -412,18 +422,22 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   disabled={disableCssFramework}
                   className={classNames(
                     'w-full text-xs border-0 focus:ring-0 focus:outline-none text-center',
-                    disableCssFramework ? 'text-gray-500 bg-gray-100 cursor-not-allowed' : 'text-gray-900 bg-white'
+                    disableCssFramework
+                      ? 'text-gray-500 dark:text-[#968878] bg-gray-100 dark:bg-[#372a1a] cursor-not-allowed'
+                      : 'text-gray-900 dark:text-[#f0e4d5] bg-white dark:bg-[#2d2014]'
                   )}
                 >
                   <option value="Tailwind CSS">Tailwind CSS</option>
                   <option value="Chakra UI">Chakra UI</option>
                 </select>
-                {disableCssFramework && <div className="text-xs text-gray-500 mt-1">Disabled</div>}
+                {disableCssFramework && <div className="text-xs text-gray-500 dark:text-[#968878] mt-1">Disabled</div>}
               </div>
               <div
                 className={classNames(
                   'text-center p-3 border rounded-lg transition-all duration-200',
-                  disableDatabase ? 'bg-gray-100 border-gray-200 opacity-60' : 'bg-white border-gray-300'
+                  disableDatabase
+                    ? 'bg-gray-100 dark:bg-[#372a1a] border-gray-200 dark:border-[#372a1a] opacity-60'
+                    : 'bg-white dark:bg-[#2d2014] border-gray-300 dark:border-[#423322]'
                 )}
               >
                 <div className="text-2xl mb-1">
@@ -440,7 +454,9 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   disabled={disableDatabase}
                   className={classNames(
                     'w-full text-xs border-0 focus:ring-0 focus:outline-none text-center',
-                    disableDatabase ? 'text-gray-500 bg-gray-100 cursor-not-allowed' : 'text-gray-900 bg-white'
+                    disableDatabase
+                      ? 'text-gray-500 dark:text-[#968878] bg-gray-100 dark:bg-[#372a1a] cursor-not-allowed'
+                      : 'text-gray-900 dark:text-[#f0e4d5] bg-white dark:bg-[#2d2014]'
                   )}
                 >
                   <option value="SQLite">SQLite</option>
@@ -450,7 +466,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                   <option value="Firebase">Firebase</option>
                   <option value="Supabase">Supabase</option>
                 </select>
-                {disableDatabase && <div className="text-xs text-gray-500 mt-1">Disabled</div>}
+                {disableDatabase && <div className="text-xs text-gray-500 dark:text-[#968878] mt-1">Disabled</div>}
               </div>
             </div>
           </div>
@@ -558,7 +574,7 @@ export const SolutionDesign: React.FC<SolutionDesignProps> = ({
                 'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 border',
                 activeSection === section.id
                   ? 'bg-orange-500 text-white border-orange-500 shadow-[0_8px_20px_rgba(249,115,22,0.35)]'
-                  : 'bg-white text-gray-900 border-white hover:bg-gray-100'
+                  : 'bg-white dark:bg-[#2d2014] text-gray-900 dark:text-[#f0e4d5] border-white hover:bg-gray-100 dark:hover:bg-[#372a1a]'
               )}
             >
               <div className={section.icon}></div>

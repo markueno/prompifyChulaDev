@@ -178,7 +178,7 @@ export default function RegisterPage() {
             {/* Password strength indicator */}
             <div className="mt-2 space-y-1">
               <div
-                className={`flex items-center text-xs ${passwordStrength.length ? 'text-green-600' : 'text-gray-500'}`}
+                className={`flex items-center text-xs ${passwordStrength.length ? 'text-green-600' : 'text-gray-500 dark:text-[#968878]'}`}
               >
                 <div
                   className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.length ? 'bg-green-600' : 'bg-gray-400'}`}
@@ -186,7 +186,7 @@ export default function RegisterPage() {
                 At least 8 characters
               </div>
               <div
-                className={`flex items-center text-xs ${passwordStrength.lowercase ? 'text-green-600' : 'text-gray-500'}`}
+                className={`flex items-center text-xs ${passwordStrength.lowercase ? 'text-green-600' : 'text-gray-500 dark:text-[#968878]'}`}
               >
                 <div
                   className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.lowercase ? 'bg-green-600' : 'bg-gray-400'}`}
@@ -194,7 +194,7 @@ export default function RegisterPage() {
                 One lowercase letter
               </div>
               <div
-                className={`flex items-center text-xs ${passwordStrength.uppercase ? 'text-green-600' : 'text-gray-500'}`}
+                className={`flex items-center text-xs ${passwordStrength.uppercase ? 'text-green-600' : 'text-gray-500 dark:text-[#968878]'}`}
               >
                 <div
                   className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.uppercase ? 'bg-green-600' : 'bg-gray-400'}`}
@@ -202,7 +202,7 @@ export default function RegisterPage() {
                 One uppercase letter
               </div>
               <div
-                className={`flex items-center text-xs ${passwordStrength.number ? 'text-green-600' : 'text-gray-500'}`}
+                className={`flex items-center text-xs ${passwordStrength.number ? 'text-green-600' : 'text-gray-500 dark:text-[#968878]'}`}
               >
                 <div
                   className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.number ? 'bg-green-600' : 'bg-gray-400'}`}
@@ -210,7 +210,7 @@ export default function RegisterPage() {
                 One number
               </div>
               <div
-                className={`flex items-center text-xs ${passwordStrength.special ? 'text-green-600' : 'text-gray-500'}`}
+                className={`flex items-center text-xs ${passwordStrength.special ? 'text-green-600' : 'text-gray-500 dark:text-[#968878]'}`}
               >
                 <div
                   className={`w-1 h-1 rounded-full mr-2 ${passwordStrength.special ? 'bg-green-600' : 'bg-gray-400'}`}
@@ -248,13 +248,13 @@ export default function RegisterPage() {
           </div>
 
           {actionData?.error && (
-            <div className="p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
+            <div className="p-3 rounded-md bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
               {actionData.error}
             </div>
           )}
 
           {actionData?.success && (
-            <div className="p-3 rounded-md bg-green-50 border border-green-200 text-green-700 text-sm">
+            <div className="p-3 rounded-md bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 text-sm">
               {actionData.success}
             </div>
           )}
@@ -282,7 +282,7 @@ export function ErrorBoundary() {
     <div className="flex min-h-screen items-center justify-center">
       <div className="text-center">
         <h1 className="text-2xl font-bold">Something went wrong</h1>
-        <p className="mt-2 text-gray-500">Please refresh the page and try again.</p>
+        <p className="mt-2 text-gray-500 dark:text-[#968878]">Please refresh the page and try again.</p>
       </div>
     </div>
   );

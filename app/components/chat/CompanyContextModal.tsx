@@ -154,12 +154,12 @@ export function CompanyContextModal({ open, onOpenChange }: CompanyContextModalP
               )}
 
               {error && (
-                <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
+                <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800">
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 mt-0.5">
                     <circle cx="8" cy="8" r="6" stroke="#dc2626" strokeWidth="1.5" />
                     <path d="M8 5v3M8 10.5v.5" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>
-                  <span className="text-sm text-red-700">{error}</span>
+                  <span className="text-sm text-red-700 dark:text-red-400">{error}</span>
                 </div>
               )}
             </div>
@@ -167,7 +167,7 @@ export function CompanyContextModal({ open, onOpenChange }: CompanyContextModalP
 
           {phase === 'done' && (
             <div className="mt-8 space-y-5">
-              <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-green-50 border border-green-200">
+              <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
                   <circle cx="8" cy="8" r="6" stroke="#16a34a" strokeWidth="1.5" />
                   <path

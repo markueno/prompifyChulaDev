@@ -64,8 +64,7 @@ vi.mock('pg', () => {
 
 import { createUserPostgres } from './database-postgresql';
 
-const grantInsert = () =>
-  state.calls.find(c => /INSERT INTO token_balances/i.test(c.sql) && /'tier'/i.test(c.sql));
+const grantInsert = () => state.calls.find(c => /INSERT INTO token_balances/i.test(c.sql) && /'tier'/i.test(c.sql));
 
 const makeUser = (overrides: Record<string, any>) => ({
   id: 'u',

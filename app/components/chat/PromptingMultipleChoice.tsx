@@ -171,14 +171,17 @@ function SwatchPopup({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl p-5 w-72 shadow-2xl border border-gray-200"
+        className="bg-white dark:bg-[#2d2014] rounded-2xl p-5 w-72 shadow-2xl border border-gray-200 dark:border-[#423322]"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-gray-800">
+          <p className="text-sm font-semibold text-gray-800 dark:text-[#f0e4d5]">
             Pick <span className="text-accent-500">{role}</span> color
           </p>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-700 dark:hover:text-[#968878] text-xl leading-none"
+          >
             ×
           </button>
         </div>
@@ -190,13 +193,16 @@ function SwatchPopup({
               className="w-7 h-7 rounded-md hover:scale-110 transition-transform border-2 shadow-sm"
               style={{
                 background: hex,
-                borderColor: current.toUpperCase() === hex.toUpperCase() ? '#000' : 'rgba(0,0,0,0.08)',
+                borderColor:
+                  current.toUpperCase() === hex.toUpperCase()
+                    ? 'var(--bolt-elements-textPrimary, #000)'
+                    : 'rgba(0,0,0,0.08)',
               }}
             />
           ))}
         </div>
-        <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
-          <span className="text-sm text-gray-400 font-mono">#</span>
+        <div className="flex items-center gap-2 pt-1 border-t border-gray-100 dark:border-[#423322]">
+          <span className="text-sm text-gray-400 dark:text-[#c4b19a] font-mono">#</span>
           <input
             type="text"
             maxLength={6}
@@ -208,11 +214,11 @@ function SwatchPopup({
                 onPick(`#${hexInput.toUpperCase()}`);
               }
             }}
-            className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-800 font-mono focus:outline-none focus:border-accent-500"
+            className="flex-1 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-[#423322] bg-gray-50 dark:bg-[#1a120a] text-gray-800 dark:text-[#f0e4d5] font-mono focus:outline-none focus:border-accent-500"
           />
           {preview && (
             <span
-              className="w-7 h-7 rounded-md border border-gray-200 shrink-0 shadow-sm"
+              className="w-7 h-7 rounded-md border border-gray-200 dark:border-[#423322] shrink-0 shadow-sm"
               style={{ background: preview }}
             />
           )}
@@ -776,8 +782,8 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
               className={classNames(
                 'flex items-center gap-2 px-3.5 py-2.5 rounded-lg border text-sm mt-2',
                 hasCompanyContext
-                  ? 'bg-green-50 border-green-200 text-green-800'
-                  : 'bg-[#fafafa] border-[#e8e8e8] text-[#999]'
+                  ? 'bg-green-50 dark:bg-green-950/40 border-green-200 dark:border-green-800 text-green-800 dark:text-green-400'
+                  : 'bg-[#fafafa] dark:bg-[#372a1a] border-[#e8e8e8] dark:border-[#423322] text-[#999] dark:text-[#968878]'
               )}
             >
               {hasCompanyContext ? (

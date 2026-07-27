@@ -447,7 +447,9 @@ const UpdateTab = () => {
         {/* Show progress information */}
         {updateProgress && <UpdateProgressDisplay progress={updateProgress} />}
 
-        {error && <div className="mt-4 p-4 bg-red-100 text-red-700 rounded">{error}</div>}
+        {error && (
+          <div className="mt-4 p-4 bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400 rounded">{error}</div>
+        )}
 
         {/* Show update source information */}
         {updateProgress?.details?.currentCommit && updateProgress?.details?.remoteCommit && (

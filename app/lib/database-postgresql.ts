@@ -66,6 +66,19 @@ export function getPostgresPool(): InstanceType<typeof Pool> {
   return pool;
 }
 
+async function ensureAdminBypassUser(client: PoolClient): Promise<void> {
+  if (process.env.AUTH_DISABLED !== 'true') {
+    return;
+  }
+
+  await client.query(
+    `INSERT INTO users (id, email, password_hash, is_verified, is_moderator, token_approved)
+     VALUES ($1, $2, $3, true, true, true)
+     ON CONFLICT (id) DO NOTHING`,
+    ['admin-bypass', 'admin@bypass.local', 'PLACEHOLDER_HASH_AUTH_DISABLED']
+  );
+}
+
 export async function createPostgresTables() {
   migrationRunning = true;
 
@@ -81,6 +94,7 @@ export async function createPostgresTables() {
      * NOT EXISTS, INSERT ... ON CONFLICT). Schema changes go in schema.sql only.
      */
     await client.query(schemaSql);
+    await ensureAdminBypassUser(client);
     console.log('PostgreSQL schema applied successfully');
   } catch (error) {
     console.error('Error applying PostgreSQL schema:', error);

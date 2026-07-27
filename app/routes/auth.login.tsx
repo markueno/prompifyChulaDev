@@ -149,13 +149,13 @@ export default function LoginPage() {
           </div>
 
           {actionData?.error && (
-            <div className="p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm">
+            <div className="p-3 rounded-md bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
               {actionData.error}
             </div>
           )}
 
           {sessionMessage === 'session_expired' && (
-            <div className="p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm">
+            <div className="p-3 rounded-md bg-yellow-50 dark:bg-yellow-950/40 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 text-sm">
               Your session has expired because you logged in from another device. Please sign in again.
             </div>
           )}

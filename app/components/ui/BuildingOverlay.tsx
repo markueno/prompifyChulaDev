@@ -228,10 +228,10 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
 
   const dots = '.'.repeat(dotCount);
 
-  return createPortal(
+  return (
     <div
       style={{
-        position: 'fixed',
+        position: 'absolute',
         inset: 0,
         zIndex: 60,
         display: 'flex',
@@ -240,8 +240,6 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
         justifyContent: 'center',
         gap: 28,
         background: 'rgba(0, 0, 0, 0.55)',
-        backdropFilter: 'blur(18px)',
-        WebkitBackdropFilter: 'blur(18px)',
         opacity: visible ? 1 : 0,
         transition: 'opacity 0.4s ease',
       }}
@@ -307,7 +305,6 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
           {dots}
         </span>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }
