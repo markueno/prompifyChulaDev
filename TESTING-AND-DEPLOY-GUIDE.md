@@ -1,7 +1,38 @@
 # Prompify — Testing & Deploy Guide (reconciled branch `feat/persistence-on-euleros`)
 
 Branch = EulerOS (company/billing/auth base) + ALL v2 features (persistence, app-data, design, UI).
-Verified locally: typecheck 0 errors, lint 0 errors, production build OK. NOT yet runtime-tested.
+Verified locally: typecheck 0 errors, lint 0 errors, production build OK.
+
+=====================================================================
+STATUS / RESUME HERE  (last updated 2026-07-27)
+=====================================================================
+Branch `feat/persistence-on-euleros` is PUSHED to origin and DEPLOYED TO STAGING (prompify-vm).
+Prod (159.138.244.247) is UNTOUCHED, still on branch `EulerOS`.
+
+Fixes applied during staging testing (all pushed, all pass typecheck+lint+build):
+  - 8ede4e3  fix: chat/code reload on refresh (restored v2 IndexedDB-first loader that the
+             merge had reverted to EulerOS's Postgres-gate → was redirecting to /app)
+  - bda2d4a  fix: clear the input box after the wizard generates (raw prompt no longer lingers)
+  - 2d83969  feat: readable chat summary = "<generated title> — <app type · audience · style>"
+             (built from the questionnaire answers) instead of a raw-prompt truncation
+
+VERIFIED WORKING on staging:
+  [x] Persistence saving (manual edit → save → refresh → survives)   ← the big one, confirmed
+  [x] Chat + code reload on refresh
+  [x] Clean boot: "PostgreSQL schema applied successfully" + server listening
+
+STILL TO TEST on staging (A7 checklist below) before ANY prod deploy:
+  [ ] Input-clear + new summary (pull latest first: git reset --hard origin/feat/persistence-on-euleros, rebuild app)
+  [ ] Version-history button (list + revert)
+  [ ] Offline sync (DevTools Network=Offline → edit → back online → syncs)
+  [ ] Billing / Plans page + Stripe checkout (EulerOS model)
+  [ ] Workspace switcher
+  [ ] App-data: create a table in a generated app → reload → persists
+  [ ] UI contrast: identify any low-visibility spots (screenshot/describe) → fix to palette
+
+TO RESUME: SSH staging → pull latest branch → rebuild app → continue the checklist above.
+When ALL boxes pass, proceed to PART B (prod deploy). Do NOT deploy to prod until then.
+=====================================================================
 
 Prod VM:    159.138.244.247 (prompify.com), repo ~/prompifyChulaDev, currently on branch `EulerOS`
 Staging VM: GCP `prompify-vm`, zone asia-southeast1-c, user prompifysup, repo /data/prompify
