@@ -161,6 +161,7 @@ function LandingContactModal({ onClose }: { onClose: () => void }) {
 export function LandingPage() {
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
+  const loginError = searchParams.get('error');
   const registerFetcher = useFetcher<AuthActionData>();
   const forgotFetcher = useFetcher<AuthActionData>();
 
@@ -304,8 +305,13 @@ export function LandingPage() {
                   <h2 id="landing-auth-title">Welcome back</h2>
                   <p>Sign in to continue building with Prompify</p>
                 </div>
-                <Form reloadDocument method="post" action="/auth/login" className="landing-login-modal-form">
+                <Form reloadDocument method="post" className="landing-login-modal-form">
                   <input type="hidden" name="intent" value="login" />
+                  {loginError && (
+                    <div className="landing-login-modal-error" role="alert">
+                      {loginError}
+                    </div>
+                  )}
 
                   <label className="landing-login-modal-label" htmlFor="landing-login-email">
                     Email

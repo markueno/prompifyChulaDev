@@ -1,7 +1,7 @@
-import type { LinksFunction, LoaderFunctionArgs, MetaFunction } from '@remix-run/cloudflare';
+import type { ActionFunctionArgs, LinksFunction, LoaderFunctionArgs, MetaFunction } from '@remix-run/cloudflare';
 import { json, redirect } from '@remix-run/cloudflare';
 import { LandingPage } from '~/components/landing/LandingPage';
-import { isAuthDisabled, optionalAuth } from '~/lib/auth';
+import { createAuthCookie, isAuthDisabled, optionalAuth } from '~/lib/auth';
 
 import landingStyles from '~/styles/landing.css?url';
 
@@ -57,6 +57,44 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   }
 
   return json({});
+}
+
+export async function action({ request }: ActionFunctionArgs) {
+  const formData = await request.formData();
+  const email = (formData.get('email') as string) || '';
+  const password = (formData.get('password') as string) || '';
+  const intent = (formData.get('intent') as string) || '';
+
+  if (intent !== 'login') {
+    return redirect('/?login=1&error=' + encodeURIComponent('Invalid action'));
+  }
+
+  if (!email || !password) {
+    return redirect('/?login=1&error=' + encodeURIComponent('Email and password are required'));
+  }
+
+  try {
+    const url = new URL(request.url);
+    const response = await fetch(`${url.origin}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = (await response.json()) as any;
+
+    if (!response.ok || !data.success) {
+      return redirect('/?login=1&error=' + encodeURIComponent(data?.message || 'Invalid email or password'));
+    }
+
+    const headers = new Headers();
+    headers.append('Set-Cookie', createAuthCookie(data.token, request));
+
+    return redirect('/app/', { headers });
+  } catch (error) {
+    console.error('Login error:', error);
+    return redirect('/?login=1&error=' + encodeURIComponent('An unexpected error occurred'));
+  }
 }
 
 /*
