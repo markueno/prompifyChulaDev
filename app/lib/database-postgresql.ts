@@ -1149,8 +1149,13 @@ async function syncPromptsFromChatMessagesPostgres(
       continue;
     }
 
+    /*
+     * Fall back to the chat owner when the message author isn't a real user id. The client's
+     * getMessageAuthor() yields 'anonymous' when it has no user (common under AUTH_DISABLED), and
+     * prompts.user_id has a strict FK to users(id) — inserting 'anonymous' 500s the whole save.
+     */
     const authorId = msg?.author?.id;
-    const userId = authorId && typeof authorId === 'string' ? authorId : defaultUserId;
+    const userId = authorId && typeof authorId === 'string' && authorId !== 'anonymous' ? authorId : defaultUserId;
     await client.query(
       `INSERT INTO prompts (id, chat_id, user_id, message_id)
        VALUES ($1, $2, $3, $4)
