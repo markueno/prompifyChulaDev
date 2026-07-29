@@ -41,12 +41,23 @@ function corsHeadersFor(request: Request): Record<string, string> {
     return {};
   }
 
-  return {
+  const headers: Record<string, string> = {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     Vary: 'Origin',
   };
+
+  /*
+   * Private Network Access: the preview is a public origin; when Prompify is reached
+   * over a public->localhost tunnel (staging test), Chrome sends a PNA preflight and
+   * requires this header. Harmless in prod (only emitted when the browser asks for it).
+   */
+  if (request.headers.get('Access-Control-Request-Private-Network') === 'true') {
+    headers['Access-Control-Allow-Private-Network'] = 'true';
+  }
+
+  return headers;
 }
 
 function withCors(request: Request, response: Response): Response {
