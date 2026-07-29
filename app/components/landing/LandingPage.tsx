@@ -304,7 +304,7 @@ export function LandingPage() {
                   <h2 id="landing-auth-title">Welcome back</h2>
                   <p>Sign in to continue building with Prompify</p>
                 </div>
-                <Form method="post" action="/auth/login" className="landing-login-modal-form">
+                <Form reloadDocument method="post" action="/auth/login" className="landing-login-modal-form">
                   <input type="hidden" name="intent" value="login" />
 
                   <label className="landing-login-modal-label" htmlFor="landing-login-email">
