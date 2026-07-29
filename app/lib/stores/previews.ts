@@ -1,5 +1,6 @@
 import type { WebContainer } from '@webcontainer/api';
 import { atom } from 'nanostores';
+import { injectPromptifyConfig } from '~/lib/webcontainer/promptifyConfig';
 
 // Extend Window interface to include our custom property
 declare global {
@@ -70,6 +71,12 @@ export class PreviewsStore {
 
       // Persist base URL so port-polling can use it even after a page refresh
       this.#captureBaseUrl(url);
+
+      /*
+       * Inject the Prompify data-proxy config so generated apps reach LIVE data in the preview
+       * (before the SERVER_READY_DELAY iframe reload below picks up the new /env-config.js).
+       */
+      injectPromptifyConfig(webcontainer);
 
       /*
        * BroadcastChannel.onmessage does NOT fire in the same tab that sent the message,
