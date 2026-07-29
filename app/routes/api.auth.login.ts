@@ -1,8 +1,8 @@
-import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
+import { json, redirect, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { isEmailVerificationRequired } from '~/lib/auth';
+import { createAuthCookie, isEmailVerificationRequired } from '~/lib/auth';
 
 interface LoginRequest {
   email: string;
@@ -32,13 +32,38 @@ export async function action({ request, context }: ActionFunctionArgs) {
     return json({ success: false, message: 'Method not allowed' }, { status: 405 });
   }
 
+  const contentType = request.headers.get('Content-Type') || '';
+  const isFormSubmit =
+    contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data');
+
+  let email: string;
+  let password: string;
+
+  if (isFormSubmit) {
+    const formData = await request.formData();
+    email = (formData.get('email') as string) || '';
+    password = (formData.get('password') as string) || '';
+
+    const intent = (formData.get('intent') as string) || '';
+
+    if (intent !== 'login') {
+      return redirect('/?login=1&error=' + encodeURIComponent('Invalid action'));
+    }
+  } else {
+    const body: LoginRequest = await request.json();
+    email = body.email;
+    password = body.password;
+  }
+
   try {
     const emailVerificationRequired = isEmailVerificationRequired(context);
-    const body: LoginRequest = await request.json();
-    const { email, password } = body;
 
     // Input validation
     if (!email || !password) {
+      if (isFormSubmit) {
+        return redirect('/?login=1&error=' + encodeURIComponent('Email and password are required'));
+      }
+
       return json<LoginResponse>(
         {
           success: false,
@@ -53,6 +78,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(emailNormalized)) {
+      if (isFormSubmit) {
+        return redirect('/?login=1&error=' + encodeURIComponent('Invalid email format'));
+      }
+
       return json<LoginResponse>(
         {
           success: false,
@@ -70,6 +99,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
     if (attempts) {
       if (now - attempts.lastAttempt < RATE_LIMIT_WINDOW) {
         if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
+          if (isFormSubmit) {
+            return redirect(
+              '/?login=1&error=' + encodeURIComponent('Too many login attempts. Please try again in 15 minutes.')
+            );
+          }
+
           return json<LoginResponse>(
             {
               success: false,
@@ -105,6 +140,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
     if (!user) {
       // Update login attempts for non-existent user
       await updateLoginAttempts(emailNormalized, 1);
+
+      if (isFormSubmit) {
+        return redirect('/?login=1&error=' + encodeURIComponent('Invalid email or password'));
+      }
+
       return json<LoginResponse>(
         {
           success: false,
@@ -116,6 +156,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     // Check if user is verified
     if (emailVerificationRequired && (!user.is_verified || user.is_verified === 0)) {
+      if (isFormSubmit) {
+        return redirect('/?login=1&error=' + encodeURIComponent('Please verify your email address before logging in'));
+      }
+
       return json<LoginResponse>(
         {
           success: false,
@@ -131,6 +175,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
     if (!isValidPassword) {
       // Update login attempts
       await updateLoginAttempts(emailNormalized, (user.login_attempts || 0) + 1);
+
+      if (isFormSubmit) {
+        return redirect('/?login=1&error=' + encodeURIComponent('Invalid email or password'));
+      }
+
       return json<LoginResponse>(
         {
           success: false,
@@ -173,6 +222,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
     // Clear rate limiting on successful login
     loginAttempts.delete(clientIP);
 
+    if (isFormSubmit) {
+      const headers = new Headers();
+      headers.append('Set-Cookie', createAuthCookie(token, request));
+
+      return redirect('/app/', { headers });
+    }
+
     return json<LoginResponse>({
       success: true,
       token,
@@ -185,6 +241,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
     });
   } catch (error) {
     console.error('Login error:', error);
+
+    if (isFormSubmit) {
+      return redirect('/?login=1&error=' + encodeURIComponent('An unexpected error occurred'));
+    }
+
     return json<LoginResponse>(
       {
         success: false,

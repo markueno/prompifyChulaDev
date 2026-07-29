@@ -305,7 +305,7 @@ export function LandingPage() {
                   <h2 id="landing-auth-title">Welcome back</h2>
                   <p>Sign in to continue building with Prompify</p>
                 </div>
-                <Form reloadDocument method="post" className="landing-login-modal-form">
+                <Form reloadDocument method="post" action="/api/auth/login" className="landing-login-modal-form">
                   <input type="hidden" name="intent" value="login" />
                   {loginError && (
                     <div className="landing-login-modal-error" role="alert">
