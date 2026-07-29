@@ -393,7 +393,7 @@ function Button({ active = false, disabled = false, children, onClick, className
         {
           'bg-[#f0e4d5]/20 hover:bg-[#f0e4d5]/40 text-white hover:text-white': !active && !disabled,
           'bg-[#f97316]/30 text-white': active && !disabled,
-          'bg-[#f0e4d5]/10 text-white/30 cursor-not-allowed': disabled,
+          'bg-[#f0e4d5]/10 text-white/45 cursor-not-allowed': disabled,
         },
         className
       )}

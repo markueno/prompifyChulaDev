@@ -11,7 +11,9 @@
 
   --bolt-elements-textPrimary: theme('colors.gray.950');
   --bolt-elements-textSecondary: theme('colors.gray.600');
-  --bolt-elements-textTertiary: theme('colors.gray.500');
+  /* a11y: gray.500 (#737373) fails AA on depth-3 surfaces (3.99:1). #606060 passes (~5:1)
+     while staying lighter than textSecondary so the muted hierarchy is preserved. */
+  --bolt-elements-textTertiary: #606060;
 
   --bolt-elements-code-background: theme('colors.gray.100');
   --bolt-elements-code-text: theme('colors.gray.950');
@@ -117,7 +119,8 @@
 
   --bolt-elements-textPrimary: #f0e4d5;
   --bolt-elements-textSecondary: #c4b19a;
-  --bolt-elements-textTertiary: #968878;
+  /* a11y: #968878 fails AA on depth-4 (3.53:1). #b3a492 passes (~5:1), still muted vs secondary. */
+  --bolt-elements-textTertiary: #b3a492;
 
   --bolt-elements-code-background: #1a120a;
   --bolt-elements-code-text: #f0e4d5;

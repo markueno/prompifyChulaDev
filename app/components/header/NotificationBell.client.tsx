@@ -82,7 +82,7 @@ export function NotificationBell() {
                   'flex-1 px-4 py-3 text-sm font-medium transition-colors',
                   activeTab === 'notifications'
                     ? 'text-[#231710] border-b-2 border-[#f97316] -mb-px'
-                    : 'text-[#231710]/50 hover:text-[#231710]'
+                    : 'text-[#231710]/70 hover:text-[#231710]'
                 )}
               >
                 Notifications
@@ -94,7 +94,7 @@ export function NotificationBell() {
                   'flex-1 px-4 py-3 text-sm font-medium transition-colors',
                   activeTab === 'news'
                     ? 'text-[#231710] border-b-2 border-[#f97316] -mb-px'
-                    : 'text-[#231710]/50 hover:text-[#231710]'
+                    : 'text-[#231710]/70 hover:text-[#231710]'
                 )}
               >
                 Latest news

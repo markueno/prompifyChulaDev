@@ -38,7 +38,7 @@ export function UserProfile({ user }: UserProfileProps) {
         <div className="px-2.5 py-2 border-b border-[#fed7aa]/40 dark:border-[#423322] flex items-start justify-between gap-2">
           <p className="text-sm font-medium text-[#231710] dark:text-[#f0e4d5]">{displayName || user.email}</p>
           {user.accountTier ? (
-            <span className="text-xs font-medium text-[#231710]/50 dark:text-[#c4b19a] shrink-0">
+            <span className="text-xs font-medium text-[#231710]/70 dark:text-[#c4b19a] shrink-0">
               {user.accountTier}
             </span>
           ) : null}
