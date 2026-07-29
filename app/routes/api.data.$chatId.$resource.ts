@@ -26,6 +26,45 @@ const MAX_ROWS = 1000;
 const VALID_COLUMN = /^[a-z][a-z0-9_]{0,62}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/*
+ * CORS for the WebContainer preview. The generated app runs cross-origin at
+ * <id>.local-credentialless.webcontainer-api.io and calls this proxy with a Bearer
+ * token (no cookies), so we reflect ONLY that origin and allow the Authorization
+ * header + preflight. Token auth remains the real gate.
+ */
+const WEBCONTAINER_ORIGIN_RE = /^https:\/\/[a-z0-9-]+\.local-credentialless\.webcontainer-api\.io$/;
+
+function corsHeadersFor(request: Request): Record<string, string> {
+  const origin = request.headers.get('Origin') || '';
+
+  if (!WEBCONTAINER_ORIGIN_RE.test(origin)) {
+    return {};
+  }
+
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    Vary: 'Origin',
+  };
+}
+
+function withCors(request: Request, response: Response): Response {
+  for (const [key, value] of Object.entries(corsHeadersFor(request))) {
+    response.headers.set(key, value);
+  }
+
+  return response;
+}
+
+function preflightResponse(request: Request): Response | null {
+  if (request.method !== 'OPTIONS') {
+    return null;
+  }
+
+  return new Response(null, { status: 204, headers: corsHeadersFor(request) });
+}
+
 interface ResolvedContext {
   user: User;
   ownerId: string;
@@ -116,7 +155,17 @@ function columnSet(table: AppTableMeta): Set<string> {
 }
 
 // GET — list rows
-export async function loader({ request, params, context }: LoaderFunctionArgs) {
+export async function loader(args: LoaderFunctionArgs) {
+  const pre = preflightResponse(args.request);
+
+  if (pre) {
+    return pre;
+  }
+
+  return withCors(args.request, await loaderImpl(args));
+}
+
+async function loaderImpl({ request, params, context }: LoaderFunctionArgs) {
   const user = await resolveUser(request, context);
 
   if (!user) {
@@ -174,7 +223,17 @@ export async function loader({ request, params, context }: LoaderFunctionArgs) {
 }
 
 // POST/PATCH/DELETE
-export async function action({ request, params, context }: ActionFunctionArgs) {
+export async function action(args: ActionFunctionArgs) {
+  const pre = preflightResponse(args.request);
+
+  if (pre) {
+    return pre;
+  }
+
+  return withCors(args.request, await actionImpl(args));
+}
+
+async function actionImpl({ request, params, context }: ActionFunctionArgs) {
   const user = await resolveUser(request, context);
 
   if (!user) {
