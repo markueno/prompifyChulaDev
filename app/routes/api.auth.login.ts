@@ -150,7 +150,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     await ensureUserTrial(user.id || '');
 
     // Generate JWT token
-    const secret = (context.cloudflare?.env as any)?.JWT_SECRET || 'your-secret-key';
+    const secret = (context.cloudflare?.env as any)?.JWT_SECRET ?? process.env.JWT_SECRET ?? '';
     const isModerator = Boolean(user.is_moderator);
     const token = jwt.sign(
       {
