@@ -109,7 +109,7 @@
 /* Color Tokens Dark Theme — Prompify brand (warm earth palette) */
 :root,
 :root[data-theme='dark'] {
-  --bolt-elements-borderColor: rgba(240, 228, 213, 0.10);
+  --bolt-elements-borderColor: rgba(240, 228, 213, 0.1);
   --bolt-elements-borderColorActive: theme('colors.accent.500');
 
   --bolt-elements-bg-depth-1: #231710;
@@ -142,8 +142,8 @@
   --bolt-elements-item-contentAccent: theme('colors.accent.400');
   --bolt-elements-item-contentDanger: theme('colors.red.400');
   --bolt-elements-item-backgroundDefault: rgba(255, 255, 255, 0);
-  --bolt-elements-item-backgroundActive: rgba(240, 228, 213, 0.10);
-  --bolt-elements-item-backgroundAccent: rgba(249, 115, 22, 0.20);
+  --bolt-elements-item-backgroundActive: rgba(240, 228, 213, 0.1);
+  --bolt-elements-item-backgroundAccent: rgba(249, 115, 22, 0.2);
   --bolt-elements-item-backgroundDanger: rgba(239, 68, 68, 0.12);
 
   --bolt-elements-loader-background: rgba(240, 228, 213, 0.08);
@@ -172,9 +172,9 @@
 
   --bolt-elements-dividerColor: rgba(240, 228, 213, 0.12);
 
-  --bolt-elements-prompt-background: rgba(35, 23, 16, 0.80);
+  --bolt-elements-prompt-background: rgba(35, 23, 16, 0.8);
 
-  --bolt-elements-sidebar-dropdownShadow: rgba(0, 0, 0, 0.50);
+  --bolt-elements-sidebar-dropdownShadow: rgba(0, 0, 0, 0.5);
   --bolt-elements-sidebar-buttonBackgroundDefault: rgba(249, 115, 22, 0.12);
   --bolt-elements-sidebar-buttonBackgroundHover: rgba(249, 115, 22, 0.22);
   --bolt-elements-sidebar-buttonText: theme('colors.accent.400');
@@ -188,7 +188,7 @@
   --bolt-elements-terminals-background: #1a120a;
   --bolt-elements-terminals-buttonBackground: #372a1a;
 
-  --bolt-elements-cta-background: rgba(240, 228, 213, 0.10);
+  --bolt-elements-cta-background: rgba(240, 228, 213, 0.1);
   --bolt-elements-cta-text: #f0e4d5;
 
   /* Terminal Colors */

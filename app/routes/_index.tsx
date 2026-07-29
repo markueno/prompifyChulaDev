@@ -74,8 +74,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   try {
-    const url = new URL(request.url);
-    const response = await fetch(`${url.origin}/api/auth/login`, {
+    const response = await fetch('http://localhost:5173/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
