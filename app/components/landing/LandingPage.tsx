@@ -1,5 +1,5 @@
-import { useFetcher, useNavigate, useSearchParams } from '@remix-run/react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Form, useFetcher, useNavigation, useSearchParams } from '@remix-run/react';
+import { useCallback, useEffect, useState } from 'react';
 import { CONTACT_COUNTRY_OPTIONS, CONTACT_ENQUIRY_OPTIONS } from '~/lib/contact-form-options';
 import Navbar from './Navbar/Navbar';
 import Hero from './Hero/Hero';
@@ -8,8 +8,6 @@ import Outro from './Outro/Outro';
 import Footer from './Footer/Footer';
 
 type AuthActionData = { error?: string; success?: string };
-
-const LOGIN_SIGNING_IN_MAX_MS = 4000;
 
 // ─── Contact modal ────────────────────────────────────────────────────────────
 
@@ -161,16 +159,10 @@ function LandingContactModal({ onClose }: { onClose: () => void }) {
 // ─── Main LandingPage ─────────────────────────────────────────────────────────
 
 export function LandingPage() {
-  const navigate = useNavigate();
+  const navigation = useNavigation();
   const [searchParams] = useSearchParams();
-  const loginFetcher = useFetcher<AuthActionData>();
   const registerFetcher = useFetcher<AuthActionData>();
   const forgotFetcher = useFetcher<AuthActionData>();
-
-  const loginAttemptRef = useRef(false);
-  const previousLoginFetcherStateRef = useRef(loginFetcher.state);
-  const loginSigningInTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [loginSigningIn, setLoginSigningIn] = useState(false);
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
@@ -210,21 +202,11 @@ export function LandingPage() {
     }, 450);
   }, []);
 
-  const clearLoginSigningIn = useCallback(() => {
-    if (loginSigningInTimerRef.current) {
-      clearTimeout(loginSigningInTimerRef.current);
-      loginSigningInTimerRef.current = null;
-    }
-
-    setLoginSigningIn(false);
-  }, []);
-
   const closeAuthModal = useCallback(() => {
-    clearLoginSigningIn();
     setShowLoginModal(false);
     setAuthModalMode('login');
     setForgotShowFormForced(false);
-  }, [clearLoginSigningIn]);
+  }, []);
 
   const openContactModal = useCallback(() => {
     setShowLoginModal(false);
@@ -249,30 +231,6 @@ export function LandingPage() {
       special: /(?=.*[!@#$%^&*])/.test(password),
     });
   }, []);
-
-  // ── Login success → navigate to /app/ ────────────────────────────────────
-  useEffect(() => {
-    const previousState = previousLoginFetcherStateRef.current;
-    previousLoginFetcherStateRef.current = loginFetcher.state;
-
-    if (!loginAttemptRef.current || loginFetcher.state !== 'idle' || previousState === 'idle') {
-      return;
-    }
-
-    if (loginSigningInTimerRef.current) {
-      clearTimeout(loginSigningInTimerRef.current);
-      loginSigningInTimerRef.current = null;
-    }
-
-    setLoginSigningIn(false);
-    loginAttemptRef.current = false;
-
-    if (loginFetcher.data?.error) {
-      return;
-    }
-
-    navigate('/app/', { replace: true });
-  }, [loginFetcher.state, loginFetcher.data, navigate]);
 
   // ── ?login=1 query param opens modal ─────────────────────────────────────
   useEffect(() => {
@@ -318,19 +276,6 @@ export function LandingPage() {
       setForgotShowFormForced(false);
     }
   }, [forgotFetcher.state]);
-  useEffect(() => {
-    if (showLoginModal) {
-      return;
-    }
-  }, [showLoginModal]);
-  useEffect(
-    () => () => {
-      if (loginSigningInTimerRef.current) {
-        clearTimeout(loginSigningInTimerRef.current);
-      }
-    },
-    []
-  );
 
   // ── Outro shimmer + navbar fade handled by Hero/PinCards components ───────
 
@@ -359,30 +304,8 @@ export function LandingPage() {
                   <h2 id="landing-auth-title">Welcome back</h2>
                   <p>Sign in to continue building with Prompify</p>
                 </div>
-                <loginFetcher.Form
-                  method="post"
-                  action="/auth/login"
-                  className="landing-login-modal-form"
-                  onSubmit={() => {
-                    loginAttemptRef.current = true;
-
-                    if (loginSigningInTimerRef.current) {
-                      clearTimeout(loginSigningInTimerRef.current);
-                    }
-
-                    setLoginSigningIn(true);
-                    loginSigningInTimerRef.current = setTimeout(() => {
-                      loginSigningInTimerRef.current = null;
-                      setLoginSigningIn(false);
-                    }, LOGIN_SIGNING_IN_MAX_MS);
-                  }}
-                >
+                <Form method="post" action="/auth/login" className="landing-login-modal-form">
                   <input type="hidden" name="intent" value="login" />
-                  {loginFetcher.data?.error && (
-                    <div className="landing-login-modal-error" role="alert">
-                      {loginFetcher.data.error}
-                    </div>
-                  )}
 
                   <label className="landing-login-modal-label" htmlFor="landing-login-email">
                     Email
@@ -423,13 +346,11 @@ export function LandingPage() {
                   <button
                     type="submit"
                     className="landing-login-modal-submit"
-                    disabled={loginFetcher.state === 'submitting' || (loginSigningIn && !loginFetcher.data?.error)}
+                    disabled={navigation.state === 'submitting'}
                   >
-                    {loginFetcher.state === 'submitting' || (loginSigningIn && !loginFetcher.data?.error)
-                      ? 'Signing in…'
-                      : 'Sign in'}
+                    {navigation.state === 'submitting' ? 'Signing in…' : 'Sign in'}
                   </button>
-                </loginFetcher.Form>
+                </Form>
                 <div className="landing-login-modal-footer">
                   <button
                     type="button"
