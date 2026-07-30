@@ -54,6 +54,13 @@ const NUMERIC_TYPES = new Set([
   'int8',
 ]);
 
+/*
+ * DB-managed columns: id is the primary key (assigned by the proxy / gen_random_uuid),
+ * created_at/updated_at are set automatically. They are hidden from the "add row" form and
+ * read-only when editing — the row's own id is used for update/delete, not a form field.
+ */
+const AUTO_MANAGED = new Set(['id', 'created_at', 'updated_at']);
+
 function inputTypeFor(col: SupabaseColumn): 'number' | 'checkbox' | 'date' | 'datetime-local' | 'textarea' | 'text' {
   if (NUMERIC_TYPES.has(col.type) || NUMERIC_TYPES.has(col.format ?? '')) {
     return 'number';
@@ -200,7 +207,7 @@ interface RowModalProps {
 }
 
 const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClose }: RowModalProps) => {
-  const visibleCols = table.columns;
+  const visibleCols = mode === 'add' ? table.columns.filter(c => !AUTO_MANAGED.has(c.name)) : table.columns;
 
   return (
     <div
@@ -224,6 +231,7 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
         <form onSubmit={onSubmit} className="px-5 py-4 space-y-3">
           {visibleCols.map(col => {
             const itype = inputTypeFor(col);
+            const readonly = mode === 'edit' && AUTO_MANAGED.has(col.name);
 
             return (
               <div key={col.name}>
@@ -237,14 +245,14 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
                     type="checkbox"
                     checked={values[col.name] === 'true'}
                     onChange={e => onChange(col.name, String(e.target.checked))}
-                    disabled
+                    disabled={readonly}
                     className="w-4 h-4 rounded border-bolt-elements-borderColor accent-accent-500"
                   />
                 ) : itype === 'textarea' ? (
                   <textarea
                     value={values[col.name] ?? ''}
                     onChange={e => onChange(col.name, e.target.value)}
-                    readOnly
+                    readOnly={readonly}
                     rows={3}
                     placeholder="{}"
                     className="w-full px-3 py-2 text-sm rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary font-mono focus:outline-none focus:ring-1 focus:ring-accent-500/50 read-only:opacity-50"
@@ -254,7 +262,7 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
                     type={itype}
                     value={values[col.name] ?? ''}
                     onChange={e => onChange(col.name, e.target.value)}
-                    readOnly
+                    readOnly={readonly}
                     className="w-full px-3 py-2 text-sm rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary focus:outline-none focus:ring-1 focus:ring-accent-500/50 read-only:opacity-50 read-only:cursor-default"
                   />
                 )}
@@ -545,9 +553,11 @@ export const AdminDataSection = memo(() => {
     }
 
     const init: Record<string, string> = {};
-    selectedTable.columns.forEach(c => {
-      init[c.name] = '';
-    });
+    selectedTable.columns
+      .filter(c => !AUTO_MANAGED.has(c.name))
+      .forEach(c => {
+        init[c.name] = '';
+      });
     setFormValues(init);
     setEditingRow(null);
     setRowModalMode('add');
@@ -577,7 +587,7 @@ export const AdminDataSection = memo(() => {
     setSaving(true);
 
     const payload: SupabaseRow = {};
-    const targetCols = selectedTable.columns;
+    const targetCols = selectedTable.columns.filter(c => !AUTO_MANAGED.has(c.name));
 
     for (const col of targetCols) {
       const raw = formValues[col.name];

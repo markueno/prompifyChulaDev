@@ -19,6 +19,12 @@ import { formatDefaultValue } from '~/utils/sqlDefaultValue';
 
 const VALID_IDENTIFIER = /^[a-z][a-z0-9_]{0,62}$/;
 
+/*
+ * id/created_at/updated_at are always added automatically (id is the PK the data proxy uses
+ * for update/delete); user columns may not reuse these names.
+ */
+const RESERVED_NAMES = new Set(['id', 'created_at', 'updated_at']);
+
 const PG_TYPES: Record<string, string> = {
   text: 'text',
   integer: 'integer',
@@ -45,22 +51,6 @@ function validateIdentifier(name: string, label: string): string | null {
 }
 
 function buildCreateTableSQL(tableName: string, columns: ColumnInput[]): string {
-  const providedNames = new Set(columns.map(c => c.name));
-
-  const systemDefaults: { name: string; def: string }[] = [];
-
-  if (!providedNames.has('id')) {
-    systemDefaults.push({ name: 'id', def: '  id uuid PRIMARY KEY DEFAULT gen_random_uuid()' });
-  }
-
-  if (!providedNames.has('created_at')) {
-    systemDefaults.push({ name: 'created_at', def: '  created_at timestamptz NOT NULL DEFAULT now()' });
-  }
-
-  if (!providedNames.has('updated_at')) {
-    systemDefaults.push({ name: 'updated_at', def: '  updated_at timestamptz NOT NULL DEFAULT now()' });
-  }
-
   const userColDefs = columns.map(col => {
     const pgType = PG_TYPES[col.type] || 'text';
     const nullable = col.nullable ? '' : ' NOT NULL';
@@ -70,7 +60,17 @@ function buildCreateTableSQL(tableName: string, columns: ColumnInput[]): string 
     return `  "${col.name}" ${pgType}${nullable}${def}`;
   });
 
-  const allDefs = [...systemDefaults.map(s => s.def), ...userColDefs];
+  /*
+   * id/created_at/updated_at are always added with their proper PK/defaults (reserved names are
+   * rejected above, so they never collide with user columns). id is the PRIMARY KEY the data
+   * proxy relies on for update/delete. Auto columns first, matching the import route's order.
+   */
+  const allDefs = [
+    '  id uuid PRIMARY KEY DEFAULT gen_random_uuid()',
+    '  created_at timestamptz NOT NULL DEFAULT now()',
+    '  updated_at timestamptz NOT NULL DEFAULT now()',
+    ...userColDefs,
+  ];
 
   return `CREATE TABLE "${tableName}" (\n${allDefs.join(',\n')}\n);`;
 }
@@ -146,6 +146,13 @@ export async function action({ request, params, context }: ActionFunctionArgs) {
     }
 
     for (const col of columns || []) {
+      if (RESERVED_NAMES.has(col.name)) {
+        return json(
+          { error: `Column "${col.name}" is reserved — id, created_at, and updated_at are added automatically` },
+          { status: 400 }
+        );
+      }
+
       const colErr = validateIdentifier(col.name, 'Column name');
 
       if (colErr) {

@@ -10,7 +10,6 @@ interface ColumnDef {
   type: ColumnType;
   nullable: boolean;
   defaultValue: string;
-  system?: boolean;
 }
 
 interface CreateTableModalProps {
@@ -21,15 +20,9 @@ interface CreateTableModalProps {
 
 let colIdSeq = 0;
 
-function makeCol(overrides?: Partial<ColumnDef>): ColumnDef {
-  return { id: ++colIdSeq, name: '', type: 'text', nullable: true, defaultValue: '', ...overrides };
+function makeCol(): ColumnDef {
+  return { id: ++colIdSeq, name: '', type: 'text', nullable: true, defaultValue: '' };
 }
-
-const DEFAULT_SYSTEM_COLS: ColumnDef[] = [
-  { id: 0, name: 'id', type: 'uuid', nullable: false, defaultValue: '', system: true },
-  { id: 0, name: 'created_at', type: 'timestamptz', nullable: false, defaultValue: '', system: true },
-  { id: 0, name: 'updated_at', type: 'timestamptz', nullable: false, defaultValue: '', system: true },
-];
 
 function slugify(s: string): string {
   return s
@@ -41,10 +34,7 @@ function slugify(s: string): string {
 
 export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTableModalProps) => {
   const [tableName, setTableName] = useState('');
-  const [columns, setColumns] = useState<ColumnDef[]>(() => [
-    ...DEFAULT_SYSTEM_COLS.map(c => makeCol({ name: c.name, type: c.type, nullable: c.nullable, system: true })),
-    makeCol(),
-  ]);
+  const [columns, setColumns] = useState<ColumnDef[]>([makeCol()]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,6 +123,11 @@ export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTabl
             )}
           </div>
 
+          {/* Auto-added columns notice */}
+          <div className="rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-xs text-bolt-elements-textSecondary">
+            Auto-added: <code>id uuid PK</code>, <code>created_at</code>, <code>updated_at</code>
+          </div>
+
           {/* Column list */}
           <div>
             <div className="mb-2 flex items-center justify-between">
@@ -182,16 +177,16 @@ export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTabl
                     null
                   </label>
 
-                  {col.system && (
-                    <span className="shrink-0 rounded bg-accent-500/10 px-1.5 py-0.5 text-[10px] font-medium text-accent-600 dark:text-accent-300">
-                      system
-                    </span>
-                  )}
-
                   {/* Remove */}
                   <button
                     onClick={() => removeColumn(col.id)}
-                    className="i-ph:trash text-base text-bolt-elements-textSecondary hover:text-red-500"
+                    disabled={columns.length === 1}
+                    className={classNames(
+                      'i-ph:trash text-base',
+                      columns.length === 1
+                        ? 'cursor-not-allowed text-bolt-elements-textTertiary'
+                        : 'text-bolt-elements-textSecondary hover:text-red-500'
+                    )}
                   />
                 </div>
               ))}
