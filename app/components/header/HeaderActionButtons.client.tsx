@@ -273,7 +273,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
               setIsDropdownOpen(!isDropdownOpen);
             }}
-            className="px-4 hover:bg-gray-50 flex items-center gap-2"
+            className="px-4 hover:bg-[#fed7aa] dark:hover:bg-[#423322] flex items-center gap-2"
           >
             {isDeploying ? 'Deploying...' : 'Deploy'}
             <div
@@ -391,9 +391,13 @@ function Button({ active = false, disabled = false, children, onClick, className
       className={classNames(
         'flex items-center p-1.5',
         {
-          'bg-[#f0e4d5]/20 hover:bg-[#f0e4d5]/40 text-white hover:text-white': !active && !disabled,
-          'bg-[#f97316]/30 text-white': active && !disabled,
-          'bg-[#f0e4d5]/10 text-white/45 cursor-not-allowed': disabled,
+          /*
+           * Header is theme-aware (cream in light, dark-brown in dark) — white text was
+           * invisible in light mode. Use the same dark/cream text as the workspace button.
+           */
+          'bg-[#f0e4d5]/20 hover:bg-[#f0e4d5]/40 text-[#231710] dark:text-[#f0e4d5]': !active && !disabled,
+          'bg-[#f97316]/30 text-[#231710] dark:text-[#f0e4d5]': active && !disabled,
+          'bg-[#f0e4d5]/10 text-[#231710]/45 dark:text-[#f0e4d5]/45 cursor-not-allowed': disabled,
         },
         className
       )}

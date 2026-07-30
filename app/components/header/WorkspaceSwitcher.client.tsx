@@ -88,30 +88,32 @@ export function WorkspaceSwitcher() {
       </button>
 
       {open ? (
-        <div className="absolute left-0 z-10 mt-1 w-56 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-1 shadow-lg">
-          <p className="px-2 py-1 text-xs uppercase tracking-wide text-bolt-elements-textSecondary">Workspaces</p>
+        <div className="absolute left-0 z-10 mt-1 w-56 rounded-lg border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#2d2014] p-1 shadow-lg">
+          <p className="px-2 py-1 text-xs uppercase tracking-wide text-[#231710]/60 dark:text-[#f0e4d5]/60">
+            Workspaces
+          </p>
           {workspaces.map(w => (
             <button
               key={w.id}
               type="button"
               onClick={() => switchTo(w.id)}
               className={classNames(
-                'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-bolt-elements-background-depth-2',
+                'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-[#fed7aa] dark:hover:bg-[#423322]',
                 w.id === current?.id
-                  ? 'font-semibold text-bolt-elements-textPrimary'
-                  : 'text-bolt-elements-textSecondary'
+                  ? 'font-semibold text-[#231710] dark:text-[#f0e4d5]'
+                  : 'text-[#231710]/70 dark:text-[#f0e4d5]/80'
               )}
             >
               <span className="truncate">
                 {w.name}
                 {w.is_personal ? ' (Personal)' : ''}
               </span>
-              {w.id === current?.id ? <span className="i-ph:check text-sm" /> : null}
+              {w.id === current?.id ? <span className="i-ph:check text-sm text-[#f97316]" /> : null}
             </button>
           ))}
           <a
             href="/company/new"
-            className="mt-1 flex items-center gap-1.5 rounded-md border-t border-bolt-elements-borderColor px-2 py-1.5 text-sm text-bolt-elements-item-contentAccent hover:bg-bolt-elements-background-depth-2"
+            className="mt-1 flex items-center gap-1.5 rounded-md border-t border-[#fed7aa]/60 dark:border-[#423322] px-2 py-1.5 text-sm text-[#f97316] hover:bg-[#fed7aa] dark:hover:bg-[#423322]"
           >
             <span className="i-ph:plus text-sm" /> Create team
           </a>
