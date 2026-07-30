@@ -80,9 +80,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
   try {
     if (intent === 'register') {
-      // Call your registration API
-      const url = new URL(request.url);
-      const response = await fetch(`${url.origin}/api/auth/register`, {
+      /*
+       * Call the registration API via the internal port — a loopback through the public
+       * origin (nginx/CF) gets redirected (e.g. www canonicalization), and fetch downgrades
+       * the POST to GET, hitting this action-only route with no loader → "Unexpected Server
+       * Error". Same fix as the login action (commit d82d0c2).
+       */
+      const response = await fetch('http://localhost:5173/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

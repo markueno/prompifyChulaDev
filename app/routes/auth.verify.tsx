@@ -47,9 +47,11 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   }
 
   try {
-    // Call your verification API
-    const url = new URL(request.url);
-    const response = await fetch(`${url.origin}/api/auth/verify`, {
+    /*
+     * Call the verification API via the internal port — a loopback through the public origin
+     * gets redirected and the POST is downgraded to GET (see auth.register.tsx / fix d82d0c2).
+     */
+    const response = await fetch('http://localhost:5173/api/auth/verify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

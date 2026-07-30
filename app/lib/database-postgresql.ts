@@ -1092,6 +1092,7 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
         metadata = EXCLUDED.metadata,
         updated_at = CURRENT_TIMESTAMP,
         last_activity = CURRENT_TIMESTAMP
+      WHERE chats.user_id = EXCLUDED.user_id
       RETURNING id
     `;
     const result = await client.query(query, [

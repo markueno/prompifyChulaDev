@@ -244,24 +244,22 @@ export async function updatePendingWriteRetryCount(db: IDBDatabase, id: number, 
   });
 }
 
-export async function getNextId(db: IDBDatabase): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction('counters', 'readwrite');
-    const store = transaction.objectStore('counters');
+export async function getNextId(_db: IDBDatabase): Promise<string> {
+  /*
+   * Chat ids are the PRIMARY KEY of the shared Postgres `chats` table across ALL users
+   * (the client id is dual-written as the PG id). The old per-browser counter restarted at
+   * "1" in every user's browser, so every user's first chat collided on id="1": the save
+   * clobbered a single row (ON CONFLICT DO UPDATE) and data ops resolved to the wrong owner
+   * (403 on import). A globally-unique id is collision-free. Ids are opaque everywhere — no
+   * code parses them as sequential numbers — so a random id is a safe drop-in. The `counters`
+   * object store is left intact (unused) so existing databases need no migration.
+   */
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
 
-    const readReq = store.get('chatId');
-
-    readReq.onsuccess = () => {
-      const next = (readReq.result?.value ?? 0) + 1;
-      const writeReq = store.put({ key: 'chatId', value: next });
-
-      writeReq.onsuccess = () => {
-        transaction.oncomplete = () => resolve(String(next));
-      };
-      writeReq.onerror = () => reject(writeReq.error);
-    };
-    readReq.onerror = () => reject(readReq.error);
-  });
+  // Fallback for non-secure contexts lacking crypto.randomUUID (still collision-resistant).
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export async function getUrlId(db: IDBDatabase, id: string): Promise<string> {

@@ -103,7 +103,11 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 
   try {
-    const response = await fetch(`${url.origin}/api/auth/reset-password`, {
+    /*
+     * Internal port, not the public origin — avoids the nginx/CF redirect that turns the
+     * loopback POST into a GET (see auth.register.tsx / login fix d82d0c2).
+     */
+    const response = await fetch('http://localhost:5173/api/auth/reset-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, newPassword }),
