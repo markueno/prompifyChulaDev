@@ -17,7 +17,6 @@ import { getPostgresPool } from '~/lib/database-postgresql';
 import { provisionUserSchema, runAppQuery, listChatTables } from '~/lib/data-provision.server';
 import { formatDefaultValue } from '~/utils/sqlDefaultValue';
 
-const RESERVED_NAMES = new Set(['id', 'created_at', 'updated_at']);
 const VALID_IDENTIFIER = /^[a-z][a-z0-9_]{0,62}$/;
 
 const PG_TYPES: Record<string, string> = {
@@ -46,6 +45,22 @@ function validateIdentifier(name: string, label: string): string | null {
 }
 
 function buildCreateTableSQL(tableName: string, columns: ColumnInput[]): string {
+  const providedNames = new Set(columns.map(c => c.name));
+
+  const systemDefaults: { name: string; def: string }[] = [];
+
+  if (!providedNames.has('id')) {
+    systemDefaults.push({ name: 'id', def: '  id uuid PRIMARY KEY DEFAULT gen_random_uuid()' });
+  }
+
+  if (!providedNames.has('created_at')) {
+    systemDefaults.push({ name: 'created_at', def: '  created_at timestamptz NOT NULL DEFAULT now()' });
+  }
+
+  if (!providedNames.has('updated_at')) {
+    systemDefaults.push({ name: 'updated_at', def: '  updated_at timestamptz NOT NULL DEFAULT now()' });
+  }
+
   const userColDefs = columns.map(col => {
     const pgType = PG_TYPES[col.type] || 'text';
     const nullable = col.nullable ? '' : ' NOT NULL';
@@ -55,20 +70,8 @@ function buildCreateTableSQL(tableName: string, columns: ColumnInput[]): string 
     return `  "${col.name}" ${pgType}${nullable}${def}`;
   });
 
-  // Auto columns first (matches the import route's CREATE TABLE order).
-  const allDefs = [
-    '  id uuid PRIMARY KEY DEFAULT gen_random_uuid()',
-    '  created_at timestamptz NOT NULL DEFAULT now()',
-    '  updated_at timestamptz NOT NULL DEFAULT now()',
-    ...userColDefs,
-  ];
+  const allDefs = [...systemDefaults.map(s => s.def), ...userColDefs];
 
-  /*
-   * Join with ",\n" so there is never a trailing comma before the closing ")".
-   * (The previous build appended ",);" — a trailing comma that produced
-   * "syntax error at or near ')'" whenever the table was created, especially
-   * with zero user columns.)
-   */
   return `CREATE TABLE "${tableName}" (\n${allDefs.join(',\n')}\n);`;
 }
 
@@ -143,13 +146,6 @@ export async function action({ request, params, context }: ActionFunctionArgs) {
     }
 
     for (const col of columns || []) {
-      if (RESERVED_NAMES.has(col.name)) {
-        return json(
-          { error: `Column "${col.name}" is reserved — id, created_at, and updated_at are added automatically` },
-          { status: 400 }
-        );
-      }
-
       const colErr = validateIdentifier(col.name, 'Column name');
 
       if (colErr) {

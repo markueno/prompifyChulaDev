@@ -9,13 +9,6 @@
  * cell via formatCellValue before any DDL.
  */
 
-const RESERVED = new Set(['id', 'created_at', 'updated_at']);
-
-/**
- * Lowercase, spaces->`_`, strip everything that isn't [a-z0-9_], prefix `col_`
- * when it starts with a non-letter, truncate to 63 chars, fall back to
- * `col_N` for empty/all-stripped input.
- */
 export function sanitizeIdentifier(raw: string, fallbackIndex = 0): string {
   let s = (raw || '')
     .toLowerCase()
@@ -50,11 +43,7 @@ export function uniqueColumnNames(names: string[]): string[] {
     let candidate = original;
     let n = 2;
 
-    /*
-     * Reserved names (id/created_at/updated_at) are auto-added by the import
-     * route, so a user column colliding with one is suffixed too.
-     */
-    while (RESERVED.has(candidate) || seen.has(candidate)) {
+    while (seen.has(candidate)) {
       candidate = `${original}_${n}`;
       n += 1;
     }

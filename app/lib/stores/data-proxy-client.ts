@@ -17,24 +17,17 @@ interface ProxyTable {
   row_count?: number;
 }
 
-const AUTO_COLUMNS: SupabaseColumn[] = [
-  { name: 'id', type: 'uuid', format: 'uuid' },
-  { name: 'created_at', type: 'timestamptz', format: 'timestamp with time zone' },
-  { name: 'updated_at', type: 'timestamptz', format: 'timestamp with time zone' },
-];
-
 function toSupabaseTable(t: ProxyTable): SupabaseTable {
-  const userCols: SupabaseColumn[] = (t.columns || []).map(c => ({
+  const cols: SupabaseColumn[] = (t.columns || []).map(c => ({
     name: c.name,
     type: c.type,
     format: c.type,
     nullable: true,
   }));
 
-  // Auto columns first (matches the import route's CREATE TABLE order).
   return {
     name: t.name,
-    columns: [...AUTO_COLUMNS, ...userCols],
+    columns: cols,
     primaryKey: 'id',
   };
 }

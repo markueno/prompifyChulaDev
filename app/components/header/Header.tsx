@@ -52,7 +52,6 @@ export function Header() {
             >
               Pricing
             </Link>
-            <ClientOnly>{() => <WorkspaceSwitcher />}</ClientOnly>
           </>
         ) : null}
       </div>

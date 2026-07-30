@@ -495,7 +495,8 @@ export class WorkbenchStore {
           }
 
           this.enqueueAlert(alert);
-        }
+        },
+        this.#previewsStore
       ),
     });
   }
@@ -508,6 +509,10 @@ export class WorkbenchStore {
     }
 
     this.artifacts.setKey(messageId, { ...artifact, ...state });
+
+    if (state.closed) {
+      artifact.runner.maybeAutoStartDevServer().catch(() => {});
+    }
   }
   addAction(data: ActionCallbackData) {
     // this._addAction(data);

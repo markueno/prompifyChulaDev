@@ -138,6 +138,17 @@ export async function deleteById(db: IDBDatabase, id: string): Promise<void> {
   });
 }
 
+export async function clearAllChats(db: IDBDatabase): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction('chats', 'readwrite');
+    const store = transaction.objectStore('chats');
+    const request = store.clear();
+
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
 /**
  * A locally-cached codebase snapshot (Day 8). Holds the full file content for the latest
  * version of a chat so the IDE can restore instantly without a network round-trip (Tier 1).

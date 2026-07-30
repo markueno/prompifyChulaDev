@@ -54,18 +54,6 @@ const NUMERIC_TYPES = new Set([
   'int8',
 ]);
 
-function isAutoColumn(col: SupabaseColumn): boolean {
-  if (col.name === 'id' && (NUMERIC_TYPES.has(col.type) || col.format === 'bigint' || col.format === 'integer')) {
-    return true;
-  }
-
-  if ((col.name === 'created_at' || col.name === 'updated_at') && col.type.includes('timestamp')) {
-    return true;
-  }
-
-  return false;
-}
-
 function inputTypeFor(col: SupabaseColumn): 'number' | 'checkbox' | 'date' | 'datetime-local' | 'textarea' | 'text' {
   if (NUMERIC_TYPES.has(col.type) || NUMERIC_TYPES.has(col.format ?? '')) {
     return 'number';
@@ -212,7 +200,7 @@ interface RowModalProps {
 }
 
 const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClose }: RowModalProps) => {
-  const visibleCols: SupabaseColumn[] = mode === 'add' ? table.columns.filter(c => !isAutoColumn(c)) : table.columns;
+  const visibleCols = table.columns;
 
   return (
     <div
@@ -235,7 +223,6 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
 
         <form onSubmit={onSubmit} className="px-5 py-4 space-y-3">
           {visibleCols.map(col => {
-            const readonly = mode === 'edit' && isAutoColumn(col);
             const itype = inputTypeFor(col);
 
             return (
@@ -243,7 +230,6 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
                 <label className="flex items-center gap-1.5 text-xs font-medium text-bolt-elements-textSecondary mb-1">
                   {col.name}
                   <span className="text-bolt-elements-textTertiary font-normal">{col.format ?? col.type}</span>
-                  {isAutoColumn(col) && <span className="text-bolt-elements-textTertiary italic">auto</span>}
                 </label>
 
                 {itype === 'checkbox' ? (
@@ -251,14 +237,14 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
                     type="checkbox"
                     checked={values[col.name] === 'true'}
                     onChange={e => onChange(col.name, String(e.target.checked))}
-                    disabled={readonly}
+                    disabled
                     className="w-4 h-4 rounded border-bolt-elements-borderColor accent-accent-500"
                   />
                 ) : itype === 'textarea' ? (
                   <textarea
                     value={values[col.name] ?? ''}
                     onChange={e => onChange(col.name, e.target.value)}
-                    readOnly={readonly}
+                    readOnly
                     rows={3}
                     placeholder="{}"
                     className="w-full px-3 py-2 text-sm rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary font-mono focus:outline-none focus:ring-1 focus:ring-accent-500/50 read-only:opacity-50"
@@ -268,7 +254,7 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
                     type={itype}
                     value={values[col.name] ?? ''}
                     onChange={e => onChange(col.name, e.target.value)}
-                    readOnly={readonly}
+                    readOnly
                     className="w-full px-3 py-2 text-sm rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary focus:outline-none focus:ring-1 focus:ring-accent-500/50 read-only:opacity-50 read-only:cursor-default"
                   />
                 )}
@@ -559,11 +545,9 @@ export const AdminDataSection = memo(() => {
     }
 
     const init: Record<string, string> = {};
-    selectedTable.columns
-      .filter(c => !isAutoColumn(c))
-      .forEach(c => {
-        init[c.name] = '';
-      });
+    selectedTable.columns.forEach(c => {
+      init[c.name] = '';
+    });
     setFormValues(init);
     setEditingRow(null);
     setRowModalMode('add');
@@ -593,10 +577,7 @@ export const AdminDataSection = memo(() => {
     setSaving(true);
 
     const payload: SupabaseRow = {};
-    const targetCols =
-      rowModalMode === 'add'
-        ? selectedTable.columns.filter(c => !isAutoColumn(c))
-        : selectedTable.columns.filter(c => !isAutoColumn(c));
+    const targetCols = selectedTable.columns;
 
     for (const col of targetCols) {
       const raw = formValues[col.name];

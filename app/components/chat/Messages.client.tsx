@@ -55,7 +55,6 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
               const { role, content, id: messageId, annotations } = message;
               const isUserMessage = role === 'user';
               const isFirst = index === 0;
-              const isLast = index === messages.length - 1;
               const isHidden = annotations?.includes('hidden');
 
               if (isHidden) {
@@ -72,9 +71,7 @@ export const Messages = forwardRef<HTMLDivElement, MessagesProps>(
                 <div
                   key={index}
                   className={classNames('flex gap-4 p-6 w-full rounded-[calc(0.75rem-1px)]', {
-                    'bg-bolt-elements-messages-background': isUserMessage || !isStreaming || (isStreaming && !isLast),
-                    'bg-gradient-to-b from-bolt-elements-messages-background from-30% to-transparent':
-                      isStreaming && isLast,
+                    'bg-bolt-elements-messages-background': true,
                     'mt-4': !isFirst,
                   })}
                 >

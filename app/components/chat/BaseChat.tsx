@@ -141,10 +141,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       }
 
       if (sendMessage) {
-        setTimeout(() => {
-          const syntheticEvent = { preventDefault: () => {}, stopPropagation: () => {} } as React.UIEvent;
-          sendMessage(syntheticEvent, prompt, summary);
-        }, 150);
+        const syntheticEvent = { preventDefault: () => {}, stopPropagation: () => {} } as React.UIEvent;
+        sendMessage(syntheticEvent, prompt, summary);
       }
     };
 
@@ -486,27 +484,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   )}
                 >
                   <svg className={classNames(styles.PromptEffectContainer)}>
-                    <defs>
-                      <linearGradient
-                        id="line-gradient"
-                        x1="20%"
-                        y1="0%"
-                        x2="-14%"
-                        y2="10%"
-                        gradientUnits="userSpaceOnUse"
-                        gradientTransform="rotate(-45)"
-                      >
-                        <stop offset="0%" stopColor="#f97316" stopOpacity="0%"></stop>
-                        <stop offset="40%" stopColor="#f97316" stopOpacity="80%"></stop>
-                        <stop offset="50%" stopColor="#f97316" stopOpacity="80%"></stop>
-                        <stop offset="100%" stopColor="#f97316" stopOpacity="0%"></stop>
-                      </linearGradient>
-                      <linearGradient id="shine-gradient">
-                        <stop offset="0%" stopColor="#f97316" stopOpacity="0%"></stop>
-                        <stop offset="50%" stopColor="#f97316" stopOpacity="40%"></stop>
-                        <stop offset="100%" stopColor="#f97316" stopOpacity="0%"></stop>
-                      </linearGradient>
-                    </defs>
                     <rect className={classNames(styles.PromptEffectLine)} pathLength="100" strokeLinecap="round"></rect>
                     <rect className={classNames(styles.PromptShine)} x="48" y="24" width="70" height="1"></rect>
                   </svg>

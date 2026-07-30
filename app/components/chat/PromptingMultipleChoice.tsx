@@ -755,7 +755,6 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
   };
 
   const completeFlow = () => {
-    setComplete(true);
     onPromptChange(buildPrompt(), buildSummary());
   };
 
@@ -776,7 +775,9 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-accent">Part 1</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-accent-600 dark:text-accent-300">
+          Part 1
+        </span>
         <span className="text-xs text-bolt-elements-textSecondary">
           {Math.min(step + 1, totalSteps)} / {totalSteps}
         </span>
@@ -841,7 +842,7 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
                   <span>Optional: add your company context for more personalized prompts</span>
                   <button
                     onClick={() => setContextModalOpen(true)}
-                    className="ml-auto text-accent-600 hover:text-accent-700 underline underline-offset-2 text-xs font-medium whitespace-nowrap"
+                    className="ml-auto text-accent-600 dark:text-accent-300 hover:text-accent-700 dark:hover:text-accent-200 underline underline-offset-2 text-xs font-medium whitespace-nowrap"
                   >
                     Add context →
                   </button>
@@ -897,7 +898,7 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
                     )}
                   </div>
                   <p
-                    className={`font-semibold text-sm leading-snug ${isSelected ? 'text-accent-600' : 'text-bolt-elements-textPrimary'}`}
+                    className={`font-semibold text-sm leading-snug ${isSelected ? 'text-accent-600 dark:text-accent-300' : 'text-bolt-elements-textPrimary'}`}
                   >
                     {option.label}
                   </p>
@@ -986,7 +987,7 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
                     </span>
                     <button
                       onClick={() => setActiveColorSlot(index)}
-                      className="text-[10px] text-accent-500 hover:text-accent-600 underline underline-offset-1 transition-colors shrink-0"
+                      className="text-[10px] text-accent-500 dark:text-accent-300 hover:text-accent-600 dark:hover:text-accent-200 underline underline-offset-1 transition-colors shrink-0"
                     >
                       edit
                     </button>

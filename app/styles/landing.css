@@ -33,14 +33,14 @@
 .landing-hero-bg .gradient-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom right, rgba(124, 45, 18, 0.4), rgba(146, 64, 14, 0.2), transparent);
+  background: rgba(124, 45, 18, 0.35);
 }
 
 .landing-hero-bg .vignette {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), transparent, transparent);
+  background: rgba(0, 0, 0, 0.15);
 }
 
 .landing-hero-section {
@@ -107,54 +107,13 @@
   animation: landingFadeInUp 0.9s ease 0.1s forwards;
 }
 
-/* Prompify gradient â€” continuous shifting (infinite loop) */
+/* Prompify heading highlight */
 .landing-heading .landing-highlight {
-  color: transparent;
-  text-shadow: none;
-  background: linear-gradient(
-    120deg,
-    #f97316 0%,
-    #f97316 18%,
-    #fed7aa 38%,
-    #f0e4d5 50%,
-    #fed7aa 62%,
-    #f97316 82%,
-    #f97316 100%
-  );
-  background-size: 220% 100%;
-  background-position: 0% 50%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: landingHighlight 14s ease-in-out infinite alternate;
+  color: #f97316;
 }
 
-@keyframes landingHighlight {
-  0% {
-    background-position: 0% 50%;
-  }
-  100% {
-    background-position: 100% 50%;
-  }
-}
-
-/* Same gradient as "Prompify" on / â€” use on app builder title, etc. */
 .landing-gradient-text {
-  color: transparent;
-  background: linear-gradient(
-    120deg,
-    #f97316 0%,
-    #f97316 18%,
-    #fed7aa 38%,
-    #f0e4d5 50%,
-    #fed7aa 62%,
-    #f97316 82%,
-    #f97316 100%
-  );
-  background-size: 220% 100%;
-  background-position: 0% 50%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: landingHighlight 14s ease-in-out infinite alternate;
+  color: #f97316;
 }
 
 .landing-subtitle {
@@ -183,12 +142,7 @@
 .landing-prompt-box {
   border-radius: 1rem;
   overflow: hidden;
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.62) 0%,
-    rgba(255, 255, 255, 0.55) 50%,
-    rgba(255, 255, 255, 0.5) 100%
-  );
+  background: rgba(255, 255, 255, 0.55);
   -webkit-backdrop-filter: blur(48px) saturate(1.6);
   backdrop-filter: blur(48px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.7);
@@ -514,41 +468,15 @@
   text-align: center;
 }
 
-/* Prompt shimmer - animated on scroll into view */
+/* Prompt shimmer */
 .landing-shimmer-text {
-  color: transparent;
-  background: linear-gradient(
-    132deg,
-    #231710 0%,
-    #231710 30%,
-    #f97316 45%,
-    #f0e4d5 50%,
-    #f97316 55%,
-    #231710 65%,
-    #231710 100%
-  );
-  background-size: 300% 100%;
-  background-position: 0% 0;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: landingShimmer 65s ease-in-out infinite;
-  animation-play-state: paused;
+  color: #f97316;
 }
 
 .landing-shimmer-text.active {
-  animation-play-state: running;
 }
 
 @keyframes landingShimmer {
-  0% {
-    background-position: 100% 0;
-  }
-  15% {
-    background-position: 0% 0;
-  }
-  100% {
-    background-position: 0% 0;
-  }
 }
 
 .landing-outro p {
@@ -741,13 +669,7 @@ button.landing-cta-btn {
   overscroll-behavior: contain;
   padding: 1.75rem 1.5rem 1.5rem;
   border-radius: 1rem;
-  /* More opaque than before: easier to read while keeping a light glass edge */
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.94) 0%,
-    rgba(255, 252, 248, 0.9) 45%,
-    rgba(255, 248, 242, 0.88) 100%
-  );
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.85);
@@ -807,10 +729,7 @@ button.landing-cta-btn {
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #f97316 0%, #f97316 40%, #f97316 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: #f97316;
 }
 
 .landing-login-modal-header p {
@@ -1191,22 +1110,7 @@ button.landing-cta-btn {
   font-weight: 800;
   letter-spacing: -0.02em;
   user-select: none;
-  background: linear-gradient(
-    120deg,
-    #f97316 0%,
-    #f97316 18%,
-    #fed7aa 38%,
-    #f0e4d5 50%,
-    #fed7aa 62%,
-    #f97316 82%,
-    #f97316 100%
-  );
-  background-size: 220% 100%;
-  background-position: 0% 50%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: landingHighlight 14s ease-in-out infinite alternate;
+  color: #f97316;
 }
 
 .landing-nav-actions {
@@ -1392,14 +1296,14 @@ body {
 .hero-bg .gradient-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom right, rgba(124, 45, 18, 0.4), rgba(146, 64, 14, 0.2), transparent);
+  background: rgba(124, 45, 18, 0.35);
 }
 
 .hero-bg .vignette {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), transparent, transparent);
+  background: rgba(0, 0, 0, 0.15);
 }
 
 /* ============================================
@@ -1472,40 +1376,13 @@ body {
 }
 
 .heading .highlight {
-  color: transparent;
-  text-shadow: none;
-  background: linear-gradient(
-    135deg,
-    #f97316 0%,
-    #f97316 30%,
-    #fed7aa 45%,
-    #f0e4d5 50%,
-    #fed7aa 55%,
-    #f97316 65%,
-    #f97316 100%
-  );
-  background-size: 300% 100%;
-  background-position: 0% 0;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: highlight 10s ease-in-out infinite;
-  animation-play-state: paused;
+  color: #f97316;
 }
 
 .heading .highlight.active {
-  animation-play-state: running;
 }
 
 @keyframes highlight {
-  0% {
-    background-position: 0% 0;
-  }
-  50% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: 0% 0;
-  }
 }
 
 /* ===== SUBTITLE ===== */
@@ -1538,12 +1415,7 @@ body {
 .prompt-box {
   border-radius: 1rem;
   overflow: hidden;
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.62) 0%,
-    rgba(255, 255, 255, 0.55) 50%,
-    rgba(255, 255, 255, 0.5) 100%
-  );
+  background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(48px) saturate(1.6);
   -webkit-backdrop-filter: blur(48px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.7);
@@ -1634,7 +1506,7 @@ body {
   gap: 0.75rem;
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.22));
+  background: rgba(255, 255, 255, 0.32);
   border: 1px solid rgba(255, 255, 255, 0.55);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
@@ -2038,27 +1910,10 @@ body {
 
 .shimmer-text {
   display: inline-block;
-  color: transparent;
-  background: linear-gradient(
-    135deg,
-    #231710 0%,
-    #231710 30%,
-    #fed7aa 45%,
-    #f97316 50%,
-    #fed7aa 55%,
-    #231710 65%,
-    #231710 100%
-  );
-  background-size: 300% 100%;
-  background-position: 0% 0;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: highlight 13s ease-in-out infinite;
-  animation-play-state: paused;
+  color: #f97316;
 }
 
 .shimmer-text.active {
-  animation-play-state: running;
 }
 
 /* ============================================
@@ -2302,12 +2157,7 @@ body {
 
 /* Auth modal panel ï¿½ true frosted glass */
 .landing-login-modal-panel {
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.62) 0%,
-    rgba(255, 255, 255, 0.55) 50%,
-    rgba(255, 255, 255, 0.5) 100%
-  );
+  background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(48px) saturate(1.6);
   -webkit-backdrop-filter: blur(48px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.7);
@@ -2342,12 +2192,7 @@ body {
 
 /* Prompt box ï¿½ enhanced glass */
 .prompt-box {
-  background: linear-gradient(
-    145deg,
-    rgba(255, 255, 255, 0.62) 0%,
-    rgba(255, 255, 255, 0.55) 50%,
-    rgba(255, 255, 255, 0.5) 100%
-  );
+  background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(48px) saturate(1.6);
   -webkit-backdrop-filter: blur(48px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.7);

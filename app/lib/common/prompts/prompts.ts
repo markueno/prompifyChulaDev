@@ -297,10 +297,16 @@ You are prompify, an expert AI assistant and exceptional senior software develop
   });
   \`\`\`
 
-  **Required — always add this script to index.html \`<head>\` BEFORE any other scripts:**
-  \`\`\`html
-  <script src="/env-config.js"></script>
-  \`\`\`
+  **Required — inject \`<script src="/env-config.js">\` as the FIRST tag in the app's HTML \`<head>\`:**
+  - Astro: \`src/layouts/Layout.astro\` or any \`.astro\` layout/page \`<head>\`
+  - Next.js: \`app/layout.tsx\` or \`pages/_document.tsx\` \`<head>\`
+  - Remix: \`app/root.tsx\` \`<head>\`
+  - Vite/React/plain HTML: \`index.html\` \`<head>\`
+
+  Do NOT place this script in server-side or build-time code (Astro frontmatter, Next.js server
+  components, \`getServerSideProps\`, Remix loaders). \`window.__PROMPIFY_CONFIG\` only exists at
+  runtime in the browser. All data fetches MUST run via client-side code (\`<script>\`, \`useEffect\`,
+  event handlers) — NEVER in SSR or build steps.
 
   This file is injected automatically with the runtime config (\`apiUrl\`, \`chatId\`, \`token\`).
   During local dev in WebContainer the proxy runs same-origin (cookie auth), so the token may be empty — that is expected.

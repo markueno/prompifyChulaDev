@@ -122,7 +122,7 @@ export default function DeployVisual() {
             top: '27px',
             left: '28px',
             height: '4px',
-            background: 'linear-gradient(90deg, #f97316, #fb923c)',
+            background: '#f97316',
             transformOrigin: 'left',
           }}
           animate={{ width: maxDone < 0 ? '0%' : `${(maxDone / (STAGES.length - 1)) * 100}%` }}

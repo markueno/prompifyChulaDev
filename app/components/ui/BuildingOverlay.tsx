@@ -277,6 +277,7 @@ export function StreamingBadge({ visible }: StreamingBadgeProps) {
             transition: 'opacity 0.25s ease, transform 0.25s ease',
             minWidth: 160,
             display: 'inline-block',
+            textAlign: 'center',
           }}
         >
           {STREAMING_WORDS[wordIdx]}

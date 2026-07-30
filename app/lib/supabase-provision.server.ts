@@ -139,8 +139,9 @@ export async function getSchemaContext(
       '',
       '**Rules when generating database code:**',
       '- Install `@supabase/supabase-js` as a dependency',
-      '- Add `<script src="/env-config.js"></script>` inside `<head>` of index.html BEFORE any other scripts',
+      '- Add `<script src="/env-config.js"></script>` as the FIRST tag in the HTML `<head>` (Astro: layout `.astro` head; Next.js: root layout head; Vite/plain: `index.html` head)',
       '- Use `supabase.from("table").select() / .insert() / .update() / .delete()` for all CRUD',
+      '- All data fetches MUST run in the browser — NEVER in server/build code, because `window.__PROMPIFY_CONFIG` only exists client-side',
       '- Always destructure `{ data, error }` and handle the error case'
     );
 

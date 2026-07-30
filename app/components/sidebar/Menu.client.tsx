@@ -6,7 +6,7 @@ import { Dialog, DialogButton, DialogDescription, DialogRoot, DialogTitle } from
 import { ThemeSwitch } from '~/components/ui/ThemeSwitch';
 import { ControlPanel } from '~/components/@settings/core/ControlPanel';
 import { SettingsButton } from '~/components/ui/SettingsButton';
-import { db, deleteById, getAll, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
+import { db, deleteById, getAll, clearAllChats, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
 import { cubicEasingFn } from '~/utils/easings';
 import { logger } from '~/utils/logger';
 import { HistoryItem } from './HistoryItem';
@@ -63,8 +63,9 @@ function CurrentDateTime() {
 }
 
 export const Menu = () => {
-  const loaderData = useLoaderData<{ user?: { isModerator?: boolean } }>();
+  const loaderData = useLoaderData<{ user?: { id?: string; isModerator?: boolean } }>();
   const isModerator = loaderData?.user?.isModerator === true;
+  const currentUserId = loaderData?.user?.id;
   const showSettings = !isSettingsHidden() && isModerator;
 
   const { duplicateCurrentChat, exportChat } = useChatHistory();
@@ -111,6 +112,28 @@ export const Menu = () => {
   const closeDialog = () => {
     setDialogContent(null);
   };
+
+  useEffect(() => {
+    if (!currentUserId || !db) {
+      return;
+    }
+
+    const storedUserId = localStorage.getItem('bolt_last_user_id');
+
+    if (!storedUserId) {
+      localStorage.setItem('bolt_last_user_id', currentUserId);
+      return;
+    }
+
+    if (storedUserId !== currentUserId) {
+      clearAllChats(db)
+        .then(() => {
+          localStorage.setItem('bolt_last_user_id', currentUserId);
+          setList([]);
+        })
+        .catch(error => logger.error('Failed to clear chats on user switch:', error));
+    }
+  }, [currentUserId]);
 
   useEffect(() => {
     if (open) {

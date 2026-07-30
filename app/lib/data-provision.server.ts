@@ -234,8 +234,9 @@ export async function getSchemaContext(
   lines.push(
     '',
     '**Rules when generating database code:**',
-    '- Add `<script src="/env-config.js"></script>` inside `<head>` of index.html BEFORE any other scripts',
+    '- Inject `<script src="/env-config.js"></script>` as the FIRST tag in the HTML `<head>` (Astro: layout `.astro` head; Next.js: root layout head; Vite/plain: `index.html` head)',
     '- Use `fetch()` against `${cfg.apiUrl}/${cfg.chatId}/${table}` for all CRUD (GET/POST/PATCH/DELETE)',
+    '- All data fetches MUST run in the browser (client `<script>`, `useEffect`, event handler) — NEVER in server/build code, because `window.__PROMPIFY_CONFIG` only exists client-side',
     '- `{ data }` is the row array for GET; mutations return the affected row',
     '- The `id`, `created_at`, `updated_at` columns are auto-managed — never insert them manually'
   );

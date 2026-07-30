@@ -190,14 +190,25 @@ export async function action({ request, context }: ActionFunctionArgs) {
      *    table). Identifiers are double-quoted (VALID_IDENTIFIER guarantees no
      *    quotes inside). All user columns nullable (imported data has gaps).
      */
+    const providedNames = new Set(columns.map(c => c.name));
+
+    let autoColDefs = '';
+
+    if (!providedNames.has('id')) {
+      autoColDefs += '  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),\n';
+    }
+
+    if (!providedNames.has('created_at')) {
+      autoColDefs += '  created_at timestamptz NOT NULL DEFAULT now(),\n';
+    }
+
+    if (!providedNames.has('updated_at')) {
+      autoColDefs += '  updated_at timestamptz NOT NULL DEFAULT now(),\n';
+    }
+
     const colDefs = columns.map(col => `  "${col.name}" ${col.type}`).join(',\n');
 
-    const createSQL = `CREATE TABLE "${tableName}" (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-${colDefs}
-);`;
+    const createSQL = `CREATE TABLE "${tableName}" (\n${autoColDefs}${colDefs}\n);`;
 
     const createResult = await runAppQuery(chat.user_id, createSQL);
 

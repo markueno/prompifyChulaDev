@@ -6,6 +6,7 @@ import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
+import type { PreviewsStore } from '~/lib/stores/previews';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -67,6 +68,9 @@ export class ActionRunner {
   #webcontainer: Promise<WebContainer>;
   #currentExecutionPromise: Promise<void> = Promise.resolve();
   #shellTerminal: () => BoltShell;
+  #previewsStore?: PreviewsStore;
+  #hadStartAction = false;
+  #hadProductiveAction = false;
   runnerId = atom<string>(`${Date.now()}`);
   actions: ActionsMap = map({});
   onAlert?: (alert: ActionAlert) => void;
@@ -75,11 +79,13 @@ export class ActionRunner {
   constructor(
     webcontainerPromise: Promise<WebContainer>,
     getShellTerminal: () => BoltShell,
-    onAlert?: (alert: ActionAlert) => void
+    onAlert?: (alert: ActionAlert) => void,
+    previewsStore?: PreviewsStore
   ) {
     this.#webcontainer = webcontainerPromise;
     this.#shellTerminal = getShellTerminal;
     this.onAlert = onAlert;
+    this.#previewsStore = previewsStore;
   }
 
   addAction(data: ActionCallbackData) {
@@ -150,14 +156,18 @@ export class ActionRunner {
     try {
       switch (action.type) {
         case 'shell': {
+          this.#hadProductiveAction = true;
           await this.#runShellAction(action);
           break;
         }
         case 'file': {
+          this.#hadProductiveAction = true;
           await this.#runFileAction(action);
           break;
         }
         case 'build': {
+          this.#hadProductiveAction = true;
+
           const buildOutput = await this.#runBuildAction(action);
 
           // Store build output for deployment
@@ -165,6 +175,9 @@ export class ActionRunner {
           break;
         }
         case 'start': {
+          this.#hadStartAction = true;
+          this.#hadProductiveAction = true;
+
           // making the start app non blocking
 
           this.#runStartAction(action)
@@ -516,5 +529,38 @@ export class ActionRunner {
       'Build Failed - No build output directory found',
       `Expected build directory ${buildDir} not found. Build output: ${output}`
     );
+  }
+
+  async maybeAutoStartDevServer() {
+    if (this.#hadStartAction || !this.#hadProductiveAction || !this.#previewsStore) {
+      return;
+    }
+
+    const runningPreviews = this.#previewsStore.previews.get();
+
+    if (runningPreviews.length > 0) {
+      return;
+    }
+
+    try {
+      logger.info('Auto-injecting npm run dev (preview down, no start action in artifact)');
+
+      const shell = this.#shellTerminal();
+      await shell.ready();
+
+      if (!shell || !shell.terminal || !shell.process) {
+        return;
+      }
+
+      const resp = await shell.executeCommand(this.runnerId.get(), 'npm run dev', () => {
+        logger.debug('[auto-start] Aborted');
+      });
+
+      if (resp?.exitCode !== 0) {
+        logger.warn(`[auto-start] npm run dev exited with code ${resp?.exitCode}`);
+      }
+    } catch (error) {
+      logger.warn('Auto-start dev server failed:', error);
+    }
   }
 }

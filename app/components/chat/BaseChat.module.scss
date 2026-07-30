@@ -36,12 +36,13 @@
   rx: calc(8px - var(--prompt-line-stroke-width));
   fill: transparent;
   stroke-width: var(--prompt-line-stroke-width);
-  stroke: url(#line-gradient);
-  stroke-dasharray: 35px 65px;
+  stroke: #f97316;
+
+  (Endoffile-total47lines)stroke-dasharray: 35px 65px;
   stroke-dashoffset: 10;
 }
 
 .PromptShine {
-  fill: url(#shine-gradient);
+  fill: rgba(249, 115, 22, 0.4);
   mix-blend-mode: overlay;
 }
