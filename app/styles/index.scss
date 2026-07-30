@@ -1,10 +1,14 @@
-/* App-wide CSS custom properties */
+@use 'variables.scss';
+@use 'z-index.scss';
+@use 'animations.scss';
+@use 'components/terminal.scss';
+@use 'components/resize-handle.scss';
+@use 'components/code.scss';
+@use 'components/editor.scss';
+@use 'components/toast.scss';
 
-:root {
-}
-
-[data-theme='dark'] {
-}
-
-[data-theme='light'] {
+html,
+body {
+  height: 100%;
+  width: 100%;
 }
