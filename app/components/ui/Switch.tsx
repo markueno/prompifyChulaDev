@@ -12,11 +12,17 @@ export const Switch = memo(({ className, onCheckedChange, checked }: SwitchProps
   return (
     <SwitchPrimitive.Root
       className={classNames(
-        'relative h-6 w-11 cursor-pointer rounded-full bg-bolt-elements-button-primary-background',
+        /*
+         * The off track must be neutral. It used to be button-primary-background, which in the
+         * dark theme resolves to accent.500 (brand orange) — so off and on were two shades of
+         * the same orange and nothing read as "off".
+         */
+        'relative h-6 w-11 cursor-pointer rounded-full',
+        'bg-bolt-elements-background-depth-3 border border-bolt-elements-borderColor',
         'transition-colors duration-200 ease-in-out',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        'data-[state=checked]:bg-bolt-elements-item-contentAccent',
+        'data-[state=checked]:bg-accent-500 data-[state=checked]:border-accent-500',
         className
       )}
       checked={checked}

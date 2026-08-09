@@ -15,6 +15,7 @@ import {
   deleteSupabaseRow,
 } from '~/lib/stores/supabase-admin';
 import { CreateTableModal } from './CreateTableModal';
+import { AddColumnModal } from './AddColumnModal';
 import { ImportDataModal } from './ImportDataModal';
 import {
   listProxyTables,
@@ -22,6 +23,7 @@ import {
   insertProxyRow,
   updateProxyRow,
   deleteProxyRow,
+  dropProxyTable,
 } from '~/lib/stores/data-proxy-client';
 
 /** Supabase logo mark (green). Used as a logo-only affordance (no text). */
@@ -323,6 +325,12 @@ export const AdminDataSection = memo(() => {
   const [deleteTarget, setDeleteTarget] = useState<SupabaseRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Schema editing (platform data proxy only — a custom Supabase has no DDL endpoint here).
+  const [showAddColumn, setShowAddColumn] = useState(false);
+  const [dropTableTarget, setDropTableTarget] = useState<SupabaseTable | null>(null);
+  const [dropTableConfirm, setDropTableConfirm] = useState('');
+  const [droppingTable, setDroppingTable] = useState(false);
+
   /*
    * On mount: 1) check if platform has Supabase configured (server),
    *           2) fall back to user-saved config (localStorage),
@@ -439,6 +447,15 @@ export const AdminDataSection = memo(() => {
     }
   };
 
+  /*
+   * Navigate to the connect form WITHOUT tearing down the current connection — the teardown used
+   * to happen here, which left the user stranded on a form with nothing to go back to. The actual
+   * disconnect now happens only on an explicit action (below) or when a new config is submitted.
+   */
+  const handleShowConnectForm = () => {
+    setStep('connect');
+  };
+
   const handleDisconnect = () => {
     if (!platformMode && currentChatId) {
       clearSupabaseConfig(currentChatId);
@@ -451,6 +468,9 @@ export const AdminDataSection = memo(() => {
     setRows([]);
     setStep('connect');
   };
+
+  /** Is there a live connection to return to from the connect form? */
+  const hasConnection = platformMode || savedConfig !== null;
 
   const refreshTables = useCallback(async () => {
     if (platformMode && currentChatId) {
@@ -482,6 +502,35 @@ export const AdminDataSection = memo(() => {
     },
     [refreshTables]
   );
+
+  const handleDropTable = useCallback(async () => {
+    if (!dropTableTarget || !currentChatId) {
+      return;
+    }
+
+    setDroppingTable(true);
+
+    const result = await dropProxyTable(currentChatId, dropTableTarget.name);
+    setDroppingTable(false);
+
+    if (!result.success) {
+      toast.error(result.error || 'Failed to delete table');
+      return;
+    }
+
+    toast.success(`Table "${dropTableTarget.name}" deleted`);
+
+    // If the open table was the one dropped, fall back to the grid.
+    if (selectedTable?.name === dropTableTarget.name) {
+      setSelectedTable(null);
+      setRows([]);
+      setStep('tables');
+    }
+
+    setDropTableTarget(null);
+    setDropTableConfirm('');
+    await refreshTables();
+  }, [dropTableTarget, currentChatId, selectedTable, refreshTables]);
 
   const doLoadData = useCallback(
     async (table: SupabaseTable, pg: number, sc?: string, sa?: boolean) => {
@@ -528,6 +577,32 @@ export const AdminDataSection = memo(() => {
     setStep('data');
     doLoadData(table, 0, undefined, true);
   };
+
+  const handleColumnAdded = useCallback(
+    async (columnName: string) => {
+      setShowAddColumn(false);
+      toast.success(`Column "${columnName}" added`);
+
+      if (!platformMode || !currentChatId || !selectedTable) {
+        return;
+      }
+
+      /*
+       * refreshTables() only repopulates the grid — the open table is a separate copy, so re-sync
+       * it from the fresh list or the new column won't appear until you navigate away and back.
+       */
+      const proxyTables = await listProxyTables(currentChatId);
+      setTables(proxyTables);
+
+      const updated = proxyTables.find(t => t.name === selectedTable.name);
+
+      if (updated) {
+        setSelectedTable(updated);
+        await doLoadData(updated, page, sortColumn, sortAsc);
+      }
+    },
+    [platformMode, currentChatId, selectedTable, page, sortColumn, sortAsc, doLoadData]
+  );
 
   const handleSort = (colName: string) => {
     const newAsc = sortColumn === colName ? !sortAsc : true;
@@ -698,6 +773,26 @@ export const AdminDataSection = memo(() => {
     const initial: SupabaseConfig = savedConfig ?? { url: '', anonKey: '', serviceRoleKey: '' };
     return (
       <>
+        {/* Breadcrumb — mirrors the data step's, so this is no longer the one dead-end screen. */}
+        {hasConnection && (
+          <div className="flex items-center justify-between gap-2 -mx-6 -mt-6 mb-6 px-6 py-3 border-b border-bolt-elements-borderColor bg-bolt-elements-background-depth-1">
+            <button
+              onClick={() => setStep('tables')}
+              className="flex items-center gap-1 text-sm text-bolt-elements-textTertiary hover:text-bolt-elements-textPrimary transition-colors"
+            >
+              <div className="i-ph:caret-left w-4 h-4" />
+              Back to tables
+            </button>
+            {savedConfig && (
+              <button
+                onClick={handleDisconnect}
+                className="text-xs px-2 py-1 rounded text-bolt-elements-textTertiary hover:text-red-500 hover:bg-bolt-elements-background-depth-2 transition-colors"
+              >
+                Disconnect
+              </button>
+            )}
+          </div>
+        )}
         {connecting && (
           <p className="flex items-center gap-2 mb-4 text-sm text-bolt-elements-textTertiary">
             <span className="i-ph:circle-notch animate-spin w-4 h-4" />
@@ -753,13 +848,15 @@ export const AdminDataSection = memo(() => {
               <span className="i-ph:plus text-sm" />
               New Table
             </button>
+            {/* Labelled — an unlabelled icon that silently tore down the connection is how
+                people ended up stranded on the connect form. */}
             <button
-              onClick={handleDisconnect}
+              onClick={handleShowConnectForm}
               className="flex items-center justify-center gap-1.5 text-xs px-2 py-1.5 rounded text-bolt-elements-textTertiary hover:text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-2 transition-colors w-full"
-              title={platformMode ? 'Connect to your own Supabase instead' : 'Disconnect'}
-              aria-label={platformMode ? 'Use custom Supabase' : 'Disconnect'}
+              title="Connect your own Supabase instance instead"
             >
               <SupabaseMark className="w-4 h-4" />
+              Use my own Supabase
             </button>
           </div>
         </div>
@@ -788,21 +885,35 @@ export const AdminDataSection = memo(() => {
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {tables.map(t => (
-              <button
+              <div
                 key={t.name}
-                onClick={() => handleSelectTable(t)}
-                className="text-left p-4 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 hover:border-accent-500/50 hover:bg-bolt-elements-background-depth-2 transition-all group"
+                className="relative rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 hover:border-accent-500/50 hover:bg-bolt-elements-background-depth-2 transition-all group"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="i-ph:table w-4 h-4 text-bolt-elements-textTertiary group-hover:text-accent-500 transition-colors" />
-                  <span className="text-sm font-medium text-bolt-elements-textPrimary truncate">{t.name}</span>
-                </div>
-                <p className="text-xs text-bolt-elements-textTertiary">
-                  {t.columns.length} col{t.columns.length !== 1 ? 's' : ''}
-                  {' · '}
-                  pk: {t.primaryKey}
-                </p>
-              </button>
+                <button onClick={() => handleSelectTable(t)} className="w-full text-left p-4">
+                  <div className="flex items-center gap-2 mb-2 pr-6">
+                    <div className="i-ph:table w-4 h-4 text-bolt-elements-textTertiary group-hover:text-accent-500 transition-colors" />
+                    <span className="text-sm font-medium text-bolt-elements-textPrimary truncate">{t.name}</span>
+                  </div>
+                  <p className="text-xs text-bolt-elements-textTertiary">
+                    {t.columns.length} col{t.columns.length !== 1 ? 's' : ''}
+                    {' · '}
+                    pk: {t.primaryKey}
+                  </p>
+                </button>
+                {platformMode && (
+                  <button
+                    onClick={() => {
+                      setDropTableTarget(t);
+                      setDropTableConfirm('');
+                    }}
+                    title={`Delete table "${t.name}"`}
+                    aria-label={`Delete table ${t.name}`}
+                    className="absolute right-2 top-2 p-1 rounded text-bolt-elements-textTertiary opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-red-500 hover:bg-bolt-elements-background-depth-3 transition-all"
+                  >
+                    <div className="i-ph:trash w-4 h-4" />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
@@ -822,6 +933,50 @@ export const AdminDataSection = memo(() => {
             onImported={handleImported}
           />
         )}
+
+        {/* Drop table — type-to-confirm, because this destroys every row in it. */}
+        {dropTableTarget && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => !droppingTable && setDropTableTarget(null)}
+          >
+            <div
+              className="bg-bolt-elements-background-depth-2 rounded-xl shadow-xl border border-bolt-elements-borderColor p-6 w-full max-w-md"
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="font-semibold text-bolt-elements-textPrimary mb-2">Delete table</h3>
+              <p className="text-sm text-bolt-elements-textSecondary mb-3">
+                This permanently deletes <span className="font-mono">{dropTableTarget.name}</span> and every row in it.
+                This cannot be undone.
+              </p>
+              <label className="mb-1 block text-xs font-medium text-bolt-elements-textSecondary">
+                Type <span className="font-mono text-bolt-elements-textPrimary">{dropTableTarget.name}</span> to confirm
+              </label>
+              <input
+                type="text"
+                value={dropTableConfirm}
+                autoFocus
+                onChange={e => setDropTableConfirm(e.target.value)}
+                className="w-full mb-4 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-sm text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => !droppingTable && setDropTableTarget(null)}
+                  className="px-3 py-1.5 text-sm rounded-lg hover:bg-bolt-elements-background-depth-3 text-bolt-elements-textSecondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDropTable}
+                  disabled={droppingTable || dropTableConfirm !== dropTableTarget.name}
+                  className="px-4 py-1.5 text-sm font-medium rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {droppingTable ? 'Deleting…' : 'Delete table'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -830,6 +985,12 @@ export const AdminDataSection = memo(() => {
   if (!selectedTable) {
     return null;
   }
+
+  /*
+   * Columns a user can actually type into. id/created_at/updated_at are set by the DB and hidden
+   * from the row form, so a table with only those has nothing to insert.
+   */
+  const insertableColumnCount = selectedTable.columns.filter(c => !AUTO_MANAGED.has(c.name)).length;
 
   return (
     <>
@@ -861,15 +1022,49 @@ export const AdminDataSection = memo(() => {
           >
             <div className={classNames('i-ph:arrow-clockwise w-4 h-4', loading ? 'animate-spin' : '')} />
           </button>
+          {platformMode && (
+            <button
+              onClick={() => setShowAddColumn(true)}
+              title="Add a column to this table"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 transition-colors"
+            >
+              <div className="i-ph:columns-plus-left w-4 h-4" />
+              Add Column
+            </button>
+          )}
           <button
             onClick={openAddModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-accent-500 text-white hover:bg-accent-600 transition-colors"
+            disabled={insertableColumnCount === 0}
+            title={insertableColumnCount === 0 ? 'This table has no columns to fill in yet' : 'Add a row'}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-accent-500 text-white hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <div className="i-ph:plus w-4 h-4" />
             Add Row
           </button>
         </div>
       </div>
+
+      {/*
+       * A table can still exist with no user columns (created before the guard, or by the AI).
+       * Say what to do about it instead of letting Add Row dead-end on "No valid columns".
+       */}
+      {insertableColumnCount === 0 && (
+        <div className="mt-4 flex flex-col items-center gap-2 rounded-lg border border-dashed border-bolt-elements-borderColor p-6 text-center">
+          <div className="i-ph:columns text-2xl text-bolt-elements-textTertiary" />
+          <p className="text-sm text-bolt-elements-textTertiary">
+            This table has no columns yet, so it can&apos;t hold rows.
+          </p>
+          {platformMode && (
+            <button
+              onClick={() => setShowAddColumn(true)}
+              className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium"
+            >
+              <span className="i-ph:plus" />
+              Add a column
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="-mx-6 overflow-auto mt-0" style={{ maxHeight: 'calc(100vh - 260px)' }}>
@@ -1014,6 +1209,16 @@ export const AdminDataSection = memo(() => {
             </div>
           </div>
         </div>
+      )}
+
+      {showAddColumn && currentChatId && (
+        <AddColumnModal
+          chatId={currentChatId}
+          tableName={selectedTable.name}
+          hasRows={totalRows > 0}
+          onClose={() => setShowAddColumn(false)}
+          onAdded={handleColumnAdded}
+        />
       )}
     </>
   );

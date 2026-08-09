@@ -34,11 +34,17 @@ export function UserProfile({ user }: UserProfileProps) {
 
   return (
     <Dropdown trigger={trigger}>
-      <div className="w-56 rounded-xl border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#2d2014] p-1.5 shadow-lg">
-        <div className="px-2.5 py-2 border-b border-[#fed7aa]/40 dark:border-[#423322] flex items-start justify-between gap-2">
-          <p className="text-sm font-medium text-[#231710] dark:text-[#f0e4d5]">{displayName || user.email}</p>
+      <div className="w-64 overflow-hidden rounded-xl border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#2d2014] p-1.5 shadow-lg">
+        <div className="px-2.5 py-2 border-b border-[#fed7aa]/40 dark:border-[#423322] flex items-center justify-between gap-2">
+          {/*
+           * min-w-0 is required: a flex item defaults to min-width:auto and refuses to shrink
+           * below its content, so a long email pushes the tier badge outside the panel.
+           */}
+          <p className="min-w-0 truncate text-sm font-medium text-[#231710] dark:text-[#f0e4d5]" title={displayName}>
+            {displayName || user.email}
+          </p>
           {user.accountTier ? (
-            <span className="text-xs font-medium text-[#231710]/70 dark:text-[#c4b19a] shrink-0">
+            <span className="shrink-0 rounded-full bg-[#f97316]/15 px-1.5 py-0.5 text-xs font-medium text-[#9a3412] dark:text-[#fdba74]">
               {user.accountTier}
             </span>
           ) : null}

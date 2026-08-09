@@ -1,6 +1,11 @@
 /**
- * GET  /api/data/:chatId/schema  — list the chat's registered app tables.
- * POST /api/data/:chatId/schema  — create a new empty table (manual / LLM-driven).
+ * GET    /api/data/:chatId/schema         — list the chat's registered app tables.
+ * POST   /api/data/:chatId/schema         — create a new table (manual / LLM-driven).
+ * PATCH  /api/data/:chatId/schema         — add/drop columns on an existing table.
+ * DELETE /api/data/:chatId/schema?table=x — drop a table and deregister it.
+ *
+ * PATCH takes the table name in the JSON body; DELETE takes it as a query param (a body on
+ * DELETE is legal but not universally forwarded, and this endpoint is called from the browser).
  *
  * Replaces api.supabase.schema.ts (which proxied to Supabase postgres-meta).
  * Tables are created in the OWNER's `usr_<userId>` schema and registered in the
@@ -107,7 +112,83 @@ export async function loader({ request, params, context }: LoaderFunctionArgs) {
   }
 }
 
-// POST — create a new table in the owner's schema + register it
+/** Validate a batch of column definitions. Returns an error message, or null when all are OK. */
+function validateColumns(columns: ColumnInput[]): string | null {
+  for (const col of columns) {
+    if (RESERVED_NAMES.has(col.name)) {
+      return `Column "${col.name}" is reserved — id, created_at, and updated_at are added automatically`;
+    }
+
+    const colErr = validateIdentifier(col.name, 'Column name');
+
+    if (colErr) {
+      return colErr;
+    }
+
+    if (!PG_TYPES[col.type]) {
+      return `Unknown column type "${col.type}"`;
+    }
+
+    if (col.defaultValue && formatDefaultValue(PG_TYPES[col.type], col.defaultValue) === null) {
+      return `Default value for "${col.name}" is not valid for type ${col.type}`;
+    }
+  }
+
+  return null;
+}
+
+interface RegisteredTable {
+  schemaName: string;
+  tableName: string;
+  columns: ColumnInput[];
+}
+
+/**
+ * Resolve a logical table name against the registry for this chat. The physical name always comes
+ * from `app_tables`, never from the request, so a caller cannot address a table it doesn't own.
+ */
+async function lookupRegisteredTable(chatId: string, logicalName: string): Promise<RegisteredTable | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const { rows } = await client.query(
+      `SELECT schema_name, table_name, columns FROM app_tables WHERE chat_id = $1 AND logical_name = $2 LIMIT 1`,
+      [chatId, logicalName]
+    );
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const raw = rows[0].columns;
+
+    return {
+      schemaName: rows[0].schema_name as string,
+      tableName: rows[0].table_name as string,
+      columns: Array.isArray(raw) ? raw : JSON.parse((raw as string) || '[]'),
+    };
+  } finally {
+    client.release();
+  }
+}
+
+/** Keep the registry in step with the physical table — it is what the UI and the AI read. */
+async function writeRegistryColumns(schemaName: string, tableName: string, columns: ColumnInput[]): Promise<void> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query(`UPDATE app_tables SET columns = $3 WHERE schema_name = $1 AND table_name = $2`, [
+      schemaName,
+      tableName,
+      JSON.stringify(columns),
+    ]);
+  } finally {
+    client.release();
+  }
+}
+
 export async function action({ request, params, context }: ActionFunctionArgs) {
   const user = await requireAuth(request, context);
   const { chatId } = params;
@@ -128,80 +209,219 @@ export async function action({ request, params, context }: ActionFunctionArgs) {
       return json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const body = (await request.json()) as {
-      tableName: string;
-      columns: ColumnInput[];
-    };
-
-    const { tableName, columns } = body;
-
-    if (!tableName) {
-      return json({ error: 'tableName is required' }, { status: 400 });
+    switch (request.method.toUpperCase()) {
+      case 'POST':
+        return await handleCreate(request, chat);
+      case 'PATCH':
+        return await handleAlter(request, chat);
+      case 'DELETE':
+        return await handleDrop(request, chat);
+      default:
+        return json({ error: `Method ${request.method} not allowed` }, { status: 405 });
     }
-
-    const tableErr = validateIdentifier(tableName, 'Table name');
-
-    if (tableErr) {
-      return json({ error: tableErr }, { status: 400 });
-    }
-
-    for (const col of columns || []) {
-      if (RESERVED_NAMES.has(col.name)) {
-        return json(
-          { error: `Column "${col.name}" is reserved — id, created_at, and updated_at are added automatically` },
-          { status: 400 }
-        );
-      }
-
-      const colErr = validateIdentifier(col.name, 'Column name');
-
-      if (colErr) {
-        return json({ error: colErr }, { status: 400 });
-      }
-
-      if (!PG_TYPES[col.type]) {
-        return json({ error: `Unknown column type "${col.type}"` }, { status: 400 });
-      }
-
-      if (col.defaultValue && formatDefaultValue(PG_TYPES[col.type], col.defaultValue) === null) {
-        return json({ error: `Default value for "${col.name}" is not valid for type ${col.type}` }, { status: 400 });
-      }
-    }
-
-    const schemaName = await provisionUserSchema(chat.user_id);
-    const createSQL = buildCreateTableSQL(tableName, columns || []);
-    const result = await runAppQuery(chat.user_id, createSQL);
-
-    if (!result.ok) {
-      const err = result.error || 'Failed to create table';
-
-      if (/already exists/i.test(err)) {
-        return json({ error: `Table "${tableName}" already exists — pick another name` }, { status: 409 });
-      }
-
-      return json({ error: err }, { status: 500 });
-    }
-
-    // Register the table so getSchemaContext + the data proxy can find it.
-    const pool = getPostgresPool();
-    const regClient = await pool.connect();
-
-    try {
-      await regClient.query(
-        `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
-         VALUES ($1, $2, $3, $4, $5, $5, $6, 0, 'manual')
-         ON CONFLICT (schema_name, table_name) DO NOTHING`,
-        [cryptoRandomId(), chat.user_id, chat.id, schemaName, tableName, JSON.stringify(columns || [])]
-      );
-    } finally {
-      regClient.release();
-    }
-
-    return json({ success: true, tableName, schema: schemaName });
   } catch (error) {
     console.error('[api.data.schema] action error:', error);
-    return json({ error: 'Failed to create table' }, { status: 500 });
+    return json({ error: 'Schema operation failed' }, { status: 500 });
   }
+}
+
+type ChatRecord = { id: string; user_id: string };
+
+// POST — create a new table in the owner's schema + register it
+async function handleCreate(request: Request, chat: ChatRecord) {
+  const body = (await request.json()) as {
+    tableName: string;
+    columns: ColumnInput[];
+  };
+
+  const { tableName, columns } = body;
+
+  if (!tableName) {
+    return json({ error: 'tableName is required' }, { status: 400 });
+  }
+
+  const tableErr = validateIdentifier(tableName, 'Table name');
+
+  if (tableErr) {
+    return json({ error: tableErr }, { status: 400 });
+  }
+
+  /*
+   * A table with no user columns is unusable: the only columns are the auto-managed
+   * id/created_at/updated_at, which the row form hides, so "Add Row" has nothing to insert and
+   * dead-ends on "No valid columns to insert". Reject it here as well as in the UI.
+   */
+  if (!columns || columns.length === 0) {
+    return json({ error: 'Add at least one column — a table with no columns cannot store rows' }, { status: 400 });
+  }
+
+  const colsErr = validateColumns(columns);
+
+  if (colsErr) {
+    return json({ error: colsErr }, { status: 400 });
+  }
+
+  const schemaName = await provisionUserSchema(chat.user_id);
+  const createSQL = buildCreateTableSQL(tableName, columns);
+  const result = await runAppQuery(chat.user_id, createSQL);
+
+  if (!result.ok) {
+    const err = result.error || 'Failed to create table';
+
+    if (/already exists/i.test(err)) {
+      return json({ error: `Table "${tableName}" already exists — pick another name` }, { status: 409 });
+    }
+
+    return json({ error: err }, { status: 500 });
+  }
+
+  // Register the table so getSchemaContext + the data proxy can find it.
+  const pool = getPostgresPool();
+  const regClient = await pool.connect();
+
+  try {
+    await regClient.query(
+      `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
+         VALUES ($1, $2, $3, $4, $5, $5, $6, 0, 'manual')
+         ON CONFLICT (schema_name, table_name) DO NOTHING`,
+      [cryptoRandomId(), chat.user_id, chat.id, schemaName, tableName, JSON.stringify(columns)]
+    );
+  } finally {
+    regClient.release();
+  }
+
+  return json({ success: true, tableName, schema: schemaName });
+}
+
+// PATCH — add and/or drop columns on an existing table
+async function handleAlter(request: Request, chat: ChatRecord) {
+  const body = (await request.json()) as {
+    tableName: string;
+    addColumns?: ColumnInput[];
+    dropColumns?: string[];
+  };
+
+  const { tableName, addColumns = [], dropColumns = [] } = body;
+
+  if (!tableName) {
+    return json({ error: 'tableName is required' }, { status: 400 });
+  }
+
+  if (addColumns.length === 0 && dropColumns.length === 0) {
+    return json({ error: 'Nothing to change' }, { status: 400 });
+  }
+
+  const registered = await lookupRegisteredTable(chat.id, tableName);
+
+  if (!registered) {
+    return json({ error: `Table "${tableName}" not found` }, { status: 404 });
+  }
+
+  const addErr = validateColumns(addColumns);
+
+  if (addErr) {
+    return json({ error: addErr }, { status: 400 });
+  }
+
+  const existing = new Set(registered.columns.map(c => c.name));
+
+  for (const col of addColumns) {
+    if (existing.has(col.name)) {
+      return json({ error: `Column "${col.name}" already exists on "${tableName}"` }, { status: 409 });
+    }
+
+    /*
+     * Postgres rejects ADD COLUMN ... NOT NULL on a table that already has rows unless a default
+     * is supplied. Say so up front rather than surfacing a raw PG error.
+     */
+    if (!col.nullable && !col.defaultValue) {
+      return json(
+        { error: `Column "${col.name}" is required, so it needs a default value to be added to an existing table` },
+        { status: 400 }
+      );
+    }
+  }
+
+  for (const name of dropColumns) {
+    if (RESERVED_NAMES.has(name)) {
+      return json({ error: `Column "${name}" is managed by the platform and cannot be removed` }, { status: 400 });
+    }
+
+    const nameErr = validateIdentifier(name, 'Column name');
+
+    if (nameErr) {
+      return json({ error: nameErr }, { status: 400 });
+    }
+
+    if (!existing.has(name)) {
+      return json({ error: `Column "${name}" does not exist on "${tableName}"` }, { status: 404 });
+    }
+  }
+
+  if (dropColumns.length >= registered.columns.length + addColumns.length) {
+    return json({ error: 'A table must keep at least one column' }, { status: 400 });
+  }
+
+  const clauses = [
+    ...addColumns.map(col => {
+      const pgType = PG_TYPES[col.type];
+      const nullable = col.nullable ? '' : ' NOT NULL';
+      const safeDefault = col.defaultValue ? formatDefaultValue(pgType, col.defaultValue) : null;
+      const def = safeDefault ? ` DEFAULT ${safeDefault}` : '';
+
+      return `ADD COLUMN "${col.name}" ${pgType}${nullable}${def}`;
+    }),
+    ...dropColumns.map(name => `DROP COLUMN "${name}"`),
+  ];
+
+  // One statement, so a partial failure leaves the table exactly as it was.
+  const result = await runAppQuery(chat.user_id, `ALTER TABLE "${registered.tableName}" ${clauses.join(', ')};`);
+
+  if (!result.ok) {
+    return json({ error: result.error || 'Failed to update columns' }, { status: 500 });
+  }
+
+  const dropped = new Set(dropColumns);
+  const nextColumns = [...registered.columns.filter(c => !dropped.has(c.name)), ...addColumns];
+  await writeRegistryColumns(registered.schemaName, registered.tableName, nextColumns);
+
+  return json({ success: true, tableName, columns: nextColumns });
+}
+
+// DELETE — drop a table and remove it from the registry
+async function handleDrop(request: Request, chat: ChatRecord) {
+  const tableName = new URL(request.url).searchParams.get('table');
+
+  if (!tableName) {
+    return json({ error: 'table query parameter is required' }, { status: 400 });
+  }
+
+  const registered = await lookupRegisteredTable(chat.id, tableName);
+
+  if (!registered) {
+    return json({ error: `Table "${tableName}" not found` }, { status: 404 });
+  }
+
+  const result = await runAppQuery(chat.user_id, `DROP TABLE IF EXISTS "${registered.tableName}" CASCADE;`);
+
+  if (!result.ok) {
+    return json({ error: result.error || 'Failed to delete table' }, { status: 500 });
+  }
+
+  // Deregister only after the physical drop succeeded, so the two can't disagree.
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query(`DELETE FROM app_tables WHERE schema_name = $1 AND table_name = $2`, [
+      registered.schemaName,
+      registered.tableName,
+    ]);
+  } finally {
+    client.release();
+  }
+
+  return json({ success: true, tableName });
 }
 
 function cryptoRandomId(): string {

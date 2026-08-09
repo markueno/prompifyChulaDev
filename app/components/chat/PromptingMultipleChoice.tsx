@@ -871,16 +871,34 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
                     'hover:border-accent-500 focus-visible:outline-none',
                     isSelected
                       ? 'border-accent-500 bg-accent-500/10'
-                      : 'border-bolt-elements-borderColor bg-bolt-elements-bg-depth-2 hover:bg-bolt-elements-item-backgroundActive'
+                      : 'border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 hover:bg-bolt-elements-item-backgroundActive'
                   )}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     {option.icon && (
-                      <img
-                        src={option.icon}
-                        alt={option.label}
-                        className="w-7 h-7 object-contain shrink-0"
-                        draggable={false}
+                      /*
+                       * The brand marks are single-colour `fill="currentColor"` glyphs. An <img>
+                       * cannot inherit the page colour, so currentColor resolved to black and the
+                       * logos disappeared on the dark card. Mask them instead so they take the
+                       * theme's text colour.
+                       */
+                      <span
+                        role="img"
+                        aria-label={option.label}
+                        className={classNames(
+                          'w-7 h-7 shrink-0',
+                          isSelected ? 'bg-accent-600 dark:bg-accent-300' : 'bg-bolt-elements-textPrimary'
+                        )}
+                        style={{
+                          maskImage: `url(${option.icon})`,
+                          WebkitMaskImage: `url(${option.icon})`,
+                          maskSize: 'contain',
+                          WebkitMaskSize: 'contain',
+                          maskRepeat: 'no-repeat',
+                          WebkitMaskRepeat: 'no-repeat',
+                          maskPosition: 'center',
+                          WebkitMaskPosition: 'center',
+                        }}
                       />
                     )}
                     {isSelected && (

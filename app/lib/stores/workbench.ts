@@ -136,6 +136,32 @@ export class WorkbenchStore {
     }
   }
 
+  /**
+   * Drop every queued alert from one source. Used when the preview recovers: a transient boot
+   * error otherwise stays on screen forever, because clearAlert() only shifts the head of the
+   * queue and nothing else ever invalidates an alert.
+   */
+  clearAlertsBySource(source: NonNullable<ActionAlert['source']>) {
+    const remaining = this.#alertQueue.filter(alert => alert.source !== source);
+
+    if (remaining.length === this.#alertQueue.length) {
+      return;
+    }
+
+    this.#alertQueue.length = 0;
+    this.#alertQueue.push(...remaining);
+
+    const current = this.actionAlert.get();
+
+    if (!current || current.source === source) {
+      this.actionAlert.set(this.#alertQueue[0]);
+    }
+
+    if (import.meta.hot) {
+      import.meta.hot.data.alertQueue = this.#alertQueue;
+    }
+  }
+
   enqueueAlert(alert: ActionAlert) {
     const lastQueued = this.#alertQueue[this.#alertQueue.length - 1];
 

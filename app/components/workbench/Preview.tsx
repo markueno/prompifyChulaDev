@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useStore } from '@nanostores/react';
 import { IconButton } from '~/components/ui/IconButton';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { addError, parseFileAndLine } from '~/lib/stores/errors';
+import { addError, parseFileAndLine, resolveBySource } from '~/lib/stores/errors';
 import { PortDropdown } from './PortDropdown';
 import { ScreenshotSelector } from './ScreenshotSelector';
 
@@ -153,6 +153,17 @@ export const Preview = memo(() => {
   }, [activePreview]);
 
   /*
+   * Errors belong to a particular load of the preview. Once it reloads they describe a page that
+   * no longer exists, so retire them — otherwise a transient boot error (e.g. the dev server
+   * losing a race on first start) sits on screen indefinitely and the user can't tell whether it
+   * still applies. Problems keeps the entries, just marked fixed, so nothing is silently lost.
+   */
+  const retireStalePreviewErrors = useCallback(() => {
+    workbenchStore.clearAlertsBySource('preview');
+    resolveBySource(['runtime', 'network', 'build']);
+  }, []);
+
+  /*
    * Auto-reload the iframe when a preview transitions from not-ready → ready
    * (e.g. after a dev server restart or file change rebuild).
    */
@@ -169,8 +180,9 @@ export const Preview = memo(() => {
 
     if (wasNotReady && activePreview.ready && iframeRef.current) {
       iframeRef.current.src = iframeRef.current.src;
+      retireStalePreviewErrors();
     }
-  }, [activePreview]);
+  }, [activePreview, retireStalePreviewErrors]);
 
   const validateUrl = useCallback(
     (value: string) => {
@@ -208,6 +220,7 @@ export const Preview = memo(() => {
   const reloadPreview = () => {
     if (iframeRef.current) {
       iframeRef.current.src = iframeRef.current.src;
+      retireStalePreviewErrors();
     }
   };
 

@@ -483,10 +483,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                      */
                   )}
                 >
-                  <svg className={classNames(styles.PromptEffectContainer)}>
-                    <rect className={classNames(styles.PromptEffectLine)} pathLength="100" strokeLinecap="round"></rect>
-                    <rect className={classNames(styles.PromptShine)} x="48" y="24" width="70" height="1"></rect>
-                  </svg>
                   <div>
                     <ClientOnly>
                       {() => (

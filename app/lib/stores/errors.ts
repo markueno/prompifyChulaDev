@@ -76,6 +76,23 @@ export function incrementFixAttempts(id: string): void {
   errorsStore.set(errorsStore.get().map(e => (e.id === id ? { ...e, fixAttempts: e.fixAttempts + 1 } : e)));
 }
 
+/**
+ * Mark still-active errors from the given sources as fixed. Called when the preview recovers, so
+ * the Problems badge stops counting errors from a page load that no longer exists. Entries are
+ * kept (not deleted) so the history stays inspectable — clearFixed() removes them on demand.
+ */
+export function resolveBySource(sources: ErrorSource[]): void {
+  const targets = new Set<ErrorSource>(sources);
+
+  errorsStore.set(
+    errorsStore
+      .get()
+      .map(e =>
+        targets.has(e.source) && (e.status === 'new' || e.status === 'fixing') ? { ...e, status: 'fixed' } : e
+      )
+  );
+}
+
 export function clearFixed(): void {
   errorsStore.set(errorsStore.get().filter(e => e.status !== 'fixed'));
 }

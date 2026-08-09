@@ -18,31 +18,10 @@
   opacity: 1;
 }
 
-.PromptEffectContainer {
-  --prompt-container-offset: 50px;
-  --prompt-line-stroke-width: 1px;
-  position: absolute;
-  pointer-events: none;
-  inset: calc(var(--prompt-container-offset) / -2);
-  width: calc(100% + var(--prompt-container-offset));
-  height: calc(100% + var(--prompt-container-offset));
-}
-
-.PromptEffectLine {
-  width: calc(100% - var(--prompt-container-offset) + var(--prompt-line-stroke-width));
-  height: calc(100% - var(--prompt-container-offset) + var(--prompt-line-stroke-width));
-  x: calc(var(--prompt-container-offset) / 2 - var(--prompt-line-stroke-width) / 2);
-  y: calc(var(--prompt-container-offset) / 2 - var(--prompt-line-stroke-width) / 2);
-  rx: calc(8px - var(--prompt-line-stroke-width));
-  fill: transparent;
-  stroke-width: var(--prompt-line-stroke-width);
-  stroke: #f97316;
-
-  stroke-dasharray: 35px 65px;
-  stroke-dashoffset: 10;
-}
-
-.PromptShine {
-  fill: rgba(249, 115, 22, 0.4);
-  mix-blend-mode: overlay;
-}
+/*
+ * Removed: .PromptEffectContainer / .PromptEffectLine / .PromptShine.
+ * These drew a decorative dashed orange stroke around the prompt box. Upstream animates the
+ * dash while the model generates; this branch had neither the keyframes nor a conditional
+ * render, so it showed as a frozen orange arc over ~a third of the perimeter and read as a
+ * broken border. The box already has a real border (bolt-elements-borderColor).
+ */

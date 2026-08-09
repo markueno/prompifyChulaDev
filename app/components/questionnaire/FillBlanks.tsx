@@ -45,7 +45,7 @@ export function FillBlanks({ template, onContinue }: FillBlanksProps) {
 
   return (
     <div className="space-y-6">
-      <div className="text-base leading-loose text-bolt-elements-textPrimary bg-bolt-elements-bg-depth-2 rounded-xl p-4 border border-bolt-elements-borderColor">
+      <div className="text-base leading-loose text-bolt-elements-textPrimary bg-bolt-elements-background-depth-2 rounded-xl p-4 border border-bolt-elements-borderColor">
         {template.parts.map((part, i) => (
           <span key={i}>
             <span>{part}</span>

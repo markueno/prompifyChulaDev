@@ -1,4 +1,15 @@
 ﻿/* Landing page styles - from landingPage/styles.css */
+
+/*
+ * Brand orange (#f97316) is a FILL colour, not a text colour. As text on the light auth-modal
+ * panel it measures ~2.2:1 — far below the 4.5:1 WCAG AA needs for body copy, and reported as
+ * unreadable. Use the darker orange-800 for any orange *text* on a light surface; #f97316 stays
+ * for buttons/fills, where white-on-orange already passes.
+ */
+:root {
+  --prompify-accent-text: #9a3412;
+}
+
 .landing-page {
   width: 100vw;
   overflow-x: hidden;
@@ -729,7 +740,7 @@ button.landing-cta-btn {
   font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #f97316;
+  color: var(--prompify-accent-text);
 }
 
 .landing-login-modal-header p {
@@ -740,7 +751,7 @@ button.landing-cta-btn {
 }
 
 .landing-login-modal-required {
-  color: #f97316;
+  color: var(--prompify-accent-text);
   font-weight: 700;
 }
 
@@ -752,10 +763,11 @@ button.landing-cta-btn {
   font-size: 0.65rem;
 }
 
+/* a11y: 0.48 alpha on the white panel is ~2.9:1. 0.62 lands at ~4.9:1 (AA) and still reads muted. */
 .landing-login-modal-hint {
   margin: -0.2rem 0 0.35rem;
   font-size: 0.72rem;
-  color: rgba(35, 23, 16, 0.48);
+  color: rgba(35, 23, 16, 0.62);
   line-height: 1.35;
 }
 
@@ -849,9 +861,10 @@ button.landing-cta-btn {
   gap: 0.2rem;
 }
 
+/* a11y: the password checklist was 0.42 alpha (~2.65:1) — the "hard to see" text in the report. */
 .landing-modal-pw-strength li {
   font-size: 0.7rem;
-  color: rgba(35, 23, 16, 0.42);
+  color: rgba(35, 23, 16, 0.62);
   padding-left: 0.65rem;
   position: relative;
 }
@@ -864,7 +877,7 @@ button.landing-cta-btn {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: rgba(35, 23, 16, 0.22);
+  background: rgba(35, 23, 16, 0.4);
 }
 
 .landing-modal-pw-strength li.met {
@@ -905,7 +918,7 @@ button.landing-cta-btn {
 }
 
 .landing-login-modal-input::placeholder {
-  color: rgba(35, 23, 16, 0.35);
+  color: rgba(35, 23, 16, 0.5);
 }
 
 .landing-login-modal-textarea {
@@ -954,7 +967,7 @@ button.landing-cta-btn {
   background: transparent;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #f97316;
+  color: var(--prompify-accent-text);
   cursor: pointer;
   padding: 0.25rem 0.4rem;
 }
@@ -991,8 +1004,8 @@ button.landing-cta-btn {
 .landing-login-modal-submit--secondary {
   margin-top: 0.5rem;
   background: transparent;
-  color: #f97316;
-  border: 2px solid rgba(249, 115, 22, 0.55);
+  color: var(--prompify-accent-text);
+  border: 2px solid rgba(154, 52, 18, 0.55);
   box-shadow: none;
 }
 
@@ -1022,7 +1035,7 @@ button.landing-cta-btn {
 }
 
 .landing-login-modal-footer a {
-  color: #f97316;
+  color: var(--prompify-accent-text);
   font-weight: 600;
   text-decoration: none;
 }
@@ -1038,7 +1051,7 @@ button.landing-cta-btn {
   background: none;
   cursor: pointer;
   font: inherit;
-  color: #f97316;
+  color: var(--prompify-accent-text);
   font-weight: 600;
   text-decoration: none;
 }
@@ -2155,9 +2168,14 @@ body {
   -webkit-backdrop-filter: blur(20px);
 }
 
-/* Auth modal panel ï¿½ true frosted glass */
+/*
+ * Auth modal panel — frosted glass.
+ * The panel is opaque enough (0.92) that text contrast is a fixed, testable value. At the old
+ * 0.55 the effective surface depended on whatever was scrolled behind it, so the same text
+ * measured anywhere from ~2.2:1 to ~3:1 and the modal read as washed out.
+ */
 .landing-login-modal-panel {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(48px) saturate(1.6);
   -webkit-backdrop-filter: blur(48px) saturate(1.6);
   border: 1px solid rgba(255, 255, 255, 0.7);

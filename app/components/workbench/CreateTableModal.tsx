@@ -60,6 +60,16 @@ export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTabl
 
     const validCols = columns.filter(c => c.name.trim());
 
+    /*
+     * Without this the table is created with only the auto-managed id/created_at/updated_at
+     * columns, which the row form hides — so it shows as "0 cols" and Add Row dead-ends on
+     * "No valid columns to insert" with no way to add a column afterwards.
+     */
+    if (validCols.length === 0) {
+      setError('Add at least one column — a table with no columns cannot store rows');
+      return;
+    }
+
     setSaving(true);
 
     try {

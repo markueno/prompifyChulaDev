@@ -147,6 +147,58 @@ export async function updateProxyRow(
   }
 }
 
+/** A column definition as the schema endpoint expects it. */
+export interface ProxyColumnDef {
+  name: string;
+  type: string;
+  nullable: boolean;
+  defaultValue?: string;
+}
+
+/** PATCH /api/data/:chatId/schema — add and/or drop columns on an existing table. */
+export async function alterProxyTable(
+  chatId: string,
+  table: string,
+  changes: { addColumns?: ProxyColumnDef[]; dropColumns?: string[] }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/data/${encodeURIComponent(chatId)}/schema`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tableName: table, ...changes }),
+    });
+
+    const data = (await res.json()) as { error?: string };
+
+    if (!res.ok || data.error) {
+      return { success: false, error: data.error || `HTTP ${res.status}` };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to update columns' };
+  }
+}
+
+/** DELETE /api/data/:chatId/schema?table=... — drop a table and deregister it. */
+export async function dropProxyTable(chatId: string, table: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/data/${encodeURIComponent(chatId)}/schema?table=${encodeURIComponent(table)}`, {
+      method: 'DELETE',
+    });
+
+    const data = (await res.json()) as { error?: string };
+
+    if (!res.ok || data.error) {
+      return { success: false, error: data.error || `HTTP ${res.status}` };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Failed to delete table' };
+  }
+}
+
 /** DELETE /api/data/:chatId/:resource?id=... — delete a row by PK. */
 export async function deleteProxyRow(
   chatId: string,

@@ -247,7 +247,7 @@ export function VersionHistoryDropdown() {
 
                   {!v.isLatest && (
                     <button
-                      className="shrink-0 rounded-md px-2 py-1 text-xs text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive hover:bg-bolt-elements-background-depth-1 transition-colors"
+                      className="shrink-0 rounded-md px-2 py-1 text-xs font-medium bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentActive hover:bg-bolt-elements-item-backgroundAccent hover:text-bolt-elements-item-contentAccent transition-colors"
                       onClick={() => setConfirmTarget(v)}
                       title={`Restore version ${v.versionNumber}`}
                     >
