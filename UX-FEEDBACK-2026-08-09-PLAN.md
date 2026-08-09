@@ -80,12 +80,21 @@ reported contrast in both themes; a proper dark treatment needs eyes on it and i
   verified all 10 are single-colour.
 - *Restore button:* given a proper pill (`item-backgroundActive` + `contentActive`) instead of
   bare low-contrast text whose hover surface was *darker* than the row it sat on.
-- 🔴 *Workspace dropdown:* **UNRESOLVED.** An earlier note claimed `95af32d` had already fixed
-  this — that claim was wrong. The pre-fix code used `background-depth-1` + `textPrimary/Secondary`,
-  theme tokens that read correctly in both modes, so it does not explain the blank row in the
-  screenshot. The row looks *empty*, not low-contrast, which points at data rather than colour —
-  but `companies.name` is `NOT NULL` and personal workspaces seed as `'Personal'`, so that theory
-  doesn't close either. **Needs a full-resolution screenshot and the prod commit hash.**
+- *Workspace dropdown:* **SOLVED 2026-08-10 (commit `1f14967`) — it was never a colour bug.**
+  `@unocss/reset/tailwind-compat.css` (`root.tsx:4`) deliberately comments out
+  `background-color: transparent` for buttons (unocss#2127, to avoid clashing with component
+  libraries). We have no such library, so every `<button>` that never declared a `bg-*` class fell
+  back to the browser's `buttonface` grey. The dropdown row is a button with only a *hover*
+  background and `dark:text-[#f0e4d5]/80` text — cream on white — so it rendered as an **empty
+  white box**, which is exactly what the screenshot showed. Fixed globally with a single
+  `button { background-color: transparent }` in `index.scss` (element selector only, so any
+  `bg-*` utility still wins).
+
+  Same root cause behind the Admin sidebar rendering as a solid white panel
+  (`AdminPanel.tsx:644` — inactive nav items are `w-full`, stacked, hover-background only), the
+  "Use my own Supabase" button, the Data-section table cards, the Restore button and the
+  style-picker cards. **Prod was two commits behind (`c385925`), so the tester never received
+  `95af32d` either** — that answers the "which build" question.
 
 ### 4. Orange border "not all the way round" — **fixed**
 Not a border: an always-on SVG (`BaseChat.tsx`) whose stroke was `dasharray: 35px 65px`. Upstream
@@ -151,10 +160,10 @@ us whether item 3a was ever fixed, and whether any of this feedback was already 
 - [ ] Data → "Use my own Supabase" → Back to tables returns with the connection intact
 - [ ] Preview: no dead band under the header; workbench still sane at small widths
 - [ ] Break the preview, let it recover → the Preview Error card clears itself
-- [ ] 🔴 Workspace dropdown → **screenshot it at full resolution**, blank row or not
+- [ ] Workspace dropdown → row is readable (was the UA buttonface bug, fixed in 1f14967)
+- [ ] Sweep for any button that LOST a background it was silently relying on (should be none)
 
 ## Known-not-done
 - `landing.css` dark-mode rules (item 1 follow-up).
-- Item 3a workspace dropdown — cause not established.
 - `landing.css` has mojibake in several comments (`ï¿½`), same encoding damage `048393c` cleaned
   out of `BaseChat.module.scss`. Cosmetic, untouched.
