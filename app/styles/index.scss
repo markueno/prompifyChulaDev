@@ -12,3 +12,19 @@ body {
   height: 100%;
   width: 100%;
 }
+
+/*
+ * @unocss/reset/tailwind-compat.css deliberately leaves `background-color: transparent` OFF for
+ * buttons (unocss#2127 — it would clash with component libraries that rely on the UA default).
+ * We have no such library, so the effect here is that every <button> without an explicit bg-*
+ * class renders with the UA's `buttonface` grey — which reads as a white box on our dark
+ * surfaces, and hides any light-coloured label sitting on it.
+ *
+ * Element selector only (specificity 0,0,1) on purpose: any `bg-*` utility is a class (0,1,0)
+ * and still wins, so this only fills in the buttons that never declared a background. Do NOT add
+ * the [type='button'] / [type='submit'] selectors the upstream reset uses — those are (0,1,0)
+ * and would override real utilities depending on stylesheet order.
+ */
+button {
+  background-color: transparent;
+}
