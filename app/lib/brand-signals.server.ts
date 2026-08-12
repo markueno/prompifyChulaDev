@@ -6,9 +6,11 @@
  * it could never report a palette or a typeface: the only place those are stated had already been
  * deleted. This keeps the head and inline CSS and reads them for concrete tokens.
  *
- * Landing page only, by design — no following of linked stylesheets. A site whose colours live
- * entirely in an external bundle (common with Tailwind builds) will yield few hex values, and the
- * prompt tells the model to say so rather than invent them.
+ * Still landing page only in the sense that we do not crawl the site — but we DO read the
+ * stylesheets that page links, because inline CSS alone turned out to be too thin: most real
+ * sites ship their palette and @font-face rules in an external bundle, so the first version could
+ * not name a colour or typeface for them. Stylesheet fetching is bounded and SSRF-guarded by the
+ * caller (see safe-fetch.server.ts).
  */
 
 export interface BrandSignals {
@@ -20,6 +22,8 @@ export interface BrandSignals {
   /** Colours by descending frequency in inline CSS — a proxy for how central they are. */
   colors: Array<{ value: string; count: number }>;
   fontFamilies: string[];
+  /** Families declared via @font-face — where a self-hosted brand typeface shows up. */
+  fontFaces: string[];
   /** Google Fonts families, which name the typeface even when the CSS is external. */
   googleFonts: string[];
   logoUrl: string | null;
@@ -105,12 +109,31 @@ function extractFontFamilies(css: string): string[] {
   for (const m of css.matchAll(/font-family\s*:\s*([^;{}]+)/gi)) {
     const stack = m[1].replace(/["']/g, '').trim().slice(0, 120);
 
-    if (stack) {
+    // Skip pure-generic stacks; they say nothing about the brand.
+    if (stack && !/^(inherit|initial|unset|sans-serif|serif|monospace)$/i.test(stack)) {
       seen.add(stack);
     }
   }
 
-  return [...seen].slice(0, 10);
+  return [...seen].slice(0, 12);
+}
+
+/**
+ * Typefaces the site actually ships, from @font-face rules. More reliable than font-family
+ * stacks, which are full of fallbacks — a self-hosted brand font only appears here.
+ */
+function extractFontFaces(css: string): string[] {
+  const seen = new Set<string>();
+
+  for (const block of css.matchAll(/@font-face\s*{([^}]*)}/gi)) {
+    const family = block[1].match(/font-family\s*:\s*["']?([^;"'}]+)/i);
+
+    if (family) {
+      seen.add(family[1].trim().slice(0, 60));
+    }
+  }
+
+  return [...seen].slice(0, 12);
 }
 
 function extractGoogleFonts(html: string): string[] {
@@ -123,6 +146,46 @@ function extractGoogleFonts(html: string): string[] {
   }
 
   return [...families].slice(0, 10);
+}
+
+/**
+ * Stylesheet URLs the page links, absolute and de-duplicated.
+ *
+ * Google Fonts CSS is included deliberately: fetching it yields the @font-face rules naming the
+ * real families, which is often the only place a typeface is stated.
+ */
+export function extractStylesheetUrls(html: string, pageUrl: string, limit = 4): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  for (const tag of html.matchAll(/<link\b[^>]*>/gi)) {
+    if (!/rel=["']?[^"'>]*stylesheet/i.test(tag[0])) {
+      continue;
+    }
+
+    const href = tag[0].match(/href=["']([^"']+)["']/i);
+
+    if (!href) {
+      continue;
+    }
+
+    try {
+      const absolute = new URL(decodeEntities(href[1]), pageUrl).toString();
+
+      if (!seen.has(absolute)) {
+        seen.add(absolute);
+        urls.push(absolute);
+      }
+    } catch {
+      // Malformed href — skip it.
+    }
+
+    if (urls.length >= limit) {
+      break;
+    }
+  }
+
+  return urls;
 }
 
 function extractBodyText(html: string): string {
@@ -138,8 +201,13 @@ function extractBodyText(html: string): string {
     .slice(0, MAX_BODY_TEXT);
 }
 
-export function extractBrandSignals(html: string, pageUrl: string): BrandSignals {
-  const css = collectInlineCss(html);
+export function extractBrandSignals(html: string, pageUrl: string, externalCss = ''): BrandSignals {
+  /*
+   * Inline CSS alone is rarely enough — most sites ship their palette and @font-face rules in an
+   * external bundle, which is why the first version could not name a colour or a typeface for
+   * real-world sites. externalCss is the concatenated content of the page's stylesheets.
+   */
+  const css = `${collectInlineCss(html)}\n${externalCss}`;
 
   const logoRaw =
     metaContent(html, /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
@@ -165,6 +233,7 @@ export function extractBrandSignals(html: string, pageUrl: string): BrandSignals
     cssVariables: extractCssVariables(css),
     colors: extractColors(css),
     fontFamilies: extractFontFamilies(css),
+    fontFaces: extractFontFaces(css),
     googleFonts: extractGoogleFonts(html),
     logoUrl,
     hasExternalStylesheets: /<link[^>]+rel=["']stylesheet["']/i.test(html),
@@ -187,18 +256,28 @@ export function formatSignalsForPrompt(s: BrandSignals): string {
   lines.push('', 'Colours by frequency in inline CSS:');
   lines.push(s.colors.length ? s.colors.map(c => `  ${c.value} (${c.count}x)`).join('\n') : '  (none found)');
 
-  lines.push('', 'font-family declarations:');
+  lines.push('', 'Typefaces shipped via @font-face (strongest typography signal):');
+  lines.push(s.fontFaces.length ? s.fontFaces.map(f => `  ${f}`).join('\n') : '  (none found)');
+
+  lines.push('', 'font-family declarations (first name in each stack is the intended face):');
   lines.push(s.fontFamilies.length ? s.fontFamilies.map(f => `  ${f}`).join('\n') : '  (none found)');
 
   lines.push('', 'Google Fonts families:');
   lines.push(s.googleFonts.length ? s.googleFonts.map(f => `  ${f}`).join('\n') : '  (none found)');
 
-  if (s.hasExternalStylesheets && s.cssVariables.length === 0 && s.colors.length < 3) {
-    lines.push(
-      '',
-      'NOTE: this page loads external stylesheets that were not fetched, so little CSS was visible.',
-      'Do not guess hex values you cannot see — say they could not be determined.'
-    );
+  const noColour = s.cssVariables.length === 0 && s.colors.length < 3;
+  const noType = s.fontFaces.length === 0 && s.fontFamilies.length === 0 && s.googleFonts.length === 0;
+
+  if (noColour || noType) {
+    lines.push('', 'NOTE: little CSS was readable for this site (styles may be injected at runtime or built into JS).');
+
+    if (noColour) {
+      lines.push('Do not guess hex values you cannot see — say the palette could not be determined.');
+    }
+
+    if (noType) {
+      lines.push('Do not guess typefaces — say typography could not be determined.');
+    }
   }
 
   lines.push('', '## PAGE COPY', s.bodyText);
