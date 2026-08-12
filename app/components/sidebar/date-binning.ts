@@ -10,7 +10,27 @@ export function binDates(_list: ChatHistoryItem[]) {
   const bins: Array<Bin> = [];
 
   list.forEach(item => {
-    const category = dateCategory(new Date(item.timestamp));
+    /*
+     * date-fns `format` throws RangeError on an Invalid Date, and this runs during render — so a
+     * single chat with a missing or malformed timestamp would take down the whole page rather
+     * than just look wrong. Bucket those separately instead.
+     */
+    const parsed = new Date(item.timestamp);
+
+    if (Number.isNaN(parsed.getTime())) {
+      const bin = binLookup.Older ?? { category: 'Older', items: [] };
+
+      if (!binLookup.Older) {
+        binLookup.Older = bin;
+        bins.push(bin);
+      }
+
+      bin.items.push(item);
+
+      return;
+    }
+
+    const category = dateCategory(parsed);
 
     if (!(category in binLookup)) {
       const bin = {

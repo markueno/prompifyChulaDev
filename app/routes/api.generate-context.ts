@@ -1,8 +1,7 @@
 import { type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { generateText } from 'ai';
-import { PROVIDER_LIST } from '~/utils/constants';
+import { DEFAULT_MODEL, DEFAULT_PROVIDER } from '~/utils/constants';
 import { LLMManager } from '~/lib/modules/llm/manager';
-import type { ModelInfo } from '~/lib/modules/llm/types';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
 import { requireAuth } from '~/lib/auth';
@@ -126,27 +125,27 @@ async function generateContextAction({ context, request }: ActionFunctionArgs) {
   const providerSettings = getProviderSettingsFromCookie(cookieHeader);
 
   try {
+    /*
+     * Use the same default the main chat uses (api.chat.ts), not allModels[0].
+     * updateModelList returns every model from every registered provider — on this deployment
+     * that list starts with ~400 OpenRouter models, so taking the first one picked a provider
+     * with no API key configured and every request failed with "Missing API key for OpenRouter".
+     */
     const llmManager = LLMManager.getInstance(import.meta.env);
-    const allModels = await llmManager.updateModelList({
+    await llmManager.updateModelList({
       apiKeys,
       providerSettings,
       serverEnv: context.cloudflare?.env as any,
     });
 
-    const modelDetails: ModelInfo | undefined = allModels[0];
-
-    if (!modelDetails) {
-      throw new Error('No models available');
-    }
-
-    const resolvedProviderName = modelDetails.provider || PROVIDER_LIST[0]?.name;
-    const providerInfo = PROVIDER_LIST.find(p => p.name === resolvedProviderName) ?? PROVIDER_LIST[0];
+    const providerInfo = DEFAULT_PROVIDER;
+    const modelName = DEFAULT_MODEL;
 
     if (!providerInfo) {
       throw new Error('Provider not found');
     }
 
-    logger.info(`Generate context: provider=${resolvedProviderName} model=${modelDetails.name}`);
+    logger.info(`Generate context: provider=${providerInfo.name} model=${modelName}`);
 
     const result = await generateText({
       system: SYSTEM_PROMPT,
@@ -157,12 +156,13 @@ async function generateContextAction({ context, request }: ActionFunctionArgs) {
         },
       ],
       model: providerInfo.getModelInstance({
-        model: modelDetails.name,
+        model: modelName,
         serverEnv: context.cloudflare?.env as any,
         apiKeys,
         providerSettings,
       }),
-      maxTokens: 800,
+      // 400-700 words of markdown is ~900-1400 tokens; 800 truncated the document mid-section.
+      maxTokens: 1800,
       toolChoice: 'none',
     });
 
