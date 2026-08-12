@@ -2,6 +2,7 @@ import { json } from '@remix-run/node';
 import type { ActionFunction } from '@remix-run/node';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { requireSuperadmin } from '~/lib/auth';
 
 const execAsync = promisify(exec);
 
@@ -29,10 +30,24 @@ interface UpdateProgress {
   };
 }
 
-export const action: ActionFunction = async ({ request }) => {
+/*
+ * A branch name is interpolated into shell commands run through `exec` (which goes via /bin/sh),
+ * so it must be restricted to characters that cannot break out of the argument. Matches what git
+ * actually allows for a ref name, minus anything shell-significant.
+ */
+const SAFE_BRANCH = /^[A-Za-z0-9._\/-]{1,255}$/;
+
+export const action: ActionFunction = async ({ request, context }) => {
   if (request.method !== 'POST') {
     return json({ error: 'Method not allowed' }, { status: 405 });
   }
+
+  /*
+   * SECURITY: this endpoint shells out to git/pnpm on the server. It is inherited from bolt.diy,
+   * where it self-updates a LOCAL install; on a hosted deployment it had no auth at all, which
+   * made it an unauthenticated remote command execution against the container. Superadmin only.
+   */
+  await requireSuperadmin(request, context);
 
   try {
     const body = await request.json();
@@ -42,6 +57,10 @@ export const action: ActionFunction = async ({ request }) => {
     }
 
     const { branch, autoUpdate = false } = body as UpdateRequestBody;
+
+    if (branch && !SAFE_BRANCH.test(branch)) {
+      return json({ error: 'Invalid branch name' }, { status: 400 });
+    }
 
     // Create a ReadableStream to send progress updates
     const stream = new ReadableStream({

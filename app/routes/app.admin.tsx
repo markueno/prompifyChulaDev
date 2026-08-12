@@ -141,10 +141,16 @@ export default function AdminConsole() {
             className="mb-4 w-full max-w-sm rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-sm text-bolt-elements-textPrimary placeholder:text-bolt-elements-textTertiary focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus"
           />
 
-          <div className="overflow-x-auto rounded-xl border border-bolt-elements-borderColor">
+          {/*
+           * This page renders over LandingAppChrome's full-bleed photo background, so the table
+           * needs its own opaque surface — without one the rows were transparent and the only
+           * thing that painted was the hover, which is why hovering appeared to "turn the row
+           * white" and swallow the text. Same treatment the Overview cards use.
+           */}
+          <div className="overflow-x-auto rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 shadow-sm">
             <table className="w-full min-w-[820px] text-sm">
               <thead>
-                <tr className="border-b border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 text-left">
+                <tr className="border-b border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 text-left">
                   <th className="px-4 py-2.5 font-medium text-bolt-elements-textSecondary">Email</th>
                   <th className="px-4 py-2.5 font-medium text-bolt-elements-textSecondary">Plan</th>
                   <th className="px-4 py-2.5 font-medium text-bolt-elements-textSecondary">Tokens left</th>
@@ -176,7 +182,12 @@ export default function AdminConsole() {
                         setTierChoice(u.tierId ?? '');
                         setDeleteConfirm('');
                       }}
-                      className="cursor-pointer border-b border-bolt-elements-borderColor/50 last:border-b-0 hover:bg-bolt-elements-background-depth-2"
+                      /*
+                       * Hover is an accent tint rather than a surface swap, so the row's own text
+                       * colours stay valid in both themes — a solid hover background is what made
+                       * the labels disappear before.
+                       */
+                      className="cursor-pointer border-b border-bolt-elements-borderColor/50 last:border-b-0 transition-colors hover:bg-accent-500/15"
                     >
                       <td className="px-4 py-2.5 text-bolt-elements-textPrimary">
                         {u.email}

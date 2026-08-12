@@ -455,8 +455,12 @@ export async function createUserSession(
       return createUserSessionPostgres(userId, tokenHash, expiresAt, ipAddress, userAgent);
     } else {
       const db = getDatabase();
-      // First, invalidate any existing sessions for this user (single session enforcement)
-      await invalidateUserSessions(userId);
+
+      /*
+       * Concurrent sessions are allowed here too, matching the Postgres path — otherwise auth
+       * would behave differently in dev (SQLite) than in production. Just drop expired rows.
+       */
+      db.prepare(`DELETE FROM user_sessions WHERE user_id = ? AND expires_at < CURRENT_TIMESTAMP`).run(userId);
 
       // Create new session
       const result = db

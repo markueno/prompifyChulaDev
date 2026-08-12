@@ -7,7 +7,7 @@ import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getSubscriptionByCompanyId, getTokenBalanceRemainingForCompany } from '~/lib/database';
 import { getActiveCompanyId } from '~/lib/workspace.server';
-import { isStripeConfigured } from '~/lib/billing/stripe.server';
+import { isStripeConfigured, resolvePriceId, resolveTopUpPriceId } from '~/lib/billing/stripe.server';
 import { PLANS, TOPUP_PACK, type BillingInterval, type Plan, formatPrice, formatTokens } from '~/lib/billing/plans';
 import landingStyles from '~/styles/landing.css?url';
 
@@ -20,6 +20,16 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     getTokenBalanceRemainingForCompany(companyId, user.id),
   ]);
 
+  /*
+   * A tier can only be bought if its Stripe Price ID env var is actually set. Without this the
+   * cards all look purchasable the moment STRIPE_SECRET_KEY exists, and clicking an unconfigured
+   * one fails at checkout with "Plan is not available" — which is exactly what happens while
+   * rolling the plans out one at a time.
+   */
+  const purchasableTierIds = PLANS.filter(
+    p => p.priceCents > 0 && (resolvePriceId(p.tierId, 'month') || resolvePriceId(p.tierId, 'year'))
+  ).map(p => p.tierId);
+
   return json({
     plans: PLANS,
     topup: TOPUP_PACK,
@@ -28,6 +38,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     hasStripeCustomer: Boolean(sub?.stripe_customer_id),
     balance,
     stripeConfigured: isStripeConfigured(),
+    purchasableTierIds,
+    topupAvailable: Boolean(resolveTopUpPriceId()),
   });
 }
 
@@ -51,12 +63,15 @@ function PlanCard({
   interval,
   isCurrent,
   disabled,
+  /** False when this tier has no Stripe Price ID configured yet. */
+  purchasable,
   onSubscribe,
 }: {
   plan: Plan;
   interval: BillingInterval;
   isCurrent: boolean;
   disabled: boolean;
+  purchasable: boolean;
   onSubscribe: (plan: Plan) => void;
 }) {
   const isFree = plan.priceCents === 0;
@@ -105,24 +120,32 @@ function PlanCard({
 
       <button
         type="button"
-        disabled={isFree || isCurrent || disabled}
+        disabled={isFree || isCurrent || disabled || !purchasable}
         onClick={() => onSubscribe(plan)}
+        title={!isFree && !isCurrent && !purchasable ? 'This plan has no Stripe price configured yet' : undefined}
         className={`mt-6 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
-          isCurrent
+          isCurrent || isFree || !purchasable
             ? 'cursor-default border border-bolt-elements-borderColor text-bolt-elements-textSecondary'
-            : isFree
-              ? 'cursor-default border border-bolt-elements-borderColor text-bolt-elements-textSecondary'
-              : 'bg-bolt-elements-item-contentAccent text-white hover:opacity-90 disabled:opacity-50'
+            : 'bg-bolt-elements-item-contentAccent text-white hover:opacity-90 disabled:opacity-50'
         }`}
       >
-        {isCurrent ? 'Current plan' : isFree ? 'Included' : 'Subscribe'}
+        {isCurrent ? 'Current plan' : isFree ? 'Included' : purchasable ? 'Subscribe' : 'Coming soon'}
       </button>
     </div>
   );
 }
 
 export default function Pricing() {
-  const { plans, topup, currentTierId, balance, stripeConfigured, hasStripeCustomer } = useLoaderData<typeof loader>();
+  const {
+    plans,
+    topup,
+    currentTierId,
+    balance,
+    stripeConfigured,
+    hasStripeCustomer,
+    purchasableTierIds,
+    topupAvailable,
+  } = useLoaderData<typeof loader>();
   const [interval, setBillingInterval] = useState<BillingInterval>('month');
   const [searchParams] = useSearchParams();
   const checkout = useFetcher<CheckoutResponse>();
@@ -229,6 +252,7 @@ export default function Pricing() {
                 interval={interval}
                 isCurrent={plan.tierId === currentTierId}
                 disabled={!stripeConfigured || busy}
+                purchasable={purchasableTierIds.includes(plan.tierId)}
                 onSubscribe={subscribe}
               />
             ))}
@@ -256,10 +280,11 @@ export default function Pricing() {
               <button
                 type="button"
                 onClick={buyTopUp}
-                disabled={!stripeConfigured || busy}
+                disabled={!stripeConfigured || !topupAvailable || busy}
+                title={!topupAvailable ? 'The top-up pack has no Stripe price configured yet' : undefined}
                 className="rounded-lg bg-bolt-elements-item-contentAccent px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
               >
-                Buy top-up
+                {topupAvailable ? 'Buy top-up' : 'Coming soon'}
               </button>
             </div>
           </div>

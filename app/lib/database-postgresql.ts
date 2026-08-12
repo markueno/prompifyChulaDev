@@ -571,6 +571,12 @@ export async function logEmailPostgres(userId: string, emailType: string, delive
   }
 }
 
+/**
+ * How many devices a user can stay signed in on at once. Beyond this the oldest session is
+ * dropped, so the table stays bounded without logging people out of their other devices.
+ */
+const MAX_ACTIVE_SESSIONS_PER_USER = 10;
+
 export async function createUserSessionPostgres(
   userId: string,
   tokenHash: string,
@@ -582,8 +588,31 @@ export async function createUserSessionPostgres(
   const client = await pool.connect();
 
   try {
-    // First, invalidate any existing sessions for this user (single session enforcement)
-    await invalidateUserSessionsPostgres(userId);
+    /*
+     * Concurrent sessions are allowed: a user can be signed in on a laptop and a phone at the
+     * same time. This previously deleted every other session on login ("single session
+     * enforcement"), which meant signing in on one device silently logged you out everywhere
+     * else — the other tab then failed every request with session_expired.
+     *
+     * Instead of capping, old rows are pruned: expired ones always, and the oldest beyond
+     * MAX_ACTIVE_SESSIONS_PER_USER so the table can't grow without bound. Explicit logout still
+     * deletes that one session, and invalidateUserSessionsPostgres remains available for
+     * "sign out everywhere" / password changes.
+     */
+    await client.query(
+      `DELETE FROM user_sessions
+       WHERE user_id = $1
+         AND (
+           expires_at < CURRENT_TIMESTAMP
+           OR id IN (
+             SELECT id FROM user_sessions
+             WHERE user_id = $1
+             ORDER BY created_at DESC
+             OFFSET $2
+           )
+         )`,
+      [userId, MAX_ACTIVE_SESSIONS_PER_USER - 1]
+    );
 
     // Create new session
     const result = await client.query(
