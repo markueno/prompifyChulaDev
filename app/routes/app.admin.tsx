@@ -9,7 +9,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { json, type LinksFunction, type MetaFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { useLoaderData } from '@remix-run/react';
 import { toast } from 'react-toastify';
+import { ClientOnly } from 'remix-utils/client-only';
 import { Header } from '~/components/header/Header';
+import { Menu } from '~/components/sidebar/Menu.client';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireSuperadmin } from '~/lib/auth';
 import { PLANS, formatTokens } from '~/lib/billing/plans';
@@ -124,6 +126,8 @@ export default function AdminConsole() {
   return (
     <LandingAppChrome>
       <div className="landing-app-chrome flex min-h-0 w-full flex-1 flex-col">
+        {/* Chat history sidebar — same hover-out drawer the chat page has. */}
+        <ClientOnly>{() => <Menu />}</ClientOnly>
         <Header />
         <main className="mx-auto w-full max-w-6xl flex-1 overflow-auto px-5 py-8">
           <div className="mb-6">

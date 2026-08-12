@@ -2,7 +2,9 @@ import { json, type LinksFunction, type MetaFunction, type LoaderFunctionArgs } 
 import { useFetcher, useLoaderData, useSearchParams } from '@remix-run/react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
+import { ClientOnly } from 'remix-utils/client-only';
 import { Header } from '~/components/header/Header';
+import { Menu } from '~/components/sidebar/Menu.client';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getSubscriptionByCompanyId, getTokenBalanceRemainingForCompany } from '~/lib/database';
@@ -31,6 +33,12 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   ).map(p => p.tierId);
 
   return json({
+    /*
+     * Header renders its whole right-hand toolbar behind `{user && …}` and reads it from
+     * useLoaderData. Without this key the workspace switcher, notification bell and account
+     * menu silently disappeared on this page only.
+     */
+    user,
     plans: PLANS,
     topup: TOPUP_PACK,
     currentTierId: (sub?.tier_id as string) ?? 'tier_trial',
@@ -202,6 +210,8 @@ export default function Pricing() {
   return (
     <LandingAppChrome>
       <div className="landing-app-chrome flex min-h-0 w-full flex-1 flex-col">
+        {/* Chat history sidebar — same hover-out drawer the chat page has. */}
+        <ClientOnly>{() => <Menu />}</ClientOnly>
         <Header />
         <main className="mx-auto w-full max-w-6xl flex-1 overflow-auto px-5 py-8">
           <div className="mb-8">

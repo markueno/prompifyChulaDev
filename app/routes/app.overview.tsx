@@ -1,6 +1,8 @@
 import { json, type LinksFunction, type MetaFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { Link, useLoaderData } from '@remix-run/react';
+import { ClientOnly } from 'remix-utils/client-only';
 import { Header } from '~/components/header/Header';
+import { Menu } from '~/components/sidebar/Menu.client';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getProjectOverview, getSubscriptionByCompanyId } from '~/lib/database';
@@ -48,7 +50,7 @@ export const meta: MetaFunction = () => [
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1/80 p-4 backdrop-blur-sm">
+    <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-4 shadow-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-bolt-elements-textSecondary">{label}</p>
       <p className="mt-1 text-2xl font-semibold text-bolt-elements-textPrimary">{value}</p>
       {hint ? <p className="mt-2 text-sm text-bolt-elements-textSecondary">{hint}</p> : null}
@@ -68,6 +70,8 @@ export default function AppOverview() {
   return (
     <LandingAppChrome>
       <div className="landing-app-chrome flex min-h-0 w-full flex-1 flex-col">
+        {/* Chat history sidebar — same hover-out drawer the chat page has. */}
+        <ClientOnly>{() => <Menu />}</ClientOnly>
         <Header />
         <main className="mx-auto w-full max-w-5xl flex-1 overflow-auto px-5 py-8">
           <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -77,9 +81,10 @@ export default function AppOverview() {
                 Project health, recent runs, error signals, and token usage (rolling 7 days where noted).
               </p>
             </div>
+            {/* Solid surface: a border-only button over the photo background was barely visible. */}
             <Link
               to="/app/"
-              className="rounded-lg border border-bolt-elements-borderColor px-4 py-2 text-sm font-medium text-bolt-elements-textPrimary transition-colors hover:bg-bolt-elements-background-depth-2"
+              className="rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-4 py-2 text-sm font-medium text-bolt-elements-textPrimary shadow-sm transition-colors hover:bg-bolt-elements-background-depth-2"
             >
               Back to app
             </Link>
@@ -88,8 +93,8 @@ export default function AppOverview() {
           <div
             className={`mb-8 rounded-xl border p-4 ${
               overview.healthStatus === 'attention'
-                ? 'border-amber-500/50 bg-amber-500/10'
-                : 'border-emerald-500/40 bg-emerald-500/10'
+                ? 'border-amber-500/60 bg-bolt-elements-background-depth-1 shadow-sm'
+                : 'border-emerald-500/50 bg-bolt-elements-background-depth-1 shadow-sm'
             }`}
           >
             <p className="text-sm font-semibold text-bolt-elements-textPrimary">
@@ -142,11 +147,11 @@ export default function AppOverview() {
               Latest recorded LLM completions (newest first).
             </p>
             {overview.recentRuns.length === 0 ? (
-              <p className="mt-4 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1/60 p-6 text-bolt-elements-textSecondary">
+              <p className="mt-4 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-6 text-bolt-elements-textSecondary">
                 No usage yet. Open a project and send a prompt to see runs here.
               </p>
             ) : (
-              <ul className="mt-4 divide-y divide-bolt-elements-borderColor rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1/60">
+              <ul className="mt-4 divide-y divide-bolt-elements-borderColor rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1">
                 {overview.recentRuns.map((run, idx) => {
                   const chatPath = buildProjectChatPath(
                     run.projectId || DEFAULT_PROJECT_ID,
