@@ -133,6 +133,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
           password_hash: string;
           is_verified: number;
           is_moderator?: boolean;
+          is_superadmin?: boolean;
           login_attempts: number;
         }
       | undefined;
@@ -207,6 +208,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         email: user.email || '',
         isVerified: (user.is_verified || 0) === 1,
         isModerator,
+        isSuperadmin: Boolean(user.is_superadmin),
       },
       secret,
       { expiresIn: '24h' }

@@ -8,6 +8,8 @@ export interface User {
   email: string;
   isVerified: boolean;
   isModerator?: boolean;
+  /** Platform superadmin — see requireSuperadmin(). Distinct from isModerator. */
+  isSuperadmin?: boolean;
   /** Account tier: Trial, Builder, Innovator. Blank if not found. */
   accountTier?: string | null;
 }
@@ -108,7 +110,27 @@ export async function requireAuth(request: Request, context: any): Promise<User>
     email: decoded.email,
     isVerified: decoded.isVerified,
     isModerator: Boolean(decoded.isModerator),
+    isSuperadmin: Boolean(decoded.isSuperadmin),
   };
+}
+
+/**
+ * Gate for the platform admin console. Superadmin is a separate flag from isModerator on purpose:
+ * moderators already receive a broad read bypass in the chat/project queries, whereas this role
+ * can move money-adjacent state (tokens, tiers) and delete accounts.
+ *
+ * The claim is read from the JWT, so an account promoted while it has a live session only gains
+ * the role after re-logging in. Answers 404 rather than 403 so the console's existence isn't
+ * advertised to ordinary users.
+ */
+export async function requireSuperadmin(request: Request, context: any): Promise<User> {
+  const user = await requireAuth(request, context);
+
+  if (!user.isSuperadmin) {
+    throw new Response('Not Found', { status: 404 });
+  }
+
+  return user;
 }
 
 export function getAuthToken(request: Request): string | null {

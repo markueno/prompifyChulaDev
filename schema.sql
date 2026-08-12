@@ -27,6 +27,13 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     is_verified BOOLEAN DEFAULT FALSE,
     is_moderator BOOLEAN DEFAULT FALSE,
+    /*
+     * Platform superadmin. Deliberately separate from is_moderator: moderators already get a
+     * broad data bypass in the chat/project queries, and the admin console can grant tokens,
+     * change tiers and delete accounts. Grant it only by direct SQL — there is no UI to promote,
+     * so a compromised console cannot mint more admins.
+     */
+    is_superadmin BOOLEAN NOT NULL DEFAULT FALSE,
     token_approved BOOLEAN NOT NULL DEFAULT TRUE,
     verification_token TEXT,
     verification_expires TIMESTAMP,
@@ -38,6 +45,12 @@ CREATE TABLE IF NOT EXISTS users (
     reset_token TEXT,
     reset_expires TIMESTAMP
 );
+
+/*
+ * The CREATE TABLE above only runs on a fresh database — on an existing one it is a no-op, so a
+ * new column has to be added explicitly. Idempotent, like every statement in this file.
+ */
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS user_sessions (
     id TEXT PRIMARY KEY,
