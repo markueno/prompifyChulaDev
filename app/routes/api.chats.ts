@@ -3,14 +3,24 @@ import { requireAuth } from '~/lib/auth';
 import { saveChat, getChatsByUser, deleteChat, logUserActivity } from '~/lib/database';
 import { provisionAppSchema } from '~/lib/supabase-provision.server';
 
-// Get all chats for a user
+/**
+ * GET /api/chats            — the caller's own chats (owned + shared with them).
+ * GET /api/chats?scope=all  — every chat on the instance. Moderators only.
+ *
+ * The scope defaults to "mine" deliberately. `getChatsByUser` drops the ownership filter
+ * entirely when its isModerator argument is true, so passing `user.isModerator` through
+ * unconditionally would dump every user's history into a moderator's own sidebar.
+ */
 export async function loader({ request, context }: LoaderFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
-    const chats = await getChatsByUser(user.id, user.isModerator);
+    const wantsAll = new URL(request.url).searchParams.get('scope') === 'all';
+    const asModerator = wantsAll && Boolean(user.isModerator);
+
+    const chats = await getChatsByUser(user.id, asModerator);
 
     // Log activity
-    await logUserActivity(user.id, 'chats_loaded', { count: chats.length });
+    await logUserActivity(user.id, 'chats_loaded', { count: chats.length, scope: asModerator ? 'all' : 'mine' });
 
     return json({ chats });
   } catch (error) {

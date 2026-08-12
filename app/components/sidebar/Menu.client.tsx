@@ -7,6 +7,12 @@ import { ThemeSwitch } from '~/components/ui/ThemeSwitch';
 import { ControlPanel } from '~/components/@settings/core/ControlPanel';
 import { SettingsButton } from '~/components/ui/SettingsButton';
 import { db, deleteById, getAll, clearAllChats, chatId, type ChatHistoryItem, useChatHistory } from '~/lib/persistence';
+import {
+  fetchServerChats,
+  cacheChatsLocally,
+  backfillLocalOnlyChats,
+  BACKFILL_DONE_KEY,
+} from '~/lib/persistence/chatSync';
 import { cubicEasingFn } from '~/utils/easings';
 import { logger } from '~/utils/logger';
 import { HistoryItem } from './HistoryItem';
@@ -80,22 +86,63 @@ export const Menu = () => {
     searchFields: ['description'],
   });
 
-  const loadEntries = useCallback(() => {
-    if (db) {
-      getAll(db)
-        .then(list => list.filter(item => item.urlId && item.description))
-        .then(setList)
-        .catch(error => toast.error(error.message));
+  /*
+   * The server is the source of truth for this list — it is per-user, so the same history shows up
+   * on every device. IndexedDB is only an offline cache now; reading it directly is what made the
+   * sidebar look device-local (a project created on a phone was invisible on a laptop).
+   */
+  const loadEntries = useCallback(async () => {
+    const visible = (items: ChatHistoryItem[]) => items.filter(item => item.urlId && item.description);
+
+    try {
+      const serverChats = await fetchServerChats();
+
+      if (serverChats) {
+        setList(visible(serverChats));
+
+        if (db) {
+          await cacheChatsLocally(db, serverChats);
+        }
+
+        return;
+      }
+
+      // Server unreachable — fall back to whatever this device has cached.
+      if (db) {
+        setList(visible(await getAll(db)));
+      }
+    } catch (error) {
+      logger.error('Failed to load chat history', error);
+
+      if (db) {
+        getAll(db)
+          .then(items => setList(visible(items)))
+          .catch(err => toast.error(err.message));
+      }
     }
   }, []);
 
-  const deleteItem = useCallback((event: React.UIEvent, item: ChatHistoryItem) => {
-    event.preventDefault();
+  const deleteItem = useCallback(
+    (event: React.UIEvent, item: ChatHistoryItem) => {
+      event.preventDefault();
 
-    if (db) {
-      deleteById(db, item.id)
-        .then(() => {
-          loadEntries();
+      /*
+       * Delete on the server as well as locally. Now that the list is served from Postgres, a
+       * local-only delete would come straight back on the next load — and would still be there
+       * on the user's other devices.
+       */
+      const body = new FormData();
+      body.set('action', 'delete');
+      body.set('chatId', item.id);
+
+      fetch('/api/chats', { method: 'POST', body })
+        .catch(error => logger.error('Failed to delete chat on server', error))
+        .then(async () => {
+          if (db) {
+            await deleteById(db, item.id).catch(error => logger.error('Failed to delete local chat copy', error));
+          }
+
+          await loadEntries();
 
           if (chatId.get() === item.id) {
             // hard page navigation to clear the stores
@@ -106,40 +153,79 @@ export const Menu = () => {
           toast.error('Failed to delete conversation');
           logger.error(error);
         });
-    }
-  }, []);
+    },
+    [loadEntries]
+  );
 
   const closeDialog = () => {
     setDialogContent(null);
   };
 
+  /*
+   * On login: keep a different account's cached chats from showing in this one's sidebar, then
+   * bring this device in line with the server — pushing up anything that only ever existed here,
+   * and pulling down everything made on other devices.
+   */
   useEffect(() => {
     if (!currentUserId || !db) {
       return;
     }
 
-    const storedUserId = localStorage.getItem('bolt_last_user_id');
+    const localDb = db;
 
-    if (!storedUserId) {
-      localStorage.setItem('bolt_last_user_id', currentUserId);
-      return;
-    }
+    const sync = async () => {
+      const storedUserId = localStorage.getItem('bolt_last_user_id');
+      const userChanged = Boolean(storedUserId) && storedUserId !== currentUserId;
 
-    if (storedUserId !== currentUserId) {
-      clearAllChats(db)
-        .then(() => {
-          localStorage.setItem('bolt_last_user_id', currentUserId);
+      if (userChanged) {
+        try {
+          await clearAllChats(localDb);
           setList([]);
-        })
-        .catch(error => logger.error('Failed to clear chats on user switch:', error));
-    }
-  }, [currentUserId]);
+        } catch (error) {
+          logger.error('Failed to clear chats on user switch:', error);
+        }
+      }
+
+      localStorage.setItem('bolt_last_user_id', currentUserId);
+
+      /*
+       * Back-fill runs once per user per device, and never right after a user switch — the local
+       * store was just wiped, so anything in it belonged to the previous account.
+       */
+      const backfillKey = `${BACKFILL_DONE_KEY}:${currentUserId}`;
+
+      if (!userChanged && !localStorage.getItem(backfillKey)) {
+        try {
+          const [localItems, serverItems] = await Promise.all([getAll(localDb), fetchServerChats()]);
+
+          if (serverItems) {
+            const { pushed, skipped } = await backfillLocalOnlyChats(localDb, localItems, serverItems);
+            localStorage.setItem(backfillKey, new Date().toISOString());
+
+            if (pushed > 0) {
+              logger.info(`Synced ${pushed} local-only chat(s) to your account`);
+            }
+
+            if (skipped > 0) {
+              logger.warn(`${skipped} local chat(s) could not be synced`);
+            }
+          }
+        } catch (error) {
+          logger.error('Chat back-fill failed', error);
+        }
+      }
+
+      await loadEntries();
+    };
+
+    void sync();
+  }, [currentUserId, loadEntries]);
 
   useEffect(() => {
     if (open) {
-      loadEntries();
+      void loadEntries();
     }
-  }, [open]);
+  }, [open, loadEntries]);
 
   useEffect(() => {
     const enterThreshold = 40;

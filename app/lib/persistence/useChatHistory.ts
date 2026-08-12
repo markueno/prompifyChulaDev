@@ -12,6 +12,7 @@ import {
   setMessages,
   duplicateChat,
   createChatFromMessages,
+  queueWrite,
   type IChatMetadata,
 } from './db';
 import { loadSnapshot, loadSnapshotVersion } from '~/lib/snapshots/loadSnapshot';
@@ -448,19 +449,23 @@ export function useChatHistory() {
         chatMetadata.get()
       );
 
-      // Also save to PostgreSQL if user is authenticated
-      try {
-        if (user?.id) {
-          const chatData = {
-            id: chatId.get() as string,
-            url_id: urlId,
-            projectId: activeProjectId,
-            description: description.get(),
-            messages,
-            metadata: chatMetadata.get(),
-          };
+      /*
+       * Also save to PostgreSQL — this is what makes history follow the user across devices.
+       * A failure here used to be swallowed with a console.warn, so a chat could end up existing
+       * only in this browser's IndexedDB and be invisible everywhere else. Failures are now queued
+       * in the offline outbox and replayed by drainQueue on reconnect.
+       */
+      if (user?.id) {
+        const chatData = {
+          id: chatId.get() as string,
+          url_id: urlId,
+          projectId: activeProjectId,
+          description: description.get(),
+          messages,
+          metadata: chatMetadata.get(),
+        };
 
-          // Call the API to save to PostgreSQL
+        try {
           const response = await fetch('/api/chats', {
             method: 'POST',
             headers: {
@@ -470,12 +475,13 @@ export function useChatHistory() {
           });
 
           if (!response.ok) {
-            console.warn('Failed to save chat to PostgreSQL:', response.statusText);
+            console.warn('Failed to save chat to PostgreSQL, queueing for retry:', response.statusText);
+            await queueWrite(_hookDb, 'chat', chatData.id, chatData).catch(() => undefined);
           }
+        } catch (error) {
+          console.warn('Error saving chat to PostgreSQL, queueing for retry:', error);
+          await queueWrite(_hookDb, 'chat', chatData.id, chatData).catch(() => undefined);
         }
-      } catch (error) {
-        console.warn('Error saving chat to PostgreSQL:', error);
-        // Don't throw error - IndexedDB save was successful
       }
 
       /*

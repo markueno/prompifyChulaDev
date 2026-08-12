@@ -14,6 +14,7 @@
  */
 import { atom } from 'nanostores';
 import { deletePendingWrite, getPendingWrites, updatePendingWriteRetryCount, type PendingWrite } from './db';
+import type { QueuedChatPayload } from './chatSync';
 import { serverCircuit } from './serverCircuit';
 import { uploadBlobs } from '~/lib/snapshots/uploadBlobs';
 import type { Snapshot } from '~/lib/snapshots/buildSnapshot';
@@ -28,6 +29,29 @@ export const drainStatusStore = atom<'idle' | 'draining'>('idle');
  * is missing blobs) — the caller deletes those instead of blocking the queue head forever.
  */
 async function submitToServer(write: PendingWrite): Promise<'done' | 'unretryable'> {
+  /*
+   * A chat whose save to Postgres failed. Chat saves used to swallow their errors, which meant a
+   * chat could live only in one browser's IndexedDB and never appear on the user's other devices.
+   * Queueing them here reuses the existing ordering, retry and circuit-breaker behaviour.
+   */
+  if (write.type === 'chat') {
+    const payload = write.payload as QueuedChatPayload;
+
+    return serverCircuit.execute(async () => {
+      const res = await fetch('/api/chats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Chat save failed: ${res.status}`);
+      }
+
+      return 'done' as const;
+    });
+  }
+
   if (write.type !== 'version') {
     console.warn('Dropping pending write of unknown type:', write.type);
     return 'unretryable';
