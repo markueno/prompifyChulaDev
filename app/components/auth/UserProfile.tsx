@@ -50,6 +50,17 @@ export function UserProfile({ user }: UserProfileProps) {
           ) : null}
         </div>
 
+        {/* Only rendered for superadmins; /app/admin itself 404s for everyone else. */}
+        {user.isSuperadmin && (
+          <a
+            href="/app/admin"
+            className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"
+          >
+            <div className="i-ph:shield-star text-lg" />
+            Admin
+          </a>
+        )}
+
         {user.isModerator && (
           <>
             <button
