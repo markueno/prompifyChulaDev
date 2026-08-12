@@ -4,6 +4,21 @@ import { saveChat, getChatsByUser, deleteChat, logUserActivity } from '~/lib/dat
 import { provisionAppSchema } from '~/lib/supabase-provision.server';
 
 /**
+ * requireAuth throws a *redirect Response* when the session is missing or expired — correct for a
+ * page loader, wrong for this endpoint. Catching it as an error and logging it dumped the whole
+ * Response object into the container logs on every single call from a tab whose session had been
+ * invalidated, and returned a 500 that the client then treated as a transient failure worth
+ * retrying. Translate it into a plain 401 the client can recognise and stop on.
+ */
+function authFailureResponse(error: unknown): Response | null {
+  if (error instanceof Response && (error.status === 401 || (error.status >= 300 && error.status < 400))) {
+    return json({ error: 'Not authenticated' }, { status: 401 });
+  }
+
+  return null;
+}
+
+/**
  * GET /api/chats            — the caller's own chats (owned + shared with them).
  * GET /api/chats?scope=all  — every chat on the instance. Moderators only.
  *
@@ -24,7 +39,14 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
     return json({ chats });
   } catch (error) {
+    const authFailure = authFailureResponse(error);
+
+    if (authFailure) {
+      return authFailure;
+    }
+
     console.error('Error loading chats:', error);
+
     return json({ error: 'Failed to load chats' }, { status: 500 });
   }
 }
@@ -101,7 +123,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
         return json({ error: 'Invalid action' }, { status: 400 });
     }
   } catch (error) {
+    const authFailure = authFailureResponse(error);
+
+    if (authFailure) {
+      return authFailure;
+    }
+
     console.error('Error in chat action:', error);
+
     return json({ error: 'Failed to process chat action' }, { status: 500 });
   }
 }

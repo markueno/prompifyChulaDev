@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { openDatabase, getAll, setMessages } from './db';
+import { openDatabase, getAll, setMessages, queueChatWrite, queueWrite, getPendingWrites } from './db';
 import { backfillLocalOnlyChats, mapServerChat } from './chatSync';
 import type { ChatHistoryItem } from './useChatHistory';
 
@@ -40,6 +40,46 @@ describe('mapServerChat', () => {
     // setMessages rejects an invalid timestamp, which would break the whole cache write.
     const mapped = mapServerChat({ id: 'abc', updated_at: 'not-a-date' });
     expect(Number.isNaN(Date.parse(mapped.timestamp))).toBe(false);
+  });
+});
+
+describe('queueChatWrite', () => {
+  let db: IDBDatabase;
+
+  beforeEach(async () => {
+    indexedDB = new IDBFactory();
+    db = (await openDatabase()) as IDBDatabase;
+  });
+
+  afterEach(() => {
+    db?.close();
+  });
+
+  it('keeps only the latest queued write per chat', async () => {
+    /*
+     * storeMessageHistory re-runs every ~50ms while streaming, so an appending queue would grow
+     * 20 entries a second whenever saves are failing.
+     */
+    await queueChatWrite(db, 'chat-a', { id: 'chat-a', messages: [1] });
+    await queueChatWrite(db, 'chat-a', { id: 'chat-a', messages: [1, 2] });
+    await queueChatWrite(db, 'chat-a', { id: 'chat-a', messages: [1, 2, 3] });
+
+    const pending = await getPendingWrites(db);
+    const forChatA = pending.filter(w => w.chatId === 'chat-a');
+
+    expect(forChatA).toHaveLength(1);
+    expect((forChatA[0].payload as { messages: number[] }).messages).toEqual([1, 2, 3]);
+  });
+
+  it('does not disturb other chats or snapshot writes', async () => {
+    await queueWrite(db, 'version', 'chat-b', { manifest: {} });
+    await queueChatWrite(db, 'chat-a', { id: 'chat-a' });
+    await queueChatWrite(db, 'chat-a', { id: 'chat-a', again: true });
+
+    const pending = await getPendingWrites(db);
+
+    expect(pending.filter(w => w.type === 'version')).toHaveLength(1);
+    expect(pending.filter(w => w.type === 'chat')).toHaveLength(1);
   });
 });
 

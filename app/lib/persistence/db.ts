@@ -210,6 +210,45 @@ export async function queueWrite(db: IDBDatabase, type: string, chatId: string, 
   });
 }
 
+/**
+ * Queue a chat save, replacing any write already queued for the same chat.
+ *
+ * `queueWrite` appends (the store is autoIncrement), which is right for snapshot versions but
+ * wrong here: storeMessageHistory re-runs every ~50ms while a response streams, so a chat whose
+ * saves are failing would add a queue entry 20x a second and grow without bound. Only the latest
+ * state of a chat is worth replaying anyway — it is a full snapshot of the messages, not a delta.
+ */
+export async function queueChatWrite(db: IDBDatabase, chatId: string, payload: any): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('pendingWrites', 'readwrite');
+    const store = tx.objectStore('pendingWrites');
+    const cursorRequest = store.openCursor();
+
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+
+      if (cursor) {
+        const existing = cursor.value as PendingWrite;
+
+        if (existing.type === 'chat' && existing.chatId === chatId) {
+          cursor.delete();
+        }
+
+        cursor.continue();
+
+        return;
+      }
+
+      // Cursor exhausted — add the current state as the single queued write for this chat.
+      store.put({ type: 'chat', chatId, payload, timestamp: Date.now(), retryCount: 0 });
+    };
+
+    cursorRequest.onerror = () => reject(cursorRequest.error);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function getPendingWrites(db: IDBDatabase): Promise<PendingWrite[]> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction('pendingWrites', 'readonly');

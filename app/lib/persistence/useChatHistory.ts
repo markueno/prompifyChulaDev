@@ -12,7 +12,7 @@ import {
   setMessages,
   duplicateChat,
   createChatFromMessages,
-  queueWrite,
+  queueChatWrite,
   type IChatMetadata,
 } from './db';
 import { loadSnapshot, loadSnapshotVersion } from '~/lib/snapshots/loadSnapshot';
@@ -474,13 +474,23 @@ export function useChatHistory() {
             body: JSON.stringify(chatData),
           });
 
+          /*
+           * Only transient failures are worth queueing. A 401/403 means the session is gone —
+           * replaying it can never succeed, it just burns retries and fills the outbox until the
+           * user logs in again (at which point the chat is saved by the normal path anyway).
+           */
           if (!response.ok) {
-            console.warn('Failed to save chat to PostgreSQL, queueing for retry:', response.statusText);
-            await queueWrite(_hookDb, 'chat', chatData.id, chatData).catch(() => undefined);
+            if (response.status === 401 || response.status === 403) {
+              console.warn('Not saving chat to PostgreSQL — session is no longer valid. Sign in again.');
+            } else {
+              console.warn('Failed to save chat to PostgreSQL, queueing for retry:', response.statusText);
+              await queueChatWrite(_hookDb, chatData.id, chatData).catch(() => undefined);
+            }
           }
         } catch (error) {
+          // Network-level failure (offline, DNS, aborted) — genuinely worth replaying.
           console.warn('Error saving chat to PostgreSQL, queueing for retry:', error);
-          await queueWrite(_hookDb, 'chat', chatData.id, chatData).catch(() => undefined);
+          await queueChatWrite(_hookDb, chatData.id, chatData).catch(() => undefined);
         }
       }
 
