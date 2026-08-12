@@ -1,5 +1,6 @@
 import { memo, useState, useCallback } from 'react';
 import { classNames } from '~/utils/classNames';
+import { useCloseOnEscape } from '~/lib/hooks/useCloseOnEscape';
 
 const COLUMN_TYPES = ['text', 'integer', 'numeric', 'boolean', 'timestamptz', 'uuid', 'jsonb'] as const;
 type ColumnType = (typeof COLUMN_TYPES)[number];
@@ -102,11 +103,26 @@ export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTabl
     }
   }, [chatId, tableName, columns, onCreated]);
 
+  // Escape always works, even when the panel is taller than the window.
+  useCloseOnEscape(onClose, !saving);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-lg rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={() => !saving && onClose()}
+    >
+      {/*
+       * flex column + a viewport-bounded max-height so a wide dataset (many columns) can't
+       * grow the panel past the screen. Only the body scrolls, which keeps the close button
+       * and the action buttons reachable — previously the panel just overflowed and the
+       * header scrolled out of reach with no way to dismiss it.
+       */}
+      <div
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 shadow-xl"
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-bolt-elements-borderColor px-5 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-bolt-elements-borderColor px-5 py-4">
           <h2 className="text-base font-semibold text-bolt-elements-textPrimary">Create Table</h2>
           <button
             onClick={onClose}
@@ -115,7 +131,7 @@ export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTabl
         </div>
 
         {/* Body */}
-        <div className="space-y-5 px-5 py-4">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
           {/* Table name */}
           <div>
             <label className="mb-1 block text-xs font-medium text-bolt-elements-textSecondary">Table name</label>
@@ -208,7 +224,7 @@ export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTabl
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 border-t border-bolt-elements-borderColor px-5 py-4">
+        <div className="flex shrink-0 justify-end gap-2 border-t border-bolt-elements-borderColor px-5 py-4">
           <button
             onClick={onClose}
             className="rounded-lg px-4 py-2 text-sm text-bolt-elements-textSecondary hover:bg-bolt-elements-background-depth-1"
