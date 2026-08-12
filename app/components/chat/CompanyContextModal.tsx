@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DialogRoot, Dialog, DialogTitle, DialogDescription } from '~/components/ui/Dialog';
 import { classNames } from '~/utils/classNames';
-
-const COMPANY_CONTEXT_KEY = 'companyContext';
+import { syncWorkspaceContext, saveWorkspaceContext, deleteWorkspaceContext } from '~/lib/workspaceContext.client';
 
 interface CompanyContextModalProps {
   open: boolean;
@@ -16,18 +15,23 @@ export function CompanyContextModal({ open, onOpenChange }: CompanyContextModalP
   const [context, setContext] = useState('');
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
-      const existing = localStorage.getItem(COMPANY_CONTEXT_KEY);
-
-      if (existing) {
-        setContext(existing);
-        setPhase('done');
-      } else {
-        setContext('');
-        setPhase('idle');
-      }
+      /*
+       * Load from the workspace rather than this browser. syncWorkspaceContext also migrates a
+       * pre-workspace localStorage copy up on first run, so an existing user's context is not lost.
+       */
+      void syncWorkspaceContext().then(existing => {
+        if (existing) {
+          setContext(existing);
+          setPhase('done');
+        } else {
+          setContext('');
+          setPhase('idle');
+        }
+      });
 
       setUrl('');
       setError('');
@@ -67,16 +71,26 @@ export function CompanyContextModal({ open, onOpenChange }: CompanyContextModalP
     }
   };
 
-  const handleSave = () => {
-    if (context.trim()) {
-      localStorage.setItem(COMPANY_CONTEXT_KEY, context.trim());
+  const handleSave = async () => {
+    const trimmed = context.trim();
+
+    if (trimmed) {
+      setSaving(true);
+
+      const ok = await saveWorkspaceContext(trimmed, url.trim() || null);
+      setSaving(false);
+
+      if (!ok) {
+        setError('Could not save to your workspace. Try again.');
+        return;
+      }
     }
 
     onOpenChange(false);
   };
 
-  const handleRemove = () => {
-    localStorage.removeItem(COMPANY_CONTEXT_KEY);
+  const handleRemove = async () => {
+    await deleteWorkspaceContext();
     setContext('');
     setUrl('');
     setPhase('idle');
@@ -221,9 +235,13 @@ export function CompanyContextModal({ open, onOpenChange }: CompanyContextModalP
               {phase === 'done' ? (
                 <button
                   onClick={handleSave}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-accent-500 text-white hover:bg-accent-600 transition-colors"
+                  disabled={saving}
+                  className={classNames(
+                    'inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold bg-accent-500 text-white hover:bg-accent-600 transition-colors',
+                    { 'opacity-60 cursor-not-allowed': saving }
+                  )}
                 >
-                  Save & Use
+                  {saving ? 'Saving…' : 'Save & Use'}
                 </button>
               ) : (
                 <button

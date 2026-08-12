@@ -161,6 +161,25 @@ CREATE TABLE IF NOT EXISTS chats (
     FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
+/*
+ * Brand/design context generated from a workspace's public website, injected into every prompt
+ * that workspace generates.
+ *
+ * Deliberately its own table rather than columns on `companies`: getUserCompanies does
+ * `SELECT c.*` and the workspace switcher calls /api/companies on every page mount, so a
+ * multi-KB document living on that row would be shipped on every page load, for every
+ * workspace the user belongs to.
+ */
+CREATE TABLE IF NOT EXISTS workspace_brand_context (
+    company_id TEXT PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+    source_url TEXT,
+    content TEXT NOT NULL,
+    -- Who last saved it; NULL if the account was since deleted.
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS user_activity (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,

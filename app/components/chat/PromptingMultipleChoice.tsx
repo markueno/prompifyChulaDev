@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { classNames } from '~/utils/classNames';
 import { FillBlanks } from '~/components/questionnaire/FillBlanks';
 import type { FillBlanksTemplate } from '~/lib/questionnaire/types';
 import { CompanyContextModal } from './CompanyContextModal';
 import { DESIGN_SYSTEMS } from '~/lib/design-systems';
+import { readCachedContext, syncWorkspaceContext } from '~/lib/workspaceContext.client';
 
 // ─── Color math ───────────────────────────────────────────────────────────────
 
@@ -534,15 +535,21 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
   const [complete, setComplete] = useState(false);
   const [contextModalOpen, setContextModalOpen] = useState(false);
 
-  const getCompanyContext = useCallback(() => {
-    try {
-      return localStorage.getItem('companyContext') || '';
-    } catch {
-      return '';
-    }
-  }, []);
+  /*
+   * Reads the cache, which syncWorkspaceContext keeps in step with the workspace copy on the
+   * server. Kept synchronous so the prompt builder below stays a plain function.
+   */
+  const getCompanyContext = useCallback(() => readCachedContext(), []);
 
-  const [hasCompanyContext, setHasCompanyContext] = useState(() => !!getCompanyContext());
+  const [hasCompanyContext, setHasCompanyContext] = useState(() => !!readCachedContext());
+
+  /*
+   * Pull the workspace's context down on mount so it is present on every device, not just the
+   * browser that generated it (and migrate any pre-workspace localStorage copy up).
+   */
+  useEffect(() => {
+    void syncWorkspaceContext().then(content => setHasCompanyContext(!!content));
+  }, []);
 
   const handleContextModalChange = useCallback(
     (open: boolean) => {

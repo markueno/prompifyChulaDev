@@ -6,6 +6,7 @@ import type { ModelInfo } from '~/lib/modules/llm/types';
 import { getApiKeysFromCookie, getProviderSettingsFromCookie } from '~/lib/api/cookies';
 import { createScopedLogger } from '~/utils/logger';
 import { requireAuth } from '~/lib/auth';
+import { extractBrandSignals, formatSignalsForPrompt } from '~/lib/brand-signals.server';
 
 export async function action(args: ActionFunctionArgs) {
   return generateContextAction(args);
@@ -13,33 +14,36 @@ export async function action(args: ActionFunctionArgs) {
 
 const logger = createScopedLogger('api.generate-context');
 
-const SYSTEM_PROMPT = `You are a technical analyst. Given the scraped text content of a website, produce a concise company context document in markdown format.
+const SYSTEM_PROMPT = `You are a brand and design analyst. You are given signals extracted from a company's landing page (CSS custom properties, colours, fonts, meta tags) plus the page copy. Produce a BRAND & DESIGN CONTEXT document in markdown that another AI will use to build software matching this company's identity.
 
-Include:
-- Company name and industry
-- What products or services they offer
-- Their brand tone and visual style (based on the copy)
-- Target audience or customer base
-- Any notable features, integrations, or positioning
+Use exactly these sections:
 
-Keep it to 3-5 short paragraphs. Write in a neutral, factual tone. Do not invent details not found in the content.`;
+# Brand & Design Context — <Company Name>
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#x27;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 8000);
-}
+## Company
+Industry, what they sell, who for, and their positioning. 2-3 sentences.
+
+## Voice & Tone
+How they write — formal/casual, technical/plain, playful/serious. Quote 1-2 short phrases from the copy as evidence.
+
+## Colour Palette
+List concrete colours with roles and hex values, e.g. "- Primary (\`#f97316\`): CTAs and active states".
+Derive these from the OBSERVED SIGNALS. Prefer CSS custom properties, then theme-color, then the most frequent colours.
+If the signals contain no usable colours, write exactly: "Not determinable from the landing page." Do not invent hex values.
+
+## Typography
+Named typefaces and where each is used (headings vs body vs mono). Take these from the font-family and Google Fonts signals. If none were found, say so.
+
+## Visual Style
+Overall feel — density, corner radius, shadow use, light/dark, imagery style. Ground each claim in a signal or in the copy.
+
+## Applying This
+3-5 bullets telling a developer how to apply the above when building an interface for this company.
+
+Rules:
+- Every colour and font you name MUST appear in the OBSERVED SIGNALS. Never guess.
+- Be specific and concise. Aim for 400-700 words total.
+- If a signal is missing, say it could not be determined rather than filling the gap.`;
 
 async function fetchPageContent(url: string): Promise<string> {
   const response = await fetch(url, {
@@ -60,9 +64,8 @@ async function fetchPageContent(url: string): Promise<string> {
     throw new Error('URL does not point to an HTML page');
   }
 
-  const html = await response.text();
-
-  return stripHtml(html);
+  // Return the raw HTML — the head and inline CSS are where the palette and typefaces live.
+  return response.text();
 }
 
 async function generateContextAction({ context, request }: ActionFunctionArgs) {
@@ -95,10 +98,10 @@ async function generateContextAction({ context, request }: ActionFunctionArgs) {
     });
   }
 
-  let pageContent: string;
+  let html: string;
 
   try {
-    pageContent = await fetchPageContent(validatedUrl);
+    html = await fetchPageContent(validatedUrl);
   } catch (err) {
     logger.error('Fetch error:', err);
     return new Response(JSON.stringify({ error: 'Could not fetch the URL. Make sure it is a public website.' }), {
@@ -107,12 +110,16 @@ async function generateContextAction({ context, request }: ActionFunctionArgs) {
     });
   }
 
-  if (!pageContent || pageContent.length < 100) {
+  const signals = extractBrandSignals(html, validatedUrl);
+
+  if (signals.bodyText.length < 100) {
     return new Response(JSON.stringify({ error: 'Could not extract enough content from the page.' }), {
       status: 422,
       headers: { 'Content-Type': 'application/json' },
     });
   }
+
+  const pageContent = formatSignalsForPrompt(signals);
 
   const cookieHeader = request.headers.get('Cookie');
   const apiKeys = getApiKeysFromCookie(cookieHeader);
