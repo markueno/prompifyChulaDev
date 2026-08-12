@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { DialogRoot, Dialog, DialogTitle, DialogDescription } from '~/components/ui/Dialog';
 import { classNames } from '~/utils/classNames';
-import { syncWorkspaceContext, saveWorkspaceContext, deleteWorkspaceContext } from '~/lib/workspaceContext.client';
+import { syncWorkspaceContext, saveWorkspaceContext, deleteWorkspaceContext } from '~/lib/workspaceContext';
 
 interface CompanyContextModalProps {
   open: boolean;

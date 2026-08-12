@@ -5,13 +5,24 @@
  * shared by the workspace), but localStorage is kept as a synchronous cache: the questionnaire
  * builds its prompt in a plain synchronous function, and making that async would ripple through
  * the whole prompt builder for no user-visible gain.
+ *
+ * NOT named `*.client.ts` on purpose. Remix replaces those with an empty module in the server
+ * build, and readCachedContext is called from a useState initialiser — which runs during SSR, so
+ * the `.client` suffix made it `undefined is not a function` on every render of the chat page.
+ * Every function here is therefore guarded for the server instead.
  */
+const isBrowser = typeof window !== 'undefined';
+
 export const COMPANY_CONTEXT_KEY = 'companyContext';
 
 /** Marks that this browser has already pushed its pre-workspace localStorage copy up. */
 const MIGRATED_KEY = 'companyContextMigrated';
 
 export function readCachedContext(): string {
+  if (!isBrowser) {
+    return '';
+  }
+
   try {
     return localStorage.getItem(COMPANY_CONTEXT_KEY) || '';
   } catch {
@@ -20,6 +31,10 @@ export function readCachedContext(): string {
 }
 
 function writeCache(content: string): void {
+  if (!isBrowser) {
+    return;
+  }
+
   try {
     if (content) {
       localStorage.setItem(COMPANY_CONTEXT_KEY, content);
@@ -84,6 +99,10 @@ export async function deleteWorkspaceContext(): Promise<void> {
  * cache. Returns the authoritative content.
  */
 export async function syncWorkspaceContext(): Promise<string> {
+  if (!isBrowser) {
+    return '';
+  }
+
   const cached = readCachedContext();
 
   try {

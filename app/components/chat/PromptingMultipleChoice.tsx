@@ -4,7 +4,7 @@ import { FillBlanks } from '~/components/questionnaire/FillBlanks';
 import type { FillBlanksTemplate } from '~/lib/questionnaire/types';
 import { CompanyContextModal } from './CompanyContextModal';
 import { DESIGN_SYSTEMS } from '~/lib/design-systems';
-import { readCachedContext, syncWorkspaceContext } from '~/lib/workspaceContext.client';
+import { readCachedContext, syncWorkspaceContext } from '~/lib/workspaceContext';
 
 // ─── Color math ───────────────────────────────────────────────────────────────
 
