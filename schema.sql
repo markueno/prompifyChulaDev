@@ -271,11 +271,20 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     current_period_end TIMESTAMP,
     stripe_subscription_id TEXT,
     stripe_customer_id TEXT,
+    carryover_warnings_sent INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (tier_id) REFERENCES subscription_tiers(id)
 );
+
+/*
+ * Consecutive carry-over expiry warnings already emailed for this workspace, so a dormant free
+ * account gets a few notices rather than one every month forever. Reset once the account drops
+ * back below the ceiling. Added explicitly because the CREATE TABLE above is a no-op on an
+ * existing database.
+ */
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS carryover_warnings_sent INTEGER NOT NULL DEFAULT 0;
 
 -- Must stay in sync with app/lib/billing/plans.ts
 INSERT INTO subscription_tiers (id, name, display_name, price_cents, limits, sort_order)

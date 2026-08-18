@@ -205,9 +205,12 @@ services:
     restart: unless-stopped
     profiles: ['production']
 
-  # Cron — sleeps inactive container apps every 15 minutes; nightly snapshot GC at ~03:30 UTC.
+  # Cron — sleeps inactive container apps every 15 minutes; nightly snapshot GC at ~03:30 UTC;
+  # free-tier token renewal at ~04:15 UTC.
   # GC runs DRY-RUN by default: switch to '/api/cron/gc?apply=true' ONLY after the Day 18
   # restore test has passed (backups are the recovery path for GC mistakes).
+  # tier-refresh also runs DRY-RUN by default: it mints tokens, so add '?apply=true' only once
+  # the reported `due` count matches what you expect from the database.
   cron:
     image: curlimages/curl:latest
     container_name: prompify-cron
@@ -226,6 +229,9 @@ services:
           H=$$(date -u +%H); M=$$(date -u +%M);
           if [ \"$$H\" = \"03\" ] && [ \"$$M\" -ge 30 ] && [ \"$$M\" -lt 45 ]; then
             curl -s -X POST \"http://app:5173/api/cron/gc\" -H \"Authorization: Bearer $$CRON_SECRET\" -H \"Content-Type: application/json\";
+          fi;
+          if [ \"$$H\" = \"04\" ] && [ \"$$M\" -ge 15 ] && [ \"$$M\" -lt 30 ]; then
+            curl -s -X POST \"http://app:5173/api/cron/tier-refresh\" -H \"Authorization: Bearer $$CRON_SECRET\" -H \"Content-Type: application/json\";
           fi;
         done
       "

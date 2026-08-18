@@ -9,6 +9,7 @@
  */
 import crypto from 'crypto';
 import { getPostgresPool } from '~/lib/database-postgresql';
+import { FREE_TIER_ID } from './plans';
 
 /** Stripe customer id stored for a workspace, or null. */
 export async function getStripeCustomerIdForCompany(companyId: string): Promise<string | null> {
@@ -139,6 +140,208 @@ export async function addTopUpTokens(params: {
      VALUES ($1, $2, $3, 'top_up', $4, $5, 0, CURRENT_TIMESTAMP, NULL)
      ON CONFLICT (id) DO NOTHING`,
     [`bal_${params.idempotencyKey}`, params.userId, params.companyId, params.idempotencyKey, params.tokens]
+  );
+}
+
+export interface FreeTierRefreshCandidate {
+  companyId: string;
+  userId: string;
+  subscriptionId: string;
+  currentPeriodEnd: Date | null;
+  /** Owner's address, for the carry-over expiry warning. Null if the user row is gone. */
+  email: string | null;
+  /** Consecutive carry-over warnings already sent, so we stop nagging a dormant account. */
+  carryoverWarningsSent: number;
+}
+
+/**
+ * Free-tier workspaces whose allocation period has lapsed and are due a fresh grant.
+ *
+ * Selection is on `tier_id` alone, NOT on `stripe_subscription_id IS NULL`. A workspace that
+ * churned off a paid plan keeps its old `stripe_subscription_id` (upsertSubscription COALESCEs
+ * it rather than clearing it), so filtering on that column would permanently starve former
+ * customers — the population most likely to come back. `tier_id` is the authority on what a
+ * workspace is entitled to right now; a live paid subscriber never sits on FREE_TIER_ID.
+ */
+export async function listFreeTierWorkspacesDueForRefresh(limit: number): Promise<FreeTierRefreshCandidate[]> {
+  const pool = getPostgresPool();
+  const result = await pool.query(
+    `SELECT s.company_id, s.user_id, s.id AS subscription_id, s.current_period_end,
+            s.carryover_warnings_sent, u.email
+     FROM subscriptions s
+     LEFT JOIN users u ON u.id = s.user_id
+     WHERE s.tier_id = $1
+       AND (s.current_period_end IS NULL OR s.current_period_end <= CURRENT_TIMESTAMP)
+     ORDER BY s.current_period_end ASC NULLS FIRST
+     LIMIT $2`,
+    [FREE_TIER_ID, limit]
+  );
+
+  return result.rows.map(row => ({
+    companyId: row.company_id as string,
+    userId: row.user_id as string,
+    subscriptionId: row.subscription_id as string,
+    currentPeriodEnd: row.current_period_end ? new Date(row.current_period_end) : null,
+    email: (row.email as string) ?? null,
+    carryoverWarningsSent: Number(row.carryover_warnings_sent ?? 0),
+  }));
+}
+
+/** Count a carry-over warning as delivered, so the next run knows how many have gone out. */
+export async function recordCarryOverWarning(companyId: string): Promise<void> {
+  const pool = getPostgresPool();
+  await pool.query(
+    `UPDATE subscriptions
+        SET carryover_warnings_sent = carryover_warnings_sent + 1, updated_at = CURRENT_TIMESTAMP
+      WHERE company_id = $1`,
+    [companyId]
+  );
+}
+
+/** Clear the warning streak once a workspace is back under the ceiling (it re-engaged). */
+export async function resetCarryOverWarnings(companyId: string): Promise<void> {
+  const pool = getPostgresPool();
+  await pool.query(
+    `UPDATE subscriptions
+        SET carryover_warnings_sent = 0, updated_at = CURRENT_TIMESTAMP
+      WHERE company_id = $1 AND carryover_warnings_sent <> 0`,
+    [companyId]
+  );
+}
+
+export interface CarryOverResult {
+  carriedRows: number;
+  carriedTokens: number;
+  forfeitedRows: number;
+  forfeitedTokens: number;
+  /** True when the carry budget is exhausted, i.e. next period will forfeit unless they spend. */
+  atCap: boolean;
+}
+
+/**
+ * The rows eligible to roll into the next period: the grant that lapsed with the previous period,
+ * plus anything already carried (carrying sets them all to that same `effective_end`).
+ *
+ * Matching on the exact previous period end is what keeps cancellation honest. A workspace that
+ * churned off a paid plan has leftover paid-tier rows force-expired by `expireActiveTierBalances`
+ * at the moment of cancellation — a different timestamp — so they are never picked up here. A
+ * looser "any expired tier row" filter would hand a churned customer their unused 1M paid tokens
+ * back on the free plan.
+ */
+async function selectCarryCandidates(companyId: string, previousPeriodEnd: Date) {
+  const pool = getPostgresPool();
+  const result = await pool.query(
+    `SELECT id, (tokens_allocated - tokens_used) AS unused
+       FROM token_balances
+      WHERE company_id = $1
+        AND source = 'tier'
+        AND tokens_allocated > tokens_used
+        AND effective_end = $2
+      ORDER BY created_at DESC`,
+    [companyId, previousPeriodEnd.toISOString()]
+  );
+
+  return result.rows.map(r => ({ id: r.id as string, unused: Number(r.unused) }));
+}
+
+/**
+ * Carry unused tier tokens into the new period, up to `budgetTokens`; forfeit the excess.
+ *
+ * Carrying pushes `effective_end` out rather than folding amounts into the next grant. Moving a
+ * date is naturally idempotent — a re-run in the same period writes the same value and changes
+ * nothing. Folding amounts would re-carry the same leftover every month unless the old row's
+ * `tokens_used` were also inflated, which would make usage reporting lie.
+ *
+ * Forfeiting writes `tokens_allocated = tokens_used`, withdrawing the unspent allocation rather
+ * than inflating usage. That keeps the admin dashboard's `tokens_used` sums truthful, and makes
+ * the forfeit durable: the row no longer satisfies `tokens_allocated > tokens_used`, so it can
+ * never be picked up by a later run.
+ *
+ * Newest rows are kept first, so what survives is the tokens granted most recently.
+ */
+export async function carryOverUnusedTierBalances(
+  companyId: string,
+  previousPeriodEnd: Date,
+  newPeriodEnd: Date,
+  budgetTokens: number
+): Promise<CarryOverResult> {
+  const pool = getPostgresPool();
+  const candidates = await selectCarryCandidates(companyId, previousPeriodEnd);
+
+  const keep: string[] = [];
+  const forfeit: string[] = [];
+  let carriedTokens = 0;
+  let forfeitedTokens = 0;
+
+  for (const row of candidates) {
+    /*
+     * Let the row that straddles the budget through rather than splitting it; at most one row,
+     * and erring toward the customer on a free plan is the cheaper mistake.
+     */
+    if (carriedTokens < budgetTokens) {
+      keep.push(row.id);
+      carriedTokens += row.unused;
+    } else {
+      forfeit.push(row.id);
+      forfeitedTokens += row.unused;
+    }
+  }
+
+  if (keep.length > 0) {
+    await pool.query(
+      `UPDATE token_balances SET effective_end = $2, updated_at = CURRENT_TIMESTAMP WHERE id = ANY($1::text[])`,
+      [keep, newPeriodEnd.toISOString()]
+    );
+  }
+
+  if (forfeit.length > 0) {
+    await pool.query(
+      `UPDATE token_balances
+          SET tokens_allocated = tokens_used, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ANY($1::text[])`,
+      [forfeit]
+    );
+  }
+
+  return {
+    carriedRows: keep.length,
+    carriedTokens,
+    forfeitedRows: forfeit.length,
+    forfeitedTokens,
+    atCap: carriedTokens >= budgetTokens,
+  };
+}
+
+/** What a workspace would carry and forfeit at its next refresh, without writing (dry runs). */
+export async function previewCarryOver(
+  companyId: string,
+  previousPeriodEnd: Date,
+  budgetTokens: number
+): Promise<{ carriedTokens: number; forfeitedTokens: number }> {
+  const candidates = await selectCarryCandidates(companyId, previousPeriodEnd);
+
+  let carriedTokens = 0;
+  let forfeitedTokens = 0;
+
+  for (const row of candidates) {
+    if (carriedTokens < budgetTokens) {
+      carriedTokens += row.unused;
+    } else {
+      forfeitedTokens += row.unused;
+    }
+  }
+
+  return { carriedTokens, forfeitedTokens };
+}
+
+/** Roll a workspace's allocation period forward (free-tier renewal; Stripe owns paid periods). */
+export async function setSubscriptionPeriod(companyId: string, start: Date, end: Date): Promise<void> {
+  const pool = getPostgresPool();
+  await pool.query(
+    `UPDATE subscriptions
+       SET current_period_start = $2, current_period_end = $3, updated_at = CURRENT_TIMESTAMP
+     WHERE company_id = $1`,
+    [companyId, start.toISOString(), end.toISOString()]
   );
 }
 
