@@ -21,6 +21,8 @@ import {
 } from '~/lib/database';
 import { personalCompanyId } from '~/lib/database-postgresql';
 import { getActiveCompanyId } from '~/lib/workspace.server';
+import { getTrialStatusForCompany } from '~/lib/billing/billing-db.server';
+import { FREE_TIER_ID, TRIAL_PROMPT_LIMIT } from '~/lib/billing/plans';
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -98,18 +100,42 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         }
       }
 
-      const remaining = await getTokenBalanceRemainingForCompany(billingCompanyId, user.id);
+      /*
+       * Two different meters, depending on the plan.
+       *
+       * A trial workspace is limited by PROMPTS, not tokens, and the token check is skipped
+       * entirely for it. That is deliberate: the trial is a fixed number of demonstrations, and
+       * leaving the token gate in place would let a leftover zero balance from the old monthly
+       * free tier block someone who still has trial prompts left.
+       */
+      const trial = await getTrialStatusForCompany(billingCompanyId);
 
-      if (remaining <= 0) {
-        return json(
-          {
-            message:
-              'This workspace has run out of tokens for the billing period. Upgrade the plan or add a top-up pack to keep building.',
-            code: 'token_balance_exhausted',
-            remaining,
-          },
-          { status: 402 }
-        );
+      if (trial && trial.tierId === FREE_TIER_ID) {
+        if (trial.promptsUsed >= TRIAL_PROMPT_LIMIT) {
+          return json(
+            {
+              message: `Your free trial is over — you've used all ${TRIAL_PROMPT_LIMIT} prompts. Choose a plan to keep building.`,
+              code: 'trial_exhausted',
+              promptsUsed: trial.promptsUsed,
+              promptLimit: TRIAL_PROMPT_LIMIT,
+            },
+            { status: 402 }
+          );
+        }
+      } else {
+        const remaining = await getTokenBalanceRemainingForCompany(billingCompanyId, user.id);
+
+        if (remaining <= 0) {
+          return json(
+            {
+              message:
+                'This workspace has run out of tokens for the billing period. Upgrade the plan to keep building.',
+              code: 'token_balance_exhausted',
+              remaining,
+            },
+            { status: 402 }
+          );
+        }
       }
     } catch (e) {
       // Never let a metering hiccup hard-block paying users — log and allow through.

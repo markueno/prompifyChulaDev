@@ -15,6 +15,7 @@ import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
 import { BuildingOverlay } from '~/components/ui/BuildingOverlay';
+import { TrialEndedDialog } from '~/components/chat/TrialEndedDialog';
 import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
@@ -58,8 +59,12 @@ const MAX_RECOVERY_HISTORY = 100;
 const PREVIEW_RECOVERY_MARKER = '[Auto-preview-recovery]';
 const RECOVERY_CANDIDATE_TIMEOUT_MS = 10_000;
 
-/** Surface Remix JSON error bodies (e.g. 402 token balance) in the same toast format as other chat errors. */
-function getChatRequestErrorMessage(error: unknown): string {
+/**
+ * Surface Remix JSON error bodies (e.g. 402 token balance) in the same toast format as other chat
+ * errors. The `code` comes back alongside the text because some rejections are handled rather than
+ * announced — `trial_exhausted` opens the upgrade dialog instead of a toast.
+ */
+function parseChatRequestError(error: unknown): { message: string; code?: string } {
   const fallback = 'No details were returned';
 
   if (error && typeof error === 'object' && 'message' in error) {
@@ -70,21 +75,21 @@ function getChatRequestErrorMessage(error: unknown): string {
 
       if (trimmed.startsWith('{')) {
         try {
-          const data = JSON.parse(trimmed) as { message?: string };
+          const data = JSON.parse(trimmed) as { message?: string; code?: string };
 
           if (typeof data.message === 'string' && data.message.length > 0) {
-            return data.message;
+            return { message: data.message, code: data.code };
           }
         } catch {
           /* use raw message */
         }
       }
 
-      return message;
+      return { message };
     }
   }
 
-  return fallback;
+  return { message: fallback };
 }
 
 /** Build author info for multi-account prompt history display */
@@ -469,6 +474,8 @@ export const ChatImpl = memo(
     );
 
     const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
+    /** Set when the chat API rejects a prompt with `trial_exhausted`; opens the upgrade dialog. */
+    const [trialEnded, setTrialEnded] = useState(false);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
     const [imageDataList, setImageDataList] = useState<string[]>([]);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -545,12 +552,22 @@ export const ChatImpl = memo(
       onError: e => {
         logger.error('Request failed\n\n', e, error);
 
-        const detail = getChatRequestErrorMessage(e);
+        const { message: detail, code } = parseChatRequestError(e);
         logStore.logError('Chat request failed', e, {
           component: 'Chat',
           action: 'request',
           error: detail,
         });
+
+        /*
+         * The exhausted trial is a state to resolve, not an error to report — a toast would scroll
+         * away and leave the person retyping the same prompt into a dead box.
+         */
+        if (code === 'trial_exhausted') {
+          setTrialEnded(true);
+          return;
+        }
+
         toast.error('There was an error processing your request: ' + detail);
       },
       onFinish: (message, response) => {
@@ -1152,6 +1169,7 @@ export const ChatImpl = memo(
           clearAlert={() => workbenchStore.clearAlert()}
           data={chatData}
         />
+        <TrialEndedDialog open={trialEnded} onClose={() => setTrialEnded(false)} />
       </>
     );
   }

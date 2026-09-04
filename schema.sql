@@ -279,17 +279,32 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 );
 
 /*
- * Consecutive carry-over expiry warnings already emailed for this workspace, so a dormant free
- * account gets a few notices rather than one every month forever. Reset once the account drops
- * back below the ceiling. Added explicitly because the CREATE TABLE above is a no-op on an
- * existing database.
+ * Consecutive carry-over expiry warnings already emailed for this workspace.
+ *
+ * DEAD as of the free-trial change — the monthly free-tier renewal that wrote it has been removed.
+ * The column is left in place because dropping it is destructive and it costs nothing; nothing
+ * reads or writes it any more.
  */
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS carryover_warnings_sent INTEGER NOT NULL DEFAULT 0;
+
+/*
+ * Prompts spent against the free trial by this workspace, for its lifetime (see
+ * TRIAL_PROMPT_LIMIT in app/lib/billing/plans.ts). Only meaningful while tier_id = 'tier_trial';
+ * a paid workspace is metered in tokens and never reads this.
+ *
+ * Adding it with DEFAULT 0 is also the migration: every workspace that already exists starts the
+ * trial from zero, so the switch from a monthly token allowance to a prompt trial hands everyone
+ * a fresh set of prompts rather than locking out anyone who had already spent their tokens.
+ */
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_prompts_used INTEGER NOT NULL DEFAULT 0;
 
 -- Must stay in sync with app/lib/billing/plans.ts
 INSERT INTO subscription_tiers (id, name, display_name, price_cents, limits, sort_order)
 VALUES
-    ('tier_trial', 'trial', 'Free', 0, '{"tokens": 150000, "tokens_per_month": true, "seats": 1}', 1),
+    -- Prompt-metered, one-time. `tokens` stays as the signup grant + safety ceiling; the gate
+    -- that actually ends the trial is trial_prompts (see TRIAL_PROMPT_LIMIT in plans.ts).
+    -- No tokens_per_month: the trial does not renew.
+    ('tier_trial', 'trial', 'Free trial', 0, '{"tokens": 150000, "trial_prompts": 3, "seats": 1}', 1),
     ('tier_builder', 'builder', 'Builder', 800, '{"tokens": 1000000, "tokens_per_month": true, "seats": 1}', 2),
     ('tier_innovator', 'innovator', 'Innovator', 1900, '{"tokens": 2500000, "tokens_per_month": true, "seats": 1}', 3),
     ('tier_team', 'team', 'Team', 12900, '{"tokens": 18000000, "tokens_per_month": true, "seats": 5}', 4),

@@ -1,7 +1,7 @@
 # Email — setup and go-live (Resend)
 
 Email is **already built**. `app/lib/email.ts` is a dependency-free Resend client (there is no
-`resend` package to install) with six templates wired into the app:
+`resend` package to install) with five templates wired into the app:
 
 | Template | Fires when | Sent from |
 |---|---|---|
@@ -9,7 +9,6 @@ Email is **already built**. `app/lib/email.ts` is a dependency-free Resend clien
 | **Welcome** | Verification link clicked | `api.auth.verify.ts` |
 | Password reset | Reset requested | `api.auth.forgot-password.ts` |
 | Invitation | Someone is invited to a project | `api.chats.$id.invite.ts:42` |
-| Token carry-over warning | Monthly refresh, account at the ceiling | `free-tier-refresh.server.ts` |
 | **Inactivity nudge** | 30 days idle, again at 60 | `api.cron.inactivity.ts` |
 
 What follows is configuration, not construction.
@@ -146,7 +145,7 @@ already in this repo's git history. `.env.example` carries the names with empty 
 
 The cron container already calls the endpoint nightly at ~04:45 UTC
 (`docker-compose.prod.yaml`). It runs **dry-run by default** — it mails real customers, so sending
-is an explicit choice, the same posture as the token-minting `tier-refresh` job.
+is an explicit choice.
 
 ### D1. Read the dry run first
 

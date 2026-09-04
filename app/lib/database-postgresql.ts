@@ -866,6 +866,24 @@ export async function insertTokenUsageAndConsumePostgres(params: {
       ]
     );
     await applyTokenConsumptionInTransaction(client, companyId, params.userId, n, tokenUsageId);
+
+    /*
+     * Count the prompt against the free trial. Inside this transaction on purpose: token_usage is
+     * UNIQUE(chat_id, message_id), so a retry of the same generation fails the insert above and
+     * rolls the whole thing back — the counter can never double-count a single prompt.
+     *
+     * Only trial workspaces are touched. A paid workspace is metered in tokens and the WHERE
+     * clause makes this a no-op rather than a second round trip to find out.
+     */
+    if (companyId) {
+      await client.query(
+        `UPDATE subscriptions
+            SET trial_prompts_used = COALESCE(trial_prompts_used, 0) + 1, updated_at = CURRENT_TIMESTAMP
+          WHERE company_id = $1 AND tier_id = 'tier_trial'`,
+        [companyId]
+      );
+    }
+
     await client.query('COMMIT');
 
     return true;

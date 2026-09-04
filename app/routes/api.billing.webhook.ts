@@ -1,9 +1,8 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { createScopedLogger } from '~/utils/logger';
-import { FREE_TIER_ID, TOPUP_PACK, getPlan } from '~/lib/billing/plans';
+import { FREE_TIER_ID, getPlan } from '~/lib/billing/plans';
 import { verifyStripeSignature, tierIdForPriceId, retrieveSubscription } from '~/lib/billing/stripe.server';
 import {
-  addTopUpTokens,
   grantTierTokens,
   upsertSubscription,
   expireActiveTierBalances,
@@ -79,11 +78,13 @@ async function handleCheckoutCompleted(session: any): Promise<void> {
     return;
   }
 
-  if (session.mode === 'payment' && session.metadata?.kind === 'topup') {
-    const tokens = Number(session.metadata?.tokens) || TOPUP_PACK.tokens;
-    await addTopUpTokens({ idempotencyKey: session.id, companyId, userId, tokens });
-    logger.info(`Top-up granted: ${tokens} tokens to workspace ${companyId}`);
-
+  /*
+   * One-off `payment` sessions were the top-up pack, which has been removed. Historical top-up
+   * balances still exist and still spend; nothing new can be bought, so a payment-mode session
+   * arriving here now is not something this endpoint knows how to honour.
+   */
+  if (session.mode === 'payment') {
+    logger.warn(`Ignoring unexpected one-off payment session ${session.id} for workspace ${companyId}`);
     return;
   }
 

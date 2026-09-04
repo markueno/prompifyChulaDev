@@ -128,8 +128,7 @@ async function recordNudge(userId: string, nudgeNumber: number, delivered: boole
 /**
  * Email every account that has gone quiet for long enough.
  *
- * Defaults to a dry run: it mails real people, so sending is an explicit choice — the same
- * posture as the tier-refresh job, which mints tokens.
+ * Defaults to a dry run: it mails real people, so sending is an explicit choice.
  */
 export async function sendInactivityNudges(
   options: { dryRun?: boolean; limit?: number } = {}

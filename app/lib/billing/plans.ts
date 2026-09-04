@@ -1,6 +1,6 @@
 /**
- * Billing plan catalog — the single source of truth for subscription tiers and the
- * top-up pack. Safe to import on the client (no secrets): it only holds prices,
+ * Billing plan catalog — the single source of truth for subscription tiers.
+ * Safe to import on the client (no secrets): it only holds prices,
  * token allocations, and the *names* of the env vars that store the Stripe Price IDs.
  *
  * Token allocations here MUST match the seed in `subscription_tiers`
@@ -8,6 +8,13 @@
  */
 
 export type BillingInterval = 'month' | 'year';
+
+/**
+ * Which audience a plan is pitched at. The pricing page shows one segment at a time, because a
+ * solo builder scanning six cards has to work out which three are not for them before they can
+ * compare anything.
+ */
+export type PlanSegment = 'user' | 'enterprise';
 
 export interface Plan {
   /** Matches subscription_tiers.id and the value stored on subscriptions.tier_id. */
@@ -22,6 +29,8 @@ export interface Plan {
   tokens: number;
   /** Included seats (informational for now; seat enforcement is not yet implemented). */
   seats: number;
+  /** Pricing-page grouping. The trial has none — it is never shown as a card. */
+  segment?: PlanSegment;
   popular?: boolean;
   features: string[];
   /** Env var holding the Stripe Price ID for the monthly plan. */
@@ -33,19 +42,35 @@ export interface Plan {
 /** Tier granted on signup / after a paid subscription is canceled. */
 export const FREE_TIER_ID = 'tier_trial';
 
+/**
+ * Prompts a workspace gets on the free trial, for the lifetime of the workspace — not per month.
+ *
+ * The trial is metered in prompts rather than tokens because it is a demonstration, not an
+ * allowance: three prompts is a thing someone can picture spending before they sign up, whereas
+ * "150,000 tokens" is only legible after you have already used some. Counted per workspace, which
+ * is how every other billing limit here is scoped.
+ */
+export const TRIAL_PROMPT_LIMIT = 3;
+
 export const PLANS: Plan[] = [
+  /*
+   * The trial. Deliberately has no `segment` — it is never rendered as a purchasable card, it is
+   * what an account is on before it buys anything. Kept in the catalog because `tier_trial` is a
+   * real tier id on subscriptions rows and getPlan() must resolve it.
+   */
   {
     tierId: 'tier_trial',
     name: 'trial',
-    displayName: 'Free',
+    displayName: 'Free trial',
     priceCents: 0,
     priceAnnualCents: 0,
     tokens: 150_000,
     seats: 1,
-    features: ['150K tokens / month', 'A handful of prompts to evaluate', 'Community support'],
+    features: [`${TRIAL_PROMPT_LIMIT} prompts to try it out`, 'No card required'],
   },
   {
     tierId: 'tier_builder',
+    segment: 'user',
     name: 'builder',
     displayName: 'Builder',
     priceCents: 800,
@@ -53,19 +78,20 @@ export const PLANS: Plan[] = [
     tokens: 1_000_000,
     seats: 1,
     popular: true,
-    features: ['1M tokens / month', 'Solo hobby projects', 'Email support', 'Top-up packs available'],
+    features: ['1M tokens / month', 'Solo hobby projects', 'Email support'],
     stripePriceEnvMonthly: 'STRIPE_PRICE_BUILDER_MONTHLY',
     stripePriceEnvAnnual: 'STRIPE_PRICE_BUILDER_ANNUAL',
   },
   {
     tierId: 'tier_innovator',
+    segment: 'user',
     name: 'innovator',
     displayName: 'Innovator',
     priceCents: 1900,
     priceAnnualCents: 19000,
     tokens: 2_500_000,
     seats: 1,
-    features: ['2.5M tokens / month', 'For active solo builders', 'Priority email support', 'Top-up packs available'],
+    features: ['2.5M tokens / month', 'For active solo builders', 'Priority email support'],
     stripePriceEnvMonthly: 'STRIPE_PRICE_INNOVATOR_MONTHLY',
     stripePriceEnvAnnual: 'STRIPE_PRICE_INNOVATOR_ANNUAL',
   },
@@ -75,6 +101,7 @@ export const PLANS: Plan[] = [
    */
   {
     tierId: 'tier_team',
+    segment: 'user',
     name: 'team',
     displayName: 'Team',
     priceCents: 12900,
@@ -87,6 +114,7 @@ export const PLANS: Plan[] = [
   },
   {
     tierId: 'tier_business',
+    segment: 'enterprise',
     name: 'business',
     displayName: 'Business',
     priceCents: 34900,
@@ -99,6 +127,7 @@ export const PLANS: Plan[] = [
   },
   {
     tierId: 'tier_scale',
+    segment: 'enterprise',
     name: 'scale',
     displayName: 'Scale',
     priceCents: 74900,
@@ -111,16 +140,12 @@ export const PLANS: Plan[] = [
   },
 ];
 
-/** One-off token pack any paid plan can buy when they run out mid-period. */
-export const TOPUP_PACK = {
-  id: 'topup_1m',
-  displayName: '1M Token Top-up',
-  tokens: 1_000_000,
-  priceCents: 1000,
-  stripePriceEnv: 'STRIPE_PRICE_TOPUP_1M',
-};
-
 export const PAID_PLANS = PLANS.filter(p => p.priceCents > 0);
+
+/** Purchasable plans for one audience, in catalog order. */
+export function plansForSegment(segment: PlanSegment): Plan[] {
+  return PAID_PLANS.filter(p => p.segment === segment);
+}
 
 export function getPlan(tierId: string): Plan | undefined {
   return PLANS.find(p => p.tierId === tierId);

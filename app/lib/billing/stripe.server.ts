@@ -7,7 +7,7 @@
  * webhook signature verification are implemented.
  */
 import crypto from 'crypto';
-import { PLANS, TOPUP_PACK, type BillingInterval } from './plans';
+import { PLANS, type BillingInterval } from './plans';
 
 const STRIPE_API = 'https://api.stripe.com/v1';
 
@@ -122,26 +122,6 @@ export async function createSubscriptionCheckout(params: {
   });
 }
 
-export async function createTopUpCheckout(params: {
-  customerId: string;
-  priceId: string;
-  userId: string;
-  companyId: string;
-  successUrl: string;
-  cancelUrl: string;
-}): Promise<CheckoutSession> {
-  return stripeRequest<CheckoutSession>('POST', '/checkout/sessions', {
-    mode: 'payment',
-    customer: params.customerId,
-    client_reference_id: params.companyId,
-    success_url: params.successUrl,
-    cancel_url: params.cancelUrl,
-    line_items: [{ price: params.priceId, quantity: 1 }],
-    payment_intent_data: { metadata: { userId: params.userId, companyId: params.companyId, kind: 'topup' } },
-    metadata: { userId: params.userId, companyId: params.companyId, kind: 'topup', tokens: String(TOPUP_PACK.tokens) },
-  });
-}
-
 export async function createBillingPortalSession(params: {
   customerId: string;
   returnUrl: string;
@@ -170,10 +150,6 @@ export function resolvePriceId(tierId: string, interval: BillingInterval): strin
   const envName = interval === 'year' ? plan.stripePriceEnvAnnual : plan.stripePriceEnvMonthly;
 
   return (envName && process.env[envName]) || null;
-}
-
-export function resolveTopUpPriceId(): string | null {
-  return process.env[TOPUP_PACK.stripePriceEnv] || null;
 }
 
 /** Reverse map: a Stripe Price ID -> our tierId. Used by the webhook. */

@@ -6,7 +6,7 @@ import { sendInactivityNudges } from '~/lib/engagement/inactivity.server';
  * POST /api/cron/inactivity?apply=true — real run: emails accounts that have gone quiet.
  *
  * Win-back mail for accounts that stopped signing in, capped at MAX_INACTIVITY_NUDGES per lapse.
- * Guarded by CRON_SECRET, same pattern as api.cron.gc / api.cron.tier-refresh. Dry-run-first
+ * Guarded by CRON_SECRET, same pattern as api.cron.gc. Dry-run-first
  * because this mails real people — check the addresses and day counts look sane before switching
  * the cron to ?apply=true. Unlike the token jobs it changes no account state, so a bad run costs
  * sender reputation rather than data.

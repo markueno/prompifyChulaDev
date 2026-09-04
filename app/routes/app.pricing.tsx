@@ -10,17 +10,28 @@ import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getSubscriptionByCompanyId, getTokenBalanceRemainingForCompany } from '~/lib/database';
 import { getActiveCompanyId } from '~/lib/workspace.server';
-import { isStripeConfigured, resolvePriceId, resolveTopUpPriceId } from '~/lib/billing/stripe.server';
-import { PLANS, TOPUP_PACK, type BillingInterval, type Plan, formatPrice, formatTokens } from '~/lib/billing/plans';
+import { isStripeConfigured, resolvePriceId } from '~/lib/billing/stripe.server';
+import {
+  PAID_PLANS,
+  FREE_TIER_ID,
+  TRIAL_PROMPT_LIMIT,
+  type BillingInterval,
+  type Plan,
+  type PlanSegment,
+  formatPrice,
+  formatTokens,
+} from '~/lib/billing/plans';
+import { getTrialStatusForCompany } from '~/lib/billing/billing-db.server';
 import landingStyles from '~/styles/landing.css?url';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   const user = isAuthDisabled(context) ? getMockAdminUser() : await requireAuth(request, context);
   const companyId = await getActiveCompanyId(request, user);
 
-  const [sub, balance] = await Promise.all([
+  const [sub, balance, trial] = await Promise.all([
     getSubscriptionByCompanyId(companyId),
     getTokenBalanceRemainingForCompany(companyId, user.id),
+    getTrialStatusForCompany(companyId),
   ]);
 
   /*
@@ -29,9 +40,11 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
    * one fails at checkout with "Plan is not available" — which is exactly what happens while
    * rolling the plans out one at a time.
    */
-  const purchasableTierIds = PLANS.filter(
-    p => p.priceCents > 0 && (resolvePriceId(p.tierId, 'month') || resolvePriceId(p.tierId, 'year'))
+  const purchasableTierIds = PAID_PLANS.filter(
+    p => resolvePriceId(p.tierId, 'month') || resolvePriceId(p.tierId, 'year')
   ).map(p => p.tierId);
+
+  const currentTierId = (sub?.tier_id as string) ?? FREE_TIER_ID;
 
   return json({
     /*
@@ -40,15 +53,16 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
      * menu silently disappeared on this page only.
      */
     user,
-    plans: PLANS,
-    topup: TOPUP_PACK,
-    currentTierId: (sub?.tier_id as string) ?? 'tier_trial',
+    /* Only purchasable plans are listed — the trial is what you are on, never something you buy. */
+    plans: PAID_PLANS,
+    currentTierId,
     subscriptionStatus: (sub?.status as string) ?? null,
     hasStripeCustomer: Boolean(sub?.stripe_customer_id),
     balance,
+    onTrial: currentTierId === FREE_TIER_ID,
+    trialPromptsLeft: Math.max(0, TRIAL_PROMPT_LIMIT - (trial?.promptsUsed ?? 0)),
     stripeConfigured: isStripeConfigured(),
     purchasableTierIds,
-    topupAvailable: Boolean(resolveTopUpPriceId()),
   });
 }
 
@@ -83,14 +97,8 @@ function PlanCard({
   purchasable: boolean;
   onSubscribe: (plan: Plan) => void;
 }) {
-  const isFree = plan.priceCents === 0;
   const priceCents = interval === 'year' ? Math.round(plan.priceAnnualCents / 12) : plan.priceCents;
-  const billedNote =
-    isFree || interval === 'month'
-      ? interval === 'month' && !isFree
-        ? 'billed monthly'
-        : ''
-      : `billed ${formatPrice(plan.priceAnnualCents)}/yr`;
+  const billedNote = interval === 'year' ? `billed ${formatPrice(plan.priceAnnualCents)}/yr` : 'billed monthly';
 
   return (
     <div
@@ -110,9 +118,9 @@ function PlanCard({
 
       <div className="mt-3 flex items-baseline gap-1">
         <span className="text-3xl font-bold text-bolt-elements-textPrimary">{formatPrice(priceCents)}</span>
-        {!isFree ? <span className="text-sm text-bolt-elements-textSecondary">/mo</span> : null}
+        <span className="text-sm text-bolt-elements-textSecondary">/mo</span>
       </div>
-      {billedNote ? <p className="mt-1 text-xs text-bolt-elements-textSecondary">{billedNote}</p> : null}
+      <p className="mt-1 text-xs text-bolt-elements-textSecondary">{billedNote}</p>
 
       <p className="mt-4 text-sm font-medium text-bolt-elements-textPrimary">
         {formatTokens(plan.tokens)} tokens / month
@@ -129,16 +137,16 @@ function PlanCard({
 
       <button
         type="button"
-        disabled={isFree || isCurrent || disabled || !purchasable}
+        disabled={isCurrent || disabled || !purchasable}
         onClick={() => onSubscribe(plan)}
-        title={!isFree && !isCurrent && !purchasable ? 'This plan has no Stripe price configured yet' : undefined}
+        title={!isCurrent && !purchasable ? 'This plan has no Stripe price configured yet' : undefined}
         className={`mt-6 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
-          isCurrent || isFree || !purchasable
+          isCurrent || !purchasable
             ? 'cursor-default border border-bolt-elements-borderColor text-bolt-elements-textSecondary'
             : 'bg-bolt-elements-item-contentAccent text-white hover:opacity-90 disabled:opacity-50'
         }`}
       >
-        {isCurrent ? 'Current plan' : isFree ? 'Included' : purchasable ? 'Subscribe' : 'Coming soon'}
+        {isCurrent ? 'Current plan' : purchasable ? 'Subscribe' : 'Coming soon'}
       </button>
     </div>
   );
@@ -147,15 +155,25 @@ function PlanCard({
 export default function Pricing() {
   const {
     plans,
-    topup,
     currentTierId,
     balance,
+    onTrial,
+    trialPromptsLeft,
     stripeConfigured,
     hasStripeCustomer,
     purchasableTierIds,
-    topupAvailable,
   } = useLoaderData<typeof loader>();
   const [interval, setBillingInterval] = useState<BillingInterval>('month');
+
+  /*
+   * Which audience's plans to show. Defaults to the segment the current plan belongs to, so an
+   * existing Business customer doesn't land on a page that omits the plan they are paying for.
+   */
+  const [segment, setSegment] = useState<PlanSegment>(
+    () => plans.find(p => p.tierId === currentTierId)?.segment ?? 'user'
+  );
+
+  const visiblePlans = plans.filter(p => p.segment === segment);
   const [searchParams] = useSearchParams();
   const checkout = useFetcher<CheckoutResponse>();
   const portal = useFetcher<CheckoutResponse>();
@@ -197,13 +215,6 @@ export default function Pricing() {
     );
   };
 
-  const buyTopUp = () => {
-    checkout.submit(
-      { pack: 'topup' },
-      { method: 'post', action: '/api/billing/checkout', encType: 'application/json' }
-    );
-  };
-
   const openPortal = () => {
     portal.submit({}, { method: 'post', action: '/api/billing/portal', encType: 'application/json' });
   };
@@ -221,11 +232,22 @@ export default function Pricing() {
         <main className="mx-auto w-full max-w-6xl flex-1 overflow-auto px-5 py-8">
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-bolt-elements-textPrimary">Plans &amp; billing</h1>
-            <p className="mt-1 text-bolt-elements-textSecondary">
-              Token-based pricing for the app builder. You have{' '}
-              <span className="font-semibold text-bolt-elements-textPrimary">{balance.toLocaleString()} tokens</span>{' '}
-              remaining. When you hit zero, the next prompt is blocked until you upgrade or top up.
-            </p>
+            {/* Trial accounts are metered in prompts, paid ones in tokens — say whichever is true. */}
+            {onTrial ? (
+              <p className="mt-1 text-bolt-elements-textSecondary">
+                You&apos;re on the free trial with{' '}
+                <span className="font-semibold text-bolt-elements-textPrimary">
+                  {trialPromptsLeft} of {TRIAL_PROMPT_LIMIT} prompts
+                </span>{' '}
+                left. Choose a plan to keep building once they&apos;re used.
+              </p>
+            ) : (
+              <p className="mt-1 text-bolt-elements-textSecondary">
+                Token-based pricing for the app builder. You have{' '}
+                <span className="font-semibold text-bolt-elements-textPrimary">{balance.toLocaleString()} tokens</span>{' '}
+                remaining. When you hit zero, the next prompt is blocked until your plan renews.
+              </p>
+            )}
           </div>
 
           {!stripeConfigured ? (
@@ -234,33 +256,61 @@ export default function Pricing() {
             </div>
           ) : null}
 
-          <div className="mb-6 inline-flex items-center gap-1 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-1">
-            <button
-              type="button"
-              onClick={() => setBillingInterval('month')}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium ${
-                interval === 'month'
-                  ? 'bg-bolt-elements-item-contentAccent text-white'
-                  : 'text-bolt-elements-textSecondary'
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingInterval('year')}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium ${
-                interval === 'year'
-                  ? 'bg-bolt-elements-item-contentAccent text-white'
-                  : 'text-bolt-elements-textSecondary'
-              }`}
-            >
-              Annual <span className="text-xs opacity-80">(2 months free)</span>
-            </button>
+          {/* Billing interval on the left, audience on the right — two independent filters on one line. */}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-1 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-1">
+              <button
+                type="button"
+                onClick={() => setBillingInterval('month')}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium ${
+                  interval === 'month'
+                    ? 'bg-bolt-elements-item-contentAccent text-white'
+                    : 'text-bolt-elements-textSecondary'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                type="button"
+                onClick={() => setBillingInterval('year')}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium ${
+                  interval === 'year'
+                    ? 'bg-bolt-elements-item-contentAccent text-white'
+                    : 'text-bolt-elements-textSecondary'
+                }`}
+              >
+                Annual <span className="text-xs opacity-80">(2 months free)</span>
+              </button>
+            </div>
+
+            <div className="inline-flex items-center gap-1 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-1">
+              <button
+                type="button"
+                onClick={() => setSegment('user')}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium ${
+                  segment === 'user'
+                    ? 'bg-bolt-elements-item-contentAccent text-white'
+                    : 'text-bolt-elements-textSecondary'
+                }`}
+              >
+                User
+              </button>
+              <button
+                type="button"
+                onClick={() => setSegment('enterprise')}
+                className={`rounded-md px-4 py-1.5 text-sm font-medium ${
+                  segment === 'enterprise'
+                    ? 'bg-bolt-elements-item-contentAccent text-white'
+                    : 'text-bolt-elements-textSecondary'
+                }`}
+              >
+                Enterprise
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {plans.map(plan => (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {visiblePlans.map(plan => (
               <PlanCard
                 key={plan.tierId}
                 plan={plan}
@@ -273,36 +323,25 @@ export default function Pricing() {
             ))}
           </div>
 
-          <div className="mt-8 flex flex-col items-start justify-between gap-4 rounded-2xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1/80 p-6 sm:flex-row sm:items-center">
-            <div>
-              <h3 className="text-base font-semibold text-bolt-elements-textPrimary">Need more tokens this month?</h3>
-              <p className="mt-1 text-sm text-bolt-elements-textSecondary">
-                Buy a one-off {formatTokens(topup.tokens)} top-up for {formatPrice(topup.priceCents)}. Top-ups never
-                expire and are used after your monthly allotment.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              {hasStripeCustomer ? (
-                <button
-                  type="button"
-                  onClick={openPortal}
-                  disabled={!stripeConfigured || busy}
-                  className="rounded-lg border border-bolt-elements-borderColor px-4 py-2.5 text-sm font-semibold text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 disabled:opacity-50"
-                >
-                  Manage billing
-                </button>
-              ) : null}
+          {/* Only for existing customers — there is nothing to manage before the first purchase. */}
+          {hasStripeCustomer ? (
+            <div className="mt-8 flex flex-col items-start justify-between gap-4 rounded-2xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1/80 p-6 sm:flex-row sm:items-center">
+              <div>
+                <h3 className="text-base font-semibold text-bolt-elements-textPrimary">Your subscription</h3>
+                <p className="mt-1 text-sm text-bolt-elements-textSecondary">
+                  Update your card, download invoices, or cancel — all handled by Stripe.
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={buyTopUp}
-                disabled={!stripeConfigured || !topupAvailable || busy}
-                title={!topupAvailable ? 'The top-up pack has no Stripe price configured yet' : undefined}
-                className="rounded-lg bg-bolt-elements-item-contentAccent px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                onClick={openPortal}
+                disabled={!stripeConfigured || busy}
+                className="rounded-lg border border-bolt-elements-borderColor px-4 py-2.5 text-sm font-semibold text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 disabled:opacity-50"
               >
-                {topupAvailable ? 'Buy top-up' : 'Coming soon'}
+                Manage billing
               </button>
             </div>
-          </div>
+          ) : null}
         </main>
       </div>
     </LandingAppChrome>

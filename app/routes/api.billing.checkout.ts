@@ -8,9 +8,7 @@ import {
   getAppUrl,
   createCustomer,
   createSubscriptionCheckout,
-  createTopUpCheckout,
   resolvePriceId,
-  resolveTopUpPriceId,
 } from '~/lib/billing/stripe.server';
 import { getStripeCustomerIdForCompany, setStripeCustomerIdForCompany } from '~/lib/billing/billing-db.server';
 import { getActiveCompanyId } from '~/lib/workspace.server';
@@ -20,7 +18,6 @@ const logger = createScopedLogger('api.billing.checkout');
 interface CheckoutBody {
   tierId?: string;
   interval?: BillingInterval;
-  pack?: 'topup';
   companyId?: string;
 }
 
@@ -62,25 +59,6 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     const successUrl = `${getAppUrl()}/app/pricing?status=success`;
     const cancelUrl = `${getAppUrl()}/app/pricing?status=canceled`;
-
-    if (body.pack === 'topup') {
-      const priceId = resolveTopUpPriceId();
-
-      if (!priceId) {
-        return json({ error: 'Top-up pack price is not configured.' }, { status: 400 });
-      }
-
-      const session = await createTopUpCheckout({
-        customerId,
-        priceId,
-        userId: user.id,
-        companyId,
-        successUrl,
-        cancelUrl,
-      });
-
-      return json({ url: session.url });
-    }
 
     const interval: BillingInterval = body.interval === 'year' ? 'year' : 'month';
     const plan = body.tierId ? getPlan(body.tierId) : undefined;
