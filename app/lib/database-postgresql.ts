@@ -506,6 +506,34 @@ export async function setPasswordFromResetTokenPostgres(token: string, passwordH
   }
 }
 
+/**
+ * Set a signed-in user's password directly.
+ *
+ * Separate from `setPasswordFromResetToken` because the authority is different: that one is
+ * authorised by a token from an email, this one by an active session plus the current password.
+ * It deliberately also clears any outstanding reset token — someone who just changed their
+ * password should not leave a live reset link sitting in their inbox.
+ */
+export async function updateUserPasswordPostgres(userId: string, passwordHash: string): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `UPDATE users
+          SET password_hash = $1, reset_token = NULL, reset_expires = NULL, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2`,
+      [passwordHash, userId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('Error updating user password:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
 export async function updateLoginAttemptsPostgres(email: string, attempts: number) {
   const pool = getPostgresPool();
   const client = await pool.connect();

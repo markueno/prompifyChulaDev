@@ -1,6 +1,8 @@
 import { useStore } from '@nanostores/react';
 import { useSubmit } from '@remix-run/react';
+import { useState } from 'react';
 import { Dropdown, DropdownItem } from '~/components/ui/Dropdown';
+import { ChangePasswordDialog } from '~/components/auth/ChangePasswordDialog';
 import type { User } from '~/lib/auth';
 import { controlPanelOpenStore, controlPanelInitialTabStore } from '~/lib/stores/settings';
 import { profileStore } from '~/lib/stores/profile';
@@ -12,6 +14,7 @@ interface UserProfileProps {
 export function UserProfile({ user }: UserProfileProps) {
   const submit = useSubmit();
   const profile = useStore(profileStore);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   // Display name: nickname if set, otherwise auth email
   const displayName = (profile?.nickname?.trim() || user?.email || '').trim();
   const displayInitial = displayName
@@ -32,7 +35,7 @@ export function UserProfile({ user }: UserProfileProps) {
     </button>
   );
 
-  return (
+  const menu = (
     <Dropdown trigger={trigger}>
       <div className="w-64 overflow-hidden rounded-xl border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#2d2014] p-1.5 shadow-lg">
         <div className="px-2.5 py-2 border-b border-[#fed7aa]/40 dark:border-[#423322] flex items-center justify-between gap-2">
@@ -87,6 +90,15 @@ export function UserProfile({ user }: UserProfileProps) {
 
         <div className="my-1 border-t border-[#fed7aa]/40 dark:border-[#423322]" />
 
+        <button
+          type="button"
+          onClick={() => setChangePasswordOpen(true)}
+          className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"
+        >
+          <div className="i-ph:key text-lg" />
+          Update password
+        </button>
+
         <DropdownItem asChild>
           <button
             type="button"
@@ -99,5 +111,16 @@ export function UserProfile({ user }: UserProfileProps) {
         </DropdownItem>
       </div>
     </Dropdown>
+  );
+
+  return (
+    <>
+      {menu}
+      {/*
+       * Rendered as a sibling of the dropdown, not inside it: the dropdown unmounts its panel on
+       * close, which would take the dialog down with it the instant the item is clicked.
+       */}
+      <ChangePasswordDialog open={changePasswordOpen} onClose={() => setChangePasswordOpen(false)} />
+    </>
   );
 }

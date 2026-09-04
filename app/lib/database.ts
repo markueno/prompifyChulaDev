@@ -14,6 +14,7 @@ import {
   createPasswordResetTokenPostgres,
   getUserByResetTokenPostgres,
   setPasswordFromResetTokenPostgres,
+  updateUserPasswordPostgres,
   updateLoginAttemptsPostgres,
   resetLoginAttemptsPostgres,
   logEmailPostgres,
@@ -364,6 +365,15 @@ export async function getUserByResetToken(token: string) {
 export async function setPasswordFromResetToken(token: string, passwordHash: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return setPasswordFromResetTokenPostgres(token, passwordHash);
+  }
+
+  return false;
+}
+
+/** Set a signed-in user's password (authorised by session + current password, not by a token). */
+export async function updateUserPassword(userId: string, passwordHash: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return updateUserPasswordPostgres(userId, passwordHash);
   }
 
   return false;
