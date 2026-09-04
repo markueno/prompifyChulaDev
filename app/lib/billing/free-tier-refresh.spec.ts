@@ -269,7 +269,7 @@ describe('refreshFreeTierAllocations', () => {
 
     it('does not count a warning that failed to send, so it retries next month', async () => {
       state.carryRows = saturatedRows();
-      sendWarning.mockRejectedValueOnce(new Error('sendgrid down'));
+      sendWarning.mockRejectedValueOnce(new Error('resend down'));
 
       const result = await refreshFreeTierAllocations({ dryRun: false });
 

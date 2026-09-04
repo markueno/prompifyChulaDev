@@ -92,9 +92,10 @@ services:
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
 
-      # Email
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      # Email — Resend. FROM_EMAIL must be on a domain verified in the Resend account.
+      - RESEND_API_KEY=${RESEND_API_KEY}
       - FROM_EMAIL=${FROM_EMAIL:-noreply@prompify.com}
+      - FROM_NAME=${FROM_NAME:-Prompify}
 
       # AI Providers
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -206,11 +207,13 @@ services:
     profiles: ['production']
 
   # Cron — sleeps inactive container apps every 15 minutes; nightly snapshot GC at ~03:30 UTC;
-  # free-tier token renewal at ~04:15 UTC.
+  # free-tier token renewal at ~04:15 UTC; inactivity win-back mail at ~04:45 UTC.
   # GC runs DRY-RUN by default: switch to '/api/cron/gc?apply=true' ONLY after the Day 18
   # restore test has passed (backups are the recovery path for GC mistakes).
   # tier-refresh also runs DRY-RUN by default: it mints tokens, so add '?apply=true' only once
   # the reported `due` count matches what you expect from the database.
+  # inactivity also runs DRY-RUN by default: it mails real customers, so add '?apply=true' only
+  # once the Resend domain is verified and the dry-run address list looks right.
   cron:
     image: curlimages/curl:latest
     container_name: prompify-cron
@@ -232,6 +235,9 @@ services:
           fi;
           if [ \"$$H\" = \"04\" ] && [ \"$$M\" -ge 15 ] && [ \"$$M\" -lt 30 ]; then
             curl -s -X POST \"http://app:5173/api/cron/tier-refresh\" -H \"Authorization: Bearer $$CRON_SECRET\" -H \"Content-Type: application/json\";
+          fi;
+          if [ \"$$H\" = \"04\" ] && [ \"$$M\" -ge 45 ]; then
+            curl -s -X POST \"http://app:5173/api/cron/inactivity\" -H \"Authorization: Bearer $$CRON_SECRET\" -H \"Content-Type: application/json\";
           fi;
         done
       "

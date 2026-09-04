@@ -1,5 +1,6 @@
 import { json, redirect, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { getUserByVerificationToken, verifyUser } from '~/lib/database';
+import { getUserByVerificationToken, logEmail, verifyUser } from '~/lib/database';
+import { sendWelcomeEmail } from '~/lib/email';
 
 interface VerifyRequest {
   token: string;
@@ -15,6 +16,7 @@ async function verifyToken(token: string): Promise<{ success: boolean; message: 
   const user = (await getUserByVerificationToken(token)) as
     | {
         id: string;
+        email?: string;
         verification_expires: string | null;
         is_verified?: number | boolean;
       }
@@ -36,6 +38,28 @@ async function verifyToken(token: string): Promise<{ success: boolean; message: 
 
   if (!success) {
     return { success: false, message: 'Failed to verify email. Please try again.' };
+  }
+
+  /*
+   * Welcome the account now that the address is confirmed. Sent from here rather than from the
+   * loader/action so both the emailed link (GET) and the form post (POST) are covered exactly
+   * once — the `is_verified` guard above turns a re-clicked link into an early return, so a
+   * second welcome never goes out.
+   *
+   * A failed send must not fail verification: the account IS verified at this point, and
+   * returning an error would strand the user on a "verification failed" page for a working
+   * account. The email_logs row records the miss instead.
+   */
+  if (user.email) {
+    try {
+      const sent = await sendWelcomeEmail(user.email);
+      await logEmail(user.id, 'welcome', sent, sent ? undefined : 'Email service not configured or send failed');
+    } catch (error) {
+      console.error('Welcome email failed after verification:', error);
+      await logEmail(user.id, 'welcome', false, error instanceof Error ? error.message : 'Unknown error').catch(
+        () => undefined
+      );
+    }
   }
 
   return { success: true, message: 'Email verified successfully!' };
