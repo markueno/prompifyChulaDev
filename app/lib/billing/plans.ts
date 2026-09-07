@@ -25,6 +25,16 @@ export interface Plan {
   priceCents: number;
   /** Total annual price in cents (charged once per year). 0 = no annual option. */
   priceAnnualCents: number;
+  /*
+   * Per-month figure shown on the card under the Annual toggle, in cents.
+   *
+   * Explicit rather than priceAnnualCents/12 because the headline is a marketing number chosen to
+   * be printable ($6, not $6.67). It MUST satisfy priceAnnualPerMonthCents * 12 ===
+   * priceAnnualCents, or the card advertises one figure and Stripe charges another — plans.spec.ts
+   * enforces that. The Stripe annual price must match priceAnnualCents too; nothing reconciles
+   * those automatically.
+   */
+  priceAnnualPerMonthCents: number;
   /** Tokens granted at the start of each billing period. */
   tokens: number;
   /** Included seats (informational for now; seat enforcement is not yet implemented). */
@@ -64,6 +74,7 @@ export const PLANS: Plan[] = [
     displayName: 'Free trial',
     priceCents: 0,
     priceAnnualCents: 0,
+    priceAnnualPerMonthCents: 0,
     tokens: 150_000,
     seats: 1,
     features: [`${TRIAL_PROMPT_LIMIT} prompts to try it out`, 'No card required'],
@@ -74,7 +85,8 @@ export const PLANS: Plan[] = [
     name: 'builder',
     displayName: 'Builder',
     priceCents: 800,
-    priceAnnualCents: 8000,
+    priceAnnualCents: 7200,
+    priceAnnualPerMonthCents: 600,
     tokens: 1_000_000,
     seats: 1,
     popular: true,
@@ -88,7 +100,8 @@ export const PLANS: Plan[] = [
     name: 'innovator',
     displayName: 'Innovator',
     priceCents: 1900,
-    priceAnnualCents: 19000,
+    priceAnnualCents: 19200,
+    priceAnnualPerMonthCents: 1600,
     tokens: 2_500_000,
     seats: 1,
     features: ['2.5M tokens / month', 'For active solo builders', 'Priority email support'],
@@ -105,7 +118,8 @@ export const PLANS: Plan[] = [
     name: 'team',
     displayName: 'Team',
     priceCents: 12900,
-    priceAnnualCents: 129000,
+    priceAnnualCents: 126000,
+    priceAnnualPerMonthCents: 10500,
     tokens: 18_000_000,
     seats: 5,
     features: ['Shared token pool', 'Up to 5 seats', 'For small teams', 'Priority email support'],
@@ -118,7 +132,8 @@ export const PLANS: Plan[] = [
     name: 'business',
     displayName: 'Business',
     priceCents: 34900,
-    priceAnnualCents: 349000,
+    priceAnnualCents: 348000,
+    priceAnnualPerMonthCents: 29000,
     tokens: 50_000_000,
     seats: 10,
     features: ['Shared token pool', 'Up to 10 seats', 'For growing teams', 'Priority support'],
@@ -131,7 +146,8 @@ export const PLANS: Plan[] = [
     name: 'scale',
     displayName: 'Scale',
     priceCents: 74900,
-    priceAnnualCents: 749000,
+    priceAnnualCents: 750000,
+    priceAnnualPerMonthCents: 62500,
     tokens: 120_000_000,
     seats: 20,
     features: ['Shared token pool', 'Up to 20 seats', 'For large teams', 'Priority support + onboarding'],

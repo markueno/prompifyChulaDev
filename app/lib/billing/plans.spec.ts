@@ -53,4 +53,15 @@ describe('plan catalog', () => {
       expect(plan.priceAnnualCents).toBeLessThan(plan.priceCents * 12);
     }
   });
+
+  /*
+   * The card prints the per-month figure as the headline and the annual total as the small print
+   * directly under it. If they stop multiplying out, the page advertises one number and Stripe
+   * charges another — visible to any customer who does the arithmetic.
+   */
+  it('keeps the advertised monthly figure consistent with the annual total', () => {
+    for (const plan of PAID_PLANS) {
+      expect(plan.priceAnnualPerMonthCents * 12).toBe(plan.priceAnnualCents);
+    }
+  });
 });

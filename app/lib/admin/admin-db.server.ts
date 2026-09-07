@@ -59,7 +59,7 @@ export async function listUsersForAdmin(opts: {
   const offset = Math.max(opts.offset ?? 0, 0);
   const search = opts.search?.trim();
 
-  const where = search ? `WHERE u.email ILIKE $3` : '';
+  const where = search ? `WHERE u.deleted_at IS NULL AND u.email ILIKE $3` : `WHERE u.deleted_at IS NULL`;
   const params: unknown[] = search ? [limit, offset, `%${search}%`] : [limit, offset];
 
   const client = await pool.connect();
@@ -87,7 +87,7 @@ export async function listUsersForAdmin(opts: {
 
     const countResult = await client.query(
       search
-        ? `SELECT COUNT(*)::int AS n FROM users u WHERE u.email ILIKE $1`
+        ? `SELECT COUNT(*)::int AS n FROM users u WHERE u.deleted_at IS NULL AND u.email ILIKE $1`
         : `SELECT COUNT(*)::int AS n FROM users u`,
       search ? [`%${search}%`] : []
     );
@@ -217,12 +217,25 @@ export async function adminSetSuspended(userId: string, suspended: boolean): Pro
 }
 
 /**
- * Hard-delete an account. Every user-referencing table is ON DELETE CASCADE, so chats, projects,
- * sessions, balances and subscriptions go with it. Irreversible.
+ * Soft-delete an account.
+ *
+ * Deliberately NOT `DELETE FROM users`: every user-referencing table is ON DELETE CASCADE, so a
+ * hard delete destroyed the person's chats, projects, token history and billing records along with
+ * the row. Nothing about an account deletion should discard the business's own records.
+ *
+ * The row keeps its email, so the address stays locked and cannot be re-registered. Sessions are
+ * removed rather than flagged — they are ephemeral credentials, not history, and dropping them
+ * signs the account out everywhere immediately instead of at token expiry.
  */
 export async function adminDeleteUser(userId: string): Promise<void> {
   const pool = getPostgresPool();
-  await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
+  await pool.query(
+    `UPDATE users
+        SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1 AND deleted_at IS NULL`,
+    [userId]
+  );
+  await pool.query(`DELETE FROM user_sessions WHERE user_id = $1`, [userId]);
 }
 
 /** Guard: an admin must not be able to delete or suspend their own account by accident. */

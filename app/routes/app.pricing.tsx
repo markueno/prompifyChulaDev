@@ -86,6 +86,8 @@ function PlanCard({
   interval,
   isCurrent,
   disabled,
+  /** True only for the card whose button was actually clicked. */
+  pending,
   /** False when this tier has no Stripe Price ID configured yet. */
   purchasable,
   onSubscribe,
@@ -94,10 +96,11 @@ function PlanCard({
   interval: BillingInterval;
   isCurrent: boolean;
   disabled: boolean;
+  pending: boolean;
   purchasable: boolean;
   onSubscribe: (plan: Plan) => void;
 }) {
-  const priceCents = interval === 'year' ? Math.round(plan.priceAnnualCents / 12) : plan.priceCents;
+  const priceCents = interval === 'year' ? plan.priceAnnualPerMonthCents : plan.priceCents;
   const billedNote = interval === 'year' ? `billed ${formatPrice(plan.priceAnnualCents)}/yr` : 'billed monthly';
 
   return (
@@ -143,10 +146,10 @@ function PlanCard({
         className={`mt-6 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
           isCurrent || !purchasable
             ? 'cursor-default border border-bolt-elements-borderColor text-bolt-elements-textSecondary'
-            : 'bg-bolt-elements-item-contentAccent text-white hover:opacity-90 disabled:opacity-50'
+            : `bg-bolt-elements-item-contentAccent text-white hover:opacity-90 ${pending ? 'opacity-50' : ''}`
         }`}
       >
-        {isCurrent ? 'Current plan' : purchasable ? 'Subscribe' : 'Coming soon'}
+        {isCurrent ? 'Current plan' : pending ? 'Redirecting…' : purchasable ? 'Subscribe' : 'Coming soon'}
       </button>
     </div>
   );
@@ -174,6 +177,13 @@ export default function Pricing() {
   );
 
   const visiblePlans = plans.filter(p => p.segment === segment);
+
+  /*
+   * Which plan's button was actually clicked. Without this the single `busy` flag disabled every
+   * card at once and `disabled:opacity-50` dimmed all of them, so one click looked like every
+   * Subscribe button had been pressed together.
+   */
+  const [pendingTierId, setPendingTierId] = useState<string | null>(null);
   const [searchParams] = useSearchParams();
   const checkout = useFetcher<CheckoutResponse>();
   const portal = useFetcher<CheckoutResponse>();
@@ -194,6 +204,8 @@ export default function Pricing() {
     if (checkout.data?.url) {
       window.location.href = checkout.data.url;
     } else if (checkout.data?.error) {
+      // Clear the pending card, or its button stays "Redirecting…" forever after a failed checkout.
+      setPendingTierId(null);
       toast.error(checkout.data.error);
     }
   }, [checkout.data]);
@@ -209,6 +221,7 @@ export default function Pricing() {
   const busy = checkout.state !== 'idle' || portal.state !== 'idle';
 
   const subscribe = (plan: Plan) => {
+    setPendingTierId(plan.tierId);
     checkout.submit(
       { tierId: plan.tierId, interval },
       { method: 'post', action: '/api/billing/checkout', encType: 'application/json' }
@@ -317,6 +330,7 @@ export default function Pricing() {
                 interval={interval}
                 isCurrent={plan.tierId === currentTierId}
                 disabled={!stripeConfigured || busy}
+                pending={pendingTierId === plan.tierId}
                 purchasable={purchasableTierIds.includes(plan.tierId)}
                 onSubscribe={subscribe}
               />

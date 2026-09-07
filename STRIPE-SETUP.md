@@ -116,11 +116,11 @@ thinks in tiers:
 
 | Stripe product | tierId | Monthly var | Annual var | plans.ts price |
 |---|---|---|---|---|
-| Builder | `tier_builder` | `STRIPE_PRICE_BUILDER_MONTHLY` | `STRIPE_PRICE_BUILDER_ANNUAL` | $8 / $80 |
-| Innovator | `tier_innovator` | `STRIPE_PRICE_INNOVATOR_MONTHLY` | `STRIPE_PRICE_INNOVATOR_ANNUAL` | $19 / $190 |
-| Team | `tier_team` | `STRIPE_PRICE_TEAM_MONTHLY` | `STRIPE_PRICE_TEAM_ANNUAL` | $129 / $1290 |
-| Business | `tier_business` | `STRIPE_PRICE_BUSINESS_MONTHLY` | `STRIPE_PRICE_BUSINESS_ANNUAL` | $349 / $3490 |
-| Scale | `tier_scale` | `STRIPE_PRICE_SCALE_MONTHLY` | `STRIPE_PRICE_SCALE_ANNUAL` | $749 / $7490 |
+| Builder | `tier_builder` | `STRIPE_PRICE_BUILDER_MONTHLY` | `STRIPE_PRICE_BUILDER_ANNUAL` | $8 / **$72** |
+| Innovator | `tier_innovator` | `STRIPE_PRICE_INNOVATOR_MONTHLY` | `STRIPE_PRICE_INNOVATOR_ANNUAL` | $19 / **$192** |
+| Team | `tier_team` | `STRIPE_PRICE_TEAM_MONTHLY` | `STRIPE_PRICE_TEAM_ANNUAL` | $129 / **$1,260** |
+| Business | `tier_business` | `STRIPE_PRICE_BUSINESS_MONTHLY` | `STRIPE_PRICE_BUSINESS_ANNUAL` | $349 / **$3,480** |
+| Scale | `tier_scale` | `STRIPE_PRICE_SCALE_MONTHLY` | `STRIPE_PRICE_SCALE_ANNUAL` | $749 / **$7,500** |
 Free (`tier_trial`) has no Stripe price and must not get one — it is the 3-prompt trial granted
 in-app at signup, and it is never rendered as a purchasable card.
 
@@ -136,8 +136,14 @@ table above. If the boss created them at different amounts, fix `plans.ts` (and 
 `subscription_tiers` seed in `schema.sql:281-294`, which must stay in sync) rather than quietly
 shipping the discrepancy.
 
-The annual amounts are 10× monthly because the pricing page advertises annual as "2 months free"
-(`app.pricing.tsx:258`). An annual price set to 12× monthly makes that copy a lie.
+The annual amounts are NOT a clean multiple of the monthly price. They are
+`priceAnnualPerMonthCents × 12` — the headline per-month figure the card advertises under the
+Annual toggle ($6, $16, $105, $290, $625), chosen to be printable rather than the $6.67 that a
+10× annual total would produce.
+
+**The Stripe annual price must equal the total in the table above.** `plans.spec.ts` enforces that
+the card's own two numbers agree with each other, but nothing can check them against Stripe — if
+they diverge, the page advertises one figure and the card is debited another.
 
 ### C3. Set the variables on prod
 

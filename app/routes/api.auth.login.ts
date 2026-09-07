@@ -2,7 +2,7 @@ import { json, redirect, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { createAuthCookie, isEmailVerificationRequired } from '~/lib/auth';
+import { createAuthCookie, clearAuthCookie, getAuthToken, isEmailVerificationRequired } from '~/lib/auth';
 
 interface LoginRequest {
   email: string;
@@ -27,7 +27,7 @@ const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
 const MAX_LOGIN_ATTEMPTS = 5;
 
-export async function action({ request, context }: ActionFunctionArgs) {
+async function handleLogin({ request, context }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
     return json({ success: false, message: 'Method not allowed' }, { status: 405 });
   }
@@ -135,8 +135,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
           is_moderator?: boolean;
           is_superadmin?: boolean;
           login_attempts: number;
+          deleted_at?: string | null;
         }
       | undefined;
+
+    /*
+     * A soft-deleted account must behave exactly like one that never existed — same message, same
+     * status. Saying "this account was deleted" would confirm the address was once registered,
+     * which is the enumeration leak the generic wording exists to avoid.
+     */
+    if (user?.deleted_at) {
+      if (isFormSubmit) {
+        return redirect('/?login=1&error=' + encodeURIComponent('Invalid email or password'));
+      }
+
+      return json<LoginResponse>({ success: false, message: 'Invalid email or password' }, { status: 401 });
+    }
 
     if (!user) {
       // Update login attempts for non-existent user
@@ -264,4 +278,46 @@ import {
   resetLoginAttempts,
   createUserSession,
   ensureUserTrial,
+  logoutUser,
 } from '~/lib/database';
+
+/**
+ * Every login attempt ends whatever session the browser already had.
+ *
+ * Submitting this form is an explicit statement of intent to become a particular account. If the
+ * attempt fails and the previous session survives it, the visitor is silently left authenticated
+ * as whoever they were before — and `_index.tsx` redirects any authenticated visitor straight to
+ * `/app/`, so a failed sign-in lands them inside someone else's account with the error message
+ * never shown. That is how signing in as a deleted account dropped the user into the admin app.
+ *
+ * Success paths always set an auth cookie, so the absence of one identifies a failure without
+ * having to touch each of the dozen early returns.
+ */
+export async function action(args: ActionFunctionArgs) {
+  const response = await handleLogin(args);
+
+  if (response.headers.get('Set-Cookie')) {
+    return response;
+  }
+
+  // Kill the old session server-side too; the cookie alone is only half of it.
+  const existingToken = getAuthToken(args.request);
+
+  if (existingToken) {
+    try {
+      const tokenHash = crypto.createHash('sha256').update(existingToken).digest('hex');
+      await logoutUser(tokenHash);
+    } catch {
+      /* never let session cleanup turn a failed login into a 500 */
+    }
+  }
+
+  const headers = new Headers(response.headers);
+  headers.append('Set-Cookie', clearAuthCookie(args.request));
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}

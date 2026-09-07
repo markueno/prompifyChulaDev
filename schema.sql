@@ -298,6 +298,18 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS carryover_warnings_sent INTEG
  */
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_prompts_used INTEGER NOT NULL DEFAULT 0;
 
+/*
+ * Soft delete. Deleting an account sets this instead of removing the row, because every
+ * user-referencing table is ON DELETE CASCADE — a hard DELETE took the person's chats, projects,
+ * token history and billing records with it, irreversibly.
+ *
+ * The email address stays on the row, so UNIQUE(email) keeps it locked: a deleted account cannot
+ * be re-registered, and its history stays attributable to the address that created it.
+ */
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+
+CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
+
 -- Must stay in sync with app/lib/billing/plans.ts
 INSERT INTO subscription_tiers (id, name, display_name, price_cents, limits, sort_order)
 VALUES
