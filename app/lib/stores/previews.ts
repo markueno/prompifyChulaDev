@@ -59,7 +59,7 @@ export class PreviewsStore {
     const webcontainer = await this.#webcontainer;
 
     // Listen for server ready events
-    webcontainer.on('server-ready', (port, url) => {
+    webcontainer.on('server-ready', async (port, url) => {
       console.log('[Preview] Server ready on port:', port, url);
       console.log('[Preview] WebContainer workdir:', webcontainer.workdir);
       console.log(
@@ -75,8 +75,18 @@ export class PreviewsStore {
       /*
        * Inject the Prompify data-proxy config so generated apps reach LIVE data in the preview
        * (before the SERVER_READY_DELAY iframe reload below picks up the new /env-config.js).
+       *
+       * Awaited: writeConfig POSTs to /api/data/token and writes env-config.js to the
+       * WebContainer FS. If we fire-and-forget it, the 30s iframe reload below can win the
+       * race and the generated app 404s on /env-config.js → data fetches fall back to mock
+       * → on refresh the table renders empty even though Postgres has the rows.
+       *
+       * On a cold boot / refresh, chatId may not be set yet (useChatHistory loads async from
+       * IndexedDB / /api/chat). injectPromptifyConfig subscribes to the chatId atom and runs
+       * writeConfig the moment chatId becomes available, so this await resolves quickly when
+       * chatId is already set, and otherwise returns immediately while the subscription arms.
        */
-      injectPromptifyConfig(webcontainer);
+      await injectPromptifyConfig(webcontainer);
 
       /*
        * BroadcastChannel.onmessage does NOT fire in the same tab that sent the message,
