@@ -312,11 +312,11 @@ export async function sendWelcomeEmail(email: string): Promise<boolean> {
     title: 'Welcome to Prompify',
     preheader: "You're all set — here's the quickest way to start.",
     heading: "You're all set",
-    bodyHtml: `<p style="margin: 0 0 14px;">Your email is confirmed and your account is ready.</p>
-              <p style="margin: 0 0 14px;">You're on the free trial, which includes <strong>${prompts} prompts</strong> — enough to see what Prompify does with a real idea rather than a toy one.</p>
-              <p style="margin: 0 0 4px;">The quickest start is to describe something you actually want built, in plain words, and let Prompify draft the prompt for you.</p>`,
+    bodyHtml: `<p style="margin: 0 0 14px;">Your email is confirmed and your account is ready to use.</p>
+              <p style="margin: 0 0 14px;">Your first <strong>${prompts} prompts are on us</strong> — no card, no commitment. Bring something you genuinely want built rather than a toy example; that's where you'll see what Prompify is actually for.</p>
+              <p style="margin: 0 0 4px;">Just describe it in plain words and let Prompify draft the prompt for you.</p>`,
     cta: { label: 'Start building', url: `${appUrl()}/app` },
-    afterCtaHtml: `<p style="margin: 0;">When you're ready for more room, the plans are on your <a href="${appUrl()}/app/pricing" style="color: ${BRAND.accent};">pricing page</a> — monthly or annual.</p>`,
+    afterCtaHtml: `<p style="margin: 0;">Whenever you want more room, the plans are on your <a href="${appUrl()}/app/pricing" style="color: ${BRAND.accent};">pricing page</a>.</p>`,
   });
 
   const text = renderText({
@@ -324,7 +324,7 @@ export async function sendWelcomeEmail(email: string): Promise<boolean> {
     body: `Your email is confirmed and your account is ready.\n\nYou're on the free trial, which includes ${prompts} prompts — enough to see what Prompify does with a real idea rather than a toy one.\n\nThe quickest start is to describe something you actually want built, in plain words, and let Prompify draft the prompt for you.`,
     ctaLabel: 'Start building',
     ctaUrl: `${appUrl()}/app`,
-    after: `When you're ready for more room, the plans are at ${appUrl()}/app/pricing — monthly or annual.`,
+    after: `Whenever you want more room, the plans are at ${appUrl()}/app/pricing.`,
   });
 
   return await sendEmail({ to: email, subject: 'Welcome to Prompify', html, text });
