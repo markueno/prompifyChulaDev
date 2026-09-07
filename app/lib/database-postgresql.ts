@@ -514,6 +514,25 @@ export async function setPasswordFromResetTokenPostgres(token: string, passwordH
  * It deliberately also clears any outstanding reset token — someone who just changed their
  * password should not leave a live reset link sitting in their inbox.
  */
+/**
+ * Current account status, read fresh from the database.
+ *
+ * Deliberately not carried in the JWT: a token minted before an admin suspended the account would
+ * keep asserting 'active' until it expired, so the suspension would not take effect for up to a
+ * day. Reading it per request is the only way status changes apply immediately.
+ */
+export async function getUserStatusPostgres(userId: string): Promise<string | null> {
+  const pool = getPostgresPool();
+
+  try {
+    const result = await pool.query(`SELECT status FROM users WHERE id = $1 AND deleted_at IS NULL`, [userId]);
+    return (result.rows[0]?.status as string) ?? null;
+  } catch (error) {
+    console.error('Error reading user status:', error);
+    return null;
+  }
+}
+
 export async function updateUserPasswordPostgres(userId: string, passwordHash: string): Promise<boolean> {
   const pool = getPostgresPool();
   const client = await pool.connect();

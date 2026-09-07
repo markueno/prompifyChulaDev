@@ -1,6 +1,7 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { createPasswordResetToken, logEmail, checkRateLimit } from '~/lib/database';
+import { createPasswordResetToken, logEmail, checkRateLimit, getUserStatus } from '~/lib/database';
 import { sendPasswordResetEmail } from '~/lib/email';
+import { canResetPassword, parseAccountStatus } from '~/lib/account-status';
 
 interface ForgotPasswordRequest {
   email: string;
@@ -50,8 +51,22 @@ export async function action({ request, context: _context }: ActionFunctionArgs)
     const result = await createPasswordResetToken(email);
 
     if (result) {
-      const sent = await sendPasswordResetEmail(email, result.token);
-      await logEmail(result.user.id, 'reset', sent);
+      /*
+       * A suspended account may not reset its password. The generic success message below is
+       * returned either way — telling the sender their account is suspended would confirm the
+       * address is registered, which is exactly what SUCCESS_MESSAGE exists to avoid.
+       *
+       * The token has already been minted at this point and is simply left unsent; it expires on
+       * its own, and the next legitimate request overwrites it.
+       */
+      const status = parseAccountStatus(await getUserStatus(result.user.id));
+
+      if (canResetPassword(status)) {
+        const sent = await sendPasswordResetEmail(email, result.token);
+        await logEmail(result.user.id, 'reset', sent);
+      } else {
+        await logEmail(result.user.id, 'reset', false, `Blocked: account is ${status}`);
+      }
     }
 
     return json<ForgotPasswordResponse>({

@@ -8,6 +8,7 @@
  * Every mutation is written to user_activity so there is a trail of who changed what.
  */
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
+import { ACCOUNT_STATUSES, type AccountStatus } from '~/lib/account-status';
 import { requireSuperadmin } from '~/lib/auth';
 import { logUserActivity } from '~/lib/database';
 import {
@@ -15,7 +16,7 @@ import {
   getAdminUserEmail,
   adminGrantTokens,
   adminChangeTier,
-  adminSetSuspended,
+  adminSetStatus,
   adminDeleteUser,
   isSelf,
 } from '~/lib/admin/admin-db.server';
@@ -46,11 +47,12 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 }
 
 interface AdminActionBody {
-  action: 'grantTokens' | 'changeTier' | 'setSuspended' | 'delete';
+  action: 'grantTokens' | 'changeTier' | 'setStatus' | 'delete';
   userId: string;
   tokens?: number;
   tierId?: string;
-  suspended?: boolean;
+  /** 'active' | 'inactive' | 'suspended'. */
+  status?: string;
   /** Must equal the target's email for `delete` — a deliberate speed bump. */
   confirmEmail?: string;
 }
@@ -114,15 +116,20 @@ export async function action({ request, context }: ActionFunctionArgs) {
         return json({ success: true });
       }
 
-      case 'setSuspended': {
-        const suspended = Boolean(body.suspended);
-
-        if (suspended && isSelf(admin.id, userId)) {
-          return json({ error: 'You cannot suspend your own account' }, { status: 400 });
+      case 'setStatus': {
+        if (!ACCOUNT_STATUSES.includes(body.status as AccountStatus)) {
+          return json({ error: 'Unknown account status' }, { status: 400 });
         }
 
-        await adminSetSuspended(userId, suspended);
-        await logUserActivity(admin.id, 'admin_set_suspended', { targetUserId: userId, suspended });
+        const status = body.status as AccountStatus;
+
+        // An admin locking themselves out of the console has no way back in without direct SQL.
+        if (status !== 'active' && isSelf(admin.id, userId)) {
+          return json({ error: 'You cannot restrict your own account' }, { status: 400 });
+        }
+
+        await adminSetStatus(userId, status);
+        await logUserActivity(admin.id, 'admin_set_status', { targetUserId: userId, status });
 
         return json({ success: true });
       }

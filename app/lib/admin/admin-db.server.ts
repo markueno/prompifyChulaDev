@@ -7,6 +7,7 @@
  * touching token_balances/subscriptions directly.
  */
 import { getPostgresPool, personalCompanyId } from '~/lib/database-postgresql';
+import { parseAccountStatus, type AccountStatus } from '~/lib/account-status';
 import {
   addTopUpTokens,
   upsertSubscription,
@@ -23,6 +24,12 @@ export interface AdminUserRow {
   isSuperadmin: boolean;
   /** false = suspended (the account cannot spend tokens). */
   tokenApproved: boolean;
+  /** 'active' | 'inactive' | 'suspended' — what the account may actually do. */
+  accountStatus: AccountStatus;
+  /** Start of the current paid period, ISO string, or null on the trial. */
+  currentPeriodStart: string | null;
+  /** Renewal date — when the next payment is taken. Null on the trial. */
+  currentPeriodEnd: string | null;
   createdAt: string | null;
   lastLogin: string | null;
   tierId: string | null;
@@ -68,8 +75,10 @@ export async function listUsersForAdmin(opts: {
     const { rows } = await client.query(
       `SELECT
          u.id, u.email, u.is_verified, u.is_moderator, u.is_superadmin, u.token_approved,
+         u.status AS account_status,
          u.created_at, u.last_login,
          s.tier_id, s.status AS subscription_status, s.stripe_subscription_id,
+         s.current_period_start, s.current_period_end,
          t.display_name AS tier_name,
          COALESCE((SELECT SUM(b.tokens_allocated) FROM token_balances b WHERE b.user_id = u.id), 0)::bigint AS tokens_allocated,
          COALESCE((SELECT SUM(b.tokens_used)      FROM token_balances b WHERE b.user_id = u.id), 0)::bigint AS tokens_used,
@@ -103,6 +112,9 @@ export async function listUsersForAdmin(opts: {
         isModerator: Boolean(r.is_moderator),
         isSuperadmin: Boolean(r.is_superadmin),
         tokenApproved: Boolean(r.token_approved),
+        accountStatus: parseAccountStatus(r.account_status),
+        currentPeriodStart: r.current_period_start ? new Date(r.current_period_start).toISOString() : null,
+        currentPeriodEnd: r.current_period_end ? new Date(r.current_period_end).toISOString() : null,
         createdAt: r.created_at ? new Date(r.created_at).toISOString() : null,
         lastLogin: r.last_login ? new Date(r.last_login).toISOString() : null,
         tierId: r.tier_id ?? null,
@@ -207,13 +219,26 @@ export async function adminChangeTier(
   return { ok: true };
 }
 
-/** Soft suspend / restore. token_approved=false stops the account spending tokens. */
-export async function adminSetSuspended(userId: string, suspended: boolean): Promise<void> {
+/**
+ * Set an account's status: 'active' | 'inactive' | 'suspended'.
+ *
+ * Replaces the old token_approved toggle, which was written here and read by nothing — suspending
+ * an account changed a boolean and left the person with full access.
+ *
+ * token_approved is kept in step so anything still reading it agrees with the status column.
+ *
+ * Billing is deliberately untouched. Suspension is reversible and the customer still wants the
+ * product afterwards; cancelling their subscription would destroy the thing they are coming back
+ * for, and re-subscribing is not something an admin can do on their behalf.
+ */
+export async function adminSetStatus(userId: string, status: AccountStatus): Promise<void> {
   const pool = getPostgresPool();
-  await pool.query(`UPDATE users SET token_approved = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [
-    userId,
-    !suspended,
-  ]);
+  await pool.query(
+    `UPDATE users
+        SET status = $2, token_approved = ($2 = 'active'), updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1`,
+    [userId, status]
+  );
 }
 
 /**

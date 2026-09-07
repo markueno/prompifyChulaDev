@@ -18,6 +18,14 @@ import { requireSuperadmin } from '~/lib/auth';
 import { PLANS, formatTokens } from '~/lib/billing/plans';
 import type { AdminUserRow } from '~/lib/admin/admin-db.server';
 import { classNames } from '~/utils/classNames';
+import { ACCOUNT_STATUSES, statusLabel, type AccountStatus } from '~/lib/account-status';
+
+/** Badge colour per status: green reads as fine, amber as paused, red as stopped. */
+const STATUS_BADGE: Record<AccountStatus, string> = {
+  active: 'bg-green-500/15 text-green-600 dark:text-green-300',
+  inactive: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  suspended: 'bg-red-500/15 text-red-600 dark:text-red-300',
+};
 import landingStyles from '~/styles/landing.css?url';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -118,7 +126,7 @@ export default function AdminConsole() {
   const totals = useMemo(
     () => ({
       users: total,
-      suspended: users.filter(u => !u.tokenApproved).length,
+      restricted: users.filter(u => u.accountStatus !== 'active').length,
       paying: users.filter(u => u.stripeSubscriptionId).length,
     }),
     [users, total]
@@ -138,7 +146,7 @@ export default function AdminConsole() {
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-bolt-elements-textPrimary">Admin</h1>
             <p className="mt-1 text-sm text-bolt-elements-textSecondary">
-              {totals.users} users · {totals.paying} on Stripe · {totals.suspended} suspended
+              {totals.users} users · {totals.paying} on Stripe · {totals.restricted} restricted
             </p>
           </div>
 
@@ -162,6 +170,7 @@ export default function AdminConsole() {
                 <tr className="border-b border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 text-left">
                   <th className="px-4 py-2.5 font-medium text-bolt-elements-textSecondary">Email</th>
                   <th className="px-4 py-2.5 font-medium text-bolt-elements-textSecondary">Plan</th>
+                  <th className="px-4 py-2.5 font-medium text-bolt-elements-textSecondary">Renews</th>
                   <th className="px-4 py-2.5 font-medium text-bolt-elements-textSecondary">Tokens left</th>
                   <th className="px-4 py-2.5 font-medium text-bolt-elements-textSecondary">Projects</th>
                   <th className="px-4 py-2.5 font-medium text-bolt-elements-textSecondary">Joined</th>
@@ -207,6 +216,15 @@ export default function AdminConsole() {
                         {u.stripeSubscriptionId && (
                           <span className="ml-1.5 text-xs text-bolt-elements-textTertiary">(Stripe)</span>
                         )}
+                        {u.subscriptionStatus && u.subscriptionStatus !== 'active' && (
+                          <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
+                            {u.subscriptionStatus}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-bolt-elements-textSecondary">
+                        {/* Renewal date, i.e. when the next payment is taken. Blank on the trial. */}
+                        {u.currentPeriodEnd ? formatDate(u.currentPeriodEnd) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-bolt-elements-textSecondary">
                         {formatTokens(u.tokensRemaining)}
@@ -217,12 +235,10 @@ export default function AdminConsole() {
                         <span
                           className={classNames(
                             'rounded-full px-2 py-0.5 text-xs font-medium',
-                            u.tokenApproved
-                              ? 'bg-green-500/15 text-green-600 dark:text-green-300'
-                              : 'bg-red-500/15 text-red-600 dark:text-red-300'
+                            STATUS_BADGE[u.accountStatus]
                           )}
                         >
-                          {u.tokenApproved ? 'Active' : 'Suspended'}
+                          {statusLabel(u.accountStatus)}
                         </span>
                       </td>
                     </tr>
@@ -355,25 +371,46 @@ export default function AdminConsole() {
                 Account
               </h3>
 
-              <button
-                disabled={busy || selected.id === admin.id}
-                onClick={() =>
-                  void runAction(
-                    { action: 'setSuspended', userId: selected.id, suspended: selected.tokenApproved },
-                    selected.tokenApproved ? 'Account suspended' : 'Account restored'
-                  )
-                }
-                className="mb-4 w-full rounded-lg border border-bolt-elements-borderColor px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-1 disabled:opacity-40"
-              >
-                {selected.tokenApproved ? 'Suspend account' : 'Restore account'}
-              </button>
+              <div className="mb-2 grid grid-cols-3 gap-1.5">
+                {ACCOUNT_STATUSES.map(st => (
+                  <button
+                    key={st}
+                    disabled={busy || selected.accountStatus === st || (st !== 'active' && selected.id === admin.id)}
+                    onClick={() =>
+                      void runAction(
+                        { action: 'setStatus', userId: selected.id, status: st },
+                        `Account set to ${statusLabel(st).toLowerCase()}`
+                      )
+                    }
+                    className={classNames(
+                      'rounded-lg border px-2 py-2 text-xs font-medium transition-colors disabled:opacity-40',
+                      selected.accountStatus === st
+                        ? 'border-accent-500 bg-accent-500/15 text-accent-500'
+                        : 'border-bolt-elements-borderColor text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-1'
+                    )}
+                  >
+                    {statusLabel(st)}
+                  </button>
+                ))}
+              </div>
+              <p className="mb-4 text-xs text-bolt-elements-textTertiary">
+                Inactive and suspended accounts can still sign in and see their work, but cannot prompt. Suspended also
+                blocks password reset. Neither touches their Stripe subscription.
+              </p>
+
+              {(selected.currentPeriodStart || selected.currentPeriodEnd) && (
+                <p className="mb-4 text-xs text-bolt-elements-textTertiary">
+                  Billing period {selected.currentPeriodStart ? formatDate(selected.currentPeriodStart) : '—'} &rarr;{' '}
+                  {selected.currentPeriodEnd ? formatDate(selected.currentPeriodEnd) : '—'}
+                </p>
+              )}
 
               {selected.id !== admin.id && (
                 <>
                   <p className="mb-2 text-xs text-bolt-elements-textTertiary">
-                    Deleting removes the account and everything it owns — chats, projects, balances. This cannot be
-                    undone. Type <span className="font-mono text-bolt-elements-textPrimary">{selected.email}</span> to
-                    confirm.
+                    Deleting signs the account out everywhere and blocks it from signing in or re-registering. Chats,
+                    projects and billing history are retained. Type{' '}
+                    <span className="font-mono text-bolt-elements-textPrimary">{selected.email}</span> to confirm.
                   </p>
                   <input
                     type="text"

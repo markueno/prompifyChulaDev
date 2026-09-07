@@ -18,11 +18,13 @@ import {
   getTokenBalanceRemainingForCompany,
   getCompanyIdForChat,
   getCompanyMember,
+  getUserStatus,
 } from '~/lib/database';
 import { personalCompanyId } from '~/lib/database-postgresql';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import { getTrialStatusForCompany } from '~/lib/billing/billing-db.server';
 import { FREE_TIER_ID, TRIAL_PROMPT_LIMIT } from '~/lib/billing/plans';
+import { canPrompt, parseAccountStatus, statusNotice } from '~/lib/account-status';
 
 export async function action(args: ActionFunctionArgs) {
   return chatAction(args);
@@ -85,6 +87,37 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
    * Exempt: admin bypass / disabled-auth mode and moderators (unlimited), and anonymous
    * requests (handled above).
    */
+  /*
+   * Account status gate. An inactive or suspended account cannot prompt regardless of what it has
+   * paid for or how much trial it has left.
+   *
+   * Deliberately OUTSIDE the try/catch below, which fails open so a metering hiccup can't block
+   * paying customers. That is the right call for billing and the wrong one for a restriction:
+   * a gate an admin applied must not be undone by a transient error. `getUserStatus` swallows its
+   * own database errors and reports 'active', so the fail-open decision lives in exactly one
+   * documented place rather than being an accident of control flow.
+   *
+   * Read per request rather than from the JWT, so suspending someone takes effect on their very
+   * next prompt instead of whenever their token happens to expire.
+   */
+  if (user?.id && user.id !== 'admin-bypass' && !isAuthDisabled(context)) {
+    const accountStatus = parseAccountStatus(await getUserStatus(user.id));
+
+    if (!canPrompt(accountStatus)) {
+      const notice = statusNotice(accountStatus);
+
+      return json(
+        {
+          message: notice?.body ?? 'Your account cannot send prompts right now.',
+          title: notice?.title,
+          code: 'account_restricted',
+          accountStatus,
+        },
+        { status: 403 }
+      );
+    }
+  }
+
   if (user?.id && user.id !== 'admin-bypass' && !user.isModerator && !isAuthDisabled(context)) {
     try {
       const personal = personalCompanyId(user.id);

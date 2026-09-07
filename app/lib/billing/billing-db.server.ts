@@ -173,6 +173,42 @@ export async function getTrialStatusForCompany(
   return { tierId: row.tier_id as string, promptsUsed: Number(row.trial_prompts_used) };
 }
 
+/**
+ * Record a paid invoice.
+ *
+ * The `payments` table has existed since the original schema but nothing ever wrote to it, so the
+ * admin console had no payment history to show at all. Keyed on the Stripe invoice id so webhook
+ * retries — which Stripe does routinely — cannot produce duplicate rows.
+ *
+ * Only builds history from now on; invoices paid before this shipped are recoverable only from
+ * Stripe itself.
+ */
+export async function recordPayment(params: {
+  userId: string;
+  amountCents: number;
+  currency: string;
+  stripeInvoiceId: string;
+  stripeSubscriptionId: string | null;
+  tokens: number | null;
+}): Promise<void> {
+  const pool = getPostgresPool();
+  await pool.query(
+    `INSERT INTO payments
+       (id, user_id, type, amount_cents, currency, tokens, stripe_invoice_id, stripe_subscription_id, status)
+     VALUES ($1, $2, 'subscription', $3, $4, $5, $6, $7, 'succeeded')
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      `pay_${params.stripeInvoiceId}`,
+      params.userId,
+      params.amountCents,
+      params.currency,
+      params.tokens,
+      params.stripeInvoiceId,
+      params.stripeSubscriptionId,
+    ]
+  );
+}
+
 /** Expire a workspace's still-active tier balances (on cancellation). Top-ups are kept. */
 export async function expireActiveTierBalances(companyId: string): Promise<void> {
   const pool = getPostgresPool();

@@ -310,6 +310,42 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
 CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
 
+/*
+ * Account status. Governs what a signed-in account may actually do:
+ *
+ *   active     — full access.
+ *   inactive   — may sign in and see their work, may not prompt. Password reset still works.
+ *   suspended  — may sign in and see their work, may not prompt, may not reset their password.
+ *
+ * Deletion is deliberately NOT a status: it lives on deleted_at, so "is this account gone" stays
+ * a separate question from "what is this account allowed to do".
+ *
+ * Suspension never touches billing. A suspended customer keeps their subscription because
+ * suspension is reversible and they still want the product afterwards — cancelling their Stripe
+ * plan to punish them would destroy the thing they are coming back for.
+ */
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+
+/*
+ * token_approved was the previous, unenforced suspension flag — written by the admin console and
+ * read by nothing. Carry its intent across so accounts an admin already suspended stay suspended
+ * now that the status is actually enforced. Runs once: afterwards no row matches.
+ */
+UPDATE users SET status = 'suspended' WHERE token_approved = FALSE AND status = 'active';
+
+/*
+ * ADD CONSTRAINT has no IF NOT EXISTS, and this file re-runs on every boot — hence the guard.
+ */
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_users_status') THEN
+        ALTER TABLE users ADD CONSTRAINT chk_users_status
+            CHECK (status IN ('active', 'inactive', 'suspended'));
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+
 -- Must stay in sync with app/lib/billing/plans.ts
 INSERT INTO subscription_tiers (id, name, display_name, price_cents, limits, sort_order)
 VALUES

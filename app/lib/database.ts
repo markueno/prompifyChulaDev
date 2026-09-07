@@ -15,6 +15,7 @@ import {
   getUserByResetTokenPostgres,
   setPasswordFromResetTokenPostgres,
   updateUserPasswordPostgres,
+  getUserStatusPostgres,
   updateLoginAttemptsPostgres,
   resetLoginAttemptsPostgres,
   logEmailPostgres,
@@ -368,6 +369,15 @@ export async function setPasswordFromResetToken(token: string, passwordHash: str
   }
 
   return false;
+}
+
+/** Current account status ('active' | 'inactive' | 'suspended'), or null if the account is gone. */
+export async function getUserStatus(userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getUserStatusPostgres(userId);
+  }
+
+  return 'active';
 }
 
 /** Set a signed-in user's password (authorised by session + current password, not by a token). */

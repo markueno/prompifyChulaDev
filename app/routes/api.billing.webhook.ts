@@ -4,6 +4,7 @@ import { FREE_TIER_ID, getPlan } from '~/lib/billing/plans';
 import { verifyStripeSignature, tierIdForPriceId, retrieveSubscription } from '~/lib/billing/stripe.server';
 import {
   grantTierTokens,
+  recordPayment,
   upsertSubscription,
   expireActiveTierBalances,
   setCompanySeats,
@@ -177,6 +178,24 @@ async function handleInvoicePaid(invoice: any): Promise<void> {
     periodStart,
     periodEnd,
   });
+
+  /*
+   * History only — the tokens above are what the customer actually receives. A failure to log the
+   * payment must not fail the webhook, or Stripe retries an invoice whose tokens were already
+   * granted and the idempotency key silently swallows the re-grant.
+   */
+  try {
+    await recordPayment({
+      userId,
+      amountCents: Number(invoice.amount_paid ?? invoice.total ?? 0),
+      currency: (invoice.currency as string) || 'usd',
+      stripeInvoiceId: invoice.id as string,
+      stripeSubscriptionId: subscriptionId,
+      tokens: plan.tokens,
+    });
+  } catch (e) {
+    logger.error(`Failed to record payment for invoice ${invoice.id}`, e);
+  }
 
   logger.info(`Granted ${plan.tokens} ${plan.displayName} tokens to workspace ${companyId} (invoice ${invoice.id})`);
 }
