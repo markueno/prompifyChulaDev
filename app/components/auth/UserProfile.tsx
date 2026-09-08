@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Dropdown, DropdownItem } from '~/components/ui/Dropdown';
 import { ChangePasswordDialog } from '~/components/auth/ChangePasswordDialog';
 import type { User } from '~/lib/auth';
-import { controlPanelOpenStore, controlPanelInitialTabStore } from '~/lib/stores/settings';
+import { controlPanelOpenStore } from '~/lib/stores/settings';
 import { profileStore } from '~/lib/stores/profile';
 
 interface UserProfileProps {
@@ -64,28 +64,24 @@ export function UserProfile({ user }: UserProfileProps) {
           </a>
         )}
 
+        {/* Universal settings page — accessible to ALL users, not just moderators. */}
+        <a
+          href="/app/settings"
+          className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"
+        >
+          <div className="i-ph:gear text-lg" />
+          Settings
+        </a>
+
         {user.isModerator && (
-          <>
-            <button
-              type="button"
-              className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"
-              onClick={() => controlPanelOpenStore.set(true)}
-            >
-              <div className="i-ph:gear text-lg" />
-              Settings
-            </button>
-            <button
-              type="button"
-              className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"
-              onClick={() => {
-                controlPanelInitialTabStore.set('profile');
-                controlPanelOpenStore.set(true);
-              }}
-            >
-              <div className="i-ph:user text-lg" />
-              Profile
-            </button>
-          </>
+          <button
+            type="button"
+            className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"
+            onClick={() => controlPanelOpenStore.set(true)}
+          >
+            <div className="i-ph:wrench text-lg" />
+            Control Panel
+          </button>
         )}
 
         <div className="my-1 border-t border-[#fed7aa]/40 dark:border-[#423322]" />
