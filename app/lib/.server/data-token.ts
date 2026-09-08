@@ -36,10 +36,19 @@ export interface DataTokenClaims {
 }
 
 /**
- * Issue a short-lived data token scoped to (userId, chatId). Called by
- * `POST /api/data/token` after validating the session JWT.
+ * Issue a data token scoped to (userId, chatId). Called by `POST /api/data/token`
+ * after validating the session JWT, and by the deploy route when injecting
+ * env-config.js into a deployed app.
+ *
+ * The default TTL is 15 minutes (for in-IDE preview token refresh). For shared
+ * deploys, pass '7d' to issue a 7-day token so the shared URL stays functional.
  */
-export function issueDataApiToken(userId: string, chatId: string, context?: Record<string, unknown>): string {
+export function issueDataApiToken(
+  userId: string,
+  chatId: string,
+  context?: Record<string, unknown>,
+  ttl?: string
+): string {
   const secret = getSecret(context);
 
   return jwt.sign(
@@ -49,7 +58,7 @@ export function issueDataApiToken(userId: string, chatId: string, context?: Reco
       role: 'data_proxy',
     },
     secret,
-    { expiresIn: DATA_TOKEN_TTL_SECONDS, issuer: ISSUER }
+    { expiresIn: (ttl ?? DATA_TOKEN_TTL_SECONDS) as any, issuer: ISSUER }
   );
 }
 

@@ -11,14 +11,16 @@ interface DeployRequestBody {
   chatId: string;
   projectId?: string;
   companyId?: string;
+  share?: boolean;
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
-    const { siteId, files, token, chatId, projectId, companyId } = (await request.json()) as DeployRequestBody & {
-      token: string;
-    };
+    const { siteId, files, token, chatId, projectId, companyId, share } =
+      (await request.json()) as DeployRequestBody & {
+        token: string;
+      };
 
     if (!token) {
       return json({ error: 'Not connected to Netlify' }, { status: 401 });
@@ -113,9 +115,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     /*
      * Inject env-config.js so deployed apps connect to the Prompify data proxy
-     * (self-hosted, no Supabase). The token is short-lived (15 min) — a proper
-     * refresh-on-401 flow is a hardening task; v1 covers the in-IDE preview
-     * (same-origin, cookie auth) and short deploy demos.
+     * (self-hosted, no Supabase). The token is short-lived (15 min) for normal
+     * deploys — a proper refresh-on-401 flow is a hardening task. When share:true
+     * is passed (the user explicitly clicked "Share"), issue a 7-day token so the
+     * shared URL stays functional for more than a quick demo.
      */
     const cfEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
 
@@ -123,18 +126,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
       const publicUrl = (cfEnv.PROMPIFY_PUBLIC_URL as string) || process.env.PROMPIFY_PUBLIC_URL || '';
       const apiUrl = publicUrl ? `${publicUrl.replace(/\/$/, '')}/api/data` : '/api/data';
 
-      /*
-       * Best-effort token issuance; when no DATA_API_SECRET/JWT_SECRET is set or
-       * the user is unauthenticated (optionalAuth), the deployed app falls back
-       * to the session-cookie path (works only same-origin).
-       */
       let token = '';
 
       try {
         const envForToken = cfEnv as Record<string, unknown>;
 
         if (user?.id) {
-          token = issueDataApiToken(user.id, chatId, envForToken);
+          token = issueDataApiToken(user.id, chatId, envForToken, share ? '7d' : undefined);
         }
       } catch {
         // token stays empty — the in-IDE preview still works via cookie

@@ -24,6 +24,8 @@ import { IconButton } from '~/components/ui/IconButton';
 import { PanelHeaderButton } from '~/components/ui/PanelHeaderButton';
 import { Slider, type SliderOptions } from '~/components/ui/Slider';
 import { workbenchStore, type WorkbenchViewType } from '~/lib/stores/workbench';
+import { netlifyConnection } from '~/lib/stores/netlify';
+import { chatId as chatIdStore } from '~/lib/persistence';
 import { classNames } from '~/utils/classNames';
 import { cubicEasingFn } from '~/utils/easings';
 import { renderLogger } from '~/utils/logger';
@@ -296,6 +298,7 @@ export const Workbench = memo(
     const [isReviewing, setIsReviewing] = useState(false);
     const [fileHistory, setFileHistory] = useState<Record<string, FileHistory>>({});
     const [showShareMenu, setShowShareMenu] = useState(false);
+    const [isSharing, setIsSharing] = useState(false);
 
     // const modifiedFiles = Array.from(useStore(workbenchStore.unsavedFiles).keys());
 
@@ -450,6 +453,67 @@ export const Workbench = memo(
       }
     }, []);
 
+    const handleSharePreview = useCallback(async () => {
+      const connection = netlifyConnection.get();
+      const currentChatId = chatIdStore.get();
+
+      if (!connection?.user || !connection.token) {
+        toast.error('Connect Netlify in Settings → Integrations to share your app');
+        return;
+      }
+
+      if (!currentChatId) {
+        toast.error('No active project to share');
+        return;
+      }
+
+      setIsSharing(true);
+
+      try {
+        const fileMap = workbenchStore.files.get();
+        const files: Record<string, string> = {};
+
+        for (const [path, entry] of Object.entries(fileMap)) {
+          if (entry?.type === 'file' && entry.content !== undefined) {
+            files[path] = entry.content;
+          }
+        }
+
+        const res = await fetch('/api/deploy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files, token: connection.token, chatId: currentChatId, share: true }),
+        });
+
+        if (!res.ok) {
+          const err = (await res.json()) as { error?: string };
+          throw new Error(err.error || `Deploy failed (${res.status})`);
+        }
+
+        const data = (await res.json()) as { deploy?: { url?: string } };
+        const url = data.deploy?.url;
+
+        if (url) {
+          await navigator.clipboard.writeText(url);
+          toast.success(
+            <div>
+              Share link copied to clipboard!{' '}
+              <a href={url} target="_blank" rel="noopener noreferrer" className="underline">
+                Open
+              </a>
+            </div>
+          );
+        } else {
+          toast.success('App deployed, but no URL was returned');
+        }
+      } catch (error) {
+        console.error('Share error:', error);
+        toast.error(error instanceof Error ? error.message : 'Failed to share app');
+      } finally {
+        setIsSharing(false);
+      }
+    }, []);
+
     const handleSelectFile = useCallback((filePath: string) => {
       workbenchStore.setSelectedFile(filePath);
       workbenchStore.currentView.set('diff');
@@ -575,6 +639,18 @@ export const Workbench = memo(
                         >
                           <div className="i-ph:git-branch" />
                           Push to GitHub
+                        </PanelHeaderButton>
+                        <PanelHeaderButton
+                          className="mr-1 text-sm whitespace-nowrap"
+                          onClick={handleSharePreview}
+                          disabled={isSharing}
+                        >
+                          {isSharing ? (
+                            <div className="i-ph:spinner animate-spin" />
+                          ) : (
+                            <div className="i-ph:share-network" />
+                          )}
+                          {isSharing ? 'Sharing…' : 'Deploy & Copy Link'}
                         </PanelHeaderButton>
                       </motion.div>
                     </>
