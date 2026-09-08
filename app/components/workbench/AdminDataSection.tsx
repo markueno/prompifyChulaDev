@@ -24,6 +24,8 @@ import {
   updateProxyRow,
   deleteProxyRow,
   dropProxyTable,
+  exportTableData,
+  generateSampleRows,
 } from '~/lib/stores/data-proxy-client';
 
 /** Supabase logo mark (green). Used as a logo-only affordance (no text). */
@@ -316,6 +318,8 @@ export const AdminDataSection = memo(() => {
 
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [exporting, setExporting] = useState<'csv' | 'xlsx' | null>(null);
+  const [generating, setGenerating] = useState(false);
 
   const [rowModalMode, setRowModalMode] = useState<'add' | 'edit' | null>(null);
   const [editingRow, setEditingRow] = useState<SupabaseRow | null>(null);
@@ -756,6 +760,48 @@ export const AdminDataSection = memo(() => {
     }
   };
 
+  const handleExport = async (format: 'csv' | 'xlsx') => {
+    if (!currentChatId || !selectedTable) {
+      return;
+    }
+
+    setExporting(format);
+
+    try {
+      const result = await exportTableData(currentChatId, selectedTable.name, format);
+
+      if (result.success) {
+        toast.success(`Exported ${selectedTable.name} as ${format.toUpperCase()}`);
+      } else {
+        toast.error(result.error || `Export failed`);
+      }
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const handleGenerateSample = async () => {
+    if (!currentChatId || !selectedTable) {
+      return;
+    }
+
+    setGenerating(true);
+
+    try {
+      const result = await generateSampleRows(currentChatId, selectedTable.name);
+
+      if (result.success) {
+        toast.success(`Generated ${result.inserted ?? 0} sample rows`);
+        doLoadData(selectedTable, 0, sortColumn, sortAsc);
+        refreshTables();
+      } else {
+        toast.error(result.error || 'Generate failed');
+      }
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const totalPages = Math.ceil(totalRows / PAGE_SIZE);
 
   // ── Loading step (checking server config) ─────────────────────────────────
@@ -1041,6 +1087,39 @@ export const AdminDataSection = memo(() => {
             <div className="i-ph:plus w-4 h-4" />
             Add Row
           </button>
+          {totalRows === 0 && currentChatId && (
+            <button
+              onClick={handleGenerateSample}
+              disabled={generating}
+              title="Generate realistic sample data with AI"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <div className={classNames('i-ph:wand-magic-sparkles w-4 h-4', generating ? 'animate-pulse' : '')} />
+              {generating ? 'Generating…' : 'Generate Data'}
+            </button>
+          )}
+          {totalRows > 0 && currentChatId && (
+            <>
+              <button
+                onClick={() => handleExport('csv')}
+                disabled={exporting !== null}
+                title="Export as CSV"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <div className={classNames('i-ph:file-csv w-4 h-4', exporting === 'csv' ? 'animate-spin' : '')} />
+                CSV
+              </button>
+              <button
+                onClick={() => handleExport('xlsx')}
+                disabled={exporting !== null}
+                title="Export as XLSX"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <div className={classNames('i-ph:file-xls w-4 h-4', exporting === 'xlsx' ? 'animate-spin' : '')} />
+                XLSX
+              </button>
+            </>
+          )}
         </div>
       </div>
 

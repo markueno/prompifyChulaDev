@@ -7,6 +7,7 @@ import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
 import type { PreviewsStore } from '~/lib/stores/previews';
+import { chatId } from '~/lib/persistence';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -210,6 +211,11 @@ export class ActionRunner {
 
           return;
         }
+        case 'data': {
+          this.#hadProductiveAction = true;
+          await this.#runDataAction(action);
+          break;
+        }
       }
 
       this.#updateAction(actionId, {
@@ -236,6 +242,115 @@ export class ActionRunner {
 
       // re-throw the error to be caught in the promise chain
       throw error;
+    }
+  }
+
+  /*
+   * Data action — provisions Postgres tables + seeds sample rows via the
+   * Prompify data proxy. Runs from the Prompify browser tab (session cookie
+   * auth), NOT from the WebContainer. The AI emits a JSON body with tables[]
+   * (each: tableName, columns[], sampleRows[]). For each table:
+   *   1. POST /api/data/:chatId/schema  — creates the table (idempotent).
+   *   2. POST /api/data/:chatId/:table/seed — bulk-inserts sample rows.
+   *
+   * Must run BEFORE type="start" so tables exist when the dev server boots.
+   * Idempotent: schema POST uses ON CONFLICT DO NOTHING; seed is a no-op if
+   * the table already has rows (the AI checks row_count in the ## App Database
+   * section on subsequent turns).
+   */
+  async #runDataAction(action: ActionState) {
+    if (action.type !== 'data') {
+      unreachable('Expected data action');
+    }
+
+    const id = chatId.get();
+
+    if (!id) {
+      logger.warn('data action: chatId not set — skipping table provisioning');
+
+      return;
+    }
+
+    let payload: { tables?: Array<{ tableName: string; columns?: unknown[]; sampleRows?: Record<string, unknown>[] }> };
+
+    try {
+      payload = JSON.parse(action.content);
+    } catch {
+      logger.error('data action: invalid JSON body');
+
+      return;
+    }
+
+    const tables = Array.isArray(payload.tables) ? payload.tables : [];
+
+    if (tables.length === 0) {
+      logger.warn('data action: no tables in payload');
+
+      return;
+    }
+
+    for (const table of tables) {
+      if (!table.tableName || !Array.isArray(table.columns) || table.columns.length === 0) {
+        logger.warn(`data action: skipping invalid table definition for "${table.tableName}"`);
+
+        continue;
+      }
+
+      /*
+       * 1. Create the table (idempotent — ON CONFLICT DO NOTHING on the
+       *    registry). The schema endpoint takes { tableName, columns: [{name,
+       *    type, nullable, defaultValue?}] }.
+       */
+      try {
+        const schemaRes = await fetch(`/api/data/${encodeURIComponent(id)}/schema`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tableName: table.tableName, columns: table.columns }),
+        });
+
+        if (!schemaRes.ok) {
+          const err = await schemaRes.text();
+          logger.warn(`data action: schema creation for "${table.tableName}" failed (${schemaRes.status}): ${err}`);
+
+          continue;
+        }
+
+        logger.info(`data action: created table "${table.tableName}"`);
+      } catch (err) {
+        logger.error(`data action: schema fetch failed for "${table.tableName}":`, err);
+
+        continue;
+      }
+
+      /*
+       * 2. Seed sample rows (if any). The seed endpoint accepts {rows: [...]}
+       *    and bulk-inserts in one transaction.
+       */
+      const sampleRows = Array.isArray(table.sampleRows) ? table.sampleRows : [];
+
+      if (sampleRows.length === 0) {
+        continue;
+      }
+
+      try {
+        const seedRes = await fetch(`/api/data/${encodeURIComponent(id)}/${encodeURIComponent(table.tableName)}/seed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows: sampleRows }),
+        });
+
+        if (!seedRes.ok) {
+          const err = await seedRes.text();
+          logger.warn(`data action: seed for "${table.tableName}" failed (${seedRes.status}): ${err}`);
+
+          continue;
+        }
+
+        const result = (await seedRes.json()) as { inserted?: number };
+        logger.info(`data action: seeded ${result.inserted ?? 0} rows into "${table.tableName}"`);
+      } catch (err) {
+        logger.error(`data action: seed fetch failed for "${table.tableName}":`, err);
+      }
     }
   }
 

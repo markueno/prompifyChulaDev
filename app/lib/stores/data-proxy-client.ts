@@ -222,3 +222,113 @@ export async function deleteProxyRow(
     return { success: false, error: err instanceof Error ? err.message : 'Delete failed' };
   }
 }
+
+/** POST /api/data/:chatId/:resource/seed — bulk-insert sample rows. */
+export async function seedProxyRows(
+  chatId: string,
+  table: string,
+  rows: Record<string, unknown>[]
+): Promise<{ success: boolean; inserted?: number; error?: string }> {
+  try {
+    const res = await fetch(`/api/data/${encodeURIComponent(chatId)}/${encodeURIComponent(table)}/seed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows }),
+    });
+
+    const json = (await res.json()) as { inserted?: number; error?: string };
+
+    if (!res.ok) {
+      return { success: false, error: json.error || `HTTP ${res.status}` };
+    }
+
+    return { success: true, inserted: json.inserted };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Seed failed' };
+  }
+}
+
+/** POST /api/data/:chatId/:resource/generate — LLM-generated sample rows. */
+export async function generateSampleRows(
+  chatId: string,
+  table: string
+): Promise<{ success: boolean; inserted?: number; error?: string }> {
+  try {
+    const res = await fetch(`/api/data/${encodeURIComponent(chatId)}/${encodeURIComponent(table)}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const json = (await res.json()) as { inserted?: number; error?: string };
+
+    if (!res.ok) {
+      return { success: false, error: json.error || `HTTP ${res.status}` };
+    }
+
+    return { success: true, inserted: json.inserted };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Generate failed' };
+  }
+}
+
+/**
+ * Export a table's rows as CSV or XLSX. Fetches up to 1000 rows (the proxy's
+ * MAX_ROWS cap), transforms client-side, and triggers a download. No server
+ * round-trip for the transformation — papaparse (CSV) and exceljs (XLSX) are
+ * already production deps used by ImportDataModal.
+ */
+export async function exportTableData(
+  chatId: string,
+  table: string,
+  format: 'csv' | 'xlsx'
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Fetch all rows (up to 1000 — the proxy's cap).
+    const { data, error } = await fetchProxyRows(chatId, table, 0, 1000);
+
+    if (error) {
+      return { success: false, error };
+    }
+
+    if (!data || data.length === 0) {
+      return { success: false, error: 'No rows to export' };
+    }
+
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const filename = `${table}-${dateStr}.${format}`;
+
+    if (format === 'csv') {
+      const papaparse = (await import('papaparse')).default;
+      const csv = papaparse.unparse(data);
+      downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), filename);
+    } else {
+      const exceljs = (await import('exceljs')).default;
+      const workbook = new exceljs.Workbook();
+      const sheet = workbook.addWorksheet(table);
+      const headers = Object.keys(data[0]);
+      sheet.columns = headers.map(h => ({ header: h, key: h }));
+      sheet.addRows(data);
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      downloadBlob(
+        new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        filename
+      );
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Export failed' };
+  }
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
