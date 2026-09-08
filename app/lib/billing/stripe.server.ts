@@ -152,14 +152,18 @@ export function resolvePriceId(tierId: string, interval: BillingInterval): strin
   return (envName && process.env[envName]) || null;
 }
 
-/** Reverse map: a Stripe Price ID -> our tierId. Used by the webhook. */
-export function tierIdForPriceId(priceId: string): string | null {
+/** Reverse map: a Stripe Price ID -> {tierId, interval}. Used by the webhook. */
+export function tierIdForPriceId(priceId: string): { tierId: string; interval: 'month' | 'year' } | null {
   for (const plan of PLANS) {
     const monthly = plan.stripePriceEnvMonthly && process.env[plan.stripePriceEnvMonthly];
     const annual = plan.stripePriceEnvAnnual && process.env[plan.stripePriceEnvAnnual];
 
-    if (priceId === monthly || priceId === annual) {
-      return plan.tierId;
+    if (priceId === monthly) {
+      return { tierId: plan.tierId, interval: 'month' };
+    }
+
+    if (priceId === annual) {
+      return { tierId: plan.tierId, interval: 'year' };
     }
   }
 

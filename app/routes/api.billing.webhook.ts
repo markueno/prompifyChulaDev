@@ -129,7 +129,17 @@ async function handleInvoicePaid(invoice: any): Promise<void> {
   const line = lines.find(l => l?.price?.recurring) ?? lines[0];
   const priceId = line?.price?.id as string | undefined;
 
-  let tierId = priceId ? tierIdForPriceId(priceId) : null;
+  let tierId: string | null = null;
+  let billingInterval: 'month' | 'year' | null = null;
+
+  if (priceId) {
+    const resolved = tierIdForPriceId(priceId);
+
+    if (resolved) {
+      tierId = resolved.tierId;
+      billingInterval = resolved.interval;
+    }
+  }
 
   if (!tierId) {
     try {
@@ -167,6 +177,7 @@ async function handleInvoicePaid(invoice: any): Promise<void> {
     periodEnd,
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscriptionId,
+    billingInterval,
   });
   await setCompanySeats(companyId, plan.seats);
   await grantTierTokens({
@@ -210,7 +221,9 @@ async function handleSubscriptionUpdated(subscription: any): Promise<void> {
 
   const { companyId, userId } = resolved;
   const priceId = subscription.items?.data?.[0]?.price?.id as string | undefined;
-  const tierId = (priceId && tierIdForPriceId(priceId)) || (subscription.metadata?.tierId as string) || FREE_TIER_ID;
+  const priceResolved = priceId ? tierIdForPriceId(priceId) : null;
+  const tierId = priceResolved?.tierId || (subscription.metadata?.tierId as string) || FREE_TIER_ID;
+  const billingInterval = priceResolved?.interval ?? null;
   const plan = getPlan(tierId);
 
   await upsertSubscription({
@@ -222,6 +235,7 @@ async function handleSubscriptionUpdated(subscription: any): Promise<void> {
     periodEnd: unixToDate(subscription.current_period_end),
     stripeCustomerId: customerId,
     stripeSubscriptionId: subscription.id,
+    billingInterval,
   });
 
   if (plan) {

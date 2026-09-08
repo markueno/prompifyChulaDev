@@ -299,6 +299,22 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS carryover_warnings_sent INTEG
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_prompts_used INTEGER NOT NULL DEFAULT 0;
 
 /*
+ * Billing interval (monthly vs annual). The Stripe webhook resolves the tier from the price
+ * id; without this column the interval is lost the moment the webhook writes the row, so the
+ * pricing page can't tell whether the customer is on monthly or annual — both cards show
+ * "Current plan." NULL for trial/legacy rows; the pricing page treats NULL as "match either."
+ */
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_interval TEXT;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_subscriptions_billing_interval') THEN
+        ALTER TABLE subscriptions ADD CONSTRAINT chk_subscriptions_billing_interval
+            CHECK (billing_interval IS NULL OR billing_interval IN ('month', 'year'));
+    END IF;
+END $$;
+
+/*
  * Soft delete. Deleting an account sets this instead of removing the row, because every
  * user-referencing table is ON DELETE CASCADE — a hard DELETE took the person's chats, projects,
  * token history and billing records with it, irreversibly.

@@ -45,6 +45,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   ).map(p => p.tierId);
 
   const currentTierId = (sub?.tier_id as string) ?? FREE_TIER_ID;
+  const currentInterval = (sub?.billing_interval as 'month' | 'year' | null) ?? null;
 
   return json({
     /*
@@ -56,6 +57,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     /* Only purchasable plans are listed — the trial is what you are on, never something you buy. */
     plans: PAID_PLANS,
     currentTierId,
+    currentInterval,
     subscriptionStatus: (sub?.status as string) ?? null,
     hasStripeCustomer: Boolean(sub?.stripe_customer_id),
     balance,
@@ -159,6 +161,7 @@ export default function Pricing() {
   const {
     plans,
     currentTierId,
+    currentInterval,
     balance,
     onTrial,
     trialPromptsLeft,
@@ -328,7 +331,7 @@ export default function Pricing() {
                 key={plan.tierId}
                 plan={plan}
                 interval={interval}
-                isCurrent={plan.tierId === currentTierId}
+                isCurrent={plan.tierId === currentTierId && (!currentInterval || currentInterval === interval)}
                 disabled={!stripeConfigured || busy}
                 pending={pendingTierId === plan.tierId}
                 purchasable={purchasableTierIds.includes(plan.tierId)}

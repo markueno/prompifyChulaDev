@@ -60,12 +60,13 @@ export async function upsertSubscription(params: {
   periodEnd?: Date | null;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
+  billingInterval?: 'month' | 'year' | null;
 }): Promise<void> {
   const pool = getPostgresPool();
   await pool.query(
     `INSERT INTO subscriptions
-       (id, user_id, company_id, tier_id, status, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (id, user_id, company_id, tier_id, status, current_period_start, current_period_end, stripe_customer_id, stripe_subscription_id, billing_interval)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      ON CONFLICT (company_id) DO UPDATE SET
        tier_id = EXCLUDED.tier_id,
        status = EXCLUDED.status,
@@ -73,6 +74,7 @@ export async function upsertSubscription(params: {
        current_period_end = COALESCE(EXCLUDED.current_period_end, subscriptions.current_period_end),
        stripe_customer_id = COALESCE(EXCLUDED.stripe_customer_id, subscriptions.stripe_customer_id),
        stripe_subscription_id = COALESCE(EXCLUDED.stripe_subscription_id, subscriptions.stripe_subscription_id),
+       billing_interval = COALESCE(EXCLUDED.billing_interval, subscriptions.billing_interval),
        updated_at = CURRENT_TIMESTAMP`,
     [
       crypto.randomUUID(),
@@ -84,6 +86,7 @@ export async function upsertSubscription(params: {
       params.periodEnd?.toISOString() ?? null,
       params.stripeCustomerId ?? null,
       params.stripeSubscriptionId ?? null,
+      params.billingInterval ?? null,
     ]
   );
 }
