@@ -110,14 +110,16 @@ export async function loadSnapshotVersion(chatId: string, versionNumber: number)
 export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
   const db = await openDatabase();
 
-  // Tier 1 — local cache. Instant restore, no server dependency.
-  if (db) {
-    const cached = await getSnapshot(db, chatId);
-
-    if (cached && cached.version !== null) {
-      return { manifest: cached.manifest, files: cached.files };
-    }
-  }
+  /*
+   * Always check the server's latest version first. The old code returned the
+   * IndexedDB cache unconditionally (cached.version !== null was always true),
+   * which meant a stale cache from a previous session was never replaced —
+   * the user saw the INITIAL version on refresh instead of the latest.
+   *
+   * Now: fetch the server's latest version, and use the cache only to skip blob
+   * downloads when the version matches. If the server is unreachable, fall back
+   * to the cache (offline best-effort).
+   */
 
   // Tier 2 — server manifest + presigned blob GETs.
   let payload: LatestVersionResponse;
@@ -126,18 +128,59 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
     const res = await fetch(`/api/chats/${chatId}/version/latest`);
 
     if (!res.ok) {
+      // Server error — fall back to cache if available.
+      if (db) {
+        const cached = await getSnapshot(db, chatId);
+
+        if (cached && cached.files) {
+          return { manifest: cached.manifest, files: cached.files };
+        }
+      }
+
       return null;
     }
 
     payload = (await res.json()) as LatestVersionResponse;
   } catch {
-    return null; // server unreachable — fall back to replay
+    // Server unreachable — fall back to cache if available.
+    if (db) {
+      const cached = await getSnapshot(db, chatId);
+
+      if (cached && cached.files) {
+        return { manifest: cached.manifest, files: cached.files };
+      }
+    }
+
+    return null; // server unreachable, no cache — fall back to replay
   }
 
   if (payload.version === null || !payload.manifest || !payload.urls) {
-    return null; // never saved, or malformed — fall back to replay
+    // No saved version on the server — fall back to cache (maybe a local-only session) or replay.
+    if (db) {
+      const cached = await getSnapshot(db, chatId);
+
+      if (cached && cached.files) {
+        return { manifest: cached.manifest, files: cached.files };
+      }
+    }
+
+    return null;
   }
 
+  /*
+   * Cache check: if the local cache matches the server's version, use the cached
+   * files (already downloaded) and skip the blob fetches entirely. This is the
+   * fast path — the cache is current, no need to re-download blobs.
+   */
+  if (db) {
+    const cached = await getSnapshot(db, chatId);
+
+    if (cached && cached.version === payload.version && cached.files) {
+      return { manifest: cached.manifest, files: cached.files };
+    }
+  }
+
+  // Cache is stale or missing — download blobs from the server.
   const { manifest, urls } = payload;
 
   // Download each unique blob once, in parallel (mirrors the Day-7 endpoint's presign fan-out).

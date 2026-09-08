@@ -2,7 +2,15 @@ import { acceptCompletion, autocompletion, closeBrackets } from '@codemirror/aut
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { bracketMatching, foldGutter, indentOnInput, indentUnit } from '@codemirror/language';
 import { searchKeymap } from '@codemirror/search';
-import { Compartment, EditorSelection, EditorState, StateEffect, StateField, type Extension } from '@codemirror/state';
+import {
+  Annotation,
+  Compartment,
+  EditorSelection,
+  EditorState,
+  StateEffect,
+  StateField,
+  type Extension,
+} from '@codemirror/state';
 import {
   drawSelection,
   dropCursor,
@@ -27,6 +35,14 @@ import { indentKeyBinding } from './indent';
 import { getLanguage } from './languages';
 
 const logger = createScopedLogger('CodeMirrorEditor');
+
+/*
+ * Tags dispatches that are programmatic (AI file writes, store syncs) so
+ * dispatchTransactions can skip the user-facing onChange callback. Without this,
+ * every AI file write re-enters the auto-save → scheduleSnapshotSave loop and
+ * creates a separate "Manual edit" version per file (BUG: 3 files = 3 versions).
+ */
+const programmaticChange = Annotation.define<boolean>();
 
 export interface EditorDocument {
   value: string;
@@ -177,7 +193,18 @@ export const CodeMirrorEditor = memo(
             newSelection !== previousSelection &&
             (newSelection === undefined || previousSelection === undefined || !newSelection.eq(previousSelection));
 
-          if (docRef.current && (transactions.some(transaction => transaction.docChanged) || selectionChanged)) {
+          /*
+           * Skip onChange for programmatic dispatches (AI file writes tagged with
+           * programmaticChange annotation). This prevents the auto-save feedback
+           * loop where each AI file write arms a separate "Manual edit" snapshot.
+           */
+          const isProgrammatic = transactions.some(t => t.annotation(programmaticChange));
+
+          if (
+            !isProgrammatic &&
+            docRef.current &&
+            (transactions.some(transaction => transaction.docChanged) || selectionChanged)
+          ) {
             onUpdate({
               selection: view.state.selection,
               content: view.state.doc.toString(),
@@ -390,6 +417,7 @@ function setEditorDocument(
 ) {
   if (doc.value !== view.state.doc.toString()) {
     view.dispatch({
+      annotations: programmaticChange.of(true),
       selection: { anchor: 0 },
       changes: {
         from: 0,
