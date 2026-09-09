@@ -159,27 +159,37 @@ export async function action(args: ActionFunctionArgs) {
     return json({ error: 'No user-defined columns to generate data for' }, { status: 400 });
   }
 
-  // Call the LLM. Uses the same server-side fetch pattern as /api/llmcall.
-  const env = getCtxEnv(args.context);
+  /*
+   * Call the LLM via the same /api/llmcall route that the template selector uses.
+   * This reuses the LLMManager's provider resolution (Qwen, Anthropic, etc.) instead
+   * of trying raw API keys that may not be configured on prod.
+   */
   const prompt = buildGeneratePrompt(table.logical_name, columns);
+  const origin = new URL(args.request.url).origin;
 
-  // Pick the first available provider key — mirrors how stream-text.ts picks providers.
-  const providerKey =
-    (env.ANTHROPIC_API_KEY as string) ||
-    (env.OPENAI_API_KEY as string) ||
-    (env.GROQ_API_KEY as string) ||
-    (env.OPEN_ROUTER_API_KEY as string) ||
-    (env.GOOGLE_GENERATIVE_AI_API_KEY as string);
+  let llmResponse: string | null = null;
 
-  if (!providerKey) {
-    return json({ error: 'No AI provider configured' }, { status: 500 });
+  try {
+    const llmRes = await fetch(`${origin}/api/llmcall`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: prompt,
+        system:
+          'You are a helpful assistant that generates realistic sample data for database tables. Always respond with valid JSON only.',
+      }),
+    });
+
+    if (llmRes.ok) {
+      const data = (await llmRes.json()) as { text?: string };
+      llmResponse = data.text ?? null;
+    }
+  } catch {
+    // fall through to the error below
   }
 
-  // Use OpenRouter or the first available — keep it simple, one call.
-  const llmResponse = await callLLM(env, prompt);
-
   if (!llmResponse) {
-    return json({ error: 'LLM call failed' }, { status: 500 });
+    return json({ error: 'LLM call failed — check that an AI provider is configured' }, { status: 500 });
   }
 
   const rows = parseRowsFromLLM(llmResponse);
@@ -246,105 +256,4 @@ export async function action(args: ActionFunctionArgs) {
   }
 
   return json({ inserted });
-}
-
-/**
- * Minimal LLM call — one completion, no streaming. Tries providers in order:
- * OpenAI-compatible (OpenRouter, Groq, Together, etc.), then Anthropic.
- * This is a one-off small call (a few hundred output tokens), so the
- * streaming machinery in stream-text.ts is overkill.
- */
-async function callLLM(env: Record<string, unknown>, prompt: string): Promise<string | null> {
-  // OpenAI-compatible endpoint (covers OpenAI, OpenRouter, Groq, Together, etc.)
-  const baseUrl =
-    (env.OPEN_ROUTER_API_BASE_URL as string) ||
-    (env.TOGETHER_API_BASE_URL as string) ||
-    (env.OPENAI_LIKE_API_BASE_URL as string) ||
-    'https://api.openai.com/v1';
-
-  const apiKey =
-    (env.OPEN_ROUTER_API_KEY as string) ||
-    (env.GROQ_API_KEY as string) ||
-    (env.TOGETHER_API_KEY as string) ||
-    (env.OPENAI_API_KEY as string) ||
-    (env.OPENAI_LIKE_API_KEY as string);
-
-  if (apiKey) {
-    const model =
-      (env.OPENAI_LIKE_MODEL_NAME as string) ||
-      (env.OPENAI_MODEL as string) ||
-      (env.GROQ_MODEL as string) ||
-      (env.OPEN_ROUTER_MODEL as string) ||
-      'gpt-4o-mini';
-
-    try {
-      const res = await fetch(`${baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are a helpful assistant that generates realistic sample data for database tables. Always respond with valid JSON only.',
-            },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.8,
-          max_tokens: 2000,
-        }),
-      });
-
-      if (res.ok) {
-        const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-        const content = data.choices?.[0]?.message?.content;
-
-        if (content) {
-          return content;
-        }
-      }
-    } catch {
-      // Fall through to Anthropic
-    }
-  }
-
-  // Anthropic fallback
-  const anthropicKey = env.ANTHROPIC_API_KEY as string;
-
-  if (anthropicKey) {
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: (env.ANTHROPIC_MODEL as string) || 'claude-3-5-haiku-20241022',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: prompt }],
-          system:
-            'You are a helpful assistant that generates realistic sample data for database tables. Always respond with valid JSON only.',
-        }),
-      });
-
-      if (res.ok) {
-        const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
-        const text = data.content?.find(c => c.type === 'text')?.text;
-
-        if (text) {
-          return text;
-        }
-      }
-    } catch {
-      // All providers failed
-    }
-  }
-
-  return null;
 }

@@ -16,7 +16,7 @@ function quoteLiteral(value: string): string {
 
 /** Strictly typed literal (no function calls allowed) — shared by defaults and row imports. */
 export function formatLiteral(type: string, raw: string): string | null {
-  const value = raw.trim();
+  const value = String(raw ?? '').trim();
 
   switch (type) {
     case 'integer':
@@ -54,7 +54,7 @@ export function formatLiteral(type: string, raw: string): string | null {
 
 /** Column DEFAULT: allowlisted per-type functions, otherwise a strict literal. */
 export function formatDefaultValue(type: string, raw: string): string | null {
-  const value = raw.trim();
+  const value = String(raw ?? '').trim();
 
   if (FUNCTION_DEFAULTS[type]?.has(value.toLowerCase())) {
     return value.toLowerCase();
