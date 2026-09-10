@@ -131,6 +131,56 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const modelRef = React.useRef(model);
     modelRef.current = model;
 
+    /*
+     * Open a chat at the newest message. useSnapScroll only auto-scrolls via a
+     * ResizeObserver (for live token growth); it does not jump to the bottom when a
+     * saved chat's messages are first rendered after a refresh/open, so the view
+     * sat at the top (oldest message). This ref + effect do one instant jump to
+     * the bottom on initial load (re-scrolling on the next frames to catch async
+     * markdown / code-block rendering), without disturbing the streaming path.
+     */
+    const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
+    const mergedScrollRef = React.useCallback(
+      (node: HTMLDivElement | null) => {
+        chatScrollRef.current = node;
+        scrollRef?.(node);
+      },
+      [scrollRef]
+    );
+    const initialScrollDone = React.useRef(false);
+
+    useEffect(() => {
+      let raf = 0;
+
+      if (chatStarted && !isStreaming && messages && messages.length > 0 && !initialScrollDone.current) {
+        initialScrollDone.current = true;
+
+        const jump = () => {
+          const el = chatScrollRef.current;
+
+          if (el) {
+            el.scrollTop = el.scrollHeight;
+          }
+        };
+
+        jump();
+
+        raf = requestAnimationFrame(() => {
+          jump();
+
+          requestAnimationFrame(jump);
+        });
+      } else if (!messages || messages.length === 0) {
+        initialScrollDone.current = false;
+      }
+
+      return () => {
+        if (raf) {
+          cancelAnimationFrame(raf);
+        }
+      };
+    }, [chatStarted, isStreaming, messages]);
+
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
     const setWizardPrompt = (prompt: string, summary?: string) => {
@@ -417,7 +467,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
+        <div ref={mergedScrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-chat mx-auto text-center px-4 lg:px-0">

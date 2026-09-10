@@ -17,6 +17,9 @@ import { getChatById } from '~/lib/database';
 import { getRegisteredTable, runAppQuery } from '~/lib/data-provision.server';
 import { validateDataApiToken } from '~/lib/.server/data-token';
 import { getPostgresPool } from '~/lib/database-postgresql';
+import { generateText } from 'ai';
+import { LLMManager } from '~/lib/modules/llm/manager';
+import { DEFAULT_MODEL } from '~/utils/constants';
 
 const MAX_GENERATED_ROWS = 12;
 
@@ -160,36 +163,53 @@ export async function action(args: ActionFunctionArgs) {
   }
 
   /*
-   * Call the LLM via the same /api/llmcall route that the template selector uses.
-   * This reuses the LLMManager's provider resolution (Qwen, Anthropic, etc.) instead
-   * of trying raw API keys that may not be configured on prod.
+   * Call the LLM DIRECTLY via LLMManager + the Qwen provider, using the runtime
+   * env (DASHSCOPE_API_KEY / DASHSCOPE_API_BASE_URL) on context.cloudflare.env.
+   *
+   * The previous implementation round-tripped through /api/llmcall via an internal
+   * fetch with no session cookie and no model/provider, which always failed
+   * (401 from requireAuth / 400 "Invalid or missing model") before ever reaching
+   * a provider. Calling Qwen directly here makes "Generate sample data" work
+   * with no client-side provider selection — Qwen is the implicit default,
+   * transparent to end users. The QwenProvider already injects
+   * enable_thinking:false to avoid the invisible-reasoning hang.
    */
   const prompt = buildGeneratePrompt(table.logical_name, columns);
-  const origin = new URL(args.request.url).origin;
+  const env = (getCtxEnv(args.context) ?? {}) as Record<string, string>;
 
   let llmResponse: string | null = null;
 
   try {
-    const llmRes = await fetch(`${origin}/api/llmcall`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: prompt,
-        system:
-          'You are a helpful assistant that generates realistic sample data for database tables. Always respond with valid JSON only.',
-      }),
+    const llmManager = LLMManager.getInstance(import.meta.env as unknown as Record<string, string>);
+    const provider = llmManager.getProvider('Qwen');
+
+    if (!provider) {
+      throw new Error('Qwen provider is not registered');
+    }
+
+    const modelInstance = provider.getModelInstance({
+      model: DEFAULT_MODEL,
+      serverEnv: env as any,
+      apiKeys: {},
+      providerSettings: {},
     });
 
-    if (llmRes.ok) {
-      const data = (await llmRes.json()) as { text?: string };
-      llmResponse = data.text ?? null;
-    }
-  } catch {
-    // fall through to the error below
+    const result = await generateText({
+      system:
+        'You are a helpful assistant that generates realistic sample data for database tables. Always respond with valid JSON only.',
+      messages: [{ role: 'user', content: prompt }],
+      model: modelInstance,
+      maxTokens: 4096,
+    });
+
+    llmResponse = result.text ?? null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return json({ error: `LLM call failed: ${msg}` }, { status: 500 });
   }
 
   if (!llmResponse) {
-    return json({ error: 'LLM call failed — check that an AI provider is configured' }, { status: 500 });
+    return json({ error: 'LLM returned an empty response' }, { status: 500 });
   }
 
   const rows = parseRowsFromLLM(llmResponse);

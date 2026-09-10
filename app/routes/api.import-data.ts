@@ -294,7 +294,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       await regClient.query(
         `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
          VALUES ($1, $2, $3, $4, $5, $5, $6, $7, 'import')
-         ON CONFLICT (schema_name, table_name) DO UPDATE SET row_count = $7, columns = $6`,
+         ON CONFLICT (chat_id, logical_name) DO UPDATE SET row_count = $7, columns = $6`,
         [
           cryptoRandomId(),
           chat.user_id,

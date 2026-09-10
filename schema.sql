@@ -591,8 +591,17 @@ CREATE TABLE IF NOT EXISTS app_tables (
     row_count INTEGER NOT NULL DEFAULT 0,
     source TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(schema_name, table_name),
     UNIQUE(chat_id, logical_name)
 );
+/*
+ * A physical table (usr_<userId>.<table_name>) may be registered to multiple chats
+ * so that rebuilding an app in a new chat can re-link an existing table (with its
+ * data) instead of 409-ing "already exists". Per-chat uniqueness is still enforced
+ * by UNIQUE(chat_id, logical_name). The legacy one-table-per-name unique is dropped
+ * idempotently for already-provisioned databases (CREATE TABLE IF NOT EXISTS does
+ * not alter existing tables).
+ */
+ALTER TABLE app_tables DROP CONSTRAINT IF EXISTS app_tables_schema_name_table_name_key;
+CREATE INDEX IF NOT EXISTS idx_app_tables_schema_table ON app_tables(schema_name, table_name);
 CREATE INDEX IF NOT EXISTS idx_app_tables_user ON app_tables(user_id);
 CREATE INDEX IF NOT EXISTS idx_app_tables_chat ON app_tables(chat_id);

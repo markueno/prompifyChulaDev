@@ -269,7 +269,53 @@ async function handleCreate(request: Request, chat: ChatRecord) {
     const err = result.error || 'Failed to create table';
 
     if (/already exists/i.test(err)) {
-      return json({ error: `Table "${tableName}" already exists — pick another name` }, { status: 409 });
+      /*
+       * The physical table already exists in this user's schema — almost always
+       * because it was created under a DIFFERENT chat (common when an app is
+       * rebuilt/regenerated in a new chat). Instead of 409-ing and leaving the
+       * data invisible to the current chat, re-link the existing table to THIS
+       * chat so its rows show up in the Data tab and resolve via the data proxy.
+       * Columns come from the existing registry row (the physical table's actual
+       * schema) because a CREATE cannot reshape an already-existing table.
+       */
+      const pool = getPostgresPool();
+      const linkClient = await pool.connect();
+
+      try {
+        const existing = await linkClient.query(
+          `SELECT columns, row_count FROM app_tables
+            WHERE schema_name = $1 AND table_name = $2
+            ORDER BY row_count DESC LIMIT 1`,
+          [schemaName, tableName]
+        );
+
+        const existingRow = existing.rows[0];
+        const rawColumns = existingRow?.columns ?? columns;
+        const existingColumns = typeof rawColumns === 'string' ? rawColumns : JSON.stringify(rawColumns);
+        const existingRowCount = existingRow?.row_count ?? 0;
+
+        await linkClient.query(
+          `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
+           VALUES ($1, $2, $3, $4, $5, $5, $6, $7, 'relinked')
+           ON CONFLICT (chat_id, logical_name) DO UPDATE SET
+             columns = EXCLUDED.columns,
+             row_count = EXCLUDED.row_count`,
+          [cryptoRandomId(), chat.user_id, chat.id, schemaName, tableName, existingColumns, existingRowCount]
+        );
+      } catch (linkErr) {
+        return json(
+          {
+            error: `Table "${tableName}" already exists and could not be linked to this chat: ${
+              linkErr instanceof Error ? linkErr.message : String(linkErr)
+            }`,
+          },
+          { status: 409 }
+        );
+      } finally {
+        linkClient.release();
+      }
+
+      return json({ success: true, tableName, schema: schemaName, relinked: true });
     }
 
     return json({ error: err }, { status: 500 });
@@ -283,7 +329,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
     await regClient.query(
       `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
          VALUES ($1, $2, $3, $4, $5, $5, $6, 0, 'manual')
-         ON CONFLICT (schema_name, table_name) DO NOTHING`,
+         ON CONFLICT (chat_id, logical_name) DO NOTHING`,
       [cryptoRandomId(), chat.user_id, chat.id, schemaName, tableName, JSON.stringify(columns)]
     );
   } finally {
@@ -402,26 +448,43 @@ async function handleDrop(request: Request, chat: ChatRecord) {
     return json({ error: `Table "${tableName}" not found` }, { status: 404 });
   }
 
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  let dropPhysical = false;
+
+  try {
+    /*
+     * With multi-chat registration the same physical table can be linked into
+     * several chats. Only drop the physical table when no OTHER chat still
+     * references it, so deleting a table from one chat never destroys data shared
+     * with another. Deregister this chat's link either way.
+     */
+    const other = await client.query(
+      `SELECT 1 FROM app_tables
+        WHERE schema_name = $1 AND table_name = $2 AND chat_id <> $3
+        LIMIT 1`,
+      [registered.schemaName, registered.tableName, chat.id]
+    );
+
+    dropPhysical = other.rows.length === 0;
+
+    await client.query(`DELETE FROM app_tables WHERE chat_id = $1 AND logical_name = $2`, [chat.id, tableName]);
+  } finally {
+    client.release();
+  }
+
+  if (!dropPhysical) {
+    return json({ success: true, tableName, dropped: false });
+  }
+
   const result = await runAppQuery(chat.user_id, `DROP TABLE IF EXISTS "${registered.tableName}" CASCADE;`);
 
   if (!result.ok) {
     return json({ error: result.error || 'Failed to delete table' }, { status: 500 });
   }
 
-  // Deregister only after the physical drop succeeded, so the two can't disagree.
-  const pool = getPostgresPool();
-  const client = await pool.connect();
-
-  try {
-    await client.query(`DELETE FROM app_tables WHERE schema_name = $1 AND table_name = $2`, [
-      registered.schemaName,
-      registered.tableName,
-    ]);
-  } finally {
-    client.release();
-  }
-
-  return json({ success: true, tableName });
+  return json({ success: true, tableName, dropped: true });
 }
 
 function cryptoRandomId(): string {
