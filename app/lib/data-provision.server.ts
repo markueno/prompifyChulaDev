@@ -97,8 +97,15 @@ export interface AppTableMeta {
   logical_name: string;
   table_name: string;
   schema_name: string;
-  columns: Array<{ name: string; type: string }>;
+  columns: Array<{
+    name: string;
+    type: string;
+    nullable?: boolean;
+    defaultValue?: string;
+    references?: { table: string; column: string };
+  }>;
   row_count: number;
+  category?: string | null;
 }
 
 /**
@@ -115,7 +122,7 @@ export async function getRegisteredTable(chatId: string, logicalName: string): P
 
   try {
     const { rows } = await client.query(
-      `SELECT logical_name, table_name, schema_name, columns, row_count
+      `SELECT logical_name, table_name, schema_name, columns, row_count, category
        FROM app_tables
        WHERE chat_id = $1 AND logical_name = $2
        LIMIT 1`,
@@ -135,6 +142,7 @@ export async function getRegisteredTable(chatId: string, logicalName: string): P
       schema_name: row.schema_name,
       columns,
       row_count: row.row_count ?? 0,
+      category: row.category ?? null,
     };
   } finally {
     client.release();
@@ -154,7 +162,7 @@ export async function listChatTables(chatId: string): Promise<AppTableMeta[]> {
 
   try {
     const { rows } = await client.query(
-      `SELECT logical_name, table_name, schema_name, columns, row_count
+      `SELECT logical_name, table_name, schema_name, columns, row_count, category
        FROM app_tables
        WHERE chat_id = $1
        ORDER BY logical_name`,
@@ -171,6 +179,7 @@ export async function listChatTables(chatId: string): Promise<AppTableMeta[]> {
         schema_name: row.schema_name as string,
         columns,
         row_count: (row.row_count as number) ?? 0,
+        category: (row.category as string | null) ?? null,
       };
     });
   } finally {
@@ -214,7 +223,7 @@ export async function listUserTables(userId: string): Promise<AppTableMeta[]> {
 
   try {
     const { rows } = await client.query(
-      `SELECT DISTINCT ON (table_name) logical_name, table_name, schema_name, columns, row_count
+      `SELECT DISTINCT ON (table_name) logical_name, table_name, schema_name, columns, row_count, category
        FROM app_tables
        WHERE user_id = $1
        ORDER BY table_name, row_count DESC`,
@@ -231,6 +240,7 @@ export async function listUserTables(userId: string): Promise<AppTableMeta[]> {
         schema_name: row.schema_name as string,
         columns,
         row_count: (row.row_count as number) ?? 0,
+        category: (row.category as string | null) ?? null,
       };
     });
   } finally {

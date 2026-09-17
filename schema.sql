@@ -590,6 +590,7 @@ CREATE TABLE IF NOT EXISTS app_tables (
     columns JSONB NOT NULL DEFAULT '[]'::jsonb,
     row_count INTEGER NOT NULL DEFAULT 0,
     source TEXT,
+    category TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(chat_id, logical_name)
 );
@@ -605,3 +606,6 @@ ALTER TABLE app_tables DROP CONSTRAINT IF EXISTS app_tables_schema_name_table_na
 CREATE INDEX IF NOT EXISTS idx_app_tables_schema_table ON app_tables(schema_name, table_name);
 CREATE INDEX IF NOT EXISTS idx_app_tables_user ON app_tables(user_id);
 CREATE INDEX IF NOT EXISTS idx_app_tables_chat ON app_tables(chat_id);
+-- Master vs transactional classification (master = reference/lookup like users/products;
+-- transactional = events/records like orders/messages). Additive — no-op if the column exists.
+ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS category TEXT;

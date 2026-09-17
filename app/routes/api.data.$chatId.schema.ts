@@ -115,6 +115,7 @@ export async function loader({ request, params, context }: LoaderFunctionArgs) {
         name: t.logical_name,
         columns: t.columns,
         row_count: t.row_count,
+        category: t.category,
       })),
     });
   } catch (error) {
@@ -244,9 +245,10 @@ async function handleCreate(request: Request, chat: ChatRecord) {
     tableName: string;
     columns?: ColumnInput[];
     linkExisting?: boolean;
+    category?: string;
   };
 
-  const { tableName, columns = [], linkExisting = false } = body;
+  const { tableName, columns = [], linkExisting = false, category } = body;
 
   if (!tableName) {
     return json({ error: 'tableName is required' }, { status: 400 });
@@ -271,7 +273,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
 
     try {
       const existing = await linkClient.query(
-        `SELECT schema_name, table_name, columns, row_count FROM app_tables
+        `SELECT schema_name, table_name, columns, row_count, category FROM app_tables
           WHERE user_id = $1 AND logical_name = $2
           ORDER BY row_count DESC LIMIT 1`,
         [chat.user_id, tableName]
@@ -288,13 +290,14 @@ async function handleCreate(request: Request, chat: ChatRecord) {
       const existingRowCount = existingRow.row_count ?? 0;
 
       await linkClient.query(
-        `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'relinked')
+        `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'relinked', $9)
          ON CONFLICT (chat_id, logical_name) DO UPDATE SET
            schema_name = EXCLUDED.schema_name,
            table_name = EXCLUDED.table_name,
            columns = EXCLUDED.columns,
-           row_count = EXCLUDED.row_count`,
+           row_count = EXCLUDED.row_count,
+           category = EXCLUDED.category`,
         [
           cryptoRandomId(),
           chat.user_id,
@@ -304,6 +307,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
           tableName,
           existingColumns,
           existingRowCount,
+          existingRow.category ?? null,
         ]
       );
     } catch (linkErr) {
@@ -359,10 +363,19 @@ async function handleCreate(request: Request, chat: ChatRecord) {
 
       try {
         await regClient.query(
-          `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual')
+          `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8)
            ON CONFLICT (chat_id, logical_name) DO NOTHING`,
-          [cryptoRandomId(), chat.user_id, chat.id, schemaName, physicalName, tableName, JSON.stringify(columns)]
+          [
+            cryptoRandomId(),
+            chat.user_id,
+            chat.id,
+            schemaName,
+            physicalName,
+            tableName,
+            JSON.stringify(columns),
+            category ?? null,
+          ]
         );
       } finally {
         regClient.release();
@@ -380,10 +393,19 @@ async function handleCreate(request: Request, chat: ChatRecord) {
 
   try {
     await regClient.query(
-      `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual')
+      `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8)
          ON CONFLICT (chat_id, logical_name) DO NOTHING`,
-      [cryptoRandomId(), chat.user_id, chat.id, schemaName, physicalName, tableName, JSON.stringify(columns)]
+      [
+        cryptoRandomId(),
+        chat.user_id,
+        chat.id,
+        schemaName,
+        physicalName,
+        tableName,
+        JSON.stringify(columns),
+        category ?? null,
+      ]
     );
   } finally {
     regClient.release();

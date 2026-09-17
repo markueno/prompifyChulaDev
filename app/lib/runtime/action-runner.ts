@@ -272,7 +272,14 @@ export class ActionRunner {
       return;
     }
 
-    let payload: { tables?: Array<{ tableName: string; columns?: unknown[]; sampleRows?: Record<string, unknown>[] }> };
+    let payload: {
+      tables?: Array<{
+        tableName: string;
+        columns?: unknown[];
+        sampleRows?: Record<string, unknown>[];
+        category?: string;
+      }>;
+    };
 
     try {
       payload = JSON.parse(action.content);
@@ -306,7 +313,7 @@ export class ActionRunner {
         const schemaRes = await fetch(`/api/data/${encodeURIComponent(id)}/schema`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tableName: table.tableName, columns: table.columns }),
+          body: JSON.stringify({ tableName: table.tableName, columns: table.columns, category: table.category }),
         });
 
         if (!schemaRes.ok) {
