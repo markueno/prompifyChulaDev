@@ -16,6 +16,7 @@ import {
   deleteSupabaseRow,
 } from '~/lib/stores/supabase-admin';
 import { CreateTableModal } from './CreateTableModal';
+import { LinkExistingTableModal } from './LinkExistingTableModal';
 import { AddColumnModal } from './AddColumnModal';
 import { ImportDataModal } from './ImportDataModal';
 import {
@@ -310,6 +311,7 @@ export const AdminDataSection = memo(() => {
   const [selectedTable, setSelectedTable] = useState<SupabaseTable | null>(null);
   const [showCreateTable, setShowCreateTable] = useState(false);
   const [showImportData, setShowImportData] = useState(false);
+  const [showLinkExisting, setShowLinkExisting] = useState(false);
 
   const [rows, setRows] = useState<SupabaseRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
@@ -518,6 +520,15 @@ export const AdminDataSection = memo(() => {
     async (tableName: string) => {
       setShowImportData(false);
       toast.success(`Imported "${tableName}"`);
+      await refreshTables();
+    },
+    [refreshTables]
+  );
+
+  const handleLinked = useCallback(
+    async (tableName: string) => {
+      setShowLinkExisting(false);
+      toast.success(`Linked "${tableName}" into this project`);
       await refreshTables();
     },
     [refreshTables]
@@ -910,6 +921,13 @@ export const AdminDataSection = memo(() => {
               <span className="i-ph:plus text-sm" />
               New Table
             </button>
+            <button
+              onClick={() => setShowLinkExisting(true)}
+              className="flex items-center justify-center gap-1.5 text-xs px-2.5 py-1.5 rounded bg-accent-500/15 text-accent-500 hover:bg-accent-500/25 transition-colors font-medium w-full"
+            >
+              <span className="i-ph:link text-sm" />
+              Link existing table
+            </button>
             {/* Labelled — an unlabelled icon that silently tore down the connection is how
                 people ended up stranded on the connect form. */}
             <button
@@ -993,6 +1011,15 @@ export const AdminDataSection = memo(() => {
             chatId={currentChatId}
             onClose={() => setShowImportData(false)}
             onImported={handleImported}
+          />
+        )}
+
+        {showLinkExisting && currentChatId && (
+          <LinkExistingTableModal
+            chatId={currentChatId}
+            currentTableNames={tables.map(t => t.name)}
+            onClose={() => setShowLinkExisting(false)}
+            onLinked={handleLinked}
           />
         )}
 

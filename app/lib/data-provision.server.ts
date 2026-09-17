@@ -179,6 +179,66 @@ export async function listChatTables(chatId: string): Promise<AppTableMeta[]> {
 }
 
 /**
+ * Derive a chat-scoped physical table name so each project's table is a
+ * separate physical table even when two chats reuse the same logical name
+ * (e.g. both have "orders"). The logical_name (what the app/LLM uses) stays
+ * unchanged; only the physical Postgres table name is namespaced per chat.
+ *
+ * Result is a valid unquoted Postgres identifier: [a-z][a-z0-9_]{0,62}.
+ */
+export function physicalNameFor(logicalName: string, chatId: string): string {
+  const safeLogical = logicalName
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 46);
+  const chatHash =
+    chatId
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .slice(0, 12) || 'c';
+
+  return `${safeLogical}_${chatHash}`;
+}
+
+/**
+ * List a user's distinct physical tables across ALL their chats — used by the
+ * "Link existing table" flow. Returns one entry per distinct physical table
+ * (the registry can hold multiple rows per physical table when one was
+ * explicitly linked into several chats).
+ */
+export async function listUserTables(userId: string): Promise<AppTableMeta[]> {
+  await ensureAppTablesSchema();
+
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const { rows } = await client.query(
+      `SELECT DISTINCT ON (table_name) logical_name, table_name, schema_name, columns, row_count
+       FROM app_tables
+       WHERE user_id = $1
+       ORDER BY table_name, row_count DESC`,
+      [userId]
+    );
+
+    return rows.map((row: Record<string, unknown>) => {
+      const cols = row.columns;
+      const columns = Array.isArray(cols) ? cols : JSON.parse((cols as string) || '[]');
+
+      return {
+        logical_name: row.logical_name as string,
+        table_name: row.table_name as string,
+        schema_name: row.schema_name as string,
+        columns,
+        row_count: (row.row_count as number) ?? 0,
+      };
+    });
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Fetch the current schema for a chat's app and return a formatted markdown
  * string ready to inject into the LLM system prompt. Instructs the LLM to
  * generate fetch()-against-data-proxy code (NOT Supabase SDK). Returns null

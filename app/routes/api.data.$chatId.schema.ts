@@ -19,7 +19,13 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-r
 import { requireAuth } from '~/lib/auth';
 import { getChatById } from '~/lib/database';
 import { getPostgresPool } from '~/lib/database-postgresql';
-import { provisionUserSchema, runAppQuery, listChatTables } from '~/lib/data-provision.server';
+import {
+  provisionUserSchema,
+  runAppQuery,
+  listChatTables,
+  physicalNameFor,
+  listUserTables,
+} from '~/lib/data-provision.server';
 import { formatDefaultValue } from '~/utils/sqlDefaultValue';
 
 const VALID_IDENTIFIER = /^[a-z][a-z0-9_]{0,62}$/;
@@ -96,7 +102,12 @@ export async function loader({ request, params, context }: LoaderFunctionArgs) {
       return json({ error: 'Not found' }, { status: 404 });
     }
 
-    const tables = await listChatTables(chat.id);
+    /*
+     * ?all=1 lists the user's tables across ALL their chats (for the
+     * "Link existing table" flow); default lists only this chat's tables.
+     */
+    const all = new URL(request.url).searchParams.get('all') === '1';
+    const tables = all ? await listUserTables(chat.user_id) : await listChatTables(chat.id);
 
     return json({
       configured: true,
@@ -231,10 +242,11 @@ type ChatRecord = { id: string; user_id: string };
 async function handleCreate(request: Request, chat: ChatRecord) {
   const body = (await request.json()) as {
     tableName: string;
-    columns: ColumnInput[];
+    columns?: ColumnInput[];
+    linkExisting?: boolean;
   };
 
-  const { tableName, columns } = body;
+  const { tableName, columns = [], linkExisting = false } = body;
 
   if (!tableName) {
     return json({ error: 'tableName is required' }, { status: 400 });
@@ -246,10 +258,72 @@ async function handleCreate(request: Request, chat: ChatRecord) {
     return json({ error: tableErr }, { status: 400 });
   }
 
+  const schemaName = await provisionUserSchema(chat.user_id);
+
   /*
-   * A table with no user columns is unusable: the only columns are the auto-managed
-   * id/created_at/updated_at, which the row form hides, so "Add Row" has nothing to insert and
-   * dead-ends on "No valid columns to insert". Reject it here as well as in the UI.
+   * Opt-in: link an existing table (created under another chat) into THIS
+   * project, sharing its rows. This is the ONLY way old data enters a project.
+   * Default (no flag — incl. the AI's data action) creates a fresh table below.
+   */
+  if (linkExisting) {
+    const pool = getPostgresPool();
+    const linkClient = await pool.connect();
+
+    try {
+      const existing = await linkClient.query(
+        `SELECT schema_name, table_name, columns, row_count FROM app_tables
+          WHERE user_id = $1 AND logical_name = $2
+          ORDER BY row_count DESC LIMIT 1`,
+        [chat.user_id, tableName]
+      );
+
+      const existingRow = existing.rows[0];
+
+      if (!existingRow) {
+        return json({ error: `No existing table named "${tableName}" to link` }, { status: 404 });
+      }
+
+      const rawColumns = existingRow.columns;
+      const existingColumns = typeof rawColumns === 'string' ? rawColumns : JSON.stringify(rawColumns);
+      const existingRowCount = existingRow.row_count ?? 0;
+
+      await linkClient.query(
+        `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'relinked')
+         ON CONFLICT (chat_id, logical_name) DO UPDATE SET
+           schema_name = EXCLUDED.schema_name,
+           table_name = EXCLUDED.table_name,
+           columns = EXCLUDED.columns,
+           row_count = EXCLUDED.row_count`,
+        [
+          cryptoRandomId(),
+          chat.user_id,
+          chat.id,
+          existingRow.schema_name,
+          existingRow.table_name,
+          tableName,
+          existingColumns,
+          existingRowCount,
+        ]
+      );
+    } catch (linkErr) {
+      return json(
+        {
+          error: `Could not link table "${tableName}": ${linkErr instanceof Error ? linkErr.message : String(linkErr)}`,
+        },
+        { status: 409 }
+      );
+    } finally {
+      linkClient.release();
+    }
+
+    return json({ success: true, tableName, schema: schemaName, relinked: true });
+  }
+
+  /*
+   * Default: fresh table. A table with no user columns is unusable (only the
+   * auto-managed id/created_at/updated_at exist, which the row form hides, so
+   * "Add Row" dead-ends). Reject here as well as in the UI.
    */
   if (!columns || columns.length === 0) {
     return json({ error: 'Add at least one column — a table with no columns cannot store rows' }, { status: 400 });
@@ -261,8 +335,14 @@ async function handleCreate(request: Request, chat: ChatRecord) {
     return json({ error: colsErr }, { status: 400 });
   }
 
-  const schemaName = await provisionUserSchema(chat.user_id);
-  const createSQL = buildCreateTableSQL(tableName, columns);
+  /*
+   * Chat-scoped physical name so each project's table is a separate physical
+   * table even when two chats reuse the same logical name (e.g. both "orders")
+   * — no cross-project data sharing. The logical_name (what the app/LLM uses)
+   * stays `tableName`.
+   */
+  const physicalName = physicalNameFor(tableName, chat.id);
+  const createSQL = buildCreateTableSQL(physicalName, columns);
   const result = await runAppQuery(chat.user_id, createSQL);
 
   if (!result.ok) {
@@ -270,52 +350,25 @@ async function handleCreate(request: Request, chat: ChatRecord) {
 
     if (/already exists/i.test(err)) {
       /*
-       * The physical table already exists in this user's schema — almost always
-       * because it was created under a DIFFERENT chat (common when an app is
-       * rebuilt/regenerated in a new chat). Instead of 409-ing and leaving the
-       * data invisible to the current chat, re-link the existing table to THIS
-       * chat so its rows show up in the Data tab and resolve via the data proxy.
-       * Columns come from the existing registry row (the physical table's actual
-       * schema) because a CREATE cannot reshape an already-existing table.
+       * Same chat re-running its data action (idempotent): the chat-scoped
+       * physical table already exists for THIS chat. Re-ensure the registry row
+       * and return success — no cross-chat re-link, no data pulled in.
        */
       const pool = getPostgresPool();
-      const linkClient = await pool.connect();
+      const regClient = await pool.connect();
 
       try {
-        const existing = await linkClient.query(
-          `SELECT columns, row_count FROM app_tables
-            WHERE schema_name = $1 AND table_name = $2
-            ORDER BY row_count DESC LIMIT 1`,
-          [schemaName, tableName]
-        );
-
-        const existingRow = existing.rows[0];
-        const rawColumns = existingRow?.columns ?? columns;
-        const existingColumns = typeof rawColumns === 'string' ? rawColumns : JSON.stringify(rawColumns);
-        const existingRowCount = existingRow?.row_count ?? 0;
-
-        await linkClient.query(
+        await regClient.query(
           `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
-           VALUES ($1, $2, $3, $4, $5, $5, $6, $7, 'relinked')
-           ON CONFLICT (chat_id, logical_name) DO UPDATE SET
-             columns = EXCLUDED.columns,
-             row_count = EXCLUDED.row_count`,
-          [cryptoRandomId(), chat.user_id, chat.id, schemaName, tableName, existingColumns, existingRowCount]
-        );
-      } catch (linkErr) {
-        return json(
-          {
-            error: `Table "${tableName}" already exists and could not be linked to this chat: ${
-              linkErr instanceof Error ? linkErr.message : String(linkErr)
-            }`,
-          },
-          { status: 409 }
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual')
+           ON CONFLICT (chat_id, logical_name) DO NOTHING`,
+          [cryptoRandomId(), chat.user_id, chat.id, schemaName, physicalName, tableName, JSON.stringify(columns)]
         );
       } finally {
-        linkClient.release();
+        regClient.release();
       }
 
-      return json({ success: true, tableName, schema: schemaName, relinked: true });
+      return json({ success: true, tableName, schema: schemaName });
     }
 
     return json({ error: err }, { status: 500 });
@@ -328,9 +381,9 @@ async function handleCreate(request: Request, chat: ChatRecord) {
   try {
     await regClient.query(
       `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
-         VALUES ($1, $2, $3, $4, $5, $5, $6, 0, 'manual')
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual')
          ON CONFLICT (chat_id, logical_name) DO NOTHING`,
-      [cryptoRandomId(), chat.user_id, chat.id, schemaName, tableName, JSON.stringify(columns)]
+      [cryptoRandomId(), chat.user_id, chat.id, schemaName, physicalName, tableName, JSON.stringify(columns)]
     );
   } finally {
     regClient.release();

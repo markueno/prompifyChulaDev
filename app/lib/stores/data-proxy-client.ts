@@ -49,6 +49,47 @@ export async function listProxyTables(chatId: string): Promise<SupabaseTable[]> 
   }
 }
 
+/** GET /api/data/:chatId/schema?all=1 — the user's tables across ALL chats (for "Link existing"). */
+export async function listAllUserTables(chatId: string): Promise<SupabaseTable[]> {
+  try {
+    const res = await fetch(`/api/data/${encodeURIComponent(chatId)}/schema?all=1`);
+
+    if (!res.ok) {
+      return [];
+    }
+
+    const data = (await res.json()) as { tables?: ProxyTable[] };
+
+    return (data.tables || []).map(toSupabaseTable);
+  } catch {
+    return [];
+  }
+}
+
+/** POST /api/data/:chatId/schema with linkExisting — link an existing table into this chat. */
+export async function linkExistingTable(
+  chatId: string,
+  tableName: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/data/${encodeURIComponent(chatId)}/schema`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tableName, linkExisting: true }),
+    });
+
+    const data = (await res.json()) as { success?: boolean; error?: string };
+
+    if (!res.ok || data.error) {
+      return { success: false, error: data.error || `HTTP ${res.status}` };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Link failed' };
+  }
+}
+
 /** GET /api/data/:chatId/:resource — list rows (page/size/sort). */
 export async function fetchProxyRows(
   chatId: string,

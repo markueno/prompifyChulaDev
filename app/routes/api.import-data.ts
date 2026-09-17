@@ -18,7 +18,7 @@ import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
 import { checkRateLimit, getChatById } from '~/lib/database';
 import { getPostgresPool } from '~/lib/database-postgresql';
-import { provisionUserSchema, runAppQuery } from '~/lib/data-provision.server';
+import { provisionUserSchema, runAppQuery, physicalNameFor } from '~/lib/data-provision.server';
 import { formatCellValue } from '~/utils/sqlDefaultValue';
 
 const RESERVED_NAMES = new Set(['id', 'created_at', 'updated_at']);
@@ -189,7 +189,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
      * 9. CREATE TABLE — NO IF NOT EXISTS (import must never mix into an existing
      *    table). Identifiers are double-quoted (VALID_IDENTIFIER guarantees no
      *    quotes inside). All user columns nullable (imported data has gaps).
+     *
+     * Chat-scoped physical name so each project's imported table is isolated
+     * from other projects even with the same logical name.
      */
+    const physicalName = physicalNameFor(tableName, chat.id);
     const providedNames = new Set(columns.map(c => c.name));
 
     let autoColDefs = '';
@@ -208,7 +212,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     const colDefs = columns.map(col => `  "${col.name}" ${col.type}`).join(',\n');
 
-    const createSQL = `CREATE TABLE "${tableName}" (\n${autoColDefs}${colDefs}\n);`;
+    const createSQL = `CREATE TABLE "${physicalName}" (\n${autoColDefs}${colDefs}\n);`;
 
     const createResult = await runAppQuery(chat.user_id, createSQL);
 
@@ -250,7 +254,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
         })
         .join(', ');
 
-      const sql = `INSERT INTO "${tableName}" (${colList}) VALUES ${valuesSql}`;
+      const sql = `INSERT INTO "${physicalName}" (${colList}) VALUES ${valuesSql}`;
       const res = await runAppQuery(chat.user_id, sql, params);
 
       if (!res.ok) {
@@ -277,7 +281,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
       await flush(batch);
     } catch (insertErr) {
       // 11. Best-effort DROP TABLE — safe because step 9 proved we created it.
-      await runAppQuery(chat.user_id, `DROP TABLE IF EXISTS "${tableName}"`).catch(() => {});
+      await runAppQuery(chat.user_id, `DROP TABLE IF EXISTS "${physicalName}"`).catch(() => {});
 
       return json({ error: insertErr instanceof Error ? insertErr.message : 'Insert failed' }, { status: 500 });
     }
@@ -293,13 +297,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
     try {
       await regClient.query(
         `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
-         VALUES ($1, $2, $3, $4, $5, $5, $6, $7, 'import')
-         ON CONFLICT (chat_id, logical_name) DO UPDATE SET row_count = $7, columns = $6`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'import')
+         ON CONFLICT (chat_id, logical_name) DO UPDATE SET row_count = $8, columns = $7`,
         [
           cryptoRandomId(),
           chat.user_id,
           chat.id,
           schemaName,
+          physicalName,
           tableName,
           JSON.stringify(columns.map(c => ({ name: c.name, type: c.type }))),
           inserted,
