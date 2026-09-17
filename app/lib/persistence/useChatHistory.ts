@@ -180,6 +180,14 @@ export function useChatHistory() {
   const [urlId, setUrlId] = useState<string | undefined>();
   const activeRef = useRef(true);
 
+  /*
+   * Phase 0 (perf): throttle heavy persistence during streaming. processSampledMessages
+   * fires storeMessageHistory ~every 50ms; without throttling it JSON.stringifies the full
+   * messages array (hundreds-of-KB with file bodies) 20×/sec, freezing the page + flooding
+   * the server. See storeMessageHistory for the gate.
+   */
+  const lastPersistAtRef = useRef(0);
+
   useEffect(() => {
     activeRef.current = true;
 
@@ -438,16 +446,33 @@ export function useChatHistory() {
         }
       }
 
-      // Save to IndexedDB (existing functionality)
-      await setMessages(
-        _hookDb,
-        chatId.get() as string,
-        messages,
-        urlId,
-        description.get(),
-        undefined,
-        chatMetadata.get()
-      );
+      /*
+       * Phase 0 (perf): throttle the heavy persistence (IDB write + /api/chats POST +
+       * snapshot cache refresh) while streaming. JSON.stringify of the full messages array
+       * (which grows into hundreds-of-KB with file bodies) 20×/sec froze the page + flooded
+       * the server. Throttle to every 2s while isLoading; always persist at turn end
+       * (!isLoading). The cheap chatId/description setup above runs every call (unthrottled)
+       * so a new chat's id is still allocated immediately.
+       */
+      const now = Date.now();
+      const shouldPersist = !isLoading || now - lastPersistAtRef.current >= 2000;
+
+      if (shouldPersist) {
+        lastPersistAtRef.current = now;
+      }
+
+      // Save to IndexedDB (existing functionality) — throttled during streaming.
+      if (shouldPersist) {
+        await setMessages(
+          _hookDb,
+          chatId.get() as string,
+          messages,
+          urlId,
+          description.get(),
+          undefined,
+          chatMetadata.get()
+        );
+      }
 
       /*
        * Also save to PostgreSQL — this is what makes history follow the user across devices.
@@ -455,7 +480,7 @@ export function useChatHistory() {
        * only in this browser's IndexedDB and be invisible everywhere else. Failures are now queued
        * in the offline outbox and replayed by drainQueue on reconnect.
        */
-      if (user?.id) {
+      if (shouldPersist && user?.id) {
         const chatData = {
           id: chatId.get() as string,
           url_id: urlId,
@@ -513,9 +538,15 @@ export function useChatHistory() {
        */
       if (user?.id) {
         if (isLoading) {
-          refreshSnapshotCache(workbenchStore.files.get(), chatId.get()).catch(error =>
-            console.warn('Streaming snapshot cache refresh failed:', error)
-          );
+          /*
+           * Phase 0 (perf): throttle the streaming snapshot cache refresh (it re-hashes all
+           * files) to the same cadence as persistence; the turn-end save below runs always.
+           */
+          if (shouldPersist) {
+            refreshSnapshotCache(workbenchStore.files.get(), chatId.get()).catch(error =>
+              console.warn('Streaming snapshot cache refresh failed:', error)
+            );
+          }
         } else {
           scheduleSnapshotSave(
             workbenchStore.files.get(),
