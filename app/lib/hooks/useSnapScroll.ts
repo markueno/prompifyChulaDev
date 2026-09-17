@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 
 interface ScrollOptions {
   duration?: number;
@@ -21,9 +21,10 @@ export function useSnapScroll(options: ScrollOptions = {}) {
   const observerRef = useRef<ResizeObserver>();
   const animationFrameRef = useRef<number>();
   const lastScrollTopRef = useRef<number>(0);
+  const [isAtBottom, setIsAtBottom] = useState(true);
 
   const smoothScroll = useCallback(
-    (element: HTMLDivElement, targetPosition: number, duration: number, easingFunction: string) => {
+    (element: HTMLDivElement, targetPosition: number, dur: number, easingFunction: string) => {
       const startPosition = element.scrollTop;
       const distance = targetPosition - startPosition;
       const startTime = performance.now();
@@ -51,7 +52,7 @@ export function useSnapScroll(options: ScrollOptions = {}) {
 
       const animation = (currentTime: number) => {
         const elapsedTime = currentTime - startTime;
-        const progress = Math.min(elapsedTime / duration, 1);
+        const progress = Math.min(elapsedTime / dur, 1);
 
         const easedProgress = cubicBezierFunction(progress);
         const newPosition = startPosition + distance * easedProgress;
@@ -83,15 +84,26 @@ export function useSnapScroll(options: ScrollOptions = {}) {
     [bottomThreshold]
   );
 
+  /*
+   * Instantly snap the scroll container to the bottom. Used by the ResizeObserver on
+   * content growth (initial render + streaming) so the newest content is always in
+   * view. An instant jump is reliable where an animated smoothScroll would be
+   * cancelled/restarted on every token and land short during async rendering
+   * (markdown / code-block layout).
+   */
+  const snapToBottom = useCallback(() => {
+    if (scrollNodeRef.current) {
+      scrollNodeRef.current.scrollTop = scrollNodeRef.current.scrollHeight;
+    }
+  }, []);
+
   const messageRef = useCallback(
     (node: HTMLDivElement | null) => {
       if (node) {
         const observer = new ResizeObserver(() => {
           if (autoScrollRef.current && scrollNodeRef.current) {
-            const { scrollHeight, clientHeight } = scrollNodeRef.current;
-            const scrollTarget = scrollHeight - clientHeight;
-
-            smoothScroll(scrollNodeRef.current, scrollTarget, duration, easing);
+            snapToBottom();
+            setIsAtBottom(true);
           }
         });
 
@@ -107,7 +119,7 @@ export function useSnapScroll(options: ScrollOptions = {}) {
         }
       }
     },
-    [duration, easing, smoothScroll]
+    [snapToBottom]
   );
 
   const scrollRef = useCallback(
@@ -130,10 +142,21 @@ export function useSnapScroll(options: ScrollOptions = {}) {
 
           // Store current scroll position for next comparison
           lastScrollTopRef.current = scrollTop;
+          setIsAtBottom(isScrolledToBottom(node));
         };
 
         node.addEventListener('scroll', onScrollRef.current);
         scrollNodeRef.current = node;
+
+        /*
+         * On (re)attach, if auto-scroll is enabled (fresh load / not scrolled up),
+         * snap to the bottom immediately so a reopened/refreshed chat shows the
+         * newest message without waiting for the first ResizeObserver tick.
+         */
+        if (autoScrollRef.current) {
+          snapToBottom();
+          setIsAtBottom(true);
+        }
       } else {
         if (onScrollRef.current && scrollNodeRef.current) {
           scrollNodeRef.current.removeEventListener('scroll', onScrollRef.current);
@@ -148,8 +171,23 @@ export function useSnapScroll(options: ScrollOptions = {}) {
         onScrollRef.current = undefined;
       }
     },
-    [isScrolledToBottom]
+    [isScrolledToBottom, snapToBottom]
   );
 
-  return [messageRef, scrollRef] as const;
+  /*
+   * Imperative scroll-to-bottom for the "Jump to latest" button. Re-enables
+   * auto-scroll and animates smoothly (a single user-triggered action), after
+   * which the ResizeObserver resumes snapping for subsequent content growth.
+   */
+  const scrollToBottom = useCallback(() => {
+    autoScrollRef.current = true;
+    setIsAtBottom(true);
+
+    if (scrollNodeRef.current) {
+      const { scrollHeight, clientHeight } = scrollNodeRef.current;
+      smoothScroll(scrollNodeRef.current, scrollHeight - clientHeight, duration, easing);
+    }
+  }, [duration, easing, smoothScroll]);
+
+  return [messageRef, scrollRef, { isAtBottom, scrollToBottom }] as const;
 }

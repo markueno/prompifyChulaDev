@@ -1044,7 +1044,7 @@ export const ChatImpl = memo(
       []
     );
 
-    const [messageRef, scrollRef] = useSnapScroll();
+    const [messageRef, scrollRef, snap] = useSnapScroll();
 
     useEffect(() => {
       const storedApiKeys = Cookies.get('apiKeys');
@@ -1130,6 +1130,8 @@ export const ChatImpl = memo(
           isModerator={isModerator}
           messageRef={messageRef}
           scrollRef={scrollRef}
+          isAtBottom={snap.isAtBottom}
+          onJumpToBottom={snap.scrollToBottom}
           setInput={setInput}
           handleInputChange={e => {
             onTextareaChange(e);

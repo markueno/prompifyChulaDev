@@ -41,6 +41,8 @@ interface BaseChatProps {
   textareaRef?: React.RefObject<HTMLTextAreaElement> | undefined;
   messageRef?: RefCallback<HTMLDivElement> | undefined;
   scrollRef?: RefCallback<HTMLDivElement> | undefined;
+  isAtBottom?: boolean;
+  onJumpToBottom?: () => void;
   showChat?: boolean;
   chatStarted?: boolean;
   isStreaming?: boolean;
@@ -80,6 +82,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       textareaRef,
       messageRef,
       scrollRef,
+      isAtBottom,
+      onJumpToBottom,
       showChat = true,
       chatStarted = false,
       isStreaming = false,
@@ -130,56 +134,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const [isModelLoading, setIsModelLoading] = useState<string | undefined>('all');
     const modelRef = React.useRef(model);
     modelRef.current = model;
-
-    /*
-     * Open a chat at the newest message. useSnapScroll only auto-scrolls via a
-     * ResizeObserver (for live token growth); it does not jump to the bottom when a
-     * saved chat's messages are first rendered after a refresh/open, so the view
-     * sat at the top (oldest message). This ref + effect do one instant jump to
-     * the bottom on initial load (re-scrolling on the next frames to catch async
-     * markdown / code-block rendering), without disturbing the streaming path.
-     */
-    const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
-    const mergedScrollRef = React.useCallback(
-      (node: HTMLDivElement | null) => {
-        chatScrollRef.current = node;
-        scrollRef?.(node);
-      },
-      [scrollRef]
-    );
-    const initialScrollDone = React.useRef(false);
-
-    useEffect(() => {
-      let raf = 0;
-
-      if (chatStarted && !isStreaming && messages && messages.length > 0 && !initialScrollDone.current) {
-        initialScrollDone.current = true;
-
-        const jump = () => {
-          const el = chatScrollRef.current;
-
-          if (el) {
-            el.scrollTop = el.scrollHeight;
-          }
-        };
-
-        jump();
-
-        raf = requestAnimationFrame(() => {
-          jump();
-
-          requestAnimationFrame(jump);
-        });
-      } else if (!messages || messages.length === 0) {
-        initialScrollDone.current = false;
-      }
-
-      return () => {
-        if (raf) {
-          cancelAnimationFrame(raf);
-        }
-      };
-    }, [chatStarted, isStreaming, messages]);
 
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
@@ -467,7 +421,17 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         data-chat-visible={showChat}
       >
         <ClientOnly>{() => <Menu />}</ClientOnly>
-        <div ref={mergedScrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
+        {chatStarted && isAtBottom === false && onJumpToBottom && (
+          <button
+            type="button"
+            onClick={onJumpToBottom}
+            className="absolute bottom-28 left-1/2 z-50 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-4 py-2 text-sm font-medium text-bolt-elements-textPrimary shadow-lg transition-colors hover:bg-bolt-elements-background-depth-3"
+          >
+            <span className="i-ph:arrow-down h-4 w-4" />
+            Jump to latest
+          </button>
+        )}
+        <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-chat mx-auto text-center px-4 lg:px-0">
@@ -488,7 +452,6 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
               className={classNames('pt-6 px-2 sm:px-6', {
                 'h-full flex flex-col': chatStarted,
               })}
-              ref={scrollRef}
             >
               <ClientOnly>
                 {() => {
