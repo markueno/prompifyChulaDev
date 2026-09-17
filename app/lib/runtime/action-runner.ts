@@ -8,6 +8,7 @@ import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
 import type { PreviewsStore } from '~/lib/stores/previews';
 import { chatId } from '~/lib/persistence';
+import { bumpDataProxyVersion } from '~/lib/stores/data-version';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -352,6 +353,15 @@ export class ActionRunner {
         logger.error(`data action: seed fetch failed for "${table.tableName}":`, err);
       }
     }
+
+    /*
+     * Signal the Data panel to re-list tables. The panel lists once on mount /
+     * chatId-change; without this nudge it stays empty when the AI seeds tables
+     * while the tab is open (the tables register under the same chatId, so that
+     * dep doesn't change). The panel's refresh only updates the table list, not
+     * the user's current view/step, so it's non-disruptive.
+     */
+    bumpDataProxyVersion();
   }
 
   async #runShellAction(action: ActionState) {

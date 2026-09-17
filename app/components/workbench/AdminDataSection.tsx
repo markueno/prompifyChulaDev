@@ -2,6 +2,7 @@ import { memo, useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
 import { useStore } from '@nanostores/react';
 import { chatId } from '~/lib/persistence';
+import { dataProxyVersion } from '~/lib/stores/data-version';
 import { classNames } from '~/utils/classNames';
 import type { SupabaseConfig, SupabaseTable, SupabaseRow, SupabaseColumn } from '~/types/supabase-admin';
 import {
@@ -488,6 +489,21 @@ export const AdminDataSection = memo(() => {
       }
     }
   }, [platformMode, currentChatId, savedConfig]);
+
+  /*
+   * Re-list tables (non-disruptive — keeps the current view/step) whenever the
+   * AI's data action creates/seeds tables, so an open Data tab shows them live.
+   * Fires on the data-version signal bump; refreshTables + currentChatId are
+   * read fresh via the closure at call time, so they're intentionally omitted
+   * from the dep array.
+   */
+  const dataVersion = useStore(dataProxyVersion);
+
+  useEffect(() => {
+    if (currentChatId) {
+      void refreshTables();
+    }
+  }, [dataVersion]);
 
   const handleTableCreated = useCallback(
     async (tableName: string) => {
