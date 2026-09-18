@@ -273,7 +273,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
 
     try {
       const existing = await linkClient.query(
-        `SELECT schema_name, table_name, columns, row_count, category FROM app_tables
+        `SELECT schema_name, table_name, columns, row_count, category, workspace_type, workspace_id FROM app_tables
           WHERE user_id = $1 AND logical_name = $2
           ORDER BY row_count DESC LIMIT 1`,
         [chat.user_id, tableName]
@@ -290,14 +290,16 @@ async function handleCreate(request: Request, chat: ChatRecord) {
       const existingRowCount = existingRow.row_count ?? 0;
 
       await linkClient.query(
-        `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'relinked', $9)
+        `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category, workspace_type, workspace_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'relinked', $9, $10, $11)
          ON CONFLICT (chat_id, logical_name) DO UPDATE SET
            schema_name = EXCLUDED.schema_name,
            table_name = EXCLUDED.table_name,
            columns = EXCLUDED.columns,
            row_count = EXCLUDED.row_count,
-           category = EXCLUDED.category`,
+           category = EXCLUDED.category,
+           workspace_type = EXCLUDED.workspace_type,
+           workspace_id = EXCLUDED.workspace_id`,
         [
           cryptoRandomId(),
           chat.user_id,
@@ -308,6 +310,8 @@ async function handleCreate(request: Request, chat: ChatRecord) {
           existingColumns,
           existingRowCount,
           existingRow.category ?? null,
+          existingRow.workspace_type ?? 'personal',
+          existingRow.workspace_id ?? chat.user_id,
         ]
       );
     } catch (linkErr) {
@@ -363,8 +367,8 @@ async function handleCreate(request: Request, chat: ChatRecord) {
 
       try {
         await regClient.query(
-          `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8)
+          `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category, workspace_type, workspace_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8, 'personal', $9)
            ON CONFLICT (chat_id, logical_name) DO NOTHING`,
           [
             cryptoRandomId(),
@@ -375,6 +379,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
             tableName,
             JSON.stringify(columns),
             category ?? null,
+            chat.user_id,
           ]
         );
       } finally {
@@ -393,8 +398,8 @@ async function handleCreate(request: Request, chat: ChatRecord) {
 
   try {
     await regClient.query(
-      `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8)
+      `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category, workspace_type, workspace_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8, 'personal', $9)
          ON CONFLICT (chat_id, logical_name) DO NOTHING`,
       [
         cryptoRandomId(),
@@ -405,6 +410,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
         tableName,
         JSON.stringify(columns),
         category ?? null,
+        chat.user_id,
       ]
     );
   } finally {

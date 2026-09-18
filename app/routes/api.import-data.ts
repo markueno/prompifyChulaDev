@@ -296,8 +296,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     try {
       await regClient.query(
-        `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'import')
+        `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, workspace_type, workspace_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'import', 'personal', $9)
          ON CONFLICT (chat_id, logical_name) DO UPDATE SET row_count = $8, columns = $7`,
         [
           cryptoRandomId(),
@@ -308,6 +308,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
           tableName,
           JSON.stringify(columns.map(c => ({ name: c.name, type: c.type }))),
           inserted,
+          chat.user_id,
         ]
       );
     } finally {

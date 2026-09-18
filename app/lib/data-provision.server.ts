@@ -48,6 +48,35 @@ export async function provisionUserSchema(userId: string): Promise<string> {
   }
 }
 
+const COMPANY_SCHEMA_PREFIX = 'cmp_';
+
+/**
+ * Derive the per-company (shared workspace) schema name. Company IDs start with
+ * `cmp_personal_<userId>` (a user's personal workspace) or a real company id;
+ * sanitize for use as a Postgres identifier. The result is always `[a-z0-9_]+`.
+ */
+export function schemaForCompany(companyId: string): string {
+  const safe = (companyId || '').toLowerCase().replace(VALID_SCHEMA_CHAR, '_');
+  return `${COMPANY_SCHEMA_PREFIX}${safe}`;
+}
+
+/**
+ * Idempotent: create the company's shared runtime schema if it does not exist.
+ * Used when a company project's tables are created in the shared workspace (W2).
+ */
+export async function provisionCompanySchema(companyId: string): Promise<string> {
+  const schemaName = schemaForCompany(companyId);
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query(`CREATE SCHEMA IF NOT EXISTS "${schemaName}"`);
+    return schemaName;
+  } finally {
+    client.release();
+  }
+}
+
 export interface AppQueryResult {
   ok: boolean;
   rows?: Record<string, unknown>[];
@@ -65,14 +94,18 @@ export interface AppQueryResult {
  * Pass a single statement (or a multi-statement string with no params). Params
  * bind only to the first statement when multi-statement strings are used.
  */
-export async function runAppQuery(userId: string, sql: string, params: unknown[] = []): Promise<AppQueryResult> {
+export async function runAppQueryInSchema(
+  userId: string,
+  schemaName: string,
+  sql: string,
+  params: unknown[] = []
+): Promise<AppQueryResult> {
   const rateResult = await checkRateLimit(userId, 'data-proxy', 100, 10);
 
   if (!rateResult.allowed) {
     return { ok: false, error: 'Too many requests. Please slow down.' };
   }
 
-  const schemaName = schemaForUser(userId);
   const pool = getPostgresPool();
   const client = await pool.connect();
 
@@ -93,6 +126,16 @@ export async function runAppQuery(userId: string, sql: string, params: unknown[]
   }
 }
 
+/**
+ * Execute SQL inside the USER's schema (`usr_<userId>`). Kept as a thin wrapper
+ * around `runAppQueryInSchema` so all existing callers (schema create, import,
+ * generate) keep working unchanged. For workspace-aware tables (company schemas),
+ * callers use `runAppQueryInSchema(userId, table.schema_name, …)` directly.
+ */
+export async function runAppQuery(userId: string, sql: string, params: unknown[] = []): Promise<AppQueryResult> {
+  return runAppQueryInSchema(userId, schemaForUser(userId), sql, params);
+}
+
 export interface AppTableMeta {
   logical_name: string;
   table_name: string;
@@ -106,6 +149,8 @@ export interface AppTableMeta {
   }>;
   row_count: number;
   category?: string | null;
+  workspace_type?: string | null;
+  workspace_id?: string | null;
 }
 
 /**
@@ -122,7 +167,7 @@ export async function getRegisteredTable(chatId: string, logicalName: string): P
 
   try {
     const { rows } = await client.query(
-      `SELECT logical_name, table_name, schema_name, columns, row_count, category
+      `SELECT logical_name, table_name, schema_name, columns, row_count, category, workspace_type, workspace_id
        FROM app_tables
        WHERE chat_id = $1 AND logical_name = $2
        LIMIT 1`,
@@ -143,6 +188,8 @@ export async function getRegisteredTable(chatId: string, logicalName: string): P
       columns,
       row_count: row.row_count ?? 0,
       category: row.category ?? null,
+      workspace_type: row.workspace_type ?? null,
+      workspace_id: row.workspace_id ?? null,
     };
   } finally {
     client.release();
@@ -162,7 +209,7 @@ export async function listChatTables(chatId: string): Promise<AppTableMeta[]> {
 
   try {
     const { rows } = await client.query(
-      `SELECT logical_name, table_name, schema_name, columns, row_count, category
+      `SELECT logical_name, table_name, schema_name, columns, row_count, category, workspace_type, workspace_id
        FROM app_tables
        WHERE chat_id = $1
        ORDER BY logical_name`,
@@ -180,6 +227,8 @@ export async function listChatTables(chatId: string): Promise<AppTableMeta[]> {
         columns,
         row_count: (row.row_count as number) ?? 0,
         category: (row.category as string | null) ?? null,
+        workspace_type: (row.workspace_type as string | null) ?? null,
+        workspace_id: (row.workspace_id as string | null) ?? null,
       };
     });
   } finally {
@@ -223,7 +272,7 @@ export async function listUserTables(userId: string): Promise<AppTableMeta[]> {
 
   try {
     const { rows } = await client.query(
-      `SELECT DISTINCT ON (table_name) logical_name, table_name, schema_name, columns, row_count, category
+      `SELECT DISTINCT ON (table_name) logical_name, table_name, schema_name, columns, row_count, category, workspace_type, workspace_id
        FROM app_tables
        WHERE user_id = $1
        ORDER BY table_name, row_count DESC`,
@@ -241,6 +290,8 @@ export async function listUserTables(userId: string): Promise<AppTableMeta[]> {
         columns,
         row_count: (row.row_count as number) ?? 0,
         category: (row.category as string | null) ?? null,
+        workspace_type: (row.workspace_type as string | null) ?? null,
+        workspace_id: (row.workspace_id as string | null) ?? null,
       };
     });
   } finally {

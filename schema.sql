@@ -591,6 +591,8 @@ CREATE TABLE IF NOT EXISTS app_tables (
     row_count INTEGER NOT NULL DEFAULT 0,
     source TEXT,
     category TEXT,
+    workspace_type TEXT NOT NULL DEFAULT 'personal',
+    workspace_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(chat_id, logical_name)
 );
@@ -609,3 +611,8 @@ CREATE INDEX IF NOT EXISTS idx_app_tables_chat ON app_tables(chat_id);
 -- Master vs transactional classification (master = reference/lookup like users/products;
 -- transactional = events/records like orders/messages). Additive — no-op if the column exists.
 ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS category TEXT;
+-- Workspace scope: 'personal' (the user's own usr_<userId> schema) or 'company' (a shared
+-- cmp_<companyId> schema). workspace_id = userId (personal) or companyId (company). Existing
+-- rows default to 'personal' (null workspace_id is treated as the row's user_id). Additive.
+ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS workspace_type TEXT NOT NULL DEFAULT 'personal';
+ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS workspace_id TEXT;

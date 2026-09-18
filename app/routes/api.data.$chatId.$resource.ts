@@ -19,7 +19,7 @@ import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-r
 import { requireAuth, type User } from '~/lib/auth';
 import { getChatById } from '~/lib/database';
 import { getPostgresPool } from '~/lib/database-postgresql';
-import { getRegisteredTable, runAppQuery, type AppTableMeta } from '~/lib/data-provision.server';
+import { getRegisteredTable, runAppQueryInSchema, type AppTableMeta } from '~/lib/data-provision.server';
 import { validateDataApiToken } from '~/lib/.server/data-token';
 
 const MAX_ROWS = 1000;
@@ -224,7 +224,7 @@ async function loaderImpl({ request, params, context }: LoaderFunctionArgs) {
   // Identifiers come from the registry (validated at import); double-quoted.
   const selectList = selectCols.map(c => `"${c}"`).join(', ');
   const sql = `SELECT ${selectList} FROM "${table.table_name}" ORDER BY created_at DESC LIMIT $1 OFFSET $2`;
-  const result = await runAppQuery(ownerId, sql, [limit, offset]);
+  const result = await runAppQueryInSchema(ownerId, table.schema_name, sql, [limit, offset]);
 
   if (!result.ok) {
     return json({ error: result.error || 'Query failed' }, { status: 500 });
@@ -294,7 +294,7 @@ async function actionImpl({ request, params, context }: ActionFunctionArgs) {
     const values = entries.map(([, v]) => v);
     const sql = `INSERT INTO "${table.table_name}" (${colNames.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`;
 
-    const result = await runAppQuery(ownerId, sql, values);
+    const result = await runAppQueryInSchema(ownerId, table.schema_name, sql, values);
 
     if (!result.ok) {
       return json({ error: result.error || 'Insert failed' }, { status: 500 });
@@ -339,7 +339,7 @@ async function actionImpl({ request, params, context }: ActionFunctionArgs) {
 
     const sql = `UPDATE "${table.table_name}" SET ${setClause}, updated_at = now() WHERE id = $${values.length} RETURNING *`;
 
-    const result = await runAppQuery(ownerId, sql, values);
+    const result = await runAppQueryInSchema(ownerId, table.schema_name, sql, values);
 
     if (!result.ok) {
       return json({ error: result.error || 'Update failed' }, { status: 500 });
@@ -356,7 +356,7 @@ async function actionImpl({ request, params, context }: ActionFunctionArgs) {
     }
 
     const sql = `DELETE FROM "${table.table_name}" WHERE id = $1 RETURNING id`;
-    const result = await runAppQuery(ownerId, sql, [id]);
+    const result = await runAppQueryInSchema(ownerId, table.schema_name, sql, [id]);
 
     if (!result.ok) {
       return json({ error: result.error || 'Delete failed' }, { status: 500 });
