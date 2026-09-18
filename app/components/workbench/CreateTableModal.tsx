@@ -36,6 +36,7 @@ function slugify(s: string): string {
 export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTableModalProps) => {
   const [tableName, setTableName] = useState('');
   const [columns, setColumns] = useState<ColumnDef[]>([makeCol()]);
+  const [category, setCategory] = useState<'master' | 'transactional' | ''>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +80,7 @@ export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTabl
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tableName: name,
+          category: category || undefined,
           columns: validCols.map(c => ({
             name: slugify(c.name),
             type: c.type,
@@ -147,6 +149,20 @@ export const CreateTableModal = memo(({ chatId, onClose, onCreated }: CreateTabl
                 Will be saved as <code className="text-bolt-elements-textPrimary">{slugify(tableName)}</code>
               </p>
             )}
+          </div>
+
+          {/* Category */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-bolt-elements-textSecondary">Category</label>
+            <select
+              value={category}
+              onChange={e => setCategory(e.target.value as 'master' | 'transactional' | '')}
+              className="w-full rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-3 py-2 text-sm text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-bolt-elements-focus"
+            >
+              <option value="">Uncategorized</option>
+              <option value="master">Master (reference/lookup)</option>
+              <option value="transactional">Transactional (events/records)</option>
+            </select>
           </div>
 
           {/* Auto-added columns notice */}

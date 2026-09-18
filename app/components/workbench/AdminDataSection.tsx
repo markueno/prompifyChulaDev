@@ -210,10 +210,63 @@ interface RowModalProps {
   onChange: (name: string, value: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
+  chatId?: string;
 }
 
-const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClose }: RowModalProps) => {
+/*
+ * For an FK column's parent-row dropdown, pick the first non-auto-managed value
+ * that reads as a string — gives a human-readable label like "Alice" alongside
+ * the id. Falls back to empty if the row has no such field.
+ */
+function firstDisplayValue(row: SupabaseRow): string {
+  for (const [key, val] of Object.entries(row)) {
+    if (AUTO_MANAGED.has(key)) {
+      continue;
+    }
+
+    if (typeof val === 'string' && val) {
+      return val;
+    }
+
+    if (val !== null && val !== undefined) {
+      return String(val);
+    }
+  }
+
+  return '';
+}
+
+const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClose, chatId }: RowModalProps) => {
   const visibleCols = mode === 'add' ? table.columns.filter(c => !AUTO_MANAGED.has(c.name)) : table.columns;
+  const [fkOptions, setFkOptions] = useState<Record<string, SupabaseRow[]>>({});
+
+  useEffect(() => {
+    let active = true;
+
+    if (chatId) {
+      const fkCols = visibleCols.filter(c => c.references);
+
+      (async () => {
+        const entries = await Promise.all(
+          fkCols.map(async c => {
+            const res = await fetchProxyRows(chatId, c.references!.table, 0, 100);
+
+            return [c.name, res.data ?? []] as const;
+          })
+        );
+
+        if (!active) {
+          return;
+        }
+
+        setFkOptions(Object.fromEntries(entries));
+      })();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [chatId, table.name]);
 
   return (
     <div
@@ -238,15 +291,41 @@ const RowModal = memo(({ mode, table, values, saving, onChange, onSubmit, onClos
           {visibleCols.map(col => {
             const itype = inputTypeFor(col);
             const readonly = mode === 'edit' && AUTO_MANAGED.has(col.name);
+            const fkRows = col.references ? fkOptions[col.name] : undefined;
 
             return (
               <div key={col.name}>
                 <label className="flex items-center gap-1.5 text-xs font-medium text-bolt-elements-textSecondary mb-1">
                   {col.name}
                   <span className="text-bolt-elements-textTertiary font-normal">{col.format ?? col.type}</span>
+                  {col.references && (
+                    <span className="text-bolt-elements-textTertiary font-normal">
+                      → {col.references.table}.{col.references.column}
+                    </span>
+                  )}
                 </label>
 
-                {itype === 'checkbox' ? (
+                {fkRows ? (
+                  <select
+                    value={values[col.name] ?? ''}
+                    onChange={e => onChange(col.name, e.target.value)}
+                    disabled={readonly}
+                    className="w-full px-3 py-2 text-sm rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary focus:outline-none focus:ring-1 focus:ring-accent-500/50 disabled:opacity-50"
+                  >
+                    <option value="">— none —</option>
+                    {fkRows.map(row => {
+                      const id = String(row.id ?? '');
+                      const label = firstDisplayValue(row);
+
+                      return (
+                        <option key={id} value={id}>
+                          {id.slice(0, 8)}
+                          {label ? ` — ${label}` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : itype === 'checkbox' ? (
                   <input
                     type="checkbox"
                     checked={values[col.name] === 'true'}
@@ -963,38 +1042,60 @@ export const AdminDataSection = memo(() => {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {tables.map(t => (
-              <div
-                key={t.name}
-                className="relative rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 hover:border-accent-500/50 hover:bg-bolt-elements-background-depth-2 transition-all group"
-              >
-                <button onClick={() => handleSelectTable(t)} className="w-full text-left p-4">
-                  <div className="flex items-center gap-2 mb-2 pr-6">
-                    <div className="i-ph:table w-4 h-4 text-bolt-elements-textTertiary group-hover:text-accent-500 transition-colors" />
-                    <span className="text-sm font-medium text-bolt-elements-textPrimary truncate">{t.name}</span>
+          <div className="flex flex-col gap-6">
+            {[
+              { label: 'Master data', items: tables.filter(t => t.category === 'master') },
+              { label: 'Transactional data', items: tables.filter(t => t.category === 'transactional') },
+              { label: 'Uncategorized', items: tables.filter(t => !t.category) },
+            ]
+              .filter(group => group.items.length > 0)
+              .map(group => (
+                <div key={group.label}>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-bolt-elements-textTertiary">
+                    {group.label}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {group.items.map(t => {
+                      const fkCount = t.columns.filter(c => c.references).length;
+
+                      return (
+                        <div
+                          key={t.name}
+                          className="relative rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 hover:border-accent-500/50 hover:bg-bolt-elements-background-depth-2 transition-all group"
+                        >
+                          <button onClick={() => handleSelectTable(t)} className="w-full text-left p-4">
+                            <div className="flex items-center gap-2 mb-2 pr-6">
+                              <div className="i-ph:table w-4 h-4 text-bolt-elements-textTertiary group-hover:text-accent-500 transition-colors" />
+                              <span className="text-sm font-medium text-bolt-elements-textPrimary truncate">
+                                {t.name}
+                              </span>
+                            </div>
+                            <p className="text-xs text-bolt-elements-textTertiary">
+                              {t.columns.length} col{t.columns.length !== 1 ? 's' : ''}
+                              {' · '}
+                              pk: {t.primaryKey}
+                              {fkCount > 0 && ` · ${fkCount} link${fkCount !== 1 ? 's' : ''}`}
+                            </p>
+                          </button>
+                          {platformMode && (
+                            <button
+                              onClick={() => {
+                                setDropTableTarget(t);
+                                setDropTableConfirm('');
+                              }}
+                              title={`Delete table "${t.name}"`}
+                              aria-label={`Delete table ${t.name}`}
+                              className="absolute right-2 top-2 p-1 rounded text-bolt-elements-textTertiary opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-red-500 hover:bg-bolt-elements-background-depth-3 transition-all"
+                            >
+                              <div className="i-ph:trash w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <p className="text-xs text-bolt-elements-textTertiary">
-                    {t.columns.length} col{t.columns.length !== 1 ? 's' : ''}
-                    {' · '}
-                    pk: {t.primaryKey}
-                  </p>
-                </button>
-                {platformMode && (
-                  <button
-                    onClick={() => {
-                      setDropTableTarget(t);
-                      setDropTableConfirm('');
-                    }}
-                    title={`Delete table "${t.name}"`}
-                    aria-label={`Delete table ${t.name}`}
-                    className="absolute right-2 top-2 p-1 rounded text-bolt-elements-textTertiary opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-red-500 hover:bg-bolt-elements-background-depth-3 transition-all"
-                  >
-                    <div className="i-ph:trash w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            ))}
+                </div>
+              ))}
           </div>
         )}
 
@@ -1294,6 +1395,7 @@ export const AdminDataSection = memo(() => {
           onChange={(name, value) => setFormValues(v => ({ ...v, [name]: value }))}
           onSubmit={handleSaveRow}
           onClose={() => setRowModalMode(null)}
+          chatId={currentChatId}
         />
       )}
 

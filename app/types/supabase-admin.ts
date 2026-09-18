@@ -11,12 +11,14 @@ export interface SupabaseColumn {
   format?: string;
   nullable?: boolean;
   description?: string;
+  references?: { table: string; column: string };
 }
 
 export interface SupabaseTable {
   name: string;
   columns: SupabaseColumn[];
   primaryKey: string;
+  category?: string | null;
 }
 
 export type SupabaseRow = Record<string, unknown>;

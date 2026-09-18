@@ -9,12 +9,16 @@ import type { SupabaseTable, SupabaseRow, SupabaseColumn } from '~/types/supabas
 interface ProxyColumn {
   name: string;
   type: string;
+  nullable?: boolean;
+  defaultValue?: string;
+  references?: { table: string; column: string };
 }
 
 interface ProxyTable {
   name: string;
   columns: ProxyColumn[];
   row_count?: number;
+  category?: string | null;
 }
 
 function toSupabaseTable(t: ProxyTable): SupabaseTable {
@@ -22,13 +26,15 @@ function toSupabaseTable(t: ProxyTable): SupabaseTable {
     name: c.name,
     type: c.type,
     format: c.type,
-    nullable: true,
+    nullable: c.nullable ?? true,
+    references: c.references,
   }));
 
   return {
     name: t.name,
     columns: cols,
     primaryKey: 'id',
+    category: t.category ?? null,
   };
 }
 
