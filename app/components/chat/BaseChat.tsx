@@ -140,18 +140,25 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
      * handles streaming growth, but on a page refresh the messages render AFTER hydration
      * (ClientOnly) and the ResizeObserver's initial fire can land before content is laid out
      * (scrollHeight == clientHeight -> no scroll -> isAtBottom stays true -> no button).
-     * This effect fires when initialMessages populates (the chat history just loaded) and
-     * directly sets scrollTop = scrollHeight on the scroll container after two animation
-     * frames (to catch async markdown / CodeMirror rendering).
+     *
+     * This effect fires when messages first populate (regardless of isStreaming — the
+     * !isStreaming guard was WRONG because isStreaming is true during fakeLoading on refresh,
+     * which blocked the scroll entirely; hasScrolledRef replaces it so the scroll fires
+     * exactly once per chat load, independent of streaming state).
      */
     const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
-    const prevMessageCountRef = React.useRef(0);
+    const hasScrolledRef = React.useRef(false);
 
     useEffect(() => {
       const count = messages?.length ?? 0;
 
-      if (count > 0 && prevMessageCountRef.current === 0 && !isStreaming) {
-        // Messages just loaded after a refresh/open — scroll to the newest.
+      if (count > 0 && !hasScrolledRef.current) {
+        hasScrolledRef.current = true;
+
+        /*
+         * Messages just loaded after a refresh/open — scroll to the newest.
+         * Two rAF ticks catch async markdown / CodeMirror rendering.
+         */
         let raf2 = 0;
         const raf1 = requestAnimationFrame(() => {
           const el = scrollContainerRef.current;
@@ -177,9 +184,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
           }
         };
       }
-
-      prevMessageCountRef.current = count;
-    }, [messages, isStreaming]);
+    }, [messages]);
 
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
