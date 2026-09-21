@@ -12,6 +12,18 @@
 import { openDatabase, getSnapshot, setSnapshot } from '~/lib/persistence/db';
 import type { Snapshot } from './buildSnapshot';
 
+/*
+ * Per-page-load session token — distinguishes cache writes from the CURRENT page
+ * session (safe to serve) from a PREVIOUS session (stale — bypass + download fresh
+ * from the server). Generated once per page load; passed to setSnapshot so the
+ * cache-match check can compare.
+ */
+const SESSION_TOKEN = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+function getSessionToken(): string {
+  return SESSION_TOKEN;
+}
+
 /**
  * Convert a snapshot's stored absolute path (`/home/project-<session>/src/App.tsx`) to a
  * workdir-relative path (`src/App.tsx`) for writing into the current WebContainer (Day 9b).
@@ -188,13 +200,31 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
    * Cache check: if the local cache matches the server's version, use the cached
    * files (already downloaded) and skip the blob fetches entirely. This is the
    * fast path — the cache is current, no need to re-download blobs.
+   *
+   * STALE-CACHE GUARD: the cache could have been written by a PREVIOUS page
+   * session (e.g., the pagehide flush wrote it, then the user refreshed). In that
+   * case the cache's files might be from a mid-edit state, not the server's true
+   * latest. We track the current page load with a session token — if the cache's
+   * session token doesn't match, we bypass the cache and download fresh from the
+   * server (the server is authoritative).
    */
+  const currentSession = getSessionToken();
+
   if (db) {
     const cached = await getSnapshot(db, chatId);
 
     if (cached && cached.version === payload.version && cached.files) {
-      console.log(`[loadSnapshot] restored version ${payload.version} from cache-match`);
-      return { manifest: cached.manifest, files: cached.files };
+      // Check if the cache was written in THIS page session (not a previous one).
+      const cacheSession = (cached as any).sessionToken as string | undefined;
+
+      if (cacheSession === currentSession) {
+        console.log(`[loadSnapshot] restored version ${payload.version} from cache-match (same session)`);
+        return { manifest: cached.manifest, files: cached.files };
+      }
+
+      console.warn(
+        `[loadSnapshot] cache version ${payload.version} matches server but is from a previous session — bypassing cache, downloading fresh from server`
+      );
     }
   }
 
@@ -241,7 +271,13 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
         manifest,
         files,
         timestamp: new Date().toISOString(),
-      });
+        /*
+         * Tag the cache entry with the current page-load session token so the
+         * cache-match check can distinguish same-session (safe) from cross-session
+         * (stale — bypass + download fresh).
+         */
+        sessionToken: currentSession,
+      } as any);
     } catch {
       // ignore cache-write failures
     }

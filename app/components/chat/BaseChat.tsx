@@ -135,6 +135,52 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
     const modelRef = React.useRef(model);
     modelRef.current = model;
 
+    /*
+     * Belt-and-suspenders scroll-to-bottom on chat load. The useSnapScroll ResizeObserver
+     * handles streaming growth, but on a page refresh the messages render AFTER hydration
+     * (ClientOnly) and the ResizeObserver's initial fire can land before content is laid out
+     * (scrollHeight == clientHeight -> no scroll -> isAtBottom stays true -> no button).
+     * This effect fires when initialMessages populates (the chat history just loaded) and
+     * directly sets scrollTop = scrollHeight on the scroll container after two animation
+     * frames (to catch async markdown / CodeMirror rendering).
+     */
+    const scrollContainerRef = React.useRef<HTMLDivElement | null>(null);
+    const prevMessageCountRef = React.useRef(0);
+
+    useEffect(() => {
+      const count = messages?.length ?? 0;
+
+      if (count > 0 && prevMessageCountRef.current === 0 && !isStreaming) {
+        // Messages just loaded after a refresh/open — scroll to the newest.
+        let raf2 = 0;
+        const raf1 = requestAnimationFrame(() => {
+          const el = scrollContainerRef.current;
+
+          if (el) {
+            el.scrollTop = el.scrollHeight;
+          }
+
+          raf2 = requestAnimationFrame(() => {
+            const el2 = scrollContainerRef.current;
+
+            if (el2) {
+              el2.scrollTop = el2.scrollHeight;
+            }
+          });
+        });
+
+        return () => {
+          cancelAnimationFrame(raf1);
+
+          if (raf2) {
+            cancelAnimationFrame(raf2);
+          }
+        };
+      }
+
+      prevMessageCountRef.current = count;
+    }, [messages, isStreaming]);
+
     const [progressAnnotations, setProgressAnnotations] = useState<ProgressAnnotation[]>([]);
 
     const setWizardPrompt = (prompt: string, summary?: string) => {
@@ -431,7 +477,13 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
             Jump to latest
           </button>
         )}
-        <div ref={scrollRef} className="flex flex-col lg:flex-row overflow-y-auto w-full h-full">
+        <div
+          ref={node => {
+            scrollContainerRef.current = node;
+            scrollRef?.(node);
+          }}
+          className="flex flex-col lg:flex-row overflow-y-auto w-full h-full"
+        >
           <div className={classNames(styles.Chat, 'flex flex-col flex-grow lg:min-w-[var(--chat-min-width)] h-full')}>
             {!chatStarted && (
               <div id="intro" className="mt-[16vh] max-w-chat mx-auto text-center px-4 lg:px-0">
