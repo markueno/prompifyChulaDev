@@ -17,7 +17,7 @@
  */
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth, type User } from '~/lib/auth';
-import { getChatById } from '~/lib/database';
+import { getChatById, getCompanyMember } from '~/lib/database';
 import { getPostgresPool } from '~/lib/database-postgresql';
 import { getRegisteredTable, runAppQueryInSchema, type AppTableMeta } from '~/lib/data-provision.server';
 import { validateDataApiToken } from '~/lib/.server/data-token';
@@ -136,16 +136,11 @@ async function resolveTable(chatId: string, resource: string, user: User): Promi
   }
 
   /*
-   * v1: strict schema-per-user, no sharing. Only the owner (or a moderator)
-   * may access runtime data. Chat members who are not the owner get 403.
-   */
-  if (chat.user_id !== user.id && !user.isModerator) {
-    return json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  /*
-   * App-level isolation: the table must be registered to THIS chat. Another
-   * app's table (even owned by the same user) is not visible by name here.
+   * W2: workspace-aware access control.
+   * - Company tables (workspace_type='company'): any company member can read+write
+   *   (membership check via company_members). The table lives in cmp_<companyId>.
+   * - Personal tables (workspace_type='personal' or null): owner-only (the W1 model).
+   *   The table lives in usr_<userId>.
    */
   const table = await getRegisteredTable(chat.id, resource);
 
@@ -153,9 +148,23 @@ async function resolveTable(chatId: string, resource: string, user: User): Promi
     return json({ error: 'Not found' }, { status: 404 });
   }
 
-  // Defense-in-depth: the registry's schema_name must match the owner's schema.
-  if (table.schema_name !== `usr_${chat.user_id.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`) {
-    return json({ error: 'Schema mismatch' }, { status: 500 });
+  if (table.workspace_type === 'company' && table.workspace_id) {
+    // Company table: access = company membership (any member read+write).
+    const isMember = await getCompanyMember(table.workspace_id, user.id);
+
+    if (!isMember && !user.isModerator) {
+      return json({ error: 'Forbidden' }, { status: 403 });
+    }
+  } else {
+    // Personal table: owner-only (the W1 model).
+    if (chat.user_id !== user.id && !user.isModerator) {
+      return json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Defense-in-depth: the registry's schema_name must match the owner's schema.
+    if (table.schema_name !== `usr_${chat.user_id.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`) {
+      return json({ error: 'Schema mismatch' }, { status: 500 });
+    }
   }
 
   return { user, ownerId: chat.user_id, table };

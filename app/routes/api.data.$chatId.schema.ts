@@ -18,10 +18,12 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
 import { getChatById } from '~/lib/database';
-import { getPostgresPool } from '~/lib/database-postgresql';
+import { getPostgresPool, getCompanyIdForChatPostgres, personalCompanyId } from '~/lib/database-postgresql';
 import {
   provisionUserSchema,
+  provisionCompanySchema,
   runAppQuery,
+  runAppQueryInSchema,
   listChatTables,
   physicalNameFor,
   listUserTables,
@@ -260,7 +262,28 @@ async function handleCreate(request: Request, chat: ChatRecord) {
     return json({ error: tableErr }, { status: 400 });
   }
 
-  const schemaName = await provisionUserSchema(chat.user_id);
+  /*
+   * W2: resolve the chat's workspace (personal vs company). If the chat's
+   * project belongs to a real company (not the user's personal company),
+   * tables are created in the shared cmp_<companyId> schema + tagged
+   * workspace_type='company'. Otherwise, personal usr_<userId> (W1 behavior).
+   */
+  const companyId = await getCompanyIdForChatPostgres(chat.id);
+  const isCompanyProject = !!companyId && companyId !== personalCompanyId(chat.user_id);
+
+  let schemaName: string;
+  let workspaceType: string;
+  let workspaceId: string;
+
+  if (isCompanyProject && companyId) {
+    schemaName = await provisionCompanySchema(companyId);
+    workspaceType = 'company';
+    workspaceId = companyId;
+  } else {
+    schemaName = await provisionUserSchema(chat.user_id);
+    workspaceType = 'personal';
+    workspaceId = chat.user_id;
+  }
 
   /*
    * Opt-in: link an existing table (created under another chat) into THIS
@@ -351,7 +374,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
    */
   const physicalName = physicalNameFor(tableName, chat.id);
   const createSQL = buildCreateTableSQL(physicalName, columns);
-  const result = await runAppQuery(chat.user_id, createSQL);
+  const result = await runAppQueryInSchema(chat.user_id, schemaName, createSQL);
 
   if (!result.ok) {
     const err = result.error || 'Failed to create table';
@@ -368,7 +391,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
       try {
         await regClient.query(
           `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category, workspace_type, workspace_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8, 'personal', $9)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8, $9, $10)
            ON CONFLICT (chat_id, logical_name) DO NOTHING`,
           [
             cryptoRandomId(),
@@ -379,7 +402,8 @@ async function handleCreate(request: Request, chat: ChatRecord) {
             tableName,
             JSON.stringify(columns),
             category ?? null,
-            chat.user_id,
+            workspaceType,
+            workspaceId,
           ]
         );
       } finally {
@@ -399,7 +423,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
   try {
     await regClient.query(
       `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category, workspace_type, workspace_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8, 'personal', $9)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'manual', $8, $9, $10)
          ON CONFLICT (chat_id, logical_name) DO NOTHING`,
       [
         cryptoRandomId(),
@@ -410,7 +434,8 @@ async function handleCreate(request: Request, chat: ChatRecord) {
         tableName,
         JSON.stringify(columns),
         category ?? null,
-        chat.user_id,
+        workspaceType,
+        workspaceId,
       ]
     );
   } finally {
