@@ -129,40 +129,57 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
 
     if (!res.ok) {
       // Server error — fall back to cache if available.
+      console.warn(`[loadSnapshot] server error (${res.status}), falling back to cache`);
+
       if (db) {
         const cached = await getSnapshot(db, chatId);
 
         if (cached && cached.files) {
+          console.warn('[loadSnapshot] served from cache (server was down)');
           return { manifest: cached.manifest, files: cached.files };
         }
       }
+
+      console.warn('[loadSnapshot] no cache available, returning null → replay');
 
       return null;
     }
 
     payload = (await res.json()) as LatestVersionResponse;
-  } catch {
+  } catch (error) {
     // Server unreachable — fall back to cache if available.
+    console.warn('[loadSnapshot] server unreachable, falling back to cache:', error);
+
     if (db) {
       const cached = await getSnapshot(db, chatId);
 
       if (cached && cached.files) {
+        console.warn('[loadSnapshot] served from cache (server unreachable)');
         return { manifest: cached.manifest, files: cached.files };
       }
     }
+
+    console.warn('[loadSnapshot] no cache available, returning null → replay');
 
     return null; // server unreachable, no cache — fall back to replay
   }
 
   if (payload.version === null || !payload.manifest || !payload.urls) {
     // No saved version on the server — fall back to cache (maybe a local-only session) or replay.
+    console.warn(
+      `[loadSnapshot] no saved version on server (version: ${payload.version}, manifest: ${!!payload.manifest}, urls: ${!!payload.urls}), falling back to cache/replay`
+    );
+
     if (db) {
       const cached = await getSnapshot(db, chatId);
 
       if (cached && cached.files) {
+        console.warn('[loadSnapshot] served from cache (no server version)');
         return { manifest: cached.manifest, files: cached.files };
       }
     }
+
+    console.warn('[loadSnapshot] no cache available, returning null → replay');
 
     return null;
   }
@@ -176,6 +193,7 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
     const cached = await getSnapshot(db, chatId);
 
     if (cached && cached.version === payload.version && cached.files) {
+      console.log(`[loadSnapshot] restored version ${payload.version} from cache-match`);
       return { manifest: cached.manifest, files: cached.files };
     }
   }
@@ -202,13 +220,15 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
     for (const [hash, content] of entries) {
       contentByHash.set(hash, content);
     }
-  } catch {
+  } catch (error) {
+    console.warn('[loadSnapshot] blob download failed (will fall back to replay):', error);
     return null; // any blob failed — don't mount a partial tree
   }
 
   const files = reconstructFiles(manifest, contentByHash);
 
   if (!files) {
+    console.warn('[loadSnapshot] reconstructFiles returned null (missing blob content)');
     return null;
   }
 
@@ -226,6 +246,8 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
       // ignore cache-write failures
     }
   }
+
+  console.log(`[loadSnapshot] restored version ${payload.version} from server-download`);
 
   return { manifest, files };
 }

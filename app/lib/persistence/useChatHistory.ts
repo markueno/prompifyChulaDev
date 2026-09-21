@@ -139,6 +139,7 @@ async function restoreCodebaseSnapshot(id: string): Promise<boolean> {
     const snapshot = await loadSnapshot(id);
 
     if (!snapshot) {
+      console.warn('[restoreCodebaseSnapshot] no snapshot restored, falling back to message replay');
       return false; // no snapshot (never saved, or unreachable) — fall back to message replay
     }
 
