@@ -44,8 +44,6 @@ let lastSaveArgs:
 let flushHandlersRegistered = false;
 
 function flushPendingSave(): void {
-  console.log('[flushPendingSave] pagehide/visibilitychange flush triggered');
-
   if (snapshotSaveTimer) {
     clearTimeout(snapshotSaveTimer);
     snapshotSaveTimer = undefined;
@@ -94,8 +92,6 @@ async function runSave(
   changedFilePath?: string
 ): Promise<void> {
   let id = overrideChatId ?? chatId.get();
-
-  console.log('[runSave] starting for chatId:', id);
 
   if (!id) {
     try {
@@ -223,14 +219,6 @@ async function saveCodebaseSnapshot(
     const snapshot = await buildSnapshot(fileMap);
     const hashes = [...new Set(Object.values(snapshot.manifest))];
 
-    console.log(
-      '[saveCodebaseSnapshot] built snapshot:',
-      hashes.length,
-      'unique blobs,',
-      Object.keys(snapshot.files).length,
-      'files'
-    );
-
     if (hashes.length === 0) {
       return;
     }
@@ -280,7 +268,6 @@ async function saveCodebaseSnapshot(
           files: snapshot.files,
           timestamp: new Date().toISOString(),
         });
-        console.log('[saveCodebaseSnapshot] optimistic IDB cache written (version:', existing?.version ?? 0, ')');
       } catch (cacheError) {
         console.warn('Optimistic snapshot cache write failed (continuing to server save):', cacheError);
       }
@@ -293,8 +280,6 @@ async function saveCodebaseSnapshot(
      * supplied (manual save) but nothing changed we still skip — there's no version to name.
      */
     if (!diff.changed && previousManifest) {
-      console.log('[saveCodebaseSnapshot] manifest unchanged since last save, skipping server round-trip');
-
       return;
     }
 
@@ -313,8 +298,6 @@ async function saveCodebaseSnapshot(
         const { missing } = (await dedupRes.json()) as { missing: string[] };
 
         await uploadBlobs(snapshot, missing);
-
-        console.log('[saveCodebaseSnapshot] POST /api/chats/' + id + '/version');
 
         const versionRes = await fetch(`/api/chats/${id}/version`, {
           method: 'POST',
@@ -335,7 +318,6 @@ async function saveCodebaseSnapshot(
         }
 
         const savedVersion = ((await versionRes.json()) as { version: number }).version;
-        console.log('[saveCodebaseSnapshot] server saved version:', savedVersion);
 
         return savedVersion;
       });
@@ -353,7 +335,7 @@ async function saveCodebaseSnapshot(
         });
       }
     } catch (serverError) {
-      console.warn('[saveCodebaseSnapshot] server save FAILED, enqueuing for retry:', serverError);
+      console.warn('Snapshot server save failed, enqueuing for retry:', serverError);
 
       if (db) {
         await queueWrite(db, 'version', id, {
@@ -366,7 +348,7 @@ async function saveCodebaseSnapshot(
       }
     }
   } catch (error) {
-    console.warn('[saveCodebaseSnapshot] save FAILED (chat save unaffected):', error);
+    console.warn('Snapshot save failed (chat save unaffected):', error);
   }
 }
 
@@ -411,7 +393,6 @@ export function scheduleSnapshotSave(
   lastSaveArgs = { fileMap, overrideChatId, lastMessageId, label, changedFilePath };
 
   if (immediate) {
-    console.log('[scheduleSnapshotSave] immediate save (no debounce)');
     inFlightSave = runSave(fileMap, overrideChatId, lastMessageId, label, changedFilePath).finally(() => {
       inFlightSave = undefined;
     });
@@ -419,7 +400,6 @@ export function scheduleSnapshotSave(
     return () => {};
   }
 
-  console.log('[scheduleSnapshotSave] armed, debouncing 1000ms');
   snapshotSaveTimer = setTimeout(() => {
     inFlightSave = runSave(fileMap, overrideChatId, lastMessageId, label, changedFilePath).finally(() => {
       inFlightSave = undefined;

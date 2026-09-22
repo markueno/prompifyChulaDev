@@ -1374,7 +1374,7 @@ export async function getPromptsByChatIdPostgres(
 export async function getChatsByUserPostgres(
   userId: string,
   isModerator?: boolean,
-  companyId?: string
+  _companyId?: string
 ): Promise<any[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
@@ -1394,30 +1394,12 @@ export async function getChatsByUserPostgres(
     }
 
     /*
-     * If a companyId is provided, filter by the active workspace (personal or company).
-     * This makes the workspace dropdown actually filter the chat list — personal shows
-     * only personal-company chats, company shows only that company's chats.
+     * Return ALL chats the user can access (no workspace filter). The workspace
+     * filter was removed because it caused an empty sidebar when the user was stuck
+     * in a company workspace with no chats there. The filter will be re-added in
+     * Part 2 when the full workspace flow (switcher + invite + company creation)
+     * works end-to-end.
      */
-    if (companyId) {
-      const result = await client.query(
-        `SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
-         FROM chats c
-         LEFT JOIN projects p ON p.id = c.project_id
-         LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
-         LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
-         WHERE (p.company_id = $2 OR p.id IS NULL)
-           AND (c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1)
-         ORDER BY c.updated_at DESC`,
-        [userId, companyId]
-      );
-      return result.rows.map(row => ({
-        ...row,
-        messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
-        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
-      }));
-    }
-
-    // No companyId filter — return all chats the user can access (legacy behavior).
     const query = `
       SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
       FROM chats c

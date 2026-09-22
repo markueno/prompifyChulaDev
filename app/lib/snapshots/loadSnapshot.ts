@@ -13,15 +13,31 @@ import { openDatabase, getSnapshot, setSnapshot } from '~/lib/persistence/db';
 import type { Snapshot } from './buildSnapshot';
 
 /*
- * Per-page-load session token — distinguishes cache writes from the CURRENT page
- * session (safe to serve) from a PREVIOUS session (stale — bypass + download fresh
- * from the server). Generated once per page load; passed to setSnapshot so the
- * cache-match check can compare.
+ * Per-tab session token — persists across refreshes in the same tab (via
+ * sessionStorage) but NOT across new tabs. This means:
+ *   - Refresh (same tab): the token matches the cache → serve from cache (instant,
+ *     no OBS download). This is the fast path — the cache was written by the same
+ *     tab's previous page load, and its optimistic write captured the latest files.
+ *   - New tab: the token is empty → new token → bypass the cache → download fresh
+ *     from the server (correct — a new tab shouldn't trust the old tab's cache).
+ *
+ * The previous implementation used a module-level constant (regenerated on every
+ * page load) which caused the cache to NEVER match on refresh → forced an OBS blob
+ * download on every refresh → 5-minute hang when OBS was slow.
  */
-const SESSION_TOKEN = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-
 function getSessionToken(): string {
-  return SESSION_TOKEN;
+  if (typeof sessionStorage !== 'undefined') {
+    let token = sessionStorage.getItem('prompify_snapshot_session');
+
+    if (!token) {
+      token = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      sessionStorage.setItem('prompify_snapshot_session', token);
+    }
+
+    return token;
+  }
+
+  return 'no-session';
 }
 
 /**
@@ -140,98 +156,58 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
     const res = await fetch(`/api/chats/${chatId}/version/latest`);
 
     if (!res.ok) {
-      // Server error — fall back to cache if available.
-      console.warn(`[loadSnapshot] server error (${res.status}), falling back to cache`);
-
       if (db) {
         const cached = await getSnapshot(db, chatId);
 
         if (cached && cached.files) {
-          console.warn('[loadSnapshot] served from cache (server was down)');
           return { manifest: cached.manifest, files: cached.files };
         }
       }
-
-      console.warn('[loadSnapshot] no cache available, returning null → replay');
 
       return null;
     }
 
     payload = (await res.json()) as LatestVersionResponse;
-  } catch (error) {
-    // Server unreachable — fall back to cache if available.
-    console.warn('[loadSnapshot] server unreachable, falling back to cache:', error);
-
+  } catch {
     if (db) {
       const cached = await getSnapshot(db, chatId);
 
       if (cached && cached.files) {
-        console.warn('[loadSnapshot] served from cache (server unreachable)');
         return { manifest: cached.manifest, files: cached.files };
       }
     }
-
-    console.warn('[loadSnapshot] no cache available, returning null → replay');
-
-    return null; // server unreachable, no cache — fall back to replay
-  }
-
-  if (payload.version === null || !payload.manifest || !payload.urls) {
-    // No saved version on the server — fall back to cache (maybe a local-only session) or replay.
-    console.warn(
-      `[loadSnapshot] no saved version on server (version: ${payload.version}, manifest: ${!!payload.manifest}, urls: ${!!payload.urls}), falling back to cache/replay`
-    );
-
-    if (db) {
-      const cached = await getSnapshot(db, chatId);
-
-      if (cached && cached.files) {
-        console.warn('[loadSnapshot] served from cache (no server version)');
-        return { manifest: cached.manifest, files: cached.files };
-      }
-    }
-
-    console.warn('[loadSnapshot] no cache available, returning null → replay');
 
     return null;
   }
 
-  /*
-   * Cache check: if the local cache matches the server's version, use the cached
-   * files (already downloaded) and skip the blob fetches entirely. This is the
-   * fast path — the cache is current, no need to re-download blobs.
-   *
-   * STALE-CACHE GUARD: the cache could have been written by a PREVIOUS page
-   * session (e.g., the pagehide flush wrote it, then the user refreshed). In that
-   * case the cache's files might be from a mid-edit state, not the server's true
-   * latest. We track the current page load with a session token — if the cache's
-   * session token doesn't match, we bypass the cache and download fresh from the
-   * server (the server is authoritative).
-   */
+  if (payload.version === null || !payload.manifest || !payload.urls) {
+    if (db) {
+      const cached = await getSnapshot(db, chatId);
+
+      if (cached && cached.files) {
+        return { manifest: cached.manifest, files: cached.files };
+      }
+    }
+
+    return null;
+  }
+
   const currentSession = getSessionToken();
 
   if (db) {
     const cached = await getSnapshot(db, chatId);
 
     if (cached && cached.version === payload.version && cached.files) {
-      // Check if the cache was written in THIS page session (not a previous one).
       const cacheSession = (cached as any).sessionToken as string | undefined;
 
       if (cacheSession === currentSession) {
-        console.log(`[loadSnapshot] restored version ${payload.version} from cache-match (same session)`);
         return { manifest: cached.manifest, files: cached.files };
       }
-
-      console.warn(
-        `[loadSnapshot] cache version ${payload.version} matches server but is from a previous session — bypassing cache, downloading fresh from server`
-      );
     }
   }
 
-  // Cache is stale or missing — download blobs from the server.
   const { manifest, urls } = payload;
 
-  // Download each unique blob once, in parallel (mirrors the Day-7 endpoint's presign fan-out).
   const contentByHash = new Map<string, string>();
 
   try {
@@ -250,19 +226,16 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
     for (const [hash, content] of entries) {
       contentByHash.set(hash, content);
     }
-  } catch (error) {
-    console.warn('[loadSnapshot] blob download failed (will fall back to replay):', error);
-    return null; // any blob failed — don't mount a partial tree
+  } catch {
+    return null;
   }
 
   const files = reconstructFiles(manifest, contentByHash);
 
   if (!files) {
-    console.warn('[loadSnapshot] reconstructFiles returned null (missing blob content)');
     return null;
   }
 
-  // Write back to the local cache for next time. Best-effort: restore still succeeds if this fails.
   if (db) {
     try {
       await setSnapshot(db, {
@@ -271,19 +244,12 @@ export async function loadSnapshot(chatId: string): Promise<Snapshot | null> {
         manifest,
         files,
         timestamp: new Date().toISOString(),
-        /*
-         * Tag the cache entry with the current page-load session token so the
-         * cache-match check can distinguish same-session (safe) from cross-session
-         * (stale — bypass + download fresh).
-         */
         sessionToken: currentSession,
       } as any);
     } catch {
       // ignore cache-write failures
     }
   }
-
-  console.log(`[loadSnapshot] restored version ${payload.version} from server-download`);
 
   return { manifest, files };
 }
