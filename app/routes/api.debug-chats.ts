@@ -2,6 +2,7 @@ import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import { getPostgresPool } from '~/lib/database-postgresql';
+import { getChatsByUser } from '~/lib/database';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   const user = await requireAuth(request, context);
@@ -65,6 +66,17 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       };
     } catch (e) {
       result.test4_exact_query = { error: String(e) };
+    }
+
+    // Test 5: call the actual getChatsByUser wrapper (includes JSON parsing)
+    try {
+      const r5 = await getChatsByUser(user.id, false, companyId);
+      result.test5_getChatsByUser = {
+        count: r5.length,
+        firstChat: r5[0] ? { id: r5[0].id, url_id: r5[0].url_id, description: r5[0].description } : null,
+      };
+    } catch (e) {
+      result.test5_getChatsByUser = { error: String(e), stack: (e as Error)?.stack };
     }
 
     return json(result);
