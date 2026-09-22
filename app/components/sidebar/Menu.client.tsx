@@ -167,7 +167,7 @@ export const Menu = () => {
    * and pulling down everything made on other devices.
    */
   useEffect(() => {
-    if (!currentUserId || !db) {
+    if (!currentUserId) {
       return;
     }
 
@@ -178,23 +178,22 @@ export const Menu = () => {
       const userChanged = Boolean(storedUserId) && storedUserId !== currentUserId;
 
       if (userChanged) {
-        try {
-          await clearAllChats(localDb);
-          setList([]);
-        } catch (error) {
-          logger.error('Failed to clear chats on user switch:', error);
+        setList([]);
+
+        if (localDb) {
+          try {
+            await clearAllChats(localDb);
+          } catch (error) {
+            logger.error('Failed to clear chats on user switch:', error);
+          }
         }
       }
 
       localStorage.setItem('bolt_last_user_id', currentUserId);
 
-      /*
-       * Back-fill runs once per user per device, and never right after a user switch — the local
-       * store was just wiped, so anything in it belonged to the previous account.
-       */
       const backfillKey = `${BACKFILL_DONE_KEY}:${currentUserId}`;
 
-      if (!userChanged && !localStorage.getItem(backfillKey)) {
+      if (!userChanged && !localStorage.getItem(backfillKey) && localDb) {
         try {
           const [localItems, serverItems] = await Promise.all([getAll(localDb), fetchServerChats()]);
 
