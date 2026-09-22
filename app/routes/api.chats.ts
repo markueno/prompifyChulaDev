@@ -32,8 +32,9 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     const user = await requireAuth(request, context);
     const wantsAll = new URL(request.url).searchParams.get('scope') === 'all';
     const asModerator = wantsAll && Boolean(user.isModerator);
+    const companyId = await getActiveCompanyId(request, user);
 
-    const chats = await getChatsByUser(user.id, asModerator);
+    const chats = await getChatsByUser(user.id, asModerator, companyId);
 
     // Log activity
     await logUserActivity(user.id, 'chats_loaded', { count: chats.length, scope: asModerator ? 'all' : 'mine' });

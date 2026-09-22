@@ -1128,9 +1128,9 @@ async function ensureDefaultProjectForUser(client: PoolClient, userId: string, c
       `
         INSERT INTO projects (id, owner_user_id, company_id, slug, name, description)
         VALUES ($1, $2, $3, $4, 'Company', 'Project in company workspace')
-        ON CONFLICT (id) DO NOTHING
+        ON CONFLICT (id) DO UPDATE SET company_id = EXCLUDED.company_id, slug = EXCLUDED.slug
       `,
-      [defaultProjectId, userId, companyId, DEFAULT_PROJECT_ID]
+      [defaultProjectId, userId, companyId, `company_${companyId}`]
     );
     await client.query(
       `
@@ -1371,7 +1371,11 @@ export async function getPromptsByChatIdPostgres(
   }
 }
 
-export async function getChatsByUserPostgres(userId: string, isModerator?: boolean): Promise<any[]> {
+export async function getChatsByUserPostgres(
+  userId: string,
+  isModerator?: boolean,
+  companyId?: string
+): Promise<any[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
 
@@ -1389,7 +1393,31 @@ export async function getChatsByUserPostgres(userId: string, isModerator?: boole
       }));
     }
 
-    // Include chats where user can access the owning project
+    /*
+     * If a companyId is provided, filter by the active workspace (personal or company).
+     * This makes the workspace dropdown actually filter the chat list — personal shows
+     * only personal-company chats, company shows only that company's chats.
+     */
+    if (companyId) {
+      const result = await client.query(
+        `SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+         FROM chats c
+         JOIN projects p ON p.id = c.project_id
+         LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
+         LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
+         WHERE p.company_id = $2
+           AND (c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1)
+         ORDER BY c.updated_at DESC`,
+        [userId, companyId]
+      );
+      return result.rows.map(row => ({
+        ...row,
+        messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
+        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
+      }));
+    }
+
+    // No companyId filter — return all chats the user can access (legacy behavior).
     const query = `
       SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
       FROM chats c

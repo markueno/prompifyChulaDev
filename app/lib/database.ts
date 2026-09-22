@@ -595,10 +595,10 @@ export async function saveChat(
   }
 }
 
-export async function getChatsByUser(userId: string, isModerator?: boolean) {
+export async function getChatsByUser(userId: string, isModerator?: boolean, companyId?: string) {
   try {
     if (DATABASE_TYPE === 'postgresql') {
-      return getChatsByUserPostgres(userId, isModerator);
+      return getChatsByUserPostgres(userId, isModerator, companyId);
     } else {
       // SQLite implementation would go here if needed
       console.warn('Chat retrieval not implemented for SQLite');
