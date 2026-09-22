@@ -208,13 +208,17 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
         if (user?.id && chatId) {
           // fire-and-forget — persisting chat history must not block streaming
-          saveChat(user.id, {
-            id: chatId,
-            urlId,
-            description,
-            messages,
-            metadata: metadata ?? {},
-          }).catch(e => logger.debug('Could not ensure chat exists for token recording', e));
+          saveChat(
+            user.id,
+            {
+              id: chatId,
+              urlId,
+              description,
+              messages,
+              metadata: metadata ?? {},
+            },
+            billingCompanyId ?? undefined
+          ).catch(e => logger.debug('Could not ensure chat exists for token recording', e));
         }
 
         const filePaths = getFilePaths(files || {});

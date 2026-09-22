@@ -1112,16 +1112,48 @@ export async function getCompanyMemberCountPostgres(companyId: string): Promise<
   }
 }
 
-async function ensureDefaultProjectForUser(client: PoolClient, userId: string): Promise<string> {
+async function ensureDefaultProjectForUser(client: PoolClient, userId: string, companyId?: string): Promise<string> {
+  const personal = personalCompanyId(userId);
+
+  /*
+   * If a real company (not the personal one) is passed, create a per-user project
+   * WITHIN that company so the chat's project.company_id resolves to the company.
+   * This is what makes W2 trigger: getCompanyIdForChatPostgres(chatId) resolves
+   * to the company → handleCreate creates tables in cmp_<companyId>.
+   */
+  if (companyId && companyId !== personal) {
+    const defaultProjectId = `proj_company_${companyId}_${userId}`;
+
+    await client.query(
+      `
+        INSERT INTO projects (id, owner_user_id, company_id, slug, name, description)
+        VALUES ($1, $2, $3, $4, 'Company', 'Project in company workspace')
+        ON CONFLICT (id) DO NOTHING
+      `,
+      [defaultProjectId, userId, companyId, DEFAULT_PROJECT_ID]
+    );
+    await client.query(
+      `
+        INSERT INTO project_members (id, project_id, user_id, role)
+        VALUES ($1, $2, $3, 'owner')
+        ON CONFLICT (project_id, user_id) DO NOTHING
+      `,
+      [crypto.randomUUID(), defaultProjectId, userId]
+    );
+
+    return defaultProjectId;
+  }
+
+  // Personal workspace — unchanged behavior.
   const defaultProjectId = `proj_personal_${userId}`;
-  const companyId = await ensurePersonalCompanyWithClient(client, userId);
+  const resolvedCompanyId = await ensurePersonalCompanyWithClient(client, userId);
   await client.query(
     `
       INSERT INTO projects (id, owner_user_id, company_id, slug, name, description)
       VALUES ($1, $2, $3, $4, 'Personal', 'Default personal project')
       ON CONFLICT (id) DO NOTHING
     `,
-    [defaultProjectId, userId, companyId, DEFAULT_PROJECT_ID]
+    [defaultProjectId, userId, resolvedCompanyId, DEFAULT_PROJECT_ID]
   );
   await client.query(
     `
@@ -1135,9 +1167,14 @@ async function ensureDefaultProjectForUser(client: PoolClient, userId: string): 
   return defaultProjectId;
 }
 
-async function resolveWritableProjectId(client: PoolClient, userId: string, projectId?: string): Promise<string> {
+async function resolveWritableProjectId(
+  client: PoolClient,
+  userId: string,
+  projectId?: string,
+  companyId?: string
+): Promise<string> {
   if (!projectId) {
-    return ensureDefaultProjectForUser(client, userId);
+    return ensureDefaultProjectForUser(client, userId, companyId);
   }
 
   const access = await client.query(
@@ -1155,11 +1192,11 @@ async function resolveWritableProjectId(client: PoolClient, userId: string, proj
     return access.rows[0].project_id;
   }
 
-  return ensureDefaultProjectForUser(client, userId);
+  return ensureDefaultProjectForUser(client, userId, companyId);
 }
 
 // Chat Management Functions
-export async function saveChatPostgres(userId: string, chatData: any): Promise<string | null> {
+export async function saveChatPostgres(userId: string, chatData: any, companyId?: string): Promise<string | null> {
   const pool = getPostgresPool();
   const client = await pool.connect();
 
@@ -1175,7 +1212,7 @@ export async function saveChatPostgres(userId: string, chatData: any): Promise<s
       project_id: legacyProjectId,
     } = chatData;
     const resolvedUrlId = urlId ?? legacyUrlId;
-    const resolvedProjectId = await resolveWritableProjectId(client, userId, projectId ?? legacyProjectId);
+    const resolvedProjectId = await resolveWritableProjectId(client, userId, projectId ?? legacyProjectId, companyId);
     const query = `
       INSERT INTO chats (id, user_id, project_id, url_id, description, messages, metadata, updated_at, last_activity)
       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)

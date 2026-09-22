@@ -578,11 +578,12 @@ export async function saveChat(
     description?: string;
     messages: any[];
     metadata?: any;
-  }
+  },
+  companyId?: string
 ) {
   try {
     if (DATABASE_TYPE === 'postgresql') {
-      return saveChatPostgres(userId, chatData);
+      return saveChatPostgres(userId, chatData, companyId);
     } else {
       // SQLite implementation would go here if needed
       console.warn('Chat saving not implemented for SQLite');

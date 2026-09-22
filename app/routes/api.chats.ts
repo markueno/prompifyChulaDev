@@ -2,6 +2,7 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-r
 import { requireAuth } from '~/lib/auth';
 import { saveChat, getChatsByUser, deleteChat, logUserActivity } from '~/lib/database';
 import { provisionAppSchema } from '~/lib/supabase-provision.server';
+import { getActiveCompanyId } from '~/lib/workspace.server';
 
 /**
  * requireAuth throws a *redirect Response* when the session is missing or expired — correct for a
@@ -84,7 +85,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
     switch (action) {
       case 'save': {
-        const chatId = await saveChat(user.id, chatData);
+        const companyId = await getActiveCompanyId(request, user);
+        const chatId = await saveChat(user.id, chatData, companyId);
 
         if (chatId) {
           await logUserActivity(user.id, 'chat_saved', { chatId: chatData.id });
