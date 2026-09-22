@@ -9,38 +9,65 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const pool = getPostgresPool();
   const client = await pool.connect();
 
+  const result: Record<string, any> = { userId: user.id, activeCompanyId: companyId };
+
   try {
-    const directResult = await client.query(
-      `SELECT c.id, c.user_id, c.project_id, c.url_id, c.description, c.created_at, c.updated_at
-       FROM chats c
-       WHERE c.user_id = $1
-       ORDER BY c.updated_at DESC
-       LIMIT 20`,
-      [user.id]
-    );
+    // Test 1: simple query — just chats by user_id
+    try {
+      const r1 = await client.query(
+        `SELECT c.id, c.url_id, c.description, c.updated_at
+         FROM chats c
+         WHERE c.user_id = $1
+         ORDER BY c.updated_at DESC
+         LIMIT 20`,
+        [user.id]
+      );
+      result.test1_simple = { count: r1.rowCount, rows: r1.rows };
+    } catch (e) {
+      result.test1_simple = { error: String(e) };
+    }
 
-    const joinResult = await client.query(
-      `SELECT DISTINCT c.id, c.url_id, c.description
-       FROM chats c
-       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
-       LEFT JOIN projects p ON p.id = c.project_id
-       LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
-       WHERE c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1
-       ORDER BY c.updated_at DESC
-       LIMIT 20`,
-      [user.id]
-    );
+    // Test 2: check if chat_members table exists
+    try {
+      const r2 = await client.query(
+        `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'chat_members') as exists`
+      );
+      result.test2_chat_members_exists = r2.rows[0]?.exists;
+    } catch (e) {
+      result.test2_chat_members_exists = { error: String(e) };
+    }
 
-    return json({
-      userId: user.id,
-      activeCompanyId: companyId,
-      directCount: directResult.rowCount,
-      joinCount: joinResult.rowCount,
-      directChats: directResult.rows,
-      joinChats: joinResult.rows,
-    });
-  } catch (error) {
-    return json({ error: String(error), stack: (error as Error)?.stack }, { status: 500 });
+    // Test 3: check if project_members table exists
+    try {
+      const r3 = await client.query(
+        `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'project_members') as exists`
+      );
+      result.test3_project_members_exists = r3.rows[0]?.exists;
+    } catch (e) {
+      result.test3_project_members_exists = { error: String(e) };
+    }
+
+    // Test 4: exact query from getChatsByUserPostgres
+    try {
+      const r4 = await client.query(
+        `SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+         FROM chats c
+         LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
+         LEFT JOIN projects p ON p.id = c.project_id
+         LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
+         WHERE c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1
+         ORDER BY c.updated_at DESC`,
+        [user.id]
+      );
+      result.test4_exact_query = {
+        count: r4.rowCount,
+        rows: r4.rows.map((r: any) => ({ id: r.id, url_id: r.url_id, description: r.description })),
+      };
+    } catch (e) {
+      result.test4_exact_query = { error: String(e) };
+    }
+
+    return json(result);
   } finally {
     client.release();
   }
