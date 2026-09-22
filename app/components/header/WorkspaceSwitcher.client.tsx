@@ -67,11 +67,18 @@ export function WorkspaceSwitcher() {
       return;
     }
 
-    await fetch('/api/workspace/switch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyId: id }),
-    });
+    try {
+      await fetch('/api/workspace/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId: id }),
+      });
+    } catch {
+      /*
+       * Network error — the switch may not have taken effect.
+       * Reload anyway so the user sees a response (not a dead button).
+       */
+    }
     window.location.reload();
   };
 

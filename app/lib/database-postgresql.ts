@@ -1402,10 +1402,10 @@ export async function getChatsByUserPostgres(
       const result = await client.query(
         `SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
          FROM chats c
-         JOIN projects p ON p.id = c.project_id
+         LEFT JOIN projects p ON p.id = c.project_id
          LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
          LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
-         WHERE p.company_id = $2
+         WHERE (p.company_id = $2 OR p.id IS NULL)
            AND (c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1)
          ORDER BY c.updated_at DESC`,
         [userId, companyId]
