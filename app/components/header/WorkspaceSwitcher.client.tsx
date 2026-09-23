@@ -83,7 +83,7 @@ export function WorkspaceSwitcher() {
   };
 
   return (
-    <div ref={ref} className="relative hidden sm:block">
+    <div ref={ref} data-state={open ? 'open' : 'closed'} className="relative hidden sm:block">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}

@@ -68,6 +68,10 @@ import {
   addAuditLogPostgres,
   getAuditLogsPostgres,
   checkRateLimitPostgres,
+  createCompanyInviteCodePostgres,
+  listCompanyInviteCodesPostgres,
+  deactivateCompanyInviteCodePostgres,
+  joinCompanyByCodePostgres,
 } from './database-postgresql';
 
 export type {
@@ -1113,4 +1117,41 @@ export async function checkRateLimitSQLite(
   ).run(key, endpoint);
 
   return { allowed: true };
+}
+
+export async function createCompanyInviteCode(
+  companyId: string,
+  createdBy: string,
+  maxUses?: number,
+  expiresInDays?: number
+) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return createCompanyInviteCodePostgres(companyId, createdBy, maxUses, expiresInDays);
+  }
+
+  return null;
+}
+
+export async function listCompanyInviteCodes(companyId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return listCompanyInviteCodesPostgres(companyId);
+  }
+
+  return [];
+}
+
+export async function deactivateCompanyInviteCode(codeId: string, companyId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return deactivateCompanyInviteCodePostgres(codeId, companyId);
+  }
+
+  return false;
+}
+
+export async function joinCompanyByCode(code: string, userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return joinCompanyByCodePostgres(code, userId);
+  }
+
+  return null;
 }

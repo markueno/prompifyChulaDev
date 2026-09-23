@@ -1374,7 +1374,7 @@ export async function getPromptsByChatIdPostgres(
 export async function getChatsByUserPostgres(
   userId: string,
   isModerator?: boolean,
-  _companyId?: string
+  companyId?: string
 ): Promise<any[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
@@ -1393,29 +1393,42 @@ export async function getChatsByUserPostgres(
       }));
     }
 
-    /*
-     * Return ALL chats the user can access (no workspace filter). The workspace
-     * filter was removed because it caused an empty sidebar when the user was stuck
-     * in a company workspace with no chats there. The filter will be re-added in
-     * Part 2 when the full workspace flow (switcher + invite + company creation)
-     * works end-to-end.
-     */
-    const query = `
-      SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
-      FROM chats c
-      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
-      LEFT JOIN projects p ON p.id = c.project_id
-      LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
-      WHERE c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1
-      ORDER BY c.updated_at DESC
-    `;
-    const result = await client.query(query, [userId]);
-
-    return result.rows.map(row => ({
+    const rowMapper = (row: any) => ({
       ...row,
       messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
       metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
-    }));
+    });
+
+    if (companyId) {
+      const isPersonal = companyId === personalCompanyId(userId);
+
+      const result = await client.query(
+        `SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+         FROM chats c
+         LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
+         LEFT JOIN projects p ON p.id = c.project_id
+         LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
+         WHERE (p.company_id = $2${isPersonal ? ' OR p.id IS NULL' : ''})
+           AND (c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1)
+         ORDER BY c.updated_at DESC`,
+        [userId, companyId]
+      );
+
+      return result.rows.map(rowMapper);
+    }
+
+    const result = await client.query(
+      `SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+       FROM chats c
+       LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
+       LEFT JOIN projects p ON p.id = c.project_id
+       LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
+       WHERE c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1
+       ORDER BY c.updated_at DESC`,
+      [userId]
+    );
+
+    return result.rows.map(rowMapper);
   } catch (error) {
     console.error('Error fetching chats from PostgreSQL:', error);
     return [];
@@ -3233,6 +3246,178 @@ export async function checkRateLimitPostgres(
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/*
+ * ============================================================
+ * Company Invite Codes (B2B Phase 2)
+ * ============================================================
+ */
+
+const INVITE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function generateInviteCode(length = 8): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes, b => INVITE_ALPHABET[b % INVITE_ALPHABET.length]).join('');
+}
+
+export interface InviteCodeRow {
+  id: string;
+  company_id: string;
+  code: string;
+  created_by: string;
+  created_at: string;
+  expires_at: string | null;
+  max_uses: number | null;
+  used_count: number;
+  is_active: boolean;
+}
+
+export async function createCompanyInviteCodePostgres(
+  companyId: string,
+  createdBy: string,
+  maxUses?: number,
+  expiresInDays?: number
+): Promise<InviteCodeRow | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const id = crypto.randomUUID();
+    const code = generateInviteCode();
+    const expiresAt = expiresInDays ? new Date(Date.now() + expiresInDays * 86400000).toISOString() : null;
+
+    const result = await client.query(
+      `INSERT INTO company_invite_codes (id, company_id, code, created_by, expires_at, max_uses)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, company_id, code, created_by, created_at, expires_at, max_uses, used_count, is_active`,
+      [id, companyId, code, createdBy, expiresAt, maxUses ?? null]
+    );
+
+    return result.rows[0] ?? null;
+  } catch (error) {
+    console.error('Error creating invite code:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function listCompanyInviteCodesPostgres(companyId: string): Promise<InviteCodeRow[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT id, company_id, code, created_by, created_at, expires_at, max_uses, used_count, is_active
+       FROM company_invite_codes
+       WHERE company_id = $1
+       ORDER BY created_at DESC`,
+      [companyId]
+    );
+
+    return result.rows;
+  } catch (error) {
+    console.error('Error listing invite codes:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function deactivateCompanyInviteCodePostgres(codeId: string, companyId: string): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `UPDATE company_invite_codes SET is_active = FALSE WHERE id = $1 AND company_id = $2`,
+      [codeId, companyId]
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('Error deactivating invite code:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+export async function joinCompanyByCodePostgres(
+  code: string,
+  userId: string
+): Promise<{ company: { id: string; name: string; slug: string }; alreadyMember: boolean } | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const codeResult = await client.query(
+      `SELECT ic.id, ic.company_id, ic.expires_at, ic.max_uses, ic.used_count, ic.is_active,
+              c.name, c.slug
+       FROM company_invite_codes ic
+       JOIN companies c ON c.id = ic.company_id
+       WHERE ic.code = $1
+       FOR UPDATE`,
+      [code.toUpperCase()]
+    );
+
+    const row = codeResult.rows[0];
+
+    if (!row || !row.is_active) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    if (row.expires_at && new Date(row.expires_at) < new Date()) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    if (row.max_uses !== null && row.used_count >= row.max_uses) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const existing = await client.query(`SELECT 1 FROM company_members WHERE company_id = $1 AND user_id = $2`, [
+      row.company_id,
+      userId,
+    ]);
+
+    if (existing.rowCount && existing.rowCount > 0) {
+      await client.query('COMMIT');
+      return { company: { id: row.company_id, name: row.name, slug: row.slug }, alreadyMember: true };
+    }
+
+    const seats = await getCompanySeatsPostgres(row.company_id);
+    const memberCount = await getCompanyMemberCountPostgres(row.company_id);
+
+    if (memberCount >= seats) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    await client.query(`INSERT INTO company_members (id, company_id, user_id, role) VALUES ($1, $2, $3, 'developer')`, [
+      crypto.randomUUID(),
+      row.company_id,
+      userId,
+    ]);
+
+    await client.query(`UPDATE company_invite_codes SET used_count = used_count + 1 WHERE id = $1`, [row.id]);
+
+    await client.query('COMMIT');
+
+    return { company: { id: row.company_id, name: row.name, slug: row.slug }, alreadyMember: false };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Error joining company by code:', error);
+
+    return null;
   } finally {
     client.release();
   }

@@ -616,3 +616,22 @@ ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS category TEXT;
 -- rows default to 'personal' (null workspace_id is treated as the row's user_id). Additive.
 ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS workspace_type TEXT NOT NULL DEFAULT 'personal';
 ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS workspace_id TEXT;
+
+-- ============================================================================
+-- Company invite codes (B2B Phase 2) — short alphanumeric codes that let a user
+-- join a company workspace without an admin manually adding them.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS company_invite_codes (
+    id TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    created_by TEXT NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    max_uses INTEGER,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    UNIQUE(company_id, code)
+);
+CREATE INDEX IF NOT EXISTS idx_invite_codes_code ON company_invite_codes(code);
+CREATE INDEX IF NOT EXISTS idx_invite_codes_company ON company_invite_codes(company_id);
