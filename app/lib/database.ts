@@ -1167,9 +1167,9 @@ export async function getInviteCodeInfo(code: string) {
   return null;
 }
 
-export async function getAllUserTables(userId: string): Promise<UserTableEntry[]> {
+export async function getAllUserTables(userId: string, companyId?: string): Promise<UserTableEntry[]> {
   if (DATABASE_TYPE === 'postgresql') {
-    return getAllUserTablesPostgres(userId);
+    return getAllUserTablesPostgres(userId, companyId);
   }
 
   return [];

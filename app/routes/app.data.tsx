@@ -7,6 +7,7 @@ import { SafeBoundary } from '~/components/ui/SafeBoundary';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getAllUserTables } from '~/lib/database';
+import { getActiveCompanyId } from '~/lib/workspace.server';
 import landingStyles from '~/styles/landing.css?url';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 
@@ -15,13 +16,15 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     const mockUser = getMockAdminUser();
     const tables = await getAllUserTables(mockUser.id);
 
-    return json({ user: mockUser, tables, grouped: groupByProject(tables) });
+    return json({ user: mockUser, tables, grouped: groupByProject(tables), isCompany: false });
   }
 
   const user = await requireAuth(request, context);
-  const tables = await getAllUserTables(user.id);
+  const companyId = await getActiveCompanyId(request, user);
+  const tables = await getAllUserTables(user.id, companyId);
+  const isCompany = companyId !== `cmp_personal_${user.id}`;
 
-  return json({ user, tables, grouped: groupByProject(tables) });
+  return json({ user, tables, grouped: groupByProject(tables), isCompany });
 }
 
 function groupByProject(tables: any[]) {
@@ -97,7 +100,7 @@ function WorkspaceBadge({ workspaceType }: { workspaceType: string }) {
 }
 
 export default function DataPage() {
-  const { grouped } = useLoaderData<typeof loader>();
+  const { grouped, isCompany } = useLoaderData<typeof loader>();
 
   const totalTables = grouped.reduce((sum: number, g: any) => sum + g.tables.length, 0);
   const totalRows = grouped.reduce(
@@ -164,6 +167,7 @@ export default function DataPage() {
                           <th className="px-5 py-2 font-medium">Rows</th>
                           <th className="px-5 py-2 font-medium">Category</th>
                           <th className="px-5 py-2 font-medium">Workspace</th>
+                          {isCompany ? <th className="px-5 py-2 font-medium">Created by</th> : null}
                           <th className="px-5 py-2 font-medium">Schema</th>
                         </tr>
                       </thead>
@@ -183,6 +187,11 @@ export default function DataPage() {
                             <td className="px-5 py-2.5">
                               <WorkspaceBadge workspaceType={t.workspace_type} />
                             </td>
+                            {isCompany ? (
+                              <td className="px-5 py-2.5 text-xs text-bolt-elements-textSecondary">
+                                {t.creator_email ?? '—'}
+                              </td>
+                            ) : null}
                             <td className="px-5 py-2.5 text-xs text-bolt-elements-textTertiary font-mono">
                               {t.schema_name}
                             </td>

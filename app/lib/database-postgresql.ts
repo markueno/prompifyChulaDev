@@ -3492,22 +3492,29 @@ export interface UserTableEntry {
   project_name: string | null;
   chat_url_id: string | null;
   project_id: string | null;
+  creator_email: string | null;
 }
 
-export async function getAllUserTablesPostgres(userId: string): Promise<UserTableEntry[]> {
+export async function getAllUserTablesPostgres(userId: string, companyId?: string): Promise<UserTableEntry[]> {
   const pool = getPostgresPool();
   const client = await pool.connect();
 
   try {
+    const isPersonal = !companyId || companyId === personalCompanyId(userId);
+
     const result = await client.query(
       `SELECT t.id, t.table_name, t.logical_name, t.schema_name, t.row_count,
               t.category, t.workspace_type, t.created_at,
-              c.description AS project_name, c.url_id AS chat_url_id, c.project_id
+              c.description AS project_name, c.url_id AS chat_url_id, c.project_id,
+              u.email AS creator_email
        FROM app_tables t
        JOIN chats c ON c.id = t.chat_id
-       WHERE t.user_id = $1
+       LEFT JOIN users u ON u.id = t.user_id
+       WHERE ${
+         isPersonal ? '(t.workspace_id = $1 OR (t.workspace_id IS NULL AND t.user_id = $1))' : 't.workspace_id = $2'
+       }
        ORDER BY c.updated_at DESC, t.logical_name ASC`,
-      [userId]
+      isPersonal ? [userId] : [userId, companyId]
     );
 
     return result.rows;
