@@ -3479,3 +3479,42 @@ export async function getInviteCodeInfoPostgres(
     client.release();
   }
 }
+
+export interface UserTableEntry {
+  id: string;
+  table_name: string;
+  logical_name: string;
+  schema_name: string;
+  row_count: number;
+  category: string | null;
+  workspace_type: string;
+  created_at: string;
+  project_name: string | null;
+  chat_url_id: string | null;
+  project_id: string | null;
+}
+
+export async function getAllUserTablesPostgres(userId: string): Promise<UserTableEntry[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT t.id, t.table_name, t.logical_name, t.schema_name, t.row_count,
+              t.category, t.workspace_type, t.created_at,
+              c.description AS project_name, c.url_id AS chat_url_id, c.project_id
+       FROM app_tables t
+       JOIN chats c ON c.id = t.chat_id
+       WHERE t.user_id = $1
+       ORDER BY c.updated_at DESC, t.logical_name ASC`,
+      [userId]
+    );
+
+    return result.rows;
+  } catch (error) {
+    console.error('Error fetching all user tables:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}

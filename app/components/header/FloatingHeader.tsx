@@ -31,6 +31,7 @@ export function FloatingHeader() {
   const location = useLocation();
   const onOverview = location.pathname.startsWith('/app/overview');
   const onPricing = location.pathname.startsWith('/app/pricing');
+  const onData = location.pathname.startsWith('/app/data');
 
   const started = chat.started;
   const [open, setOpen] = useState(false);
@@ -120,6 +121,15 @@ export function FloatingHeader() {
               )}
             >
               Overview
+            </Link>
+            <Link
+              to="/app/data"
+              className={classNames(
+                'header-nav-data hidden text-sm font-medium sm:inline-block rounded-md px-2 py-1 transition-colors',
+                onData ? 'bg-white/10 text-white' : 'text-white/90 hover:text-white'
+              )}
+            >
+              Data
             </Link>
             <Link
               to="/app/pricing"

@@ -635,6 +635,11 @@ export const AdminPanel = memo(() => {
             <div key={item.id}>
               <button
                 onClick={() => {
+                  if (item.id === 'code') {
+                    workbenchStore.currentView.set('code');
+                    return;
+                  }
+
                   if (item.expandable) {
                     toggleExpand(item.id);
                   }

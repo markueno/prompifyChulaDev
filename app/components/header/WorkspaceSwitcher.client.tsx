@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { classNames } from '~/utils/classNames';
 import { AddWorkspaceModal } from './AddWorkspaceModal.client';
 
@@ -34,7 +35,9 @@ export function WorkspaceSwitcher() {
   const [active, setActive] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     fetch('/api/companies')
@@ -84,11 +87,21 @@ export function WorkspaceSwitcher() {
     window.location.reload();
   };
 
+  const toggleDropdown = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPos({ top: rect.bottom + 4, left: rect.left });
+    }
+
+    setOpen(v => !v);
+  };
+
   return (
     <div ref={ref} data-state={open ? 'open' : 'closed'} className="relative hidden sm:block">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={toggleDropdown}
         className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#372a1a] text-[#231710] dark:text-[#f0e4d5] hover:border-[#f97316] hover:bg-[#fed7aa] dark:hover:bg-[#423322] transition-colors"
       >
         <span className="i-ph:buildings-duotone text-base" />
@@ -96,42 +109,48 @@ export function WorkspaceSwitcher() {
         <span className="i-ph:caret-down text-xs opacity-70" />
       </button>
 
-      {open ? (
-        <div className="absolute left-0 z-10 mt-1 w-56 rounded-lg border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#2d2014] p-1 shadow-lg">
-          <p className="px-2 py-1 text-xs uppercase tracking-wide text-[#231710]/60 dark:text-[#f0e4d5]/60">
-            Workspaces
-          </p>
-          {workspaces.map(w => (
-            <button
-              key={w.id}
-              type="button"
-              onClick={() => switchTo(w.id)}
-              className={classNames(
-                'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-[#fed7aa] dark:hover:bg-[#423322]',
-                w.id === current?.id
-                  ? 'font-semibold text-[#231710] dark:text-[#f0e4d5]'
-                  : 'text-[#231710]/70 dark:text-[#f0e4d5]/80'
-              )}
+      {open && dropdownPos
+        ? createPortal(
+            <div
+              className="fixed z-[9999] w-56 rounded-lg border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#2d2014] p-1 shadow-lg"
+              style={{ top: dropdownPos.top, left: dropdownPos.left }}
             >
-              <span className="truncate">
-                {w.name}
-                {w.is_personal ? ' (Personal)' : ''}
-              </span>
-              {w.id === current?.id ? <span className="i-ph:check text-sm text-[#f97316]" /> : null}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              setShowAddModal(true);
-            }}
-            className="mt-1 flex w-full items-center gap-1.5 rounded-md border-t border-[#fed7aa]/60 dark:border-[#423322] px-2 py-1.5 text-sm text-[#f97316] hover:bg-[#fed7aa] dark:hover:bg-[#423322]"
-          >
-            <span className="i-ph:plus text-sm" /> Add workspace
-          </button>
-        </div>
-      ) : null}
+              <p className="px-2 py-1 text-xs uppercase tracking-wide text-[#231710]/60 dark:text-[#f0e4d5]/60">
+                Workspaces
+              </p>
+              {workspaces.map(w => (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => switchTo(w.id)}
+                  className={classNames(
+                    'flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-[#fed7aa] dark:hover:bg-[#423322]',
+                    w.id === current?.id
+                      ? 'font-semibold text-[#231710] dark:text-[#f0e4d5]'
+                      : 'text-[#231710]/70 dark:text-[#f0e4d5]/80'
+                  )}
+                >
+                  <span className="truncate">
+                    {w.name}
+                    {w.is_personal ? ' (Personal)' : ''}
+                  </span>
+                  {w.id === current?.id ? <span className="i-ph:check text-sm text-[#f97316]" /> : null}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setShowAddModal(true);
+                }}
+                className="mt-1 flex w-full items-center gap-1.5 rounded-md border-t border-[#fed7aa]/60 dark:border-[#423322] px-2 py-1.5 text-sm text-[#f97316] hover:bg-[#fed7aa] dark:hover:bg-[#423322]"
+              >
+                <span className="i-ph:plus text-sm" /> Add workspace
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
 
       <AddWorkspaceModal open={showAddModal} onClose={() => setShowAddModal(false)} />
     </div>

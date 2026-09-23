@@ -73,6 +73,8 @@ import {
   deactivateCompanyInviteCodePostgres,
   joinCompanyByCodePostgres,
   getInviteCodeInfoPostgres,
+  getAllUserTablesPostgres,
+  type UserTableEntry,
 } from './database-postgresql';
 
 export type {
@@ -1163,4 +1165,12 @@ export async function getInviteCodeInfo(code: string) {
   }
 
   return null;
+}
+
+export async function getAllUserTables(userId: string): Promise<UserTableEntry[]> {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getAllUserTablesPostgres(userId);
+  }
+
+  return [];
 }
