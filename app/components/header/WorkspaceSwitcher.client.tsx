@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { classNames } from '~/utils/classNames';
+import { AddWorkspaceModal } from './AddWorkspaceModal.client';
 
 interface Workspace {
   id: string;
@@ -32,6 +33,7 @@ export function WorkspaceSwitcher() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -118,14 +120,20 @@ export function WorkspaceSwitcher() {
               {w.id === current?.id ? <span className="i-ph:check text-sm text-[#f97316]" /> : null}
             </button>
           ))}
-          <a
-            href="/company/new"
-            className="mt-1 flex items-center gap-1.5 rounded-md border-t border-[#fed7aa]/60 dark:border-[#423322] px-2 py-1.5 text-sm text-[#f97316] hover:bg-[#fed7aa] dark:hover:bg-[#423322]"
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              setShowAddModal(true);
+            }}
+            className="mt-1 flex w-full items-center gap-1.5 rounded-md border-t border-[#fed7aa]/60 dark:border-[#423322] px-2 py-1.5 text-sm text-[#f97316] hover:bg-[#fed7aa] dark:hover:bg-[#423322]"
           >
-            <span className="i-ph:plus text-sm" /> Create team
-          </a>
+            <span className="i-ph:plus text-sm" /> Add workspace
+          </button>
         </div>
       ) : null}
+
+      <AddWorkspaceModal open={showAddModal} onClose={() => setShowAddModal(false)} />
     </div>
   );
 }

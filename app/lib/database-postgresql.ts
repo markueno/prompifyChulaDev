@@ -3422,3 +3422,53 @@ export async function joinCompanyByCodePostgres(
     client.release();
   }
 }
+
+export async function getInviteCodeInfoPostgres(
+  code: string
+): Promise<{ companyName: string; companySlug: string; isValid: boolean; reason?: string } | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT ic.is_active, ic.expires_at, ic.max_uses, ic.used_count,
+              c.name, c.slug
+       FROM company_invite_codes ic
+       JOIN companies c ON c.id = ic.company_id
+       WHERE ic.code = $1`,
+      [code.toUpperCase()]
+    );
+
+    const row = result.rows[0];
+
+    if (!row) {
+      return null;
+    }
+
+    let isValid = true;
+    let reason: string | undefined;
+
+    if (!row.is_active) {
+      isValid = false;
+      reason = 'This invite code has been deactivated.';
+    } else if (row.expires_at && new Date(row.expires_at) < new Date()) {
+      isValid = false;
+      reason = 'This invite code has expired.';
+    } else if (row.max_uses !== null && row.used_count >= row.max_uses) {
+      isValid = false;
+      reason = 'This invite code has reached its usage limit.';
+    }
+
+    return {
+      companyName: row.name,
+      companySlug: row.slug,
+      isValid,
+      reason,
+    };
+  } catch (error) {
+    console.error('Error getting invite code info:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}

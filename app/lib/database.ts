@@ -72,6 +72,7 @@ import {
   listCompanyInviteCodesPostgres,
   deactivateCompanyInviteCodePostgres,
   joinCompanyByCodePostgres,
+  getInviteCodeInfoPostgres,
 } from './database-postgresql';
 
 export type {
@@ -1151,6 +1152,14 @@ export async function deactivateCompanyInviteCode(codeId: string, companyId: str
 export async function joinCompanyByCode(code: string, userId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return joinCompanyByCodePostgres(code, userId);
+  }
+
+  return null;
+}
+
+export async function getInviteCodeInfo(code: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getInviteCodeInfoPostgres(code);
   }
 
   return null;

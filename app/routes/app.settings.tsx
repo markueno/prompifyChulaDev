@@ -1,20 +1,24 @@
 /**
- * Settings page — accessible to ALL authenticated users (not just moderators).
- *
- * Three sections:
+ * Settings page — accessible to ALL authenticated users ( *
+ * Four sections:
  *   1. Account — update password (inline form, POST /api/auth/change-password)
  *   2. Billing — current plan + interval, "Manage billing" via Stripe Customer Portal
- *   3. Integrations — GitHub + Netlify (reuses existing connection components)
- *
- * The moderator-only ControlPanel (debug, event-logs, task-manager, etc.) remains
- * separate — this page is for the account/billing/integrations every user needs.
+ *   3. Workspaces — active workspace info + invite-code management (admin only)
+ *   4. Integrations — GitHub + Netlify (reuses existing connection components)
  */
 import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { useLoaderData, useSubmit } from '@remix-run/react';
 import { useState } from 'react';
 import { requireAuth } from '~/lib/auth';
 import { getActiveCompanyId } from '~/lib/workspace.server';
-import { getSubscriptionByCompanyId } from '~/lib/database';
+import {
+  getSubscriptionByCompanyId,
+  getCompanyMember,
+  getCompanyMembers,
+  getCompanySeats,
+  listCompanyInviteCodes,
+  getUserCompanies,
+} from '~/lib/database';
 import { getPlan } from '~/lib/billing/plans';
 import { GithubConnection } from '~/components/@settings/tabs/connections/GithubConnection';
 import { NetlifyConnection } from '~/components/@settings/tabs/connections/NetlifyConnection';
@@ -29,12 +33,38 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const plan = getPlan(tierId);
   const billingInterval = (sub?.billing_interval as 'month' | 'year' | null) ?? null;
 
+  const [member, members, seats, codes, companies] = await Promise.all([
+    getCompanyMember(companyId, user.id),
+    getCompanyMembers(companyId),
+    getCompanySeats(companyId),
+    listCompanyInviteCodes(companyId),
+    getUserCompanies(user.id),
+  ]);
+
+  const activeCompany = companies.find((c: any) => c.id === companyId);
+
   return json({
     user,
     planName: plan?.displayName ?? 'Free trial',
     billingInterval,
     subscriptionStatus: (sub?.status as string) ?? null,
     hasStripeCustomer: Boolean(sub?.stripe_customer_id),
+    workspace: {
+      companyId,
+      companyName: activeCompany?.name ?? 'Workspace',
+      isAdmin: member?.role === 'admin',
+      memberCount: members.length,
+      seats,
+      codes: codes.map((c: any) => ({
+        id: c.id,
+        code: c.code,
+        createdAt: c.created_at,
+        expiresAt: c.expires_at,
+        maxUses: c.max_uses,
+        usedCount: c.used_count,
+        isActive: c.is_active,
+      })),
+    },
   });
 }
 
@@ -49,7 +79,8 @@ const SECTION_CLASS =
   'rounded-xl border border-[#fed7aa]/40 dark:border-[#423322] bg-[#f0e4d5]/50 dark:bg-[#2d2014]/50 p-6';
 
 export default function SettingsPage() {
-  const { user, planName, billingInterval, subscriptionStatus, hasStripeCustomer } = useLoaderData<typeof loader>();
+  const { user, planName, billingInterval, subscriptionStatus, hasStripeCustomer, workspace } =
+    useLoaderData<typeof loader>();
   const submit = useSubmit();
 
   // Password form state
@@ -226,6 +257,50 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* ── Workspaces ─────────────────────────────────────────── */}
+        <section className={`${SECTION_CLASS} mb-6`}>
+          <h2 className="text-lg font-semibold mb-1">Workspaces</h2>
+          <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a] mb-4">Active workspace and invite codes.</p>
+
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a]">Active workspace</p>
+              <p className="text-lg font-semibold">{workspace.companyName}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a]">Seats</p>
+              <p className="text-lg font-semibold">
+                {workspace.memberCount} / {workspace.seats}
+              </p>
+            </div>
+          </div>
+
+          {workspace.isAdmin ? (
+            <div className="border-t border-[#fed7aa]/40 dark:border-[#423322] pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold">Invite codes</h3>
+                <GenerateCodeButton companyId={workspace.companyId} />
+              </div>
+
+              {workspace.codes.length === 0 ? (
+                <p className="text-sm text-[#231710]/50 dark:text-[#c4b19a]/60">
+                  No invite codes yet. Generate one to invite team members.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {workspace.codes.map((code: any) => (
+                    <InviteCodeRow key={code.id} code={code} companyId={workspace.companyId} />
+                  ))}
+                </ul>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-[#231710]/50 dark:text-[#c4b19a]/60 border-t border-[#fed7aa]/40 dark:border-[#423322] pt-4">
+              Only workspace admins can manage invite codes.
+            </p>
+          )}
+        </section>
+
         {/* ── Integrations ────────────────────────────────────────── */}
         <section className={SECTION_CLASS}>
           <h2 className="text-lg font-semibold mb-1">Integrations</h2>
@@ -240,5 +315,120 @@ export default function SettingsPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+function GenerateCodeButton({ companyId }: { companyId: string }) {
+  const [busy, setBusy] = useState(false);
+
+  const handleGenerate = async () => {
+    setBusy(true);
+
+    const res = await fetch(`/api/companies/${companyId}/invite-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      alert(data.error || 'Failed to generate invite code');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleGenerate}
+      disabled={busy}
+      className="rounded-lg bg-[#f97316] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[#ea5a0c] disabled:opacity-50"
+    >
+      {busy ? 'Generating...' : 'Generate code'}
+    </button>
+  );
+}
+
+function InviteCodeRow({
+  code,
+  companyId,
+}: {
+  code: {
+    id: string;
+    code: string;
+    createdAt: string;
+    expiresAt: string | null;
+    maxUses: number | null;
+    usedCount: number;
+    isActive: boolean;
+  };
+  companyId: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/join/${code.code}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDeactivate = async () => {
+    if (!confirm('Deactivate this invite code? No one will be able to use it.')) {
+      return;
+    }
+
+    setDeactivating(true);
+
+    const res = await fetch(`/api/companies/${companyId}/invite-code`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codeId: code.id }),
+    });
+
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      alert('Failed to deactivate invite code');
+      setDeactivating(false);
+    }
+  };
+
+  const expiry = code.expiresAt ? new Date(code.expiresAt).toLocaleDateString() : null;
+  const uses = code.maxUses !== null ? `${code.usedCount} / ${code.maxUses}` : `${code.usedCount}`;
+
+  return (
+    <li className="flex items-center justify-between rounded-lg border border-[#fed7aa]/40 dark:border-[#423322] bg-white dark:bg-[#221a10] px-3 py-2">
+      <div className="flex items-center gap-3">
+        <code className="font-mono text-sm font-semibold text-[#f97316] tracking-wider">{code.code}</code>
+        <span className="text-xs text-[#231710]/50 dark:text-[#c4b19a]/60">
+          {new Date(code.createdAt).toLocaleDateString()}
+          {expiry ? ` · expires ${expiry}` : ''}
+          {` · ${uses} uses`}
+          {!code.isActive ? ' · inactive' : ''}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="rounded-md border border-[#fed7aa]/40 dark:border-[#423322] px-2 py-1 text-xs text-[#231710] dark:text-[#f0e4d5] hover:border-[#f97316] transition-colors"
+        >
+          {copied ? 'Copied!' : 'Copy link'}
+        </button>
+        {code.isActive ? (
+          <button
+            type="button"
+            onClick={handleDeactivate}
+            disabled={deactivating}
+            className="rounded-md border border-red-300 dark:border-red-500/30 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50"
+          >
+            {deactivating ? '...' : 'Deactivate'}
+          </button>
+        ) : null}
+      </div>
+    </li>
   );
 }
