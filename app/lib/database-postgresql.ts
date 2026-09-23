@@ -1379,36 +1379,38 @@ export async function getChatsByUserPostgres(
   const pool = getPostgresPool();
   const client = await pool.connect();
 
+  /*
+   * Sidebar list query — deliberately omits c.messages (multi-KB JSONB) to keep
+   * the query fast. The sidebar only renders id/url_id/description/updated_at.
+   * Messages are fetched lazily when a chat is opened (via useChatHistory.loadChat).
+   */
+  const SELECT_COLS =
+    'c.id, c.project_id, c.url_id, c.description, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived';
+
+  const rowMapper = (row: any) => ({
+    ...row,
+    messages: [],
+    metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
+  });
+
   try {
     if (isModerator) {
-      const result = await client.query(`
-        SELECT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
-        FROM chats c
-        ORDER BY c.updated_at DESC
-      `);
-      return result.rows.map(row => ({
-        ...row,
-        messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
-        metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
-      }));
+      const result = await client.query(`SELECT ${SELECT_COLS} FROM chats c ORDER BY c.updated_at DESC`);
+      return result.rows.map(rowMapper);
     }
 
-    const rowMapper = (row: any) => ({
-      ...row,
-      messages: typeof row.messages === 'string' ? JSON.parse(row.messages) : row.messages,
-      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
-    });
-
-    if (companyId) {
-      const isPersonal = companyId === personalCompanyId(userId);
-
+    if (companyId && companyId !== personalCompanyId(userId)) {
+      /*
+       * Company workspace — strict filter: only chats whose project belongs to
+       * this company. No legacy chat leakage.
+       */
       const result = await client.query(
-        `SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+        `SELECT DISTINCT ${SELECT_COLS}
          FROM chats c
          LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
          LEFT JOIN projects p ON p.id = c.project_id
          LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
-         WHERE (p.company_id = $2${isPersonal ? ' OR p.id IS NULL' : ''})
+         WHERE p.company_id = $2
            AND (c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1)
          ORDER BY c.updated_at DESC`,
         [userId, companyId]
@@ -1417,8 +1419,13 @@ export async function getChatsByUserPostgres(
       return result.rows.map(rowMapper);
     }
 
+    /*
+     * Personal workspace (or no companyId) — show ALL chats the user can access.
+     * No company_id filter: old projects may not have been migrated to
+     * cmp_personal_<userId>, so filtering by company_id would hide them.
+     */
     const result = await client.query(
-      `SELECT DISTINCT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived
+      `SELECT DISTINCT ${SELECT_COLS}
        FROM chats c
        LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
        LEFT JOIN projects p ON p.id = c.project_id

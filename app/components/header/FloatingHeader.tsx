@@ -51,7 +51,11 @@ export function FloatingHeader() {
 
     function scheduleClose() {
       clearClose();
-      closeTimer.current = setTimeout(() => setOpen(false), CLOSE_DELAY);
+      closeTimer.current = setTimeout(() => {
+        if (!document.querySelector('[data-state="open"]')) {
+          setOpen(false);
+        }
+      }, CLOSE_DELAY);
     }
 
     function onMouseMove(event: MouseEvent) {
