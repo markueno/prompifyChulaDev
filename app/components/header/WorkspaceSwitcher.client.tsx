@@ -49,7 +49,9 @@ export function WorkspaceSwitcher() {
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as HTMLElement;
+
+      if (ref.current && !ref.current.contains(target) && !target.closest('[data-workspace-dropdown]')) {
         setOpen(false);
       }
     };
@@ -112,6 +114,7 @@ export function WorkspaceSwitcher() {
       {open && dropdownPos
         ? createPortal(
             <div
+              data-workspace-dropdown
               className="fixed z-[9999] w-56 rounded-lg border border-[#fed7aa]/60 dark:border-[#423322] bg-[#f0e4d5] dark:bg-[#2d2014] p-1 shadow-lg"
               style={{ top: dropdownPos.top, left: dropdownPos.left }}
             >
