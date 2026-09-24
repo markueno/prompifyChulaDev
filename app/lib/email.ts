@@ -7,6 +7,7 @@
  */
 
 import { TRIAL_PROMPT_LIMIT } from '~/lib/billing/plans';
+import { LOGO_DATA_URI } from '~/lib/email-assets';
 
 interface EmailOptions {
   to: string;
@@ -108,6 +109,7 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
 const BRAND = {
   page: '#f7f3ee',
   card: '#ffffff',
+  /** Doubles as the hairline colour: header strip underline, dividers, card borders. */
   band: '#f0e4d5',
   ink: '#231710',
   muted: '#7a6a58',
@@ -127,17 +129,6 @@ function appUrl(): string {
   return process.env.APP_URL || 'http://localhost:5173';
 }
 
-/*
- * The wordmark is served from the app's own public/ directory, so it needs no separate hosting —
- * but that also means it only loads once APP_URL is publicly reachable.
- *
- * It is black on a transparent background, which is why the band behind it is always painted
- * cream: left transparent, a dark-mode client would render it black on black.
- */
-function logoUrl(): string {
-  return `${appUrl()}/logo-light.png`;
-}
-
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -146,12 +137,60 @@ interface EmailLayout {
   title: string;
   /** Grey text shown next to the subject in the inbox. Without it, clients scrape raw markup. */
   preheader: string;
+  /** Small uppercase label in the header strip, opposite the wordmark. */
+  eyebrow: string;
+  /** Set at display size, so keep it to two or three words or it wraps awkwardly on mobile. */
   heading: string;
+  /** One quiet line under the display heading. */
+  subhead?: string;
   /** Body paragraphs, already HTML. */
-  bodyHtml: string;
+  bodyHtml?: string;
   cta?: { label: string; url: string };
   /** Small print under the button — the paste-this-link fallback, expiry notes, opt-outs. */
   afterCtaHtml?: string;
+  /** Side-by-side panels; `body` is HTML. Two reads best — they stack on narrow screens. */
+  cards?: { heading: string; body: string }[];
+}
+
+/**
+ * The paired panels near the foot of the welcome mail.
+ *
+ * Laid out as one row of table cells rather than anything flexible, and stacked on mobile by the
+ * one media query in <head> — which Outlook ignores, so it keeps them side by side on a viewport
+ * wide enough to take them.
+ */
+function renderCards(cards: { heading: string; body: string }[]): string {
+  const cells = cards
+    .map(
+      (card, index) => `
+                  <td class="stack" width="50%" valign="top" style="padding: ${index === 0 ? '0 7px 0 0' : '0 0 0 7px'};">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="background-color: ${BRAND.page}; border: 1px solid ${BRAND.band}; border-radius: 12px; padding: 20px 20px 22px; font-family: ${FONT}; text-align: left;">
+                          <p style="margin: 0 0 10px; font-size: 15px; font-weight: 700; color: ${BRAND.ink};">${escapeHtml(card.heading)}</p>
+                          <p style="margin: 0; font-size: 13px; line-height: 1.7; color: ${BRAND.ink};">${card.body}</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>`
+    )
+    .join('');
+
+  return `
+          <tr>
+            <td style="padding: 30px 32px 0;">
+              <div style="border-top: 1px solid ${BRAND.band}; font-size: 0; line-height: 0;">&nbsp;</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 26px 32px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>${cells}
+                </tr>
+              </table>
+            </td>
+          </tr>`;
 }
 
 function renderEmail(layout: EmailLayout): string {
@@ -173,10 +212,25 @@ function renderEmail(layout: EmailLayout): string {
   const afterCta = layout.afterCtaHtml
     ? `
           <tr>
-            <td style="padding: 12px 32px 0; font-family: ${FONT}; font-size: 13px; line-height: 1.6; color: ${BRAND.muted};">
+            <td align="center" style="padding: 14px 32px 0; font-family: ${FONT}; font-size: 13px; line-height: 1.6; color: ${BRAND.muted}; text-align: center;">
               ${layout.afterCtaHtml}
             </td>
           </tr>`
+    : '';
+
+  const body = layout.bodyHtml
+    ? `
+          <tr>
+            <td align="center" style="padding: 22px 42px 0; font-family: ${FONT}; font-size: 15px; line-height: 1.7; color: ${BRAND.ink}; text-align: center;">
+              ${layout.bodyHtml}
+            </td>
+          </tr>`
+    : '';
+
+  const cards = layout.cards?.length ? renderCards(layout.cards) : '';
+
+  const subhead = layout.subhead
+    ? `<p style="margin: 14px 0 0; font-family: ${FONT}; font-size: 14px; line-height: 1.6; color: ${BRAND.muted};">${escapeHtml(layout.subhead)}</p>`
     : '';
 
   return `<!DOCTYPE html>
@@ -186,38 +240,55 @@ function renderEmail(layout: EmailLayout): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>${escapeHtml(layout.title)}</title>
+  <style>
+    @media only screen and (max-width: 600px) {
+      .display { font-size: 34px !important; }
+      .stack { display: block !important; width: 100% !important; padding: 0 0 12px 0 !important; }
+    }
+  </style>
 </head>
 <body style="margin: 0; padding: 0; background-color: ${BRAND.page};">
   <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent; height: 0; width: 0;">${escapeHtml(layout.preheader)}</div>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: ${BRAND.page};">
     <tr>
-      <td align="center" style="padding: 32px 12px;">
+      <td align="center" style="padding: 28px 12px;">
 
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 600px; background-color: ${BRAND.card}; border: 1px solid ${BRAND.band}; border-radius: 16px; overflow: hidden;">
 
           <tr>
-            <td align="center" bgcolor="${BRAND.band}" style="padding: 26px 24px;">
-              <img src="${logoUrl()}" width="140" alt="Prompify" style="display: block; border: 0; outline: none; width: 140px; max-width: 140px; height: auto;">
+            <td style="padding: 15px 22px; border-bottom: 1px solid ${BRAND.band};">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" style="font-family: ${FONT}; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: ${BRAND.accent};">${escapeHtml(layout.eyebrow)}</td>
+                  <td align="right" style="font-family: ${FONT}; font-size: 14px; font-weight: 700; color: ${BRAND.ink};">Prompify</td>
+                </tr>
+              </table>
             </td>
           </tr>
 
           <tr>
-            <td style="padding: 32px 32px 4px; font-family: ${FONT}; font-size: 15px; line-height: 1.65; color: ${BRAND.ink};">
-              <h1 style="margin: 0 0 18px; font-family: ${FONT}; font-size: 22px; line-height: 1.3; font-weight: 700; color: ${BRAND.ink};">${escapeHtml(layout.heading)}</h1>
-              ${layout.bodyHtml}
-            </td>
-          </tr>
-${cta}${afterCta}
-
-          <tr>
-            <td style="padding: 26px 32px 8px; font-family: ${FONT}; font-size: 15px; line-height: 1.65; color: ${BRAND.ink};">
-              <p style="margin: 0;">Warmly,<br><strong>The Prompify Team</strong></p>
+            <td align="center" style="padding: 34px 24px 0;">
+              <img src="${LOGO_DATA_URI}" width="74" alt="Prompify" style="display: block; border: 0; outline: none; width: 74px; max-width: 74px; height: auto;">
             </td>
           </tr>
 
           <tr>
-            <td style="padding: 22px 32px 28px; font-family: ${FONT}; font-size: 12px; line-height: 1.65; color: ${BRAND.muted};">
+            <td align="center" style="padding: 24px 32px 0; text-align: center;">
+              <h1 class="display" style="margin: 0; font-family: ${FONT}; font-size: 46px; line-height: 1.08; font-weight: 400; letter-spacing: -0.6px; color: ${BRAND.ink};">${escapeHtml(layout.heading)}</h1>
+              ${subhead}
+            </td>
+          </tr>
+${body}${cta}${afterCta}${cards}
+
+          <tr>
+            <td align="center" style="padding: 32px 32px 0; font-family: ${FONT}; font-size: 15px; line-height: 1.7; color: ${BRAND.ink}; text-align: center;">
+              <p style="margin: 0;">Warmly,<br><strong style="color: ${BRAND.ink};">The Prompify Team</strong></p>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding: 26px 32px 30px; font-family: ${FONT}; font-size: 12px; line-height: 1.65; color: ${BRAND.muted}; text-align: center;">
               <div style="border-top: 1px solid ${BRAND.band}; padding-top: 18px;">
                 <p style="margin: 0 0 10px;">${COMPANY_LINES.map(escapeHtml).join('<br>')}</p>
                 <p style="margin: 0;">This message was sent by Prompify. Please don't reply to this address &mdash; it isn't monitored.</p>
@@ -278,17 +349,19 @@ export async function sendVerificationEmail(email: string, token: string): Promi
   const html = renderEmail({
     title: 'Confirm your email',
     preheader: 'One quick click and your Prompify account is ready.',
-    heading: 'Welcome — one quick step',
-    bodyHtml: `<p style="margin: 0 0 14px;">Thanks for signing up to Prompify. Confirm your email address and your account is ready to use.</p>
-              <p style="margin: 0 0 4px;">This link works for the next 24 hours.</p>`,
+    eyebrow: 'Confirm your email',
+    heading: 'One quick step',
+    subhead: 'Confirm your address and your account is ready to use.',
+    bodyHtml: `<p style="margin: 0 0 14px;">Thanks for signing up to Prompify.</p>
+              <p style="margin: 0;">This link works for the next 24 hours.</p>`,
     cta: { label: 'Confirm my email', url: verificationUrl },
     afterCtaHtml: `${linkFallback(verificationUrl)}
               <p style="margin: 14px 0 0;">If you didn't create a Prompify account, you can safely ignore this — nothing will happen.</p>`,
   });
 
   const text = renderText({
-    heading: 'Welcome — one quick step',
-    body: 'Thanks for signing up to Prompify. Confirm your email address and your account is ready to use.\n\nThis link works for the next 24 hours.',
+    heading: 'One quick step',
+    body: 'Thanks for signing up to Prompify.\n\nConfirm your email address and your account is ready to use.\n\nThis link works for the next 24 hours.',
     ctaLabel: 'Confirm my email',
     ctaUrl: verificationUrl,
     after: "If you didn't create a Prompify account, you can safely ignore this — nothing will happen.",
@@ -310,18 +383,30 @@ export async function sendWelcomeEmail(email: string): Promise<boolean> {
 
   const html = renderEmail({
     title: 'Welcome to Prompify',
-    preheader: "You're all set — here's the quickest way to start.",
-    heading: "You're all set",
-    bodyHtml: `<p style="margin: 0 0 14px;">Your email is confirmed and your account is ready to use.</p>
-              <p style="margin: 0 0 14px;">Your first <strong>${prompts} prompts are on us</strong> — no card, no commitment. Bring something you genuinely want built rather than a toy example; that's where you'll see what Prompify is actually for.</p>
-              <p style="margin: 0 0 4px;">Just describe it in plain words and let Prompify draft the prompt for you.</p>`,
+    preheader: "You're all set — here's exactly what to expect.",
+    eyebrow: 'Welcome to',
+    heading: "You're in",
+    subhead: "Here's exactly what to expect.",
+    bodyHtml: `<p style="margin: 0 0 10px; font-size: 17px; font-weight: 700; color: ${BRAND.ink};">Your account is ready.</p>
+              <p style="margin: 0 0 14px;">Turn your ideas into working software before your coffee gets cold.</p>
+              <p style="margin: 0;">Describe something you genuinely want built, in plain words, and let Prompify draft the prompt for you.</p>`,
     cta: { label: 'Start building', url: `${appUrl()}/app` },
     afterCtaHtml: `<p style="margin: 0;">Whenever you want more room, the plans are on your <a href="${appUrl()}/app/pricing" style="color: ${BRAND.accent};">pricing page</a>.</p>`,
+    cards: [
+      {
+        heading: "What you'll get",
+        body: `Your first <strong>${prompts} prompts free</strong> — no card, no commitment. Every project, chat and revision saved and waiting whenever you come back.`,
+      },
+      {
+        heading: "What you won't get",
+        body: 'No credit card up front. No marketing blasts — we only write to you about your own account, and reminders can be turned off any time.',
+      },
+    ],
   });
 
   const text = renderText({
-    heading: "You're all set",
-    body: `Your email is confirmed and your account is ready.\n\nYou're on the free trial, which includes ${prompts} prompts — enough to see what Prompify does with a real idea rather than a toy one.\n\nThe quickest start is to describe something you actually want built, in plain words, and let Prompify draft the prompt for you.`,
+    heading: "You're in",
+    body: `Your account is ready.\n\nTurn your ideas into working software before your coffee gets cold.\n\nWhat you'll get: your first ${prompts} prompts free — no card, no commitment. Every project, chat and revision saved and waiting whenever you come back.\n\nWhat you won't get: no credit card up front, and no marketing blasts — we only write to you about your own account, and reminders can be turned off any time.\n\nDescribe something you genuinely want built, in plain words, and let Prompify draft the prompt for you.`,
     ctaLabel: 'Start building',
     ctaUrl: `${appUrl()}/app`,
     after: `Whenever you want more room, the plans are at ${appUrl()}/app/pricing.`,
@@ -336,17 +421,19 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
   const html = renderEmail({
     title: 'Reset your password',
     preheader: 'A link to choose a new Prompify password.',
-    heading: 'Choose a new password',
-    bodyHtml: `<p style="margin: 0 0 14px;">We received a request to reset the password on your Prompify account. Use the button below to set a new one.</p>
-              <p style="margin: 0 0 4px;">For your security, this link expires in one hour.</p>`,
+    eyebrow: 'Password reset',
+    heading: 'New password',
+    subhead: 'Use the button below to set a new one.',
+    bodyHtml: `<p style="margin: 0 0 14px;">We received a request to reset the password on your Prompify account.</p>
+              <p style="margin: 0;">For your security, this link expires in one hour.</p>`,
     cta: { label: 'Set a new password', url: resetUrl },
     afterCtaHtml: `${linkFallback(resetUrl)}
               <p style="margin: 14px 0 0;">If you didn't ask for this, you can ignore it — your current password stays exactly as it is.</p>`,
   });
 
   const text = renderText({
-    heading: 'Choose a new password',
-    body: 'We received a request to reset the password on your Prompify account. Use the link below to set a new one.\n\nFor your security, this link expires in one hour.',
+    heading: 'New password',
+    body: 'We received a request to reset the password on your Prompify account.\n\nUse the link below to set a new one.\n\nFor your security, this link expires in one hour.',
     ctaLabel: 'Set a new password',
     ctaUrl: resetUrl,
     after: "If you didn't ask for this, you can ignore it — your current password stays exactly as it is.",
@@ -376,16 +463,19 @@ export async function sendInactivityEmail(params: {
   const html = renderEmail({
     title: 'Your projects are waiting',
     preheader: 'Everything you built is still here, exactly as you left it.',
-    heading: 'Still here whenever you are',
+    eyebrow: 'Your projects',
+    heading: 'Still here',
+    subhead: 'Everything you built is exactly where you left it.',
     bodyHtml: `<p style="margin: 0 0 14px;">It's been about <strong>${params.daysInactive} days</strong> since you last signed in to Prompify.</p>
-              <p style="margin: 0 0 4px;">Your projects, chats and history are all still there, exactly as you left them. Nothing has been archived or removed.</p>`,
+              <p style="margin: 0 0 14px;">Your projects, chats and history are all still there.</p>
+              <p style="margin: 0;">Nothing has been archived or removed.</p>`,
     cta: { label: 'Pick up where you left off', url: `${appUrl()}/app` },
     afterCtaHtml: signOff || undefined,
   });
 
   const text = renderText({
-    heading: 'Still here whenever you are',
-    body: `It's been about ${params.daysInactive} days since you last signed in to Prompify.\n\nYour projects, chats and history are all still there, exactly as you left them. Nothing has been archived or removed.`,
+    heading: 'Still here',
+    body: `It's been about ${params.daysInactive} days since you last signed in to Prompify.\n\nYour projects, chats and history are all still there, exactly as you left them.\n\nNothing has been archived or removed.`,
     ctaLabel: 'Pick up where you left off',
     ctaUrl: `${appUrl()}/app`,
     after: params.finalNudge
@@ -408,21 +498,25 @@ export async function sendInvitationEmail(
   const html = renderEmail({
     title: 'You have been invited',
     preheader: `${inviterDisplay} invited you to collaborate on ${displayProjectName}.`,
-    heading: "You've been invited to collaborate",
+    eyebrow: 'Invitation',
+    heading: "You're invited",
+    subhead: `${inviterDisplay} wants you on ${displayProjectName}.`,
     bodyHtml: `<p style="margin: 0 0 14px;"><strong>${escapeHtml(inviterDisplay)}</strong> (${escapeHtml(inviterEmail)}) has invited you to join <strong>${escapeHtml(displayProjectName)}</strong> on Prompify.</p>
-              <p style="margin: 0 0 4px;">You'll be able to see the chat history, the code and the live preview, and work on it together.</p>`,
+              <p style="margin: 0;">You'll be able to see the chat history, the code and the live preview, and work on it together.</p>`,
     cta: { label: 'Accept invitation', url: acceptUrl },
     afterCtaHtml: `${linkFallback(acceptUrl)}
-              <p style="margin: 14px 0 0;">This invitation expires in 7 days. If you don't have a Prompify account yet, you'll be asked to create one first. Weren't expecting this? You can safely ignore it.</p>`,
+              <p style="margin: 14px 0 0;">This invitation expires in 7 days.</p>
+              <p style="margin: 8px 0 0;">If you don't have a Prompify account yet, you'll be asked to create one first.</p>
+              <p style="margin: 8px 0 0;">Weren't expecting this? You can safely ignore it.</p>`,
   });
 
   const text = renderText({
-    heading: "You've been invited to collaborate",
+    heading: "You're invited",
     body: `${inviterDisplay} (${inviterEmail}) has invited you to join "${displayProjectName}" on Prompify.\n\nYou'll be able to see the chat history, the code and the live preview, and work on it together.`,
     ctaLabel: 'Accept invitation',
     ctaUrl: acceptUrl,
     after:
-      "This invitation expires in 7 days. If you don't have a Prompify account yet, you'll be asked to create one first. Weren't expecting this? You can safely ignore it.",
+      "This invitation expires in 7 days.\n\nIf you don't have a Prompify account yet, you'll be asked to create one first.\n\nWeren't expecting this? You can safely ignore it.",
   });
 
   return await sendEmail({
