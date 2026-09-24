@@ -307,32 +307,32 @@ const ARCHETYPE_NOTES: Record<string, { archetype: string; notes: string }> = {
   crm: {
     archetype: 'CRM / Sales Forecasting platform',
     notes:
-      'Customer relationship management with contact records, deal pipeline, activity logging, and revenue forecasting. Role-based views for sales reps and managers. Reporting and target tracking built in.',
+      'Common features for this app type: contact records, deal pipeline, activity logging, revenue forecasting, role-based views for reps and managers, reporting and target tracking. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
   inventory: {
     archetype: 'Inventory Management system',
     notes:
-      'Stock-level tracking with product catalogue, quantity management, low-stock alerts, and reorder workflows. Supports physical products, raw materials, and digital stock. Audit trail on all stock movements.',
+      'Common features for this app type: product catalogue, stock-level tracking, low-stock alerts, reorder workflows, audit trail on stock movements. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
   hr: {
     archetype: 'HR management application',
     notes:
-      'Staff-facing HR platform. Timesheet submission and approval, leave request management, expense claims with receipt upload, and payroll summary. Manager approval flows and admin oversight panel.',
+      'Common features for this app type: timesheet submission and approval, leave request management, expense claims, payroll summary, manager approval flows. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
   appointment: {
     archetype: 'Appointment / scheduling application',
     notes:
-      'Calendar-based booking with configurable availability, time-slot management, booking confirmations, and reminders. Supports self-service booking by customers or staff-managed scheduling. Calendar sync integration.',
+      'Common features for this app type: calendar-based booking, time-slot management, booking confirmations, reminders, calendar sync. ADAPT these to match the user\u2019s specific description above \u2014 if the user describes an internal team scheduling tool, build THAT, not a generic customer-facing booking app.',
   },
   knowledge: {
     archetype: 'Knowledge hub / document portal',
     notes:
-      'Centralised content platform for sharing documents, guides, and dashboards. Category-based organisation with full-text search. Role-based access to control who can view or edit content. Version history on documents.',
+      'Common features for this app type: document sharing, category-based organisation, full-text search, role-based access, version history. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
   landing: {
     archetype: 'Landing page / marketing website',
     notes:
-      'Public-facing website with static or CMS-managed content. SEO-optimised pages, blog or news section, contact/lead capture forms, and clear calls to action. Fast load times and mobile-first design.',
+      'Common features for this app type: SEO-optimised pages, blog or news section, contact/lead capture forms, clear calls to action, mobile-first design. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
 };
 
@@ -623,11 +623,19 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
     lines.push("WHAT I'M BUILDING");
     lines.push(DIVIDER);
 
+    lines.push(
+      'CRITICAL: The description below is the user\u2019s PRIMARY specification. Follow it EXACTLY. The archetype notes below are a GENERIC starting point \u2014 if they conflict with the user\u2019s description, THE USER\u2019S DESCRIPTION WINS.'
+    );
+    lines.push('');
+
     if (contextSentence) {
       lines.push(contextSentence);
       lines.push('');
+      lines.push('[The description above is the PRIMARY spec \u2014 build exactly what the user describes.]');
+      lines.push('');
     }
 
+    lines.push('GENERIC ARCHETYPE (reference only \u2014 adapt or override per the user\u2019s description above):');
     lines.push(`App type:  ${archetype.archetype}`);
     lines.push('');
 
@@ -638,7 +646,7 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
 
     // ── TARGET USERS & REQUIREMENTS ──
     lines.push(DIVIDER);
-    lines.push('TARGET USERS & REQUIREMENTS');
+    lines.push('TARGET USERS & REQUIREMENTS (MANDATORY \u2014 follow exactly)');
     lines.push(DIVIDER);
     lines.push('User scope');
     lines.push(`  ${userScope.scope}`);
@@ -652,7 +660,7 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
 
     // ── VISUAL DESIGN — COLOR PALETTE ──
     lines.push(DIVIDER);
-    lines.push('VISUAL DESIGN — COLOR PALETTE');
+    lines.push('VISUAL DESIGN \u2014 COLOR PALETTE (MANDATORY \u2014 apply exactly)');
     lines.push(DIVIDER);
     lines.push('Color palette (apply exactly — these are hard requirements):');
     lines.push(`  Primary:    ${palette[0]}`);
@@ -703,15 +711,19 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
 
     // ── WHAT TO BUILD ──
     lines.push(DIVIDER);
-    lines.push('WHAT TO BUILD — PRE-ALPHA SCAFFOLD');
+    lines.push('WHAT TO BUILD \u2014 COMPLETE WORKING APP');
     lines.push(DIVIDER);
-    lines.push('Build the pre-alpha foundation of this app. This is the skeleton to start from.');
+    lines.push('Build a complete, fully functional app. Every button, form, and link must work.');
     lines.push('');
-    lines.push('1)  Directory structure — scaffold the full project with proper separation of concerns');
-    lines.push('2)  Core pages and routes — all main views with working navigation');
-    lines.push('3)  Authentication flow — signup, login, password reset, session management');
-    lines.push('4)  Data model and CRUD APIs — database schema, migrations, REST or server actions');
-    lines.push('5)  .env.example and README — setup instructions, environment variables documented');
+    lines.push('1)  Directory structure \u2014 full project with proper separation of concerns');
+    lines.push('2)  ALL pages and routes \u2014 every view with working navigation between them');
+    lines.push(
+      '3)  ALL CRUD operations \u2014 create forms that POST, lists that GET, edit that PATCH, delete that DELETE'
+    );
+    lines.push('4)  ALL interactive elements \u2014 modals, dropdowns, filters, search \u2014 wired up and functional');
+    lines.push('5)  ALL list views \u2014 fetch from the data proxy on mount, display real data');
+    lines.push('6)  Empty states \u2014 "No records yet, click to create one" (never a blank page)');
+    lines.push('7)  .env.example and README');
     lines.push('');
 
     // ── IMPORTANT NOTES ──
@@ -726,7 +738,9 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
     }
 
     lines.push('Keep the implementation lean and modular. Use TypeScript throughout.');
-    lines.push('Do not over-engineer — deliver the scaffold, not the final product.');
+    lines.push(
+      'Deliver a COMPLETE, WORKING app \u2014 every feature described above must be fully functional, not just scaffolded. No placeholder buttons, no "TODO" comments, no "coming soon" links.'
+    );
 
     return lines.join('\n');
   };
