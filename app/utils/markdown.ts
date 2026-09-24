@@ -2,8 +2,15 @@ import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import type { PluggableList, Plugin } from 'unified';
 import rehypeSanitize, { defaultSchema, type Options as RehypeSanitizeOptions } from 'rehype-sanitize';
-import { SKIP, visit } from 'unist-util-visit';
-import type { UnistNode, UnistParent } from 'node_modules/unist-util-visit/lib';
+import { SKIP, visit, type Visitor } from 'unist-util-visit';
+
+/*
+ * Derived from visit's own signature rather than imported from `unist`: several dependencies ship
+ * their own nested copy of @types/unist, and a directly-imported Node is not assignable to the one
+ * whichever copy `visit` happens to resolve to.
+ */
+type UnistNode = Parameters<Visitor>[0];
+type UnistParent = NonNullable<Parameters<Visitor>[2]>;
 
 export const allowedHTMLElements = [
   'a',
