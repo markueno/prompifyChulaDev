@@ -263,6 +263,17 @@ async function handleCreate(request: Request, chat: ChatRecord) {
   }
 
   /*
+   * Validated up front rather than on the fresh-create path alone: reusing a shared table can also
+   * put these names into an ALTER TABLE, and validateColumns is what confines them to
+   * [a-z][a-z0-9_]* before they reach any DDL.
+   */
+  const colsErr = validateColumns(columns);
+
+  if (colsErr) {
+    return json({ error: colsErr }, { status: 400 });
+  }
+
+  /*
    * W2: resolve the chat's workspace (personal vs company). If the chat's
    * project belongs to a real company (not the user's personal company),
    * tables are created in the shared cmp_<companyId> schema + tagged
@@ -286,57 +297,96 @@ async function handleCreate(request: Request, chat: ChatRecord) {
   }
 
   /*
-   * Opt-in: link an existing table (created under another chat) into THIS
-   * project, sharing its rows. This is the ONLY way old data enters a project.
-   * Default (no flag — incl. the AI's data action) creates a fresh table below.
+   * Master data is shared across the workspace: an `employees` table built for one project is the
+   * same table every later project gets, so reference data isn't rebuilt (and re-invented) per
+   * app. Transactional tables stay project-scoped — merging one app's orders into another's would
+   * be wrong. `linkExisting` remains an explicit opt-in for any table, master or not.
+   *
+   * Re-running the same chat's data action also lands here, finding the chat's own row. That is
+   * deliberate: it makes the action idempotent and stops a second pass re-seeding the table.
    */
-  if (linkExisting) {
+  const autoLinkMaster = !linkExisting && category === 'master';
+
+  if (linkExisting || autoLinkMaster) {
     const pool = getPostgresPool();
     const linkClient = await pool.connect();
 
+    /*
+     * Tracked out here so the "nothing to reuse" fall-through happens after the client is
+     * released, rather than releasing twice or running the fresh-create inside a try whose catch
+     * would relabel its errors as link failures.
+     */
+    let didReuse = false;
+
     try {
+      /*
+       * Scoped to the workspace, not the creator: in a company, a colleague's `employees` table is
+       * the company's master data and the next project should attach to it whoever built it.
+       * `workspace_id` holds the raw user_id for personal workspaces; the IS NULL arm covers rows
+       * written before that column existed.
+       */
       const existing = await linkClient.query(
         `SELECT schema_name, table_name, columns, row_count, category, workspace_type, workspace_id FROM app_tables
-          WHERE user_id = $1 AND logical_name = $2
+          WHERE (workspace_id = $1 OR (workspace_id IS NULL AND user_id = $2)) AND logical_name = $3
+          ${autoLinkMaster ? `AND category = 'master'` : ''}
           ORDER BY row_count DESC LIMIT 1`,
-        [chat.user_id, tableName]
+        [workspaceId, chat.user_id, tableName]
       );
 
       const existingRow = existing.rows[0];
 
       if (!existingRow) {
-        return json({ error: `No existing table named "${tableName}" to link` }, { status: 404 });
+        if (linkExisting) {
+          return json({ error: `No existing table named "${tableName}" to link` }, { status: 404 });
+        }
+
+        // Auto-link found nothing to share; the fresh-create below handles it.
+      } else {
+        didReuse = true;
+
+        const rawColumns = existingRow.columns;
+        const parsedExisting: ColumnInput[] =
+          typeof rawColumns === 'string' ? JSON.parse(rawColumns) : rawColumns || [];
+
+        /*
+         * The new app may want columns the shared table doesn't have yet. Add them rather than
+         * forking a second copy — one table stays the source of truth, and projects that predate
+         * the column simply never select it.
+         */
+        const mergedColumns = await extendSharedTable({
+          userId: chat.user_id,
+          schemaName: existingRow.schema_name,
+          physicalName: existingRow.table_name,
+          existing: parsedExisting,
+          wanted: columns,
+        });
+
+        await linkClient.query(
+          `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category, workspace_type, workspace_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'relinked', $9, $10, $11)
+           ON CONFLICT (chat_id, logical_name) DO UPDATE SET
+             schema_name = EXCLUDED.schema_name,
+             table_name = EXCLUDED.table_name,
+             columns = EXCLUDED.columns,
+             row_count = EXCLUDED.row_count,
+             category = EXCLUDED.category,
+             workspace_type = EXCLUDED.workspace_type,
+             workspace_id = EXCLUDED.workspace_id`,
+          [
+            cryptoRandomId(),
+            chat.user_id,
+            chat.id,
+            existingRow.schema_name,
+            existingRow.table_name,
+            tableName,
+            JSON.stringify(mergedColumns),
+            existingRow.row_count ?? 0,
+            existingRow.category ?? category ?? null,
+            existingRow.workspace_type ?? 'personal',
+            existingRow.workspace_id ?? chat.user_id,
+          ]
+        );
       }
-
-      const rawColumns = existingRow.columns;
-      const existingColumns = typeof rawColumns === 'string' ? rawColumns : JSON.stringify(rawColumns);
-      const existingRowCount = existingRow.row_count ?? 0;
-
-      await linkClient.query(
-        `INSERT INTO app_tables (id, user_id, chat_id, schema_name, table_name, logical_name, columns, row_count, source, category, workspace_type, workspace_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'relinked', $9, $10, $11)
-         ON CONFLICT (chat_id, logical_name) DO UPDATE SET
-           schema_name = EXCLUDED.schema_name,
-           table_name = EXCLUDED.table_name,
-           columns = EXCLUDED.columns,
-           row_count = EXCLUDED.row_count,
-           category = EXCLUDED.category,
-           workspace_type = EXCLUDED.workspace_type,
-           workspace_id = EXCLUDED.workspace_id`,
-        [
-          cryptoRandomId(),
-          chat.user_id,
-          chat.id,
-          existingRow.schema_name,
-          existingRow.table_name,
-          tableName,
-          existingColumns,
-          existingRowCount,
-          existingRow.category ?? null,
-          existingRow.workspace_type ?? 'personal',
-          existingRow.workspace_id ?? chat.user_id,
-        ]
-      );
     } catch (linkErr) {
       return json(
         {
@@ -348,8 +398,63 @@ async function handleCreate(request: Request, chat: ChatRecord) {
       linkClient.release();
     }
 
-    return json({ success: true, tableName, schema: schemaName, relinked: true });
+    /*
+     * `reused` tells the caller the table already holds rows from elsewhere, so the data action
+     * must skip its seed step — otherwise a second set of sample rows lands in shared master data.
+     */
+    if (didReuse) {
+      return json({ success: true, tableName, schema: schemaName, relinked: true, reused: true });
+    }
   }
+
+  return await createFreshTable({ chat, tableName, columns, category, schemaName, workspaceType, workspaceId });
+}
+
+/**
+ * Add columns the new app needs that the shared table lacks, returning the merged definition.
+ *
+ * Added nullable whatever the caller asked for: the table already holds other projects' rows, and
+ * Postgres refuses ADD COLUMN ... NOT NULL on a populated table without a default.
+ */
+async function extendSharedTable(params: {
+  userId: string;
+  schemaName: string;
+  physicalName: string;
+  existing: ColumnInput[];
+  wanted: ColumnInput[];
+}): Promise<ColumnInput[]> {
+  const have = new Set([...params.existing.map(col => col.name), ...RESERVED_NAMES]);
+  const missing = params.wanted.filter(col => !have.has(col.name));
+
+  if (missing.length === 0) {
+    return params.existing;
+  }
+
+  const clauses = missing.map(col => `ADD COLUMN IF NOT EXISTS "${col.name}" ${PG_TYPES[col.type]}`);
+  const result = await runAppQueryInSchema(
+    params.userId,
+    params.schemaName,
+    `ALTER TABLE "${params.physicalName}" ${clauses.join(', ')};`
+  );
+
+  if (!result.ok) {
+    throw new Error(result.error || 'Failed to add columns to the shared table');
+  }
+
+  return [...params.existing, ...missing.map(col => ({ ...col, nullable: true }))];
+}
+
+/** The original path: a fresh, chat-scoped physical table. */
+async function createFreshTable(params: {
+  chat: ChatRecord;
+  tableName: string;
+  columns: ColumnInput[];
+  category?: string;
+  schemaName: string;
+  workspaceType: string;
+  workspaceId: string;
+}) {
+  const { chat, tableName, columns, category, schemaName, workspaceType, workspaceId } = params;
 
   /*
    * Default: fresh table. A table with no user columns is unusable (only the
@@ -358,12 +463,6 @@ async function handleCreate(request: Request, chat: ChatRecord) {
    */
   if (!columns || columns.length === 0) {
     return json({ error: 'Add at least one column — a table with no columns cannot store rows' }, { status: 400 });
-  }
-
-  const colsErr = validateColumns(columns);
-
-  if (colsErr) {
-    return json({ error: colsErr }, { status: 400 });
   }
 
   /*

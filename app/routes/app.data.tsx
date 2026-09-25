@@ -16,7 +16,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     const mockUser = getMockAdminUser();
     const tables = await getAllUserTables(mockUser.id);
 
-    return json({ user: mockUser, tables, grouped: groupByProject(tables), isCompany: false });
+    return json({ user: mockUser, tables, grouped: groupByTable(tables), isCompany: false });
   }
 
   const user = await requireAuth(request, context);
@@ -24,31 +24,55 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const tables = await getAllUserTables(user.id, companyId);
   const isCompany = companyId !== `cmp_personal_${user.id}`;
 
-  return json({ user, tables, grouped: groupByProject(tables), isCompany });
+  return json({ user, tables, grouped: groupByTable(tables), isCompany });
 }
 
-function groupByProject(tables: any[]) {
+/**
+ * One entry per physical table, carrying the projects that use it.
+ *
+ * Grouped on (schema_name, table_name) rather than on the row id: a table shared across projects
+ * is several app_tables rows — one registration per chat — all pointing at the same physical
+ * table. Grouping by id would list it once per project and make shared data look duplicated,
+ * which is the opposite of what the page is meant to show.
+ */
+function groupByTable(tables: any[]) {
   const groups: Record<
     string,
-    { projectName: string; chatUrlId: string | null; projectId: string | null; tables: any[] }
+    {
+      key: string;
+      logicalName: string;
+      category: string | null;
+      workspaceType: string;
+      creatorEmail: string | null;
+      /** Identical across the group — the rows describe one physical table, so never summed. */
+      rowCount: number;
+      projects: { name: string; chatUrlId: string | null; projectId: string | null }[];
+    }
   > = {};
 
   for (const t of tables) {
-    const key = t.chat_url_id ?? t.project_id ?? 'unknown';
+    const key = `${t.schema_name}.${t.table_name}`;
 
     if (!groups[key]) {
       groups[key] = {
-        projectName: t.project_name ?? 'Untitled project',
-        chatUrlId: t.chat_url_id,
-        projectId: t.project_id,
-        tables: [],
+        key,
+        logicalName: t.logical_name,
+        category: t.category,
+        workspaceType: t.workspace_type,
+        creatorEmail: t.creator_email,
+        rowCount: t.row_count ?? 0,
+        projects: [],
       };
     }
 
-    groups[key].tables.push(t);
+    groups[key].projects.push({
+      name: t.project_name ?? 'Untitled project',
+      chatUrlId: t.chat_url_id,
+      projectId: t.project_id,
+    });
   }
 
-  return Object.values(groups);
+  return Object.values(groups).sort((a, b) => a.logicalName.localeCompare(b.logicalName));
 }
 
 export const links: LinksFunction = () => [
@@ -69,28 +93,6 @@ export const meta: MetaFunction = () => [
   { name: 'description', content: 'Browse all tables across your projects.' },
 ];
 
-function CategoryBadge({ category }: { category: string | null }) {
-  if (!category) {
-    return (
-      <span className="text-xs px-2 py-0.5 rounded bg-gray-500/15 text-gray-600 dark:text-gray-400">Uncategorized</span>
-    );
-  }
-
-  const isMaster = category === 'master';
-
-  return (
-    <span
-      className={
-        isMaster
-          ? 'text-xs px-2 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400'
-          : 'text-xs px-2 py-0.5 rounded bg-green-500/15 text-green-600 dark:text-green-400'
-      }
-    >
-      {isMaster ? 'Master' : 'Transactional'}
-    </span>
-  );
-}
-
 function WorkspaceBadge({ workspaceType }: { workspaceType: string }) {
   return workspaceType === 'company' ? (
     <span className="text-xs px-2 py-0.5 rounded bg-purple-500/15 text-purple-600 dark:text-purple-400">Company</span>
@@ -99,14 +101,116 @@ function WorkspaceBadge({ workspaceType }: { workspaceType: string }) {
   );
 }
 
+/** The projects registered against one physical table, each linking into its chat. */
+function ProjectLinks({
+  projects,
+}: {
+  projects: { name: string; chatUrlId: string | null; projectId: string | null }[];
+}) {
+  if (projects.length === 0) {
+    return <span className="text-xs text-bolt-elements-textTertiary">—</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {projects.map(project => (
+        <Link
+          key={`${project.projectId ?? ''}-${project.chatUrlId ?? ''}`}
+          to={buildProjectChatPath(project.projectId || DEFAULT_PROJECT_ID, project.chatUrlId || '')}
+          className="rounded border border-bolt-elements-borderColor px-2 py-0.5 text-xs text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2"
+        >
+          {project.name}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function TableSection({
+  title,
+  blurb,
+  groups,
+  isCompany,
+}: {
+  title: string;
+  blurb: string;
+  groups: any[];
+  isCompany: boolean;
+}) {
+  if (groups.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 overflow-hidden">
+      <div className="border-b border-bolt-elements-borderColor px-5 py-3">
+        <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">
+          {title} <span className="font-normal text-bolt-elements-textSecondary">({groups.length})</span>
+        </h2>
+        <p className="mt-0.5 text-xs text-bolt-elements-textSecondary">{blurb}</p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-bolt-elements-borderColor text-left text-xs uppercase tracking-wide text-bolt-elements-textSecondary">
+              <th className="px-5 py-2 font-medium">Table</th>
+              <th className="px-5 py-2 font-medium">Rows</th>
+              <th className="px-5 py-2 font-medium">Used by</th>
+              <th className="px-5 py-2 font-medium">Workspace</th>
+              {isCompany ? <th className="px-5 py-2 font-medium">Created by</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((group: any) => (
+              <tr
+                key={group.key}
+                className="border-b border-bolt-elements-borderColor last:border-0 hover:bg-bolt-elements-background-depth-2"
+              >
+                <td className="px-5 py-2.5 align-top font-medium text-bolt-elements-textPrimary">
+                  {group.logicalName}
+                  {group.projects.length > 1 ? (
+                    <span className="ml-2 text-xs font-normal text-bolt-elements-textTertiary">
+                      shared by {group.projects.length}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="px-5 py-2.5 align-top text-bolt-elements-textSecondary">
+                  {group.rowCount.toLocaleString()}
+                </td>
+                <td className="px-5 py-2.5 align-top">
+                  <ProjectLinks projects={group.projects} />
+                </td>
+                <td className="px-5 py-2.5 align-top">
+                  <WorkspaceBadge workspaceType={group.workspaceType} />
+                </td>
+                {isCompany ? (
+                  <td className="px-5 py-2.5 align-top text-xs text-bolt-elements-textSecondary">
+                    {group.creatorEmail ?? '—'}
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default function DataPage() {
   const { grouped, isCompany } = useLoaderData<typeof loader>();
 
-  const totalTables = grouped.reduce((sum: number, g: any) => sum + g.tables.length, 0);
-  const totalRows = grouped.reduce(
-    (sum: number, g: any) => sum + g.tables.reduce((s: number, t: any) => s + (t.row_count ?? 0), 0),
-    0
-  );
+  /*
+   * Counted per physical table, not per registration — a table shared by three projects is one
+   * table holding one set of rows. Summing the rows of every registration would treat shared
+   * master data as if each project had its own copy.
+   */
+  const totalTables = grouped.length;
+  const totalRows = grouped.reduce((sum: number, g: any) => sum + g.rowCount, 0);
+
+  const master = grouped.filter((g: any) => g.category === 'master');
+  const transactional = grouped.filter((g: any) => g.category !== 'master');
 
   return (
     <LandingAppChrome>
@@ -138,70 +242,19 @@ export default function DataPage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-6">
-              {grouped.map((group: any) => {
-                const chatPath = buildProjectChatPath(group.projectId || DEFAULT_PROJECT_ID, group.chatUrlId || '');
-
-                return (
-                  <section
-                    key={group.chatUrlId ?? group.projectId ?? 'unknown'}
-                    className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 overflow-hidden"
-                  >
-                    <div className="flex items-center justify-between border-b border-bolt-elements-borderColor px-5 py-3">
-                      <div>
-                        <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">{group.projectName}</h2>
-                        <p className="text-xs text-bolt-elements-textSecondary">{group.tables.length} tables</p>
-                      </div>
-                      <Link
-                        to={chatPath}
-                        className="rounded-md border border-bolt-elements-borderColor px-3 py-1.5 text-xs font-medium text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2"
-                      >
-                        Open project
-                      </Link>
-                    </div>
-
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-bolt-elements-borderColor text-left text-xs uppercase tracking-wide text-bolt-elements-textSecondary">
-                          <th className="px-5 py-2 font-medium">Table</th>
-                          <th className="px-5 py-2 font-medium">Rows</th>
-                          <th className="px-5 py-2 font-medium">Category</th>
-                          <th className="px-5 py-2 font-medium">Workspace</th>
-                          {isCompany ? <th className="px-5 py-2 font-medium">Created by</th> : null}
-                          <th className="px-5 py-2 font-medium">Schema</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.tables.map((t: any) => (
-                          <tr
-                            key={t.id}
-                            className="border-b border-bolt-elements-borderColor last:border-0 hover:bg-bolt-elements-background-depth-2"
-                          >
-                            <td className="px-5 py-2.5 font-medium text-bolt-elements-textPrimary">{t.logical_name}</td>
-                            <td className="px-5 py-2.5 text-bolt-elements-textSecondary">
-                              {(t.row_count ?? 0).toLocaleString()}
-                            </td>
-                            <td className="px-5 py-2.5">
-                              <CategoryBadge category={t.category} />
-                            </td>
-                            <td className="px-5 py-2.5">
-                              <WorkspaceBadge workspaceType={t.workspace_type} />
-                            </td>
-                            {isCompany ? (
-                              <td className="px-5 py-2.5 text-xs text-bolt-elements-textSecondary">
-                                {t.creator_email ?? '—'}
-                              </td>
-                            ) : null}
-                            <td className="px-5 py-2.5 text-xs text-bolt-elements-textTertiary font-mono">
-                              {t.schema_name}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </section>
-                );
-              })}
+            <div className="space-y-8">
+              <TableSection
+                title="Master data"
+                blurb="Reference tables shared across projects. Building a new app reuses these rather than creating a second copy."
+                groups={master}
+                isCompany={isCompany}
+              />
+              <TableSection
+                title="Transactional data"
+                blurb="Records belonging to a single project. These are never shared between apps."
+                groups={transactional}
+                isCompany={isCompany}
+              />
             </div>
           )}
         </main>

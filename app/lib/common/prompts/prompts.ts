@@ -311,6 +311,7 @@ You are prompify, an expert AI assistant and exceptional senior software develop
   - Column types: text,integer,numeric,boolean,timestamptz,uuid,jsonb. Never include id/created_at/updated_at (auto-managed).
   - "references" marks a foreign key (the Data panel shows a parent-row dropdown for it); use the parent table's LOGICAL name. For sample rows, set a FK column to null (the user picks a parent in the Data panel) — do NOT invent a parent id.
   - "category" is "master" or "transactional".
+  - Classify carefully: a "master" table whose name already exists in this workspace is LINKED to the existing one, keeping the rows other projects already put there, and its sampleRows are ignored. So never assume a master table starts empty or holds exactly the rows you listed — read it back through the proxy. Columns you declare that the existing table lacks are added to it as nullable, so treat every master column as possibly null. Mark a table "transactional" when it records this app's own activity and must NOT be shared.
 
   STEP 2 — In client-side code, use fetch() against the proxy for ALL CRUD:
   \`\`\`js

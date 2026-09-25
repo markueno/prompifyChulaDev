@@ -309,6 +309,8 @@ export class ActionRunner {
        *    registry). The schema endpoint takes { tableName, columns: [{name,
        *    type, nullable, defaultValue?}] }.
        */
+      let reusedExistingTable = false;
+
       try {
         const schemaRes = await fetch(`/api/data/${encodeURIComponent(id)}/schema`, {
           method: 'POST',
@@ -323,10 +325,25 @@ export class ActionRunner {
           continue;
         }
 
-        logger.info(`data action: created table "${table.tableName}"`);
+        /*
+         * A master table already present in this workspace is linked rather than recreated, so it
+         * arrives carrying another project's rows. Seeding on top would append a duplicate set of
+         * sample records to data other apps are already reading.
+         */
+        reusedExistingTable = Boolean(((await schemaRes.json()) as { reused?: boolean })?.reused);
+
+        logger.info(
+          reusedExistingTable
+            ? `data action: reused existing table "${table.tableName}"`
+            : `data action: created table "${table.tableName}"`
+        );
       } catch (err) {
         logger.error(`data action: schema fetch failed for "${table.tableName}":`, err);
 
+        continue;
+      }
+
+      if (reusedExistingTable) {
         continue;
       }
 
