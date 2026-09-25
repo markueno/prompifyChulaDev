@@ -33,6 +33,7 @@ import { EditorPanel } from './EditorPanel';
 import { Preview } from './Preview';
 import { VersionHistoryDropdown } from './VersionHistoryDropdown.client';
 import useViewport from '~/lib/hooks';
+import { WorkbenchUnavailable } from './WorkbenchUnavailable';
 import { PushToGitHubDialog } from '~/components/@settings/tabs/connections/components/PushToGitHubDialog';
 
 interface WorkspaceProps {
@@ -312,6 +313,12 @@ export const Workbench = memo(
 
     const isSmallViewport = useViewport(1024);
 
+    /*
+     * Below this the workbench isn't merely cramped — WebContainer, which drives the editor,
+     * terminal and preview, does not run in mobile browsers at all. See WorkbenchUnavailable.
+     */
+    const isUnsupportedViewport = useViewport(640);
+
     const setSelectedView = (view: WorkbenchViewType) => {
       workbenchStore.currentView.set(view);
     };
@@ -518,6 +525,15 @@ export const Workbench = memo(
       workbenchStore.setSelectedFile(filePath);
       workbenchStore.currentView.set('diff');
     }, []);
+
+    /*
+     * Only swap in the notice once something would actually have opened the workbench (the first
+     * artifact auto-opens it). Left closed, the panel sits off-screen and the chat has the width
+     * to itself — which is the right mobile experience, so don't interrupt it.
+     */
+    if (chatStarted && showWorkbench && isUnsupportedViewport) {
+      return <WorkbenchUnavailable />;
+    }
 
     return (
       chatStarted && (
@@ -742,10 +758,10 @@ export const Workbench = memo(
           <PushToGitHubDialog
             isOpen={isPushDialogOpen}
             onClose={() => setIsPushDialogOpen(false)}
-            onPush={async (repoName, username, token) => {
+            onPush={async (repoName, username, token, isPrivate) => {
               try {
                 const commitMessage = prompt('Please enter a commit message:', 'Initial commit') || 'Initial commit';
-                await workbenchStore.pushToGitHub(repoName, commitMessage, username, token);
+                await workbenchStore.pushToGitHub(repoName, commitMessage, username, token, isPrivate);
 
                 const repoUrl = `https://github.com/${username}/${repoName}`;
 

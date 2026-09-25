@@ -33,7 +33,8 @@ interface GitHubRepo {
 
 export function PushToGitHubDialog({ isOpen, onClose, onPush }: PushToGitHubDialogProps) {
   const [repoName, setRepoName] = useState('');
-  const [isPrivate, setIsPrivate] = useState(false);
+  // Defaults to private: a generated app can carry real config and seed data.
+  const [isPrivate, setIsPrivate] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<GitHubUserResponse | null>(null);
   const [recentRepos, setRecentRepos] = useState<GitHubRepo[]>([]);
