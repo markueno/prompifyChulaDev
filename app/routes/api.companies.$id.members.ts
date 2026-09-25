@@ -86,6 +86,17 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
         return json({ error: 'userId and role are required' }, { status: 400 });
       }
 
+      /*
+       * Role changes apply to existing members only. addCompanyMember upserts, so without this
+       * check a PATCH naming a non-member would quietly enrol them — past the seat cap the POST
+       * branch enforces. Adding someone is POST's job, where that guard lives.
+       */
+      const target = await getCompanyMember(companyId, userId);
+
+      if (!target) {
+        return json({ error: 'That user is not a member of this workspace' }, { status: 404 });
+      }
+
       const success = await addCompanyMember(companyId, userId, role);
 
       if (success) {

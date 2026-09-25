@@ -5,6 +5,7 @@ import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 import { keyForHash } from '~/lib/.server/storage';
 import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
 import { diffManifests } from '~/lib/snapshots/diffManifests';
+import { getPlan } from '~/lib/billing/plans';
 // Database schema, inlined at build time. schema.sql is the single source of truth.
 // eslint-disable-next-line no-restricted-imports
 import schemaSql from '../../schema.sql?raw';
@@ -1079,13 +1080,44 @@ export async function getCompanyIdForChatPostgres(chatId: string): Promise<strin
 }
 
 /** A workspace's seat cap (from its plan). Defaults to 1. */
+/**
+ * Seats this workspace may fill.
+ *
+ * `companies.seats` is written only by the Stripe webhook, and defaults to 1 — so a webhook that
+ * is missed, delayed, or replayed out of order would otherwise cap a paying 20-seat customer at
+ * one member with no way to fix it themselves. The live subscription's tier is the entitlement
+ * they actually bought, so the higher of the two wins: a stale column can no longer strand them,
+ * while a manually raised seat count (a custom deal) still stands above the plan.
+ *
+ * A canceled subscription grants nothing — the stored value, which the webhook drops to 1 on
+ * cancellation, is used as-is.
+ */
 export async function getCompanySeatsPostgres(companyId: string): Promise<number> {
   const pool = getPostgresPool();
   const client = await pool.connect();
 
   try {
-    const result = await client.query(`SELECT seats FROM companies WHERE id = $1`, [companyId]);
-    return result.rows[0]?.seats ?? 1;
+    const result = await client.query(
+      `SELECT c.seats, s.tier_id, s.status
+         FROM companies c
+         LEFT JOIN subscriptions s ON s.company_id = c.id
+        WHERE c.id = $1`,
+      [companyId]
+    );
+
+    const row = result.rows[0];
+
+    if (!row) {
+      return 1;
+    }
+
+    const storedSeats = row.seats ?? 1;
+
+    if (!row.tier_id || row.status === 'canceled') {
+      return storedSeats;
+    }
+
+    return Math.max(storedSeats, getPlan(row.tier_id)?.seats ?? 1);
   } catch (error) {
     console.error('Error getting company seats:', error);
     return 1;

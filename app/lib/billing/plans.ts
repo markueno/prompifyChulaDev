@@ -37,7 +37,11 @@ export interface Plan {
   priceAnnualPerMonthCents: number;
   /** Tokens granted at the start of each billing period. */
   tokens: number;
-  /** Included seats (informational for now; seat enforcement is not yet implemented). */
+  /**
+   * Workspace members allowed on this plan. Enforced: the Stripe webhook copies this onto
+   * `companies.seats` when a subscription changes, and both join paths (invite-code redemption
+   * and the admin member-add API) refuse once the member count reaches it.
+   */
   seats: number;
   /** Pricing-page grouping. The trial has none — it is never shown as a card. */
   segment?: PlanSegment;
