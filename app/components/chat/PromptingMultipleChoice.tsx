@@ -307,32 +307,32 @@ const ARCHETYPE_NOTES: Record<string, { archetype: string; notes: string }> = {
   crm: {
     archetype: 'CRM / Sales Forecasting platform',
     notes:
-      'Common features for this app type: contact records, deal pipeline, activity logging, revenue forecasting, role-based views for reps and managers, reporting and target tracking. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
+      'Common features for this app type: contact and company records with custom fields, a deal pipeline shown as draggable stages, tasks and follow-up reminders, notes and a chronological activity timeline per contact, separate rep and manager views, and reporting against revenue targets. Structure it as a dashboard with a persistent sidebar, list views that filter and sort, and a detail panel per record. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
   inventory: {
     archetype: 'Inventory Management system',
     notes:
-      'Common features for this app type: product catalogue, stock-level tracking, low-stock alerts, reorder workflows, audit trail on stock movements. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
+      'Common features for this app type: a product catalogue with SKUs, stock levels tracked per warehouse or location, low-stock and reorder alerts, purchase and sales orders, supplier records, invoices, and an audit trail of every stock movement. Role-based dashboards separate what a warehouse operator sees from what a manager sees. Structure it as a sidebar dashboard with searchable tables, inline quantity edits, and a movement history per product. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
   hr: {
     archetype: 'HR management application',
     notes:
-      'Common features for this app type: timesheet submission and approval, leave request management, expense claims, payroll summary, manager approval flows. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
+      'Common features for this app type: timesheet submission with an approval step, leave requests that carry remaining balances through multi-step approval, expense claims with receipts, payroll summaries and downloadable payslips. Build distinct portals per role \u2014 an employee sees only their own records, a manager sees their team\u2019s pending queue, an admin sees everyone. Structure it as a role-aware dashboard that surfaces pending approvals first. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
   appointment: {
     archetype: 'Appointment / scheduling application',
     notes:
-      'Common features for this app type: calendar-based booking, time-slot management, booking confirmations, reminders, calendar sync. ADAPT these to match the user\u2019s specific description above \u2014 if the user describes an internal team scheduling tool, build THAT, not a generic customer-facing booking app.',
+      'Common features for this app type: bookable services with durations, slot selection constrained by real availability, a calendar with day, week and month views supporting drag to reschedule, booking confirmations and reminders, and cancellation handling. Structure it around the calendar as the primary surface, with a side list of upcoming bookings. ADAPT these to match the user\u2019s specific description above \u2014 if the user describes an internal team scheduling tool, build THAT, not a generic customer-facing booking app.',
   },
   knowledge: {
     archetype: 'Knowledge hub / document portal',
     notes:
-      'Common features for this app type: document sharing, category-based organisation, full-text search, role-based access, version history. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
+      'Common features for this app type: a document portal organised by a nested category tree in a persistent sidebar, full-text search across articles, page version history, and role-based access to sections. Treat this as written, structured pages authored in the app \u2014 a wiki or handbook model \u2014 rather than a file-upload manager, unless the user asks for uploads. Structure it as three panes: nav tree, article body, and an on-page table of contents. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
   landing: {
     archetype: 'Landing page / marketing website',
     notes:
-      'Common features for this app type: SEO-optimised pages, blog or news section, contact/lead capture forms, clear calls to action, mobile-first design. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
+      'Common features for this app type: a hero with one clear primary call to action, a features section, social proof or testimonials, pricing tiers, an FAQ, and a lead-capture form, optionally with a blog or news index and article pages. Write semantic headings and meta tags for SEO, and design mobile-first so the layout collapses cleanly to a single column. Structure it as one scrolling page with anchored navigation. ADAPT these to match the user\u2019s specific description above \u2014 do not build features the user didn\u2019t ask for.',
   },
 };
 
