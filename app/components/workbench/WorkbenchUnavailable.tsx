@@ -10,8 +10,13 @@ import { workbenchStore } from '~/lib/stores/workbench';
  */
 export function WorkbenchUnavailable() {
   return (
-    <div className="fixed top-[var(--header-height)] bottom-0 left-0 w-full z-0 px-4 py-6 overflow-auto">
-      <div className="mx-auto flex max-w-sm flex-col items-center rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-6 text-center">
+    /*
+     * Carries .z-workbench (3) like the panel it replaces, and paints its own background: the
+     * chat's composer sits at z-index 2 and would otherwise draw over the notice, with messages
+     * showing through behind it.
+     */
+    <div className="z-workbench fixed top-[var(--header-height)] bottom-0 left-0 w-full overflow-auto bg-bolt-elements-background-depth-1 px-4 py-6">
+      <div className="mx-auto flex max-w-sm flex-col items-center rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-6 text-center">
         <div className="i-ph:desktop text-4xl text-bolt-elements-textSecondary" />
 
         <h2 className="mt-4 text-base font-semibold text-bolt-elements-textPrimary">

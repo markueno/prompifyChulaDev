@@ -318,19 +318,37 @@ async function handleCreate(request: Request, chat: ChatRecord) {
      */
     let didReuse = false;
 
+    /*
+     * Whether the table we linked to already holds data. Reuse alone isn't reason enough to skip
+     * seeding — linking an empty master table and then skipping would leave every project sharing
+     * it with no reference data at all.
+     */
+    let reusedTableHasRows = false;
+
     try {
       /*
        * Scoped to the workspace, not the creator: in a company, a colleague's `employees` table is
        * the company's master data and the next project should attach to it whoever built it.
-       * `workspace_id` holds the raw user_id for personal workspaces; the IS NULL arm covers rows
-       * written before that column existed.
+       *
+       * The `workspace_id IS NULL` arm matches rows written before that column existed, which are
+       * personal by definition — so it is only consulted for personal workspaces. Applying it to a
+       * company project would pull the builder's own old private tables into a schema every member
+       * of the company can read and write.
+       */
+      const legacyPersonalRows = isCompanyProject ? '' : ' OR (workspace_id IS NULL AND user_id = $1)';
+
+      /*
+       * This chat's own registration wins over any other candidate. Re-running a data action must
+       * land back on the table this project already owns; picking the row-richest namesake instead
+       * would repoint the registration at someone else's table and strand this project's rows in a
+       * physical table nothing references any more.
        */
       const existing = await linkClient.query(
         `SELECT schema_name, table_name, columns, row_count, category, workspace_type, workspace_id FROM app_tables
-          WHERE (workspace_id = $1 OR (workspace_id IS NULL AND user_id = $2)) AND logical_name = $3
+          WHERE (workspace_id = $1${legacyPersonalRows}) AND logical_name = $2
           ${autoLinkMaster ? `AND category = 'master'` : ''}
-          ORDER BY row_count DESC LIMIT 1`,
-        [workspaceId, chat.user_id, tableName]
+          ORDER BY (chat_id = $3) DESC, row_count DESC LIMIT 1`,
+        [workspaceId, tableName, chat.id]
       );
 
       const existingRow = existing.rows[0];
@@ -343,6 +361,7 @@ async function handleCreate(request: Request, chat: ChatRecord) {
         // Auto-link found nothing to share; the fresh-create below handles it.
       } else {
         didReuse = true;
+        reusedTableHasRows = (existingRow.row_count ?? 0) > 0;
 
         const rawColumns = existingRow.columns;
         const parsedExisting: ColumnInput[] =
@@ -399,11 +418,19 @@ async function handleCreate(request: Request, chat: ChatRecord) {
     }
 
     /*
-     * `reused` tells the caller the table already holds rows from elsewhere, so the data action
-     * must skip its seed step — otherwise a second set of sample rows lands in shared master data.
+     * `hasRows` is what tells the caller to skip seeding: the table already carries another
+     * project's records and a second set of samples would land on top of them. A reused table that
+     * is still empty must be seeded as normal, or every project sharing it ends up with nothing.
      */
     if (didReuse) {
-      return json({ success: true, tableName, schema: schemaName, relinked: true, reused: true });
+      return json({
+        success: true,
+        tableName,
+        schema: schemaName,
+        relinked: true,
+        reused: true,
+        hasRows: reusedTableHasRows,
+      });
     }
   }
 
@@ -566,6 +593,36 @@ async function handleAlter(request: Request, chat: ChatRecord) {
 
   if (!registered) {
     return json({ error: `Table "${tableName}" not found` }, { status: 404 });
+  }
+
+  /*
+   * Dropping a column is physical, and master tables are now shared across a workspace
+   * automatically — so a drop here would delete that column, and its data, for every other project
+   * reading the same table. handleDrop makes the same check before dropping a table; this is the
+   * column-level equivalent. Adding columns stays allowed: it is additive and cannot break the
+   * projects that don't know about the new column.
+   */
+  if (dropColumns.length > 0) {
+    const pool = getPostgresPool();
+    const sharedClient = await pool.connect();
+
+    try {
+      const others = await sharedClient.query(
+        `SELECT 1 FROM app_tables WHERE schema_name = $1 AND table_name = $2 AND chat_id <> $3 LIMIT 1`,
+        [registered.schemaName, registered.tableName, chat.id]
+      );
+
+      if (others.rows.length > 0) {
+        return json(
+          {
+            error: `"${tableName}" is shared with other projects, so its columns can't be removed here. Remove the table from this project instead.`,
+          },
+          { status: 409 }
+        );
+      }
+    } finally {
+      sharedClient.release();
+    }
   }
 
   const addErr = validateColumns(addColumns);

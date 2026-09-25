@@ -2807,8 +2807,23 @@ export async function ensureAppTablesSchema(): Promise<void> {
         UNIQUE(chat_id, logical_name)
       )
     `);
+    /*
+     * The CREATE above is the original shape and cannot add columns to a table that already
+     * exists, so the later additions are applied separately — mirroring schema.sql. Without them a
+     * database provisioned only by this function lacks category/workspace_id, which the data routes
+     * both read and write, and every one of them fails on a column that isn't there.
+     */
+    await p.query('ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS category TEXT');
+    await p.query(`ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS workspace_type TEXT NOT NULL DEFAULT 'personal'`);
+    await p.query('ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS workspace_id TEXT');
+
     await p.query('CREATE INDEX IF NOT EXISTS idx_app_tables_user ON app_tables(user_id)');
     await p.query('CREATE INDEX IF NOT EXISTS idx_app_tables_chat ON app_tables(chat_id)');
+
+    // Covers the master-table reuse lookup; see schema.sql.
+    await p.query(
+      'CREATE INDEX IF NOT EXISTS idx_app_tables_workspace_logical ON app_tables(workspace_id, logical_name)'
+    );
   } catch (error) {
     appTablesSchemaEnsured = false;
     console.error('ensureAppTablesSchema failed (will retry next call):', error);

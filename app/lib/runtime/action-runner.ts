@@ -309,7 +309,7 @@ export class ActionRunner {
        *    registry). The schema endpoint takes { tableName, columns: [{name,
        *    type, nullable, defaultValue?}] }.
        */
-      let reusedExistingTable = false;
+      let skipSeed = false;
 
       try {
         const schemaRes = await fetch(`/api/data/${encodeURIComponent(id)}/schema`, {
@@ -326,15 +326,16 @@ export class ActionRunner {
         }
 
         /*
-         * A master table already present in this workspace is linked rather than recreated, so it
-         * arrives carrying another project's rows. Seeding on top would append a duplicate set of
-         * sample records to data other apps are already reading.
+         * A master table already present in this workspace is linked rather than recreated. Skip
+         * seeding only when it already carries rows — those belong to other projects and a second
+         * set of samples would pile on top of them. A linked-but-empty table still needs seeding.
          */
-        reusedExistingTable = Boolean(((await schemaRes.json()) as { reused?: boolean })?.reused);
+        const result = (await schemaRes.json()) as { reused?: boolean; hasRows?: boolean };
+        skipSeed = Boolean(result?.reused && result?.hasRows);
 
         logger.info(
-          reusedExistingTable
-            ? `data action: reused existing table "${table.tableName}"`
+          result?.reused
+            ? `data action: reused existing table "${table.tableName}"${skipSeed ? ' (already populated)' : ''}`
             : `data action: created table "${table.tableName}"`
         );
       } catch (err) {
@@ -343,7 +344,7 @@ export class ActionRunner {
         continue;
       }
 
-      if (reusedExistingTable) {
+      if (skipSeed) {
         continue;
       }
 

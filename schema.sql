@@ -616,6 +616,11 @@ ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS category TEXT;
 -- rows default to 'personal' (null workspace_id is treated as the row's user_id). Additive.
 ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS workspace_type TEXT NOT NULL DEFAULT 'personal';
 ALTER TABLE app_tables ADD COLUMN IF NOT EXISTS workspace_id TEXT;
+-- Master-table reuse looks up (workspace_id, logical_name) on every master table a generated app
+-- declares, to decide whether to share an existing table instead of creating another. Without this
+-- the lookup is a sequential scan of every registration in the install. Declared after the columns
+-- it covers, since they are added above by ALTER.
+CREATE INDEX IF NOT EXISTS idx_app_tables_workspace_logical ON app_tables(workspace_id, logical_name);
 
 -- ============================================================================
 -- Company invite codes (B2B Phase 2) — short alphanumeric codes that let a user
