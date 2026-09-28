@@ -2440,6 +2440,189 @@ export async function getCompanyMemberPostgres(
   }
 }
 
+/**
+ * Invite an email address into a workspace.
+ *
+ * Deliberately does NOT check the seat cap. Seats are checked when the invitation is accepted
+ * (see acceptCompanyInvitationByTokenPostgres), because the cap can be reached between sending
+ * and accepting — checking only at send time would let a workspace over-fill.
+ */
+export async function inviteToCompanyPostgres(params: {
+  companyId: string;
+  email: string;
+  invitedByUserId: string;
+  role: CompanyRole;
+}): Promise<{ success: boolean; token?: string; error?: string }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  const normalizedEmail = params.email.trim().toLowerCase();
+
+  try {
+    const alreadyMember = await client.query(
+      `SELECT 1 FROM company_members cm JOIN users u ON u.id = cm.user_id
+        WHERE cm.company_id = $1 AND LOWER(u.email) = $2`,
+      [params.companyId, normalizedEmail]
+    );
+
+    if (alreadyMember.rows.length > 0) {
+      return { success: false, error: 'That person is already in this workspace' };
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+
+    /*
+     * Re-inviting the same address replaces the pending invitation rather than erroring, so a lost
+     * email can simply be resent. The previous token stops working, which is the intent.
+     */
+    await client.query(
+      `INSERT INTO company_invitations (id, company_id, email, invited_by_user_id, role, status, token, expires_at)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6, NOW() + INTERVAL '7 days')
+       ON CONFLICT (company_id, email) DO UPDATE SET
+         role = EXCLUDED.role,
+         status = 'pending',
+         token = EXCLUDED.token,
+         expires_at = EXCLUDED.expires_at,
+         invited_by_user_id = EXCLUDED.invited_by_user_id`,
+      [crypto.randomUUID(), params.companyId, normalizedEmail, params.invitedByUserId, params.role, token]
+    );
+
+    return { success: true, token };
+  } catch (error) {
+    console.error('Error inviting to company:', error);
+    return { success: false, error: 'Could not create the invitation' };
+  } finally {
+    client.release();
+  }
+}
+
+/** Pending invitations for a workspace, for the owner's panel. */
+export async function listCompanyInvitationsPostgres(
+  companyId: string
+): Promise<{ id: string; email: string; role: string; expires_at: string }[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT id, email, role, expires_at FROM company_invitations
+        WHERE company_id = $1 AND status = 'pending' AND expires_at > NOW()
+        ORDER BY created_at DESC`,
+      [companyId]
+    );
+
+    return result.rows.map((r: any) => ({
+      id: r.id,
+      email: r.email,
+      role: r.role,
+      expires_at: r.expires_at instanceof Date ? r.expires_at.toISOString() : String(r.expires_at),
+    }));
+  } catch (error) {
+    console.error('Error listing company invitations:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+export async function revokeCompanyInvitationPostgres(companyId: string, invitationId: string): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(`DELETE FROM company_invitations WHERE id = $1 AND company_id = $2`, [
+      invitationId,
+      companyId,
+    ]);
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('Error revoking company invitation:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Accept a workspace invitation.
+ *
+ * Seats are counted here, inside the same transaction as the insert and under FOR UPDATE on the
+ * company row, mirroring joinCompanyByCodePostgres. Two people accepting the last seat at once
+ * would otherwise both succeed.
+ */
+export async function acceptCompanyInvitationByTokenPostgres(
+  token: string,
+  userId: string,
+  userEmail: string
+): Promise<{ success: boolean; companySlug?: string; error?: string }> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+  const normalizedEmail = (userEmail || '').trim().toLowerCase();
+
+  try {
+    await client.query('BEGIN');
+
+    const invResult = await client.query(
+      `SELECT ci.id, ci.company_id, ci.email, ci.role, c.slug, c.seats
+         FROM company_invitations ci
+         JOIN companies c ON c.id = ci.company_id
+        WHERE ci.token = $1 AND ci.status = 'pending' AND ci.expires_at > NOW()
+        FOR UPDATE OF c`,
+      [token]
+    );
+
+    if (invResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'This invitation has expired or already been used' };
+    }
+
+    const inv = invResult.rows[0];
+
+    if (inv.email.toLowerCase() !== normalizedEmail) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'This invitation was sent to a different email address' };
+    }
+
+    const existing = await client.query(`SELECT 1 FROM company_members WHERE company_id = $1 AND user_id = $2`, [
+      inv.company_id,
+      userId,
+    ]);
+
+    if (existing.rows.length > 0) {
+      await client.query(`UPDATE company_invitations SET status = 'accepted' WHERE id = $1`, [inv.id]);
+      await client.query('COMMIT');
+
+      return { success: true, companySlug: inv.slug };
+    }
+
+    const countResult = await client.query(`SELECT COUNT(*)::int AS n FROM company_members WHERE company_id = $1`, [
+      inv.company_id,
+    ]);
+
+    if ((countResult.rows[0]?.n ?? 0) >= (inv.seats ?? 1)) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'This workspace has no seats left. Ask the owner to upgrade the plan.' };
+    }
+
+    await client.query(`INSERT INTO company_members (id, company_id, user_id, role) VALUES ($1, $2, $3, $4)`, [
+      crypto.randomUUID(),
+      inv.company_id,
+      userId,
+      inv.role,
+    ]);
+    await client.query(`UPDATE company_invitations SET status = 'accepted' WHERE id = $1`, [inv.id]);
+    await client.query('COMMIT');
+
+    return { success: true, companySlug: inv.slug };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('Error accepting company invitation:', error);
+
+    return { success: false, error: 'Could not accept the invitation' };
+  } finally {
+    client.release();
+  }
+}
+
 export interface CompanyMemberUsage {
   user_id: string;
   email: string;
@@ -2706,6 +2889,7 @@ export type AuditAction =
   | 'CREATE_COMPANY'
   | 'UPDATE_COMPANY'
   | 'MEMBER_ADD'
+  | 'MEMBER_INVITE'
   | 'MEMBER_REMOVE'
   | 'MEMBER_ROLE_CHANGE'
   | 'CREATE_APP'

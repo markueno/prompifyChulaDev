@@ -117,6 +117,24 @@ CREATE TABLE IF NOT EXISTS company_members (
 -- so this can run before or after the code deploy without locking anyone out.
 UPDATE company_members SET role = 'owner' WHERE role = 'admin';
 
+-- Email invitations to a workspace. Separate from company_invite_codes, which is a shareable
+-- link anyone can redeem; this names a specific address and is accepted only by someone signed in
+-- as it. Mirrors chat_invitations, which cannot be reused here because its chat_id is NOT NULL.
+CREATE TABLE IF NOT EXISTS company_invitations (
+    id TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    invited_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'developer',
+    status TEXT NOT NULL DEFAULT 'pending',
+    token TEXT UNIQUE NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(company_id, email)
+);
+CREATE INDEX IF NOT EXISTS idx_company_invitations_token ON company_invitations(token);
+CREATE INDEX IF NOT EXISTS idx_company_invitations_company ON company_invitations(company_id);
+
 -- ============================================================
 -- Projects + chats
 -- ============================================================

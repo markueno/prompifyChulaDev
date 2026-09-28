@@ -60,6 +60,10 @@ import {
   getCompanyMemberPostgres,
   getCompanyMembersPostgres,
   getCompanyMemberUsagePostgres,
+  inviteToCompanyPostgres,
+  listCompanyInvitationsPostgres,
+  revokeCompanyInvitationPostgres,
+  acceptCompanyInvitationByTokenPostgres,
   addCompanyMemberPostgres,
   removeCompanyMemberPostgres,
   updateCompanyPostgres,
@@ -976,6 +980,43 @@ export async function getCompanyMember(companyId: string, userId: string) {
   }
 
   return null;
+}
+
+export async function inviteToCompany(params: {
+  companyId: string;
+  email: string;
+  invitedByUserId: string;
+  role: import('./database-postgresql').CompanyRole;
+}) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return inviteToCompanyPostgres(params);
+  }
+
+  return { success: false, error: 'Unsupported database' };
+}
+
+export async function listCompanyInvitations(companyId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return listCompanyInvitationsPostgres(companyId);
+  }
+
+  return [];
+}
+
+export async function revokeCompanyInvitation(companyId: string, invitationId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return revokeCompanyInvitationPostgres(companyId, invitationId);
+  }
+
+  return false;
+}
+
+export async function acceptCompanyInvitationByToken(token: string, userId: string, userEmail: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return acceptCompanyInvitationByTokenPostgres(token, userId, userEmail);
+  }
+
+  return { success: false, error: 'Unsupported database' };
 }
 
 export async function getCompanyMemberUsage(companyId: string, windowDays?: number) {

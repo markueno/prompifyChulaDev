@@ -14,7 +14,13 @@ import { Menu } from '~/components/sidebar/Menu.client';
 import { SafeBoundary } from '~/components/ui/SafeBoundary';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth } from '~/lib/auth';
-import { getCompanyMember, getCompanyMemberUsage, getCompanySeats, getUserCompanies } from '~/lib/database';
+import {
+  getCompanyMember,
+  getCompanyMemberUsage,
+  getCompanySeats,
+  getUserCompanies,
+  listCompanyInvitations,
+} from '~/lib/database';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import { isWorkspaceOwner } from '~/lib/workspace-roles';
 import { personalCompanyId } from '~/lib/database-postgresql';
@@ -36,10 +42,11 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     return redirect('/app/overview');
   }
 
-  const [members, seats, companies] = await Promise.all([
+  const [members, seats, companies, invitations] = await Promise.all([
     getCompanyMemberUsage(companyId, USAGE_WINDOW_DAYS),
     getCompanySeats(companyId),
     getUserCompanies(user.id),
+    listCompanyInvitations(companyId),
   ]);
 
   return json({
@@ -48,6 +55,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     companyName: companies.find((c: any) => c.id === companyId)?.name ?? 'Workspace',
     members,
     seats,
+    invitations,
     windowDays: USAGE_WINDOW_DAYS,
   });
 }
@@ -83,10 +91,66 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 export default function WorkspacePage() {
-  const { companyId, companyName, members, seats, windowDays, user } = useLoaderData<typeof loader>();
+  const { companyId, companyName, members, seats, invitations, windowDays, user } = useLoaderData<typeof loader>();
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('developer');
+
+  const seatsLeft = seats - members.length;
+
+  const invite = async () => {
+    setBusy('invite');
+    setError(null);
+    setNotice(null);
+
+    try {
+      const res = await fetch(`/api/companies/${companyId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string; emailed?: boolean };
+
+      if (!res.ok) {
+        setError(data.error ?? 'That invitation could not be sent.');
+      } else {
+        /*
+         * The invitation exists whether or not the mail went out, so say which happened — an owner
+         * who thinks an email was sent will wait for a reply that never comes.
+         */
+        setNotice(
+          data.emailed
+            ? `Invitation sent to ${inviteEmail}.`
+            : `Invitation created for ${inviteEmail}, but the email could not be sent. Check email settings.`
+        );
+        setInviteEmail('');
+        revalidator.revalidate();
+      }
+    } catch {
+      setError('That invitation could not be sent.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const revokeInvite = async (invitationId: string) => {
+    setBusy(invitationId);
+    setError(null);
+
+    try {
+      await fetch(`/api/companies/${companyId}/invite`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invitationId }),
+      });
+      revalidator.revalidate();
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const totalSpent = members.reduce((sum: number, m: any) => sum + m.tokens_spent, 0);
 
@@ -136,6 +200,72 @@ export default function WorkspacePage() {
               {error}
             </div>
           ) : null}
+
+          {notice ? (
+            <div className="mb-6 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-400">
+              {notice}
+            </div>
+          ) : null}
+
+          <section className="mb-8 rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-5">
+            <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">Invite someone</h2>
+            <p className="mt-0.5 text-xs text-bolt-elements-textSecondary">
+              {seatsLeft > 0
+                ? `${seatsLeft} seat${seatsLeft === 1 ? '' : 's'} left on your plan.`
+                : 'Every seat on your plan is taken — upgrade to invite more people.'}
+            </p>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                placeholder="name@company.com"
+                className="min-w-[220px] flex-1 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary"
+              />
+              <select
+                value={inviteRole}
+                onChange={e => setInviteRole(e.target.value)}
+                className="rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary"
+              >
+                <option value="developer">Developer</option>
+                <option value="viewer">Viewer</option>
+                <option value="owner">Owner</option>
+              </select>
+              <button
+                onClick={invite}
+                disabled={busy === 'invite' || !inviteEmail.trim()}
+                className="rounded-lg bg-[#f97316] px-4 py-2 text-sm font-medium text-white hover:bg-[#ea5a0c] disabled:opacity-50"
+              >
+                {busy === 'invite' ? 'Sending…' : 'Send invite'}
+              </button>
+            </div>
+
+            {invitations.length > 0 ? (
+              <div className="mt-5 border-t border-bolt-elements-borderColor pt-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-bolt-elements-textSecondary">Pending</p>
+                <ul className="mt-2 space-y-1.5">
+                  {invitations.map((inv: any) => (
+                    <li key={inv.id} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-bolt-elements-textPrimary">
+                        {inv.email}
+                        <span className="ml-2 text-xs text-bolt-elements-textTertiary">
+                          {inv.role} · expires {new Date(inv.expires_at).toLocaleDateString()}
+                        </span>
+                      </span>
+                      <button
+                        onClick={() => revokeInvite(inv.id)}
+                        disabled={busy === inv.id}
+                        className="text-xs text-bolt-elements-textSecondary hover:text-red-500 disabled:opacity-50"
+                      >
+                        Revoke
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
 
           <section className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 overflow-hidden">
             <div className="border-b border-bolt-elements-borderColor px-5 py-3">

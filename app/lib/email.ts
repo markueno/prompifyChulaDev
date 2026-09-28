@@ -486,6 +486,54 @@ export async function sendInactivityEmail(params: {
   return await sendEmail({ to: params.email, subject: 'Your Prompify projects are waiting', html, text });
 }
 
+/**
+ * Invitation to a whole workspace, as opposed to a single project.
+ *
+ * Kept separate from sendInvitationEmail because the thing being joined is different: a workspace
+ * carries shared data, a shared token pool and colleagues, and the copy should say so rather than
+ * describing one project's chat history.
+ */
+export async function sendWorkspaceInvitationEmail(
+  inviteeEmail: string,
+  inviterEmail: string,
+  workspaceName: string,
+  acceptUrl: string
+): Promise<boolean> {
+  const displayWorkspace = workspaceName?.trim() || 'a workspace';
+  const inviterDisplay = inviterEmail.split('@')[0].replace(/[._]/g, ' ');
+
+  const html = renderEmail({
+    title: 'You have been invited to a workspace',
+    preheader: `${inviterDisplay} invited you to join ${displayWorkspace} on Prompify.`,
+    eyebrow: 'Workspace invite',
+    heading: "You're invited",
+    subhead: `${inviterDisplay} wants you in ${displayWorkspace}.`,
+    bodyHtml: `<p style="margin: 0 0 14px;"><strong>${escapeHtml(inviterDisplay)}</strong> (${escapeHtml(inviterEmail)}) has invited you to join the <strong>${escapeHtml(displayWorkspace)}</strong> workspace on Prompify.</p>
+              <p style="margin: 0;">You'll share the workspace's projects and data, and build with the same pool of tokens.</p>`,
+    cta: { label: 'Join the workspace', url: acceptUrl },
+    afterCtaHtml: `${linkFallback(acceptUrl)}
+              <p style="margin: 14px 0 0;">This invitation expires in 7 days.</p>
+              <p style="margin: 8px 0 0;">Accept it while signed in as this address — it won't work from another account.</p>
+              <p style="margin: 8px 0 0;">Weren't expecting this? You can safely ignore it.</p>`,
+  });
+
+  const text = renderText({
+    heading: "You're invited",
+    body: `${inviterDisplay} (${inviterEmail}) has invited you to join the "${displayWorkspace}" workspace on Prompify.\n\nYou'll share the workspace's projects and data, and build with the same pool of tokens.`,
+    ctaLabel: 'Join the workspace',
+    ctaUrl: acceptUrl,
+    after:
+      "This invitation expires in 7 days.\n\nAccept it while signed in as this address — it won't work from another account.\n\nWeren't expecting this? You can safely ignore it.",
+  });
+
+  return await sendEmail({
+    to: inviteeEmail,
+    subject: `Join "${displayWorkspace}" on Prompify`,
+    html,
+    text,
+  });
+}
+
 export async function sendInvitationEmail(
   inviteeEmail: string,
   inviterEmail: string,
