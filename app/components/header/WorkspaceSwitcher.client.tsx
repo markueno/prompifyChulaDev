@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { classNames } from '~/utils/classNames';
-import { canManageMembers } from '~/lib/workspace-roles';
+import { canManageMembers, isWorkspaceOwner } from '~/lib/workspace-roles';
 import { AddWorkspaceModal } from './AddWorkspaceModal.client';
 
 interface Workspace {
@@ -36,6 +36,7 @@ export function WorkspaceSwitcher() {
   const [active, setActive] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -67,6 +68,66 @@ export function WorkspaceSwitcher() {
 
   const personal = workspaces.find(w => w.is_personal);
   const current = workspaces.find(w => w.id === active) ?? personal ?? workspaces[0];
+
+  /*
+   * Both reload rather than updating state: the active_workspace cookie now points at something
+   * the user has left or archived, and every loader on the page was rendered against it. A reload
+   * lets getActiveCompanyId fall back to the personal workspace, which is the only way the rest of
+   * the page ends up consistent.
+   */
+  const archiveWorkspace = async (workspace: Workspace) => {
+    if (!confirm(`Delete "${workspace.name}"? Members lose access. Your plan and its tokens are unaffected.`)) {
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const res = await fetch('/api/companies', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId: workspace.id }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(data.error ?? 'That workspace could not be deleted.');
+        setBusy(false);
+
+        return;
+      }
+
+      window.location.reload();
+    } catch {
+      alert('That workspace could not be deleted.');
+      setBusy(false);
+    }
+  };
+
+  const leaveWorkspace = async (workspace: Workspace) => {
+    if (!confirm(`Leave "${workspace.name}"? You will lose access to its projects.`)) {
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      const res = await fetch(`/api/companies/${workspace.id}/leave`, { method: 'DELETE' });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(data.error ?? 'Could not leave that workspace.');
+        setBusy(false);
+
+        return;
+      }
+
+      window.location.reload();
+    } catch {
+      alert('Could not leave that workspace.');
+      setBusy(false);
+    }
+  };
 
   const switchTo = async (id: string) => {
     setOpen(false);
@@ -153,6 +214,32 @@ export function WorkspaceSwitcher() {
                 >
                   <span className="i-ph:gear text-sm" /> Workspace settings
                 </a>
+              ) : null}
+
+              {/*
+               * Leaving and deleting are mutually exclusive: the owner cannot leave (there is
+               * nowhere to hand the workspace to) and everyone else cannot delete.
+               */}
+              {current && !current.is_personal ? (
+                isWorkspaceOwner(current.role) ? (
+                  <button
+                    type="button"
+                    onClick={() => archiveWorkspace(current)}
+                    disabled={busy}
+                    className="mt-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-red-600 hover:bg-red-500/10 disabled:opacity-50 dark:text-red-400"
+                  >
+                    <span className="i-ph:trash text-sm" /> Delete workspace
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => leaveWorkspace(current)}
+                    disabled={busy}
+                    className="mt-1 flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-[#231710]/70 hover:bg-[#fed7aa] disabled:opacity-50 dark:text-[#f0e4d5]/80 dark:hover:bg-[#423322]"
+                  >
+                    <span className="i-ph:sign-out text-sm" /> Leave workspace
+                  </button>
+                )
               ) : null}
               <button
                 type="button"

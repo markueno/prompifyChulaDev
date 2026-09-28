@@ -2,7 +2,15 @@ import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-r
 import { requireAuth } from '~/lib/auth';
 import { isWorkspaceOwner } from '~/lib/workspace-roles';
 import { getWorkspaceAllowance } from '~/lib/workspace-entitlements.server';
-import { createCompany, getCompanyBySlug, getCompanyMember, getUserCompanies, updateCompany } from '~/lib/database';
+import {
+  addAuditLog,
+  archiveCompany,
+  createCompany,
+  getCompanyBySlug,
+  getCompanyMember,
+  getUserCompanies,
+  updateCompany,
+} from '~/lib/database';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   try {
@@ -101,6 +109,41 @@ export async function action({ request, context }: ActionFunctionArgs) {
       const success = await updateCompany(companyId, { name, github_org: githubOrg });
 
       return json({ success });
+    }
+
+    if (method === 'DELETE') {
+      const { companyId } = (await request.json()) as { companyId?: string };
+
+      if (!companyId) {
+        return json({ error: 'companyId is required' }, { status: 400 });
+      }
+
+      /*
+       * Archive, not destroy — see the note in schema.sql. The billing plan is untouched: it is an
+       * account-level entitlement to HAVE workspaces, not a charge for this particular one, so the
+       * owner keeps their subscription and can create another in its place.
+       *
+       * Ownership and the personal-workspace exclusion are enforced inside archiveCompany's own
+       * UPDATE, so a false return means one of those refused rather than a missing row.
+       */
+      const success = await archiveCompany(companyId, user.id);
+
+      if (!success) {
+        return json(
+          { error: 'Only the workspace owner can delete it, and personal workspaces cannot be deleted.' },
+          { status: 403 }
+        );
+      }
+
+      await addAuditLog({
+        companyId,
+        actorId: user.id,
+        action: 'ARCHIVE_WORKSPACE',
+        payload: {},
+        ipAddress: request.headers.get('x-forwarded-for'),
+      });
+
+      return json({ success: true });
     }
 
     return json({ error: 'Method not allowed' }, { status: 405 });

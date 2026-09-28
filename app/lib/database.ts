@@ -61,6 +61,7 @@ import {
   getCompanyMembersPostgres,
   getCompanyMemberUsagePostgres,
   countOwnedWorkspacesPostgres,
+  archiveCompanyPostgres,
   getTierIdsForOwnerPostgres,
   inviteToCompanyPostgres,
   listCompanyInvitationsPostgres,
@@ -1019,6 +1020,14 @@ export async function acceptCompanyInvitationByToken(token: string, userId: stri
   }
 
   return { success: false, error: 'Unsupported database' };
+}
+
+export async function archiveCompany(companyId: string, requestingUserId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return archiveCompanyPostgres(companyId, requestingUserId);
+  }
+
+  return false;
 }
 
 export async function countOwnedWorkspaces(userId: string) {

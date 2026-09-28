@@ -110,6 +110,22 @@ CREATE TABLE IF NOT EXISTS company_members (
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(company_id, user_id)
 );
+/*
+ * Archiving a workspace, mirroring users.deleted_at.
+ *
+ * Deliberately soft. Every foreign key to companies.id is ON DELETE CASCADE, so a real DELETE
+ * silently takes members, projects, chats, token balances and consumption records with it — and
+ * three things would survive it badly: the Stripe subscription row disappears along with the id
+ * needed to cancel it, audit_logs cascades so the deletion cannot be recorded, and the physical
+ * cmp_<id> schema holding the generated apps' real data is never dropped by anything, losing its
+ * only pointer (companies.schema_name) in the process.
+ *
+ * An archived workspace keeps all of that intact and simply stops being reachable. Restoring is
+ * clearing the column.
+ */
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
+CREATE INDEX IF NOT EXISTS idx_companies_deleted_at ON companies(deleted_at);
+
 -- Roles are owner / admin / editor / viewer.
 --
 -- 'admin' USED to mean what 'owner' means now, and a one-off UPDATE migrated those rows during the

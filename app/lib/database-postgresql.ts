@@ -189,8 +189,39 @@ export function personalCompanyId(userId: string): string {
 }
 
 /**
+ * Archive a workspace. Owner-only, and never a personal one.
+ *
+ * Soft by design — see the note in schema.sql. Returns false rather than throwing when the caller
+ * is not the owner or the workspace is personal, so the route can answer 403 without a second
+ * round-trip.
+ */
+export async function archiveCompanyPostgres(companyId: string, requestingUserId: string): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `UPDATE companies
+          SET deleted_at = NOW(), updated_at = NOW()
+        WHERE id = $1
+          AND owner_user_id = $2
+          AND is_personal = FALSE
+          AND deleted_at IS NULL`,
+      [companyId, requestingUserId]
+    );
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('Error archiving company:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Team workspaces this user owns. The personal workspace is excluded — it is provisioned
- * automatically and is not something the plan's allowance is spent on.
+ * automatically and is not something the plan's allowance is spent on — and so are archived ones,
+ * or deleting a workspace would not free the slot it occupied.
  */
 export async function countOwnedWorkspacesPostgres(userId: string): Promise<number> {
   const pool = getPostgresPool();
@@ -198,7 +229,8 @@ export async function countOwnedWorkspacesPostgres(userId: string): Promise<numb
 
   try {
     const result = await client.query(
-      `SELECT COUNT(*)::int AS n FROM companies WHERE owner_user_id = $1 AND is_personal = FALSE`,
+      `SELECT COUNT(*)::int AS n FROM companies
+        WHERE owner_user_id = $1 AND is_personal = FALSE AND deleted_at IS NULL`,
       [userId]
     );
     return result.rows[0]?.n ?? 0;
@@ -1565,19 +1597,25 @@ export async function getChatsByUserPostgres(
 
     if (companyId && companyId !== personalCompanyId(userId)) {
       /*
-       * Company workspace — strict filter: only chats whose project belongs to
-       * this company. No legacy chat leakage.
+       * Company workspace — every project in it, to every member.
+       *
+       * There is deliberately no per-user ownership filter here. A workspace is shared work: an
+       * invited colleague used to land on an empty app, because membership granted no sight of
+       * anyone else's projects and each member has their own project bucket. Role decides what
+       * they may DO with a project (a viewer can open but not prompt, enforced in /api/chat);
+       * membership decides what they can see.
+       *
+       * Safe because companyId is not caller-supplied: it comes from getActiveCompanyId, which
+       * verifies membership against the cookie and falls back to the personal workspace when the
+       * cookie names a workspace the user does not belong to.
        */
       const result = await client.query(
         `SELECT DISTINCT ${SELECT_COLS}
          FROM chats c
-         LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $1
-         LEFT JOIN projects p ON p.id = c.project_id
-         LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $1
-         WHERE p.company_id = $2
-           AND (c.user_id = $1 OR cm.user_id = $1 OR p.owner_user_id = $1 OR pm.user_id = $1)
+         JOIN projects p ON p.id = c.project_id
+         WHERE p.company_id = $1
          ORDER BY c.updated_at DESC`,
-        [userId, companyId]
+        [companyId]
       );
 
       return result.rows.map(rowMapper);
@@ -1643,7 +1681,12 @@ export async function getChatByIdPostgres(
       };
     }
 
-    // Allow access if user can access the chat or its owning project
+    /*
+     * Access via the chat itself, its project, or — the last arm — membership of the workspace the
+     * project belongs to. That arm is what makes a team workspace shared: without it the sidebar
+     * would list a colleague's project and then 404 on click, since listing is workspace-wide but
+     * opening was not. Personal workspaces are unaffected: their only member is the owner.
+     */
     const query = `
       SELECT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived, c.user_id
       FROM chats c
@@ -1652,7 +1695,13 @@ export async function getChatByIdPostgres(
       LEFT JOIN project_members pm ON pm.project_id = c.project_id AND pm.user_id = $2
       WHERE (c.id = $1 OR c.url_id = $1)
         AND ($3::text IS NULL OR c.project_id = $3)
-        AND (c.user_id = $2 OR cm.user_id = $2 OR p.owner_user_id = $2 OR pm.user_id = $2)
+        AND (
+          c.user_id = $2
+          OR cm.user_id = $2
+          OR p.owner_user_id = $2
+          OR pm.user_id = $2
+          OR EXISTS (SELECT 1 FROM company_members m WHERE m.company_id = p.company_id AND m.user_id = $2)
+        )
     `;
     const result = await client.query(query, [chatId, userId, projectId ?? null]);
 
@@ -2543,7 +2592,7 @@ export async function getUserCompaniesPostgres(userId: string): Promise<(Company
       `SELECT c.*, cm.role
        FROM companies c
        JOIN company_members cm ON c.id = cm.company_id
-       WHERE cm.user_id = $1
+       WHERE cm.user_id = $1 AND c.deleted_at IS NULL
        ORDER BY c.created_at DESC`,
       [userId]
     );
@@ -2556,6 +2605,14 @@ export async function getUserCompaniesPostgres(userId: string): Promise<(Company
   }
 }
 
+/**
+ * A user's role in a workspace, or null if they have none.
+ *
+ * An archived workspace answers null for everyone. This is the single point every permission gate
+ * runs through — prompting, inviting, managing members, resolving the active workspace — so
+ * filtering here means an archived workspace stops working everywhere at once, instead of each
+ * gate needing its own check and one of them being forgotten.
+ */
 export async function getCompanyMemberPostgres(
   companyId: string,
   userId: string
@@ -2565,7 +2622,11 @@ export async function getCompanyMemberPostgres(
 
   try {
     const result = await client.query(
-      `SELECT role FROM company_members WHERE company_id = $1 AND user_id = $2 LIMIT 1`,
+      `SELECT cm.role
+         FROM company_members cm
+         JOIN companies c ON c.id = cm.company_id
+        WHERE cm.company_id = $1 AND cm.user_id = $2 AND c.deleted_at IS NULL
+        LIMIT 1`,
       [companyId, userId]
     );
     return result.rows[0] ?? null;
@@ -3035,7 +3096,9 @@ export type AuditAction =
   | 'DEPLOY'
   | 'PUSH_CODE'
   | 'WAKE'
-  | 'SLEEP';
+  | 'SLEEP'
+  | 'ARCHIVE_WORKSPACE'
+  | 'LEAVE_WORKSPACE';
 
 export async function addAuditLogPostgres(params: {
   companyId: string;
