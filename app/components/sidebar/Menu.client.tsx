@@ -69,10 +69,14 @@ function CurrentDateTime() {
 }
 
 export const Menu = () => {
-  const loaderData = useLoaderData<{ user?: { id?: string; isModerator?: boolean } }>();
-  const isModerator = loaderData?.user?.isModerator === true;
+  const loaderData = useLoaderData<{ user?: { id?: string; isSuperadmin?: boolean } }>();
   const currentUserId = loaderData?.user?.id;
-  const showSettings = !isSettingsHidden() && isModerator;
+
+  /*
+   * Superadmin, not moderator. The control panel is the dev team's tooling — moderators are
+   * ordinary customers with elevated read access, and workspace owners are not staff at all.
+   */
+  const showSettings = !isSettingsHidden() && loaderData?.user?.isSuperadmin === true;
 
   const { duplicateCurrentChat, exportChat } = useChatHistory();
   const menuRef = useRef<HTMLDivElement>(null);

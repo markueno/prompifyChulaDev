@@ -67,6 +67,13 @@ export function getMockAdminUser(): User {
     email: 'admin@bypass.local',
     isVerified: true,
     isModerator: true,
+
+    /*
+     * AUTH_DISABLED is the local full-access bypass, so it has to carry superadmin too — the dev
+     * console is gated on this flag, and without it the bypass would hide the very tooling it
+     * exists to reach.
+     */
+    isSuperadmin: true,
   };
 }
 

@@ -8,11 +8,12 @@ import { classNames } from '~/utils/classNames';
  * (no separate backend — aligns with OSS bolt.diy patterns).
  */
 export function AdminSecuritySection() {
-  const appLayout = useRouteLoaderData('routes/app') as { user?: { isModerator?: boolean } } | undefined;
-  const appIndex = useRouteLoaderData('routes/app._index') as { user?: { isModerator?: boolean } } | undefined;
-  const chatRoute = useRouteLoaderData('routes/chat.$id') as { user?: { isModerator?: boolean } } | undefined;
+  const appLayout = useRouteLoaderData('routes/app') as { user?: { isSuperadmin?: boolean } } | undefined;
+  const appIndex = useRouteLoaderData('routes/app._index') as { user?: { isSuperadmin?: boolean } } | undefined;
+  const chatRoute = useRouteLoaderData('routes/chat.$id') as { user?: { isSuperadmin?: boolean } } | undefined;
   const user = chatRoute?.user ?? appIndex?.user ?? appLayout?.user;
-  const isModerator = user?.isModerator === true;
+  // Dev-team tooling: superadmin only, not moderators (who are ordinary elevated customers).
+  const isSuperadmin = user?.isSuperadmin === true;
 
   const cookieKeysHint =
     typeof document !== 'undefined'
@@ -92,7 +93,7 @@ export function AdminSecuritySection() {
         </button>
       </div>
 
-      {isModerator ? (
+      {isSuperadmin ? (
         <div className="rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-4">
           <h2 className="text-base font-medium text-bolt-elements-textPrimary mb-2 flex items-center gap-2">
             <span className="i-ph:plug text-lg text-bolt-elements-textSecondary" aria-hidden />

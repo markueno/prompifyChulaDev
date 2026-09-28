@@ -95,7 +95,8 @@ export function UserProfile({ user }: UserProfileProps) {
           Settings
         </a>
 
-        {user.isModerator && (
+        {/* Dev-team tooling — superadmin only, same as the Admin entry above. */}
+        {user.isSuperadmin && (
           <button
             type="button"
             className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"

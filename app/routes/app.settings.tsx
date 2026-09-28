@@ -7,7 +7,7 @@
  *   4. Integrations — GitHub + Netlify (reuses existing connection components)
  */
 import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { useLoaderData, useSubmit } from '@remix-run/react';
+import { Link, useLoaderData, useSubmit } from '@remix-run/react';
 import { useState } from 'react';
 import { requireAuth } from '~/lib/auth';
 import { isWorkspaceOwner } from '~/lib/workspace-roles';
@@ -141,10 +141,24 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#f0e4d5] dark:bg-[#1a120a] text-[#231710] dark:text-[#f0e4d5]">
       <div className="mx-auto max-w-3xl px-6 py-12">
-        <h1 className="text-2xl font-bold mb-1">Settings</h1>
-        <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a] mb-8">
-          Manage your account, billing, and integrations.
-        </p>
+        {/*
+         * This page renders without the app chrome — no Header, no sidebar — so without this there
+         * is no way back except the browser's own button.
+         */}
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold mb-1">Settings</h1>
+            <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a]">
+              Manage your account, billing, and integrations.
+            </p>
+          </div>
+          <Link
+            to="/app/"
+            className="rounded-lg border border-[#fed7aa]/60 dark:border-[#423322] bg-white dark:bg-[#221a10] px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-[#fed7aa]/30 dark:hover:bg-[#2a2016]"
+          >
+            Back to app
+          </Link>
+        </div>
 
         {/* ── Account ─────────────────────────────────────────────── */}
         <section className={`${SECTION_CLASS} mb-6`}>

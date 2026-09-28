@@ -125,11 +125,15 @@ const AnimatedSwitch = ({ checked, onCheckedChange, id, label }: AnimatedSwitchP
 );
 
 export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
-  const appIndexData = useRouteLoaderData('routes/app._index') as { user?: { isModerator?: boolean } } | undefined;
-  const appLayoutData = useRouteLoaderData('routes/app') as { user?: { isModerator?: boolean } } | undefined;
-  const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { isModerator?: boolean } } | undefined;
+  const appIndexData = useRouteLoaderData('routes/app._index') as { user?: { isSuperadmin?: boolean } } | undefined;
+  const appLayoutData = useRouteLoaderData('routes/app') as { user?: { isSuperadmin?: boolean } } | undefined;
+  const chatIdData = useRouteLoaderData('routes/chat.$id') as { user?: { isSuperadmin?: boolean } } | undefined;
   const user = appIndexData?.user ?? appLayoutData?.user ?? chatIdData?.user;
-  const isModerator = user?.isModerator === true;
+  /*
+   * Re-derived here as well as at every entry point, so the panel stays closed even if something
+   * sets controlPanelOpenStore directly. Superadmin only — this is dev-team tooling.
+   */
+  const isSuperadmin = user?.isSuperadmin === true;
 
   // State
   const [activeTab, setActiveTab] = useState<TabType | null>(null);
@@ -429,7 +433,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center space-x-4">
-                    {(activeTab || showTabManagement) && isModerator && (
+                    {(activeTab || showTabManagement) && isSuperadmin && (
                       <button
                         onClick={handleBack}
                         className="flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-[#f97316]/10 dark:hover:bg-[#f97316]/20 group transition-all duration-200"
@@ -438,7 +442,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                       </button>
                     )}
                     <DialogTitle className="text-xl font-semibold text-gray-900 dark:text-white">
-                      {!isModerator
+                      {!isSuperadmin
                         ? 'Access denied'
                         : showTabManagement
                           ? 'Tab Management'
@@ -449,7 +453,7 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                   </div>
 
                   <div className="flex items-center gap-6">
-                    {isModerator && (
+                    {isSuperadmin && (
                       <>
                         {/* Developer / User mode toggle (hidden on Profile tab) */}
                         {activeTab !== 'profile' && (
@@ -499,10 +503,10 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
                     'touch-auto'
                   )}
                 >
-                  {!isModerator ? (
+                  {!isSuperadmin ? (
                     <div className="p-6 flex flex-col items-center justify-center min-h-[200px] text-center text-gray-600 dark:text-gray-400">
-                      <p className="text-lg font-medium">Only moderators can access settings.</p>
-                      <p className="mt-2 text-sm">If you need access, contact your administrator.</p>
+                      <p className="text-lg font-medium">This area is restricted.</p>
+                      <p className="mt-2 text-sm">You do not have access to the developer console.</p>
                     </div>
                   ) : (
                     <motion.div

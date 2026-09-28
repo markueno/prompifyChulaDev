@@ -205,16 +205,16 @@ export default function ProfileTab({ user }: ProfileTabProps) {
                 type="email"
                 value={user?.email ?? profile.email}
                 onChange={e => handleProfileUpdate('email', e.target.value)}
-                disabled={!user?.isModerator}
-                readOnly={!user?.isModerator}
+                disabled={!user?.isSuperadmin}
+                readOnly={!user?.isSuperadmin}
                 className={classNames(
                   inputClass,
-                  !user?.isModerator ? 'opacity-60 cursor-not-allowed bg-gray-100 dark:bg-gray-800/80' : ''
+                  !user?.isSuperadmin ? 'opacity-60 cursor-not-allowed bg-gray-100 dark:bg-gray-800/80' : ''
                 )}
                 placeholder="Email"
-                title={!user?.isModerator ? 'Email cannot be changed. Contact an administrator.' : undefined}
+                title={!user?.isSuperadmin ? 'Email cannot be changed. Contact an administrator.' : undefined}
               />
-              {!user?.isModerator && (
+              {!user?.isSuperadmin && (
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   Registered email. Only moderators can change it.
                 </p>
