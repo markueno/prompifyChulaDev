@@ -1675,6 +1675,30 @@ export async function getProjectOverviewPostgres(
   try {
     const now = new Date().toISOString();
 
+    /*
+     * Everything on this page describes the ACTIVE WORKSPACE, not the viewer. The token balance
+     * was already workspace-wide while usage, runs, errors and the project count were per-user, so
+     * an owner saw the company's shared pool beside their own personal consumption with nothing
+     * saying the two weren't comparable.
+     *
+     * In a personal workspace the workspace is the user, and rows written before token_usage had a
+     * company_id are personal by definition — hence the IS NULL arm. It must NOT apply to a company
+     * workspace, or a member's old private usage would be counted against the company.
+     */
+    const workspaceId = companyId ?? personalCompanyId(userId);
+    const isPersonalWorkspace = workspaceId === personalCompanyId(userId);
+    const usageScope = isPersonalWorkspace
+      ? '(company_id = $1 OR (company_id IS NULL AND user_id = $2))'
+      : 'company_id = $1';
+
+    /** Same predicate against the aliased token_usage in the recent-runs join. */
+    const usageScopeAliased = isPersonalWorkspace
+      ? '(tu.company_id = $1 OR (tu.company_id IS NULL AND tu.user_id = $2))'
+      : 'tu.company_id = $1';
+
+    // Must match the highest $n actually referenced, which differs between the two branches.
+    const usageParams = isPersonalWorkspace ? [workspaceId, userId] : [workspaceId];
+
     const projectAgg = isModerator
       ? await client.query(
           `SELECT
@@ -1687,9 +1711,8 @@ export async function getProjectOverviewPostgres(
              COUNT(DISTINCT p.id)::int AS project_count,
              COUNT(DISTINCT p.id) FILTER (WHERE p.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
            FROM projects p
-           LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
-           WHERE p.owner_user_id = $1 OR pm.user_id = $1`,
-          [userId]
+           WHERE p.company_id = $1`,
+          [workspaceId]
         );
 
     const projectCount = projectAgg.rows[0]?.project_count ?? 0;
@@ -1700,24 +1723,44 @@ export async function getProjectOverviewPostgres(
          COALESCE(SUM(total_tokens), 0)::bigint AS tokens_7d,
          COUNT(*)::int AS runs_7d
        FROM token_usage
-       WHERE user_id = $1
+       WHERE ${usageScope}
          AND created_at >= NOW() - INTERVAL '7 days'`,
-      [userId]
+      usageParams
     );
     const tokensLast7Days = parseInt(String(usageAgg.rows[0]?.tokens_7d ?? 0), 10);
     const runsLast7Days = usageAgg.rows[0]?.runs_7d ?? 0;
 
+    /*
+     * user_activity has no workspace column, so failures cannot be scoped the way usage is.
+     * Workspace membership is the closest available proxy: it makes the error rate describe the
+     * team rather than the viewer, which is what the rest of the page now does, and keeps the
+     * numerator comparable to the run count beside it.
+     *
+     * Known imprecision: a member's failures in their own personal projects are counted here too,
+     * because nothing on the row says which workspace it belongs to. The stat is a signal that
+     * something is going wrong, not an accounting figure — the UI hint says so.
+     */
     const failAgg = await client.query(
-      `SELECT COUNT(*)::int AS n
-       FROM user_activity
-       WHERE user_id = $1
-         AND created_at >= NOW() - INTERVAL '7 days'
-         AND (
-           action_type ILIKE '%error%'
-           OR action_type ILIKE '%fail%'
-           OR action_type IN ('llm_call_failed', 'chat_stream_error')
-         )`,
-      [userId]
+      isPersonalWorkspace
+        ? `SELECT COUNT(*)::int AS n
+           FROM user_activity
+           WHERE user_id = $1
+             AND created_at >= NOW() - INTERVAL '7 days'
+             AND (
+               action_type ILIKE '%error%'
+               OR action_type ILIKE '%fail%'
+               OR action_type IN ('llm_call_failed', 'chat_stream_error')
+             )`
+        : `SELECT COUNT(*)::int AS n
+           FROM user_activity
+           WHERE user_id IN (SELECT user_id FROM company_members WHERE company_id = $1)
+             AND created_at >= NOW() - INTERVAL '7 days'
+             AND (
+               action_type ILIKE '%error%'
+               OR action_type ILIKE '%fail%'
+               OR action_type IN ('llm_call_failed', 'chat_stream_error')
+             )`,
+      [isPersonalWorkspace ? userId : workspaceId]
     );
     const failuresLast7Days = failAgg.rows[0]?.n ?? 0;
 
@@ -1738,10 +1781,10 @@ export async function getProjectOverviewPostgres(
       `SELECT tu.created_at, tu.chat_id, c.project_id, c.url_id AS chat_url_id, tu.total_tokens, tu.model, tu.provider, c.description
        FROM token_usage tu
        LEFT JOIN chats c ON c.id = tu.chat_id
-       WHERE tu.user_id = $1
+       WHERE ${usageScopeAliased}
        ORDER BY tu.created_at DESC
        LIMIT 12`,
-      [userId]
+      usageParams
     );
     const recentRuns: ProjectOverviewRecentRun[] = recent.rows.map((r: any) => ({
       at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),

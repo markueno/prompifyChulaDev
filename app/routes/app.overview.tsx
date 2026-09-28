@@ -65,8 +65,8 @@ export default function AppOverview() {
   const errorDisplay = overview.errorRatePercent === null ? '—' : `${overview.errorRatePercent}%`;
   const errorHint =
     overview.errorRatePercent === null
-      ? 'No LLM runs recorded this week, or failure events are not logged yet.'
-      : `Based on failure-tagged activity vs token_usage rows (7 days).`;
+      ? 'No runs recorded this week, or failure events are not logged yet.'
+      : `Failure-tagged activity against recorded runs. Approximate — failures are not workspace-tagged.`;
 
   return (
     <LandingAppChrome>
@@ -83,7 +83,7 @@ export default function AppOverview() {
             <div>
               <h1 className="text-2xl font-bold text-bolt-elements-textPrimary">Overview</h1>
               <p className="mt-1 text-bolt-elements-textSecondary">
-                Project health, recent runs, error signals, and token usage (rolling 7 days where noted).
+                Health, activity and token usage for the active workspace (rolling 7 days where noted).
               </p>
             </div>
             {/* Solid surface: a border-only button over the photo background was barely visible. */}
@@ -128,7 +128,7 @@ export default function AppOverview() {
             <StatCard
               label="LLM runs (7d)"
               value={String(overview.runsLast7Days)}
-              hint="Rows in token usage for your account."
+              hint="Completions recorded across this workspace."
             />
             <StatCard label="Error rate (7d)" value={errorDisplay} hint={errorHint} />
           </div>
@@ -137,7 +137,7 @@ export default function AppOverview() {
             <StatCard
               label="Tokens used (7d)"
               value={overview.tokensLast7Days.toLocaleString()}
-              hint="Sum of prompt + completion tokens billed to your usage."
+              hint="Prompt + completion tokens billed to this workspace."
             />
             <StatCard
               label="Token balance remaining"
