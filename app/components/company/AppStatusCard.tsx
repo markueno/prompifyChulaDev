@@ -4,6 +4,7 @@ import { Badge } from '~/components/ui/Badge';
 import { Button } from '~/components/ui/Button';
 import { classNames } from '~/utils/classNames';
 import type { CompanyApp, CompanyRole } from '~/lib/database';
+import { canBuildInWorkspace } from '~/lib/workspace-roles';
 
 const STATUS_CONFIG = {
   active: { label: 'Active', color: 'bg-green-500/10  text-green-500  border-green-500/20' },
@@ -47,7 +48,7 @@ interface AppStatusCardProps {
 export function AppStatusCard({ app, companySlug, userRole }: AppStatusCardProps) {
   const wakeFetcher = useFetcher();
   const sleepFetcher = useFetcher();
-  const canAct = userRole === 'admin' || userRole === 'developer';
+  const canAct = canBuildInWorkspace(userRole);
   const cfg = STATUS_CONFIG[app.status] ?? STATUS_CONFIG.draft;
 
   const isWaking = wakeFetcher.state !== 'idle';

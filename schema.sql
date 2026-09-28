@@ -110,6 +110,12 @@ CREATE TABLE IF NOT EXISTS company_members (
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(company_id, user_id)
 );
+-- The workspace-level role was called 'admin', which read as the platform admin console the
+-- Prompify team uses — a different thing entirely, gated by isSuperadmin. Renamed to 'owner',
+-- which is also what personal workspaces have always inserted, so both paths now agree.
+-- Idempotent: after the first run no rows match. isWorkspaceOwner() still accepts the old value,
+-- so this can run before or after the code deploy without locking anyone out.
+UPDATE company_members SET role = 'owner' WHERE role = 'admin';
 
 -- ============================================================
 -- Projects + chats

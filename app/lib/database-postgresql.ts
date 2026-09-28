@@ -6,6 +6,7 @@ import { keyForHash } from '~/lib/.server/storage';
 import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
 import { diffManifests } from '~/lib/snapshots/diffManifests';
 import { getPlan } from '~/lib/billing/plans';
+import type { CompanyRole } from '~/lib/workspace-roles';
 // Database schema, inlined at build time. schema.sql is the single source of truth.
 // eslint-disable-next-line no-restricted-imports
 import schemaSql from '../../schema.sql?raw';
@@ -2268,7 +2269,8 @@ export async function acceptInvitationByTokenPostgres(
  * ============================================================
  */
 
-export type CompanyRole = 'admin' | 'developer' | 'viewer';
+/** Defined in workspace-roles.ts so client components can read it without importing this module. */
+export type { CompanyRole };
 export type AppStatus = 'draft' | 'building' | 'active' | 'sleeping' | 'failed';
 export type RuntimeType = 'static' | 'worker' | 'container';
 
@@ -2317,7 +2319,7 @@ export async function createCompanyPostgres(
     );
     await client.query(
       `INSERT INTO company_members (id, company_id, user_id, role)
-       VALUES ($1, $2, $3, 'admin')`,
+       VALUES ($1, $2, $3, 'owner')`,
       [crypto.randomUUID(), companyId, ownerUserId]
     );
     await client.query('COMMIT');

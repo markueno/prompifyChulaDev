@@ -1,5 +1,6 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
+import { isWorkspaceOwner } from '~/lib/workspace-roles';
 import {
   getCompanyMember,
   getCompanyMembers,
@@ -39,8 +40,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 
     const requester = await getCompanyMember(companyId, user.id);
 
-    if (!requester || requester.role !== 'admin') {
-      return json({ error: 'Only company admins can manage members' }, { status: 403 });
+    if (!isWorkspaceOwner(requester?.role)) {
+      return json({ error: 'Only the workspace owner can manage members' }, { status: 403 });
     }
 
     if (method === 'POST') {

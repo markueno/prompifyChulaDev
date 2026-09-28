@@ -10,6 +10,7 @@ import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { useLoaderData, useSubmit } from '@remix-run/react';
 import { useState } from 'react';
 import { requireAuth } from '~/lib/auth';
+import { isWorkspaceOwner } from '~/lib/workspace-roles';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import {
   getSubscriptionByCompanyId,
@@ -52,7 +53,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     workspace: {
       companyId,
       companyName: activeCompany?.name ?? 'Workspace',
-      isAdmin: member?.role === 'admin',
+      isOwner: isWorkspaceOwner(member?.role),
       memberCount: members.length,
       seats,
       codes: codes.map((c: any) => ({
@@ -275,7 +276,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {workspace.isAdmin ? (
+          {workspace.isOwner ? (
             <div className="border-t border-[#fed7aa]/40 dark:border-[#423322] pt-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold">Invite codes</h3>
@@ -296,7 +297,7 @@ export default function SettingsPage() {
             </div>
           ) : (
             <p className="text-sm text-[#231710]/50 dark:text-[#c4b19a]/60 border-t border-[#fed7aa]/40 dark:border-[#423322] pt-4">
-              Only workspace admins can manage invite codes.
+              Only the workspace owner can manage invite codes.
             </p>
           )}
         </section>

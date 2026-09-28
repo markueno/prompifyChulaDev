@@ -1,5 +1,6 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
+import { isWorkspaceOwner } from '~/lib/workspace-roles';
 import { createCompany, getCompanyBySlug, getCompanyMember, getUserCompanies, updateCompany } from '~/lib/database';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -67,8 +68,8 @@ export async function action({ request, context }: ActionFunctionArgs) {
        */
       const member = await getCompanyMember(companyId, user.id);
 
-      if (!member || member.role !== 'admin') {
-        return json({ error: 'Only workspace admins can change workspace settings' }, { status: 403 });
+      if (!isWorkspaceOwner(member?.role)) {
+        return json({ error: 'Only the workspace owner can change workspace settings' }, { status: 403 });
       }
 
       /*

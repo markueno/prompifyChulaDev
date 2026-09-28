@@ -7,6 +7,7 @@ import {
 } from '@remix-run/cloudflare';
 import { Form, Link, useActionData, useLoaderData, useNavigation } from '@remix-run/react';
 import { requireAuth } from '~/lib/auth';
+import { isWorkspaceOwner } from '~/lib/workspace-roles';
 import { getCompanyBySlug, getCompanyMember, getCompanyMembers, updateCompany, getAuditLogs } from '~/lib/database';
 import { Button } from '~/components/ui/Button';
 import { Input } from '~/components/ui/Input';
@@ -83,8 +84,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 
   const member = await getCompanyMember(company.id, user.id);
 
-  if (!member || member.role !== 'admin') {
-    return json<ActionData>({ error: 'Only admins can update company settings' });
+  if (!isWorkspaceOwner(member?.role)) {
+    return json<ActionData>({ error: 'Only the workspace owner can update these settings' });
   }
 
   const formData = await request.formData();
@@ -112,7 +113,7 @@ export default function CompanySettings() {
   const { company, members, auditLogs, userRole } = useLoaderData<LoaderData>();
   const actionData = useActionData<ActionData>();
   const navigation = useNavigation();
-  const isAdmin = userRole === 'admin';
+  const isOwner = isWorkspaceOwner(userRole);
   const submitting = navigation.state === 'submitting';
 
   return (
@@ -138,7 +139,7 @@ export default function CompanySettings() {
             <Form method="post" className="space-y-4">
               <div className="space-y-1">
                 <Label htmlFor="name">Company name</Label>
-                <Input id="name" name="name" defaultValue={company.name} disabled={!isAdmin} />
+                <Input id="name" name="name" defaultValue={company.name} disabled={!isOwner} />
               </div>
               <div className="space-y-1">
                 <Label htmlFor="githubOrg">GitHub organization</Label>
@@ -147,7 +148,7 @@ export default function CompanySettings() {
                   name="githubOrg"
                   defaultValue={company.github_org ?? ''}
                   placeholder="acme-corp"
-                  disabled={!isAdmin}
+                  disabled={!isOwner}
                 />
                 <p className="text-xs text-bolt-elements-textTertiary">
                   Generated app code is pushed here as private repos
@@ -155,7 +156,7 @@ export default function CompanySettings() {
               </div>
               {actionData?.error && <p className="text-sm text-red-500">{actionData.error}</p>}
               {actionData?.success && <p className="text-sm text-green-500">{actionData.success}</p>}
-              {isAdmin && (
+              {isOwner && (
                 <Button type="submit" size="sm" disabled={submitting}>
                   {submitting ? 'Saving…' : 'Save settings'}
                 </Button>

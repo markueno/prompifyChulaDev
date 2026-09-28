@@ -5,6 +5,7 @@ import { getCompanyBySlug, getCompanyMember, getCompanyApps } from '~/lib/databa
 import { AppStatusCard } from '~/components/company/AppStatusCard';
 import { Button } from '~/components/ui/Button';
 import type { CompanyApp, CompanyRole } from '~/lib/database';
+import { canBuildInWorkspace } from '~/lib/workspace-roles';
 
 export const meta: MetaFunction = () => [
   { name: 'robots', content: 'noindex, nofollow' },
@@ -46,7 +47,7 @@ const STATUS_ORDER = ['active', 'building', 'sleeping', 'draft', 'failed'] as co
 
 export default function CompanyDashboard() {
   const { company, apps, userRole } = useLoaderData<LoaderData>();
-  const canBuild = userRole === 'admin' || userRole === 'developer';
+  const canBuild = canBuildInWorkspace(userRole);
 
   const grouped = STATUS_ORDER.reduce<Record<string, CompanyApp[]>>(
     (acc, s) => {
