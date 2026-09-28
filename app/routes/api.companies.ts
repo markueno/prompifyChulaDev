@@ -1,6 +1,6 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
-import { createCompany, getCompanyBySlug, getUserCompanies, updateCompany } from '~/lib/database';
+import { createCompany, getCompanyBySlug, getCompanyMember, getUserCompanies, updateCompany } from '~/lib/database';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   try {
@@ -50,18 +50,33 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     if (method === 'PATCH') {
-      const { companyId, name, githubOrg, plan } = (await request.json()) as {
+      const { companyId, name, githubOrg } = (await request.json()) as {
         companyId: string;
         name?: string;
         githubOrg?: string;
-        plan?: string;
       };
 
       if (!companyId) {
         return json({ error: 'companyId is required' }, { status: 400 });
       }
 
-      const success = await updateCompany(companyId, { name, github_org: githubOrg, plan });
+      /*
+       * companyId arrives in the body, so without this any signed-in user could rename any
+       * workspace or repoint its GitHub org just by knowing an id — there was no membership check
+       * at all here. Same gate as the membership routes use.
+       */
+      const member = await getCompanyMember(companyId, user.id);
+
+      if (!member || member.role !== 'admin') {
+        return json({ error: 'Only workspace admins can change workspace settings' }, { status: 403 });
+      }
+
+      /*
+       * `plan` is deliberately no longer accepted. It is written nowhere else and read for nothing
+       * — entitlements come from the subscription tier and companies.seats, both set by the Stripe
+       * webhook — so letting a request set it only ever misrepresented the workspace.
+       */
+      const success = await updateCompany(companyId, { name, github_org: githubOrg });
 
       return json({ success });
     }
