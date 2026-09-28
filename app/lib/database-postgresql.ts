@@ -842,6 +842,52 @@ export async function getActiveSessionCountPostgres(userId: string) {
  * Scopes to company_id, falling back to user_id rows not yet backfilled. If tokenUsageId is
  * set, writes Level B allocation rows.
  */
+/**
+ * Which pool a prompt is charged to.
+ *
+ * Tokens belong to a USER, not to a workspace. A workspace is where work happens; the person who
+ * bought the plan is who pays for it. That gives one rule covering both cases:
+ *
+ *   personal workspace → the person prompting pays
+ *   team workspace     → the workspace's owner pays
+ *
+ * So two people collaborating on a shared personal project each spend their own tokens, while
+ * everyone in a team workspace draws the owner's pool — and every workspace one person owns,
+ * their personal one included, shares that single pool.
+ *
+ * It also means a newly created workspace works immediately. Creation writes no subscription and no
+ * balance of its own, so charging the workspace made every prompt in it fail for lack of tokens
+ * that were never going to be there.
+ *
+ * Returned as a company id because balances are keyed that way; the owner's personal workspace is
+ * the durable home for their tokens, since every user has exactly one and it is never deleted.
+ */
+async function resolvePoolCompanyId(
+  client: PoolClient,
+  workspaceCompanyId: string | null,
+  promptingUserId: string
+): Promise<string> {
+  if (!workspaceCompanyId) {
+    return personalCompanyId(promptingUserId);
+  }
+
+  const row = await client.query(`SELECT is_personal, owner_user_id FROM companies WHERE id = $1`, [
+    workspaceCompanyId,
+  ]);
+
+  const company = row.rows[0];
+
+  /*
+   * Unknown or ownerless workspaces fall back to the prompter. Charging someone who cannot be
+   * identified is worse than charging the person who is actually here.
+   */
+  if (!company || company.is_personal || !company.owner_user_id) {
+    return personalCompanyId(promptingUserId);
+  }
+
+  return personalCompanyId(company.owner_user_id);
+}
+
 async function applyTokenConsumptionInTransaction(
   client: PoolClient,
   companyId: string | null,
@@ -970,7 +1016,15 @@ export async function insertTokenUsageAndConsumePostgres(params: {
         params.provider ?? null,
       ]
     );
-    await applyTokenConsumptionInTransaction(client, companyId, params.userId, n, tokenUsageId);
+
+    /*
+     * The usage row above records the WORKSPACE, which is what per-workspace reporting and caps
+     * read. The draw below is against the POOL, which belongs to whoever pays. Keeping the two
+     * separate is what lets several workspaces share one balance while still reporting their usage
+     * apart.
+     */
+    const poolCompanyId = await resolvePoolCompanyId(client, companyId, params.userId);
+    await applyTokenConsumptionInTransaction(client, poolCompanyId, params.userId, n, tokenUsageId);
 
     /*
      * Count the prompt against the free trial. Inside this transaction on purpose: token_usage is
@@ -1070,20 +1124,31 @@ export async function getTokenBalanceRemainingPostgres(userId: string): Promise<
   }
 }
 
-/** Remaining tokens in a workspace's pool. Falls back to not-yet-backfilled user rows. */
+/**
+ * Remaining tokens in the pool a prompt in this workspace would draw.
+ *
+ * Resolved through resolvePoolCompanyId for the same reason consumption is: the gate and the draw
+ * must agree. Reading the workspace's own balance while charging the owner's would refuse prompts
+ * the owner has plenty of tokens for — which is precisely how a newly created workspace came to be
+ * unusable.
+ *
+ * `userId` is the person prompting; it decides the pool for personal workspaces and is also the
+ * fallback for balance rows written before company_id existed.
+ */
 export async function getTokenBalanceRemainingForCompanyPostgres(companyId: string, userId?: string): Promise<number> {
   const pool = getPostgresPool();
   const client = await pool.connect();
 
   try {
     const now = new Date().toISOString();
+    const poolCompanyId = userId ? await resolvePoolCompanyId(client, companyId, userId) : companyId;
     const result = await client.query(
       `SELECT COALESCE(SUM(tokens_allocated - tokens_used), 0)::bigint as remaining
        FROM token_balances
        WHERE (company_id = $1 OR (company_id IS NULL AND user_id = $2))
          AND effective_start <= $3
          AND (effective_end IS NULL OR effective_end >= $3)`,
-      [companyId, userId ?? null, now]
+      [poolCompanyId, userId ?? null, now]
     );
 
     return parseInt(String(result.rows[0]?.remaining ?? 0), 10);
@@ -1833,13 +1898,19 @@ export async function getProjectOverviewPostgres(
     const denom = failuresLast7Days + runsLast7Days;
     const errorRatePercent = denom > 0 ? Math.round((1000 * failuresLast7Days) / denom) / 10 : null;
 
+    /*
+     * The same pool the prompt gate checks and consumption draws from — not the workspace's own
+     * balance, which for a team workspace is empty. Showing a different number here from the one
+     * that decides whether a prompt is allowed would be worse than showing none.
+     */
+    const balancePoolId = await resolvePoolCompanyId(client, workspaceId, userId);
     const balanceResult = await client.query(
       `SELECT COALESCE(SUM(tokens_allocated - tokens_used), 0)::bigint AS remaining
        FROM token_balances
        WHERE (company_id = $1 OR (company_id IS NULL AND user_id = $2))
          AND effective_start <= $3
          AND (effective_end IS NULL OR effective_end >= $3)`,
-      [companyId ?? `cmp_personal_${userId}`, userId, now]
+      [balancePoolId, userId, now]
     );
     const tokenBalanceRemaining = parseInt(String(balanceResult.rows[0]?.remaining ?? 0), 10);
 
