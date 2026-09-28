@@ -67,6 +67,7 @@ import {
   listCompanyInvitationsPostgres,
   revokeCompanyInvitationPostgres,
   acceptCompanyInvitationByTokenPostgres,
+  getCompanyInvitationByTokenPostgres,
   addCompanyMemberPostgres,
   removeCompanyMemberPostgres,
   updateCompanyPostgres,
@@ -1012,6 +1013,14 @@ export async function revokeCompanyInvitation(companyId: string, invitationId: s
   }
 
   return false;
+}
+
+export async function getCompanyInvitationByToken(token: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyInvitationByTokenPostgres(token);
+  }
+
+  return null;
 }
 
 export async function acceptCompanyInvitationByToken(token: string, userId: string, userEmail: string) {

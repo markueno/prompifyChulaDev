@@ -1251,27 +1251,44 @@ export async function getCompanySeatsPostgres(companyId: string): Promise<number
   const client = await pool.connect();
 
   try {
-    const result = await client.query(
-      `SELECT c.seats, s.tier_id, s.status
-         FROM companies c
-         LEFT JOIN subscriptions s ON s.company_id = c.id
-        WHERE c.id = $1`,
-      [companyId]
-    );
+    const companyRow = await client.query(`SELECT seats, owner_user_id FROM companies WHERE id = $1`, [companyId]);
+    const company = companyRow.rows[0];
 
-    const row = result.rows[0];
-
-    if (!row) {
+    if (!company) {
       return 1;
     }
 
-    const storedSeats = row.seats ?? 1;
+    const storedSeats = company.seats ?? 1;
 
-    if (!row.tier_id || row.status === 'canceled') {
+    if (!company.owner_user_id) {
       return storedSeats;
     }
 
-    return Math.max(storedSeats, getPlan(row.tier_id)?.seats ?? 1);
+    /*
+     * Seats come from the OWNER's plan, not from a subscription on this workspace.
+     *
+     * createCompany writes no seats, so the column defaults to 1 — and a team workspace has no
+     * subscription of its own, so resolving against this company found nothing and left it at 1.
+     * The owner is immediately member number one, which made every invitation fail the
+     * `memberCount >= seats` check before it could add anyone: an invitee accepted and silently
+     * never joined.
+     *
+     * Reading through the owner matches how token pools resolve, and is self-healing — workspaces
+     * already created with seats=1 pick up the right number without a migration. The stored value
+     * still wins when higher, so a manually raised count survives.
+     */
+    const tiers = await client.query(
+      `SELECT DISTINCT s.tier_id
+         FROM subscriptions s
+         JOIN companies c ON c.id = s.company_id
+        WHERE (c.owner_user_id = $1 OR c.id = $2)
+          AND s.status <> 'canceled'`,
+      [company.owner_user_id, personalCompanyId(company.owner_user_id)]
+    );
+
+    const planSeats = tiers.rows.reduce((best: number, r: any) => Math.max(best, getPlan(r.tier_id)?.seats ?? 0), 0);
+
+    return Math.max(storedSeats, planSeats);
   } catch (error) {
     console.error('Error getting company seats:', error);
     return 1;
@@ -2735,6 +2752,53 @@ export async function revokeCompanyInvitationPostgres(companyId: string, invitat
   } catch (error) {
     console.error('Error revoking company invitation:', error);
     return false;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * What an invitation is for, so the accept page can name it before anyone commits.
+ *
+ * Read-only and forgiving: an expired or already-used token returns null rather than an error, and
+ * the page treats that as "this link is no longer valid". Returns the invited address so the page
+ * can tell someone signed in as the wrong account why it will not work, which is otherwise a
+ * confusing dead end.
+ */
+export async function getCompanyInvitationByTokenPostgres(token: string): Promise<{
+  companyName: string;
+  invitedEmail: string;
+  inviterEmail: string | null;
+  role: string;
+} | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT c.name AS company_name, ci.email AS invited_email, ci.role, u.email AS inviter_email
+         FROM company_invitations ci
+         JOIN companies c ON c.id = ci.company_id
+         LEFT JOIN users u ON u.id = ci.invited_by_user_id
+        WHERE ci.token = $1 AND ci.status = 'pending' AND ci.expires_at > NOW()`,
+      [token]
+    );
+
+    const row = result.rows[0];
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      companyName: row.company_name,
+      invitedEmail: row.invited_email,
+      inviterEmail: row.inviter_email ?? null,
+      role: row.role,
+    };
+  } catch (error) {
+    console.error('Error reading company invitation:', error);
+    return null;
   } finally {
     client.release();
   }
