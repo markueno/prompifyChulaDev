@@ -1,6 +1,6 @@
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
-import { isWorkspaceOwner } from '~/lib/workspace-roles';
+import { canManageMembers } from '~/lib/workspace-roles';
 import {
   getCompanyMember,
   createCompanyInviteCode,
@@ -18,8 +18,8 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
 
   const member = await getCompanyMember(companyId, user.id);
 
-  if (!isWorkspaceOwner(member?.role)) {
-    return json({ error: 'Only the workspace owner can view invite codes' }, { status: 403 });
+  if (!canManageMembers(member?.role)) {
+    return json({ error: 'Only owners and admins can view invite codes' }, { status: 403 });
   }
 
   const codes = await listCompanyInviteCodes(companyId);
@@ -37,8 +37,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 
   const member = await getCompanyMember(companyId, user.id);
 
-  if (!isWorkspaceOwner(member?.role)) {
-    return json({ error: 'Only the workspace owner can manage invite codes' }, { status: 403 });
+  if (!canManageMembers(member?.role)) {
+    return json({ error: 'Only owners and admins can manage invite codes' }, { status: 403 });
   }
 
   const method = request.method;

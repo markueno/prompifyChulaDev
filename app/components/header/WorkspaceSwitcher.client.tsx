@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { classNames } from '~/utils/classNames';
+import { canManageMembers } from '~/lib/workspace-roles';
 import { AddWorkspaceModal } from './AddWorkspaceModal.client';
 
 interface Workspace {
@@ -140,6 +141,19 @@ export function WorkspaceSwitcher() {
                   {w.id === current?.id ? <span className="i-ph:check text-sm text-[#f97316]" /> : null}
                 </button>
               ))}
+              {/*
+               * Between the workspaces and the add button: it acts on the workspace you are in, so
+               * it belongs beside them rather than in the main navbar, which is about your own work.
+               * Hidden in a personal workspace — there is one member and no seats to administer.
+               */}
+              {canManageMembers(current?.role) && !current?.is_personal ? (
+                <a
+                  href="/app/workspace"
+                  className="mt-1 flex w-full items-center gap-1.5 rounded-md border-t border-[#fed7aa]/60 dark:border-[#423322] px-2 py-1.5 text-sm text-[#231710]/70 dark:text-[#f0e4d5]/80 hover:bg-[#fed7aa] dark:hover:bg-[#423322]"
+                >
+                  <span className="i-ph:gear text-sm" /> Workspace settings
+                </a>
+              ) : null}
               <button
                 type="button"
                 onClick={() => {

@@ -3,29 +3,61 @@
  *
  * Distinct from the platform admin console, which is gated by the `isSuperadmin` JWT claim via
  * requireSuperadmin() and lets the Prompify team act on every account. Nothing here grants any of
- * that. The two were both called "admin", which made the distinction impossible to state out loud,
- * so the workspace role is now `owner`.
+ * that.
+ *
+ * The split between the three working roles is what each has authority over: an editor over the
+ * work, an admin over the workspace, an owner over the money.
+ *
+ *   owner   billed, invites, removes anyone, builds       — exactly one per workspace
+ *   admin   invites, removes anyone but the owner, builds — not billed
+ *   editor  builds                                        — no authority over people
+ *   viewer  reads                                         — free, consumes no seat
  *
  * Safe to import on the client: no secrets, no database access.
  */
 
-export type CompanyRole = 'owner' | 'developer' | 'viewer';
+export type CompanyRole = 'owner' | 'admin' | 'editor' | 'viewer';
 
 /**
- * Rows written before the rename say 'admin'.
+ * The single owner. Billing, plan changes and deleting the workspace.
  *
- * Accepted here rather than only in the migration so that deploying the code and migrating the
- * data don't have to be simultaneous — otherwise every existing workspace owner loses their
- * permissions in the window between the two. Remove once no `role = 'admin'` rows remain.
+ * Note this no longer accepts the string 'admin'. It did during the admin→owner rename, when that
+ * value meant what 'owner' means now; it is a distinct and lesser role from here on, and accepting
+ * it would hand every admin the owner's powers.
  */
-const LEGACY_OWNER_ROLE = 'admin';
-
-/** Can manage members, invites and workspace settings. */
 export function isWorkspaceOwner(role: string | null | undefined): boolean {
-  return role === 'owner' || role === LEGACY_OWNER_ROLE;
+  return role === 'owner';
 }
 
-/** Can create and act on apps. Viewers are read-only. */
+/** Invite, remove and re-role members. Admins may not touch the owner. */
+export function canManageMembers(role: string | null | undefined): boolean {
+  return role === 'owner' || role === 'admin';
+}
+
+/**
+ * Create projects, prompt, edit and deploy.
+ *
+ * `developer` is accepted while rows written before the developer→editor migration remain, so the
+ * code and the data migration need not land together. Remove once none are left.
+ */
 export function canBuildInWorkspace(role: string | null | undefined): boolean {
-  return isWorkspaceOwner(role) || role === 'developer';
+  return canManageMembers(role) || role === 'editor' || role === 'developer';
+}
+
+/**
+ * Whether this member counts against the plan's seat allowance.
+ *
+ * Deliberately the same set as canBuildInWorkspace: you pay for people who can build, and viewing
+ * is free. Keeping it one predicate rather than two lists stops the seat check and the permission
+ * check drifting apart as roles change.
+ */
+export function consumesSeat(role: string | null | undefined): boolean {
+  return canBuildInWorkspace(role);
+}
+
+/** Roles an invitation or a role change may grant. Never `owner` — that is a transfer, not a grant. */
+export const ASSIGNABLE_ROLES: CompanyRole[] = ['admin', 'editor', 'viewer'];
+
+export function isAssignableRole(role: string | null | undefined): role is CompanyRole {
+  return ASSIGNABLE_ROLES.includes(role as CompanyRole);
 }

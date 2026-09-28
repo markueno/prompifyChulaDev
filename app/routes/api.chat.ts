@@ -21,6 +21,7 @@ import {
   getUserStatus,
 } from '~/lib/database';
 import { personalCompanyId } from '~/lib/database-postgresql';
+import { canBuildInWorkspace } from '~/lib/workspace-roles';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import { getTrialStatusForCompany } from '~/lib/billing/billing-db.server';
 import { FREE_TIER_ID, TRIAL_PROMPT_LIMIT } from '~/lib/billing/plans';
@@ -130,6 +131,18 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
         if (!member) {
           return json({ message: 'You are not a member of this workspace.', code: 'not_a_member' }, { status: 403 });
+        }
+
+        /*
+         * Viewers are read-only, and this is the only place that can hold them to it. Every other
+         * role gate guards member management; without this one a viewer could prompt — and spend
+         * the workspace's tokens — by calling this endpoint directly, whatever the UI showed them.
+         */
+        if (!canBuildInWorkspace(member.role)) {
+          return json(
+            { message: 'Your role in this workspace is view-only.', code: 'role_read_only' },
+            { status: 403 }
+          );
         }
       }
 

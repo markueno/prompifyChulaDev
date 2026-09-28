@@ -1,6 +1,6 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
-import { isWorkspaceOwner } from '~/lib/workspace-roles';
+import { canManageMembers, isAssignableRole, isWorkspaceOwner } from '~/lib/workspace-roles';
 import {
   getCompanyMember,
   getCompanyMembers,
@@ -40,15 +40,27 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 
     const requester = await getCompanyMember(companyId, user.id);
 
-    if (!isWorkspaceOwner(requester?.role)) {
-      return json({ error: 'Only the workspace owner can manage members' }, { status: 403 });
+    if (!canManageMembers(requester?.role)) {
+      return json({ error: 'Only owners and admins can manage members' }, { status: 403 });
     }
+
+    /*
+     * The owner is the workspace's single billed identity, so no membership operation may create a
+     * second one or remove the existing one. Grants are limited to the assignable roles, and the
+     * owner's own row is off limits to everyone — including an admin, who may remove anyone else.
+     */
+    const isOwnerRow = async (targetUserId: string) =>
+      isWorkspaceOwner((await getCompanyMember(companyId, targetUserId))?.role);
 
     if (method === 'POST') {
       const { userId, role } = (await request.json()) as { userId: string; role: CompanyRole };
 
       if (!userId || !role) {
         return json({ error: 'userId and role are required' }, { status: 400 });
+      }
+
+      if (!isAssignableRole(role)) {
+        return json({ error: 'A workspace has exactly one owner, so that role cannot be granted.' }, { status: 400 });
       }
 
       // Seat guard: only count NEW members against the plan's seat cap.
@@ -98,6 +110,14 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
         return json({ error: 'That user is not a member of this workspace' }, { status: 404 });
       }
 
+      if (!isAssignableRole(role)) {
+        return json({ error: 'A workspace has exactly one owner, so that role cannot be granted.' }, { status: 400 });
+      }
+
+      if (isWorkspaceOwner(target.role)) {
+        return json({ error: "The owner's role cannot be changed." }, { status: 403 });
+      }
+
       const success = await addCompanyMember(companyId, userId, role);
 
       if (success) {
@@ -122,6 +142,11 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
 
       if (userId === user.id) {
         return json({ error: 'You cannot remove yourself' }, { status: 400 });
+      }
+
+      // Removing the owner would leave the workspace with no billed identity and nobody who can pay.
+      if (await isOwnerRow(userId)) {
+        return json({ error: 'The workspace owner cannot be removed.' }, { status: 403 });
       }
 
       const success = await removeCompanyMember(companyId, userId);

@@ -10,7 +10,7 @@ import { json, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { Link, useLoaderData, useSubmit } from '@remix-run/react';
 import { useState } from 'react';
 import { requireAuth } from '~/lib/auth';
-import { isWorkspaceOwner } from '~/lib/workspace-roles';
+import { canManageMembers } from '~/lib/workspace-roles';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import {
   getSubscriptionByCompanyId,
@@ -53,7 +53,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     workspace: {
       companyId,
       companyName: activeCompany?.name ?? 'Workspace',
-      isOwner: isWorkspaceOwner(member?.role),
+      isOwner: canManageMembers(member?.role),
       memberCount: members.length,
       seats,
       codes: codes.map((c: any) => ({

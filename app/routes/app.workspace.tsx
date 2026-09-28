@@ -22,7 +22,7 @@ import {
   listCompanyInvitations,
 } from '~/lib/database';
 import { getActiveCompanyId } from '~/lib/workspace.server';
-import { isWorkspaceOwner } from '~/lib/workspace-roles';
+import { canManageMembers } from '~/lib/workspace-roles';
 import { personalCompanyId } from '~/lib/database-postgresql';
 import landingStyles from '~/styles/landing.css?url';
 
@@ -38,7 +38,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
   const member = await getCompanyMember(companyId, user.id);
 
-  if (!isWorkspaceOwner(member?.role)) {
+  if (!canManageMembers(member?.role)) {
     return redirect('/app/overview');
   }
 
@@ -74,18 +74,25 @@ export const meta: MetaFunction = () => [
   { name: 'description', content: 'Members, usage and invitations for this workspace.' },
 ];
 
-function RoleBadge({ role }: { role: string }) {
-  const isOwner = role === 'owner' || role === 'admin';
+/** 'developer' still appears on rows written before the developer→editor migration. */
+const ROLE_LABELS: Record<string, string> = {
+  owner: 'Owner',
+  admin: 'Admin',
+  editor: 'Editor',
+  developer: 'Editor',
+  viewer: 'Viewer',
+};
 
+function RoleBadge({ role }: { role: string }) {
   return (
     <span
       className={
-        isOwner
+        role === 'owner'
           ? 'text-xs px-2 py-0.5 rounded bg-orange-500/15 text-orange-600 dark:text-orange-400'
           : 'text-xs px-2 py-0.5 rounded bg-gray-500/15 text-gray-600 dark:text-gray-400'
       }
     >
-      {isOwner ? 'Owner' : role}
+      {ROLE_LABELS[role] ?? role}
     </span>
   );
 }
@@ -97,7 +104,7 @@ export default function WorkspacePage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('developer');
+  const [inviteRole, setInviteRole] = useState('editor');
 
   const seatsLeft = seats - members.length;
 
@@ -228,9 +235,9 @@ export default function WorkspacePage() {
                 onChange={e => setInviteRole(e.target.value)}
                 className="rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary"
               >
-                <option value="developer">Developer</option>
+                <option value="admin">Admin</option>
+                <option value="editor">Editor</option>
                 <option value="viewer">Viewer</option>
-                <option value="owner">Owner</option>
               </select>
               <button
                 onClick={invite}
@@ -290,7 +297,8 @@ export default function WorkspacePage() {
                 <tbody>
                   {members.map((m: any) => {
                     const isSelf = m.user_id === user.id;
-                    const isOwnerRow = m.role === 'owner' || m.role === 'admin';
+                    const isOwnerRow = m.role === 'owner';
+                    const isAdminRow = m.role === 'admin';
 
                     return (
                       <tr
@@ -313,21 +321,25 @@ export default function WorkspacePage() {
                           {new Date(m.joined_at).toLocaleDateString()}
                         </td>
                         <td className="px-5 py-2.5 text-right">
-                          {/* An owner demoting or removing themselves could leave the workspace unmanageable. */}
-                          {isSelf ? null : (
+                          {/*
+                           * The owner's row carries no actions: there is exactly one per workspace,
+                           * so it can be neither demoted nor removed, and promoting someone else
+                           * would create a second. The server refuses all three regardless.
+                           */}
+                          {isSelf || isOwnerRow ? null : (
                             <div className="flex justify-end gap-2">
                               <button
                                 disabled={busy === m.user_id}
                                 onClick={() =>
                                   mutate(
-                                    { userId: m.user_id, role: isOwnerRow ? 'developer' : 'owner' },
+                                    { userId: m.user_id, role: isAdminRow ? 'editor' : 'admin' },
                                     'PATCH',
                                     m.user_id
                                   )
                                 }
                                 className="rounded-md border border-bolt-elements-borderColor px-2.5 py-1 text-xs text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 disabled:opacity-50"
                               >
-                                {isOwnerRow ? 'Make developer' : 'Make owner'}
+                                {isAdminRow ? 'Make editor' : 'Make admin'}
                               </button>
                               <button
                                 disabled={busy === m.user_id}

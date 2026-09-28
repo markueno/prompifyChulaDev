@@ -7,7 +7,6 @@ import { HeaderActionButtons } from './HeaderActionButtons.client';
 import { NotificationBell } from './NotificationBell.client';
 import { ConnectionStatusBanner } from '~/components/chat/ConnectionStatusBanner.client';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher.client';
-import { WorkspaceNavLink } from './WorkspaceNavLink.client';
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { UserProfile } from '~/components/auth/UserProfile';
 
@@ -54,7 +53,6 @@ export function Header() {
             >
               Data
             </Link>
-            <ClientOnly>{() => <WorkspaceNavLink />}</ClientOnly>
             <Link
               to="/app/pricing"
               className={classNames(

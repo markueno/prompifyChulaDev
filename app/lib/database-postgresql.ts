@@ -1184,14 +1184,24 @@ export async function getCompanySeatsPostgres(companyId: string): Promise<number
 }
 
 /** Number of members in a workspace (for seat-limit enforcement). */
+/**
+ * Members counted against the plan's seat allowance.
+ *
+ * Viewers are free, so the count is of roles that can build. The role list is spelled out in SQL
+ * rather than filtered in JS because both seat checks compare this against companies.seats inside
+ * their own transactions — see consumesSeat() in workspace-roles.ts, which must agree with it.
+ * 'developer' is here for rows predating the developer→editor migration.
+ */
 export async function getCompanyMemberCountPostgres(companyId: string): Promise<number> {
   const pool = getPostgresPool();
   const client = await pool.connect();
 
   try {
-    const result = await client.query(`SELECT COUNT(*)::int AS n FROM company_members WHERE company_id = $1`, [
-      companyId,
-    ]);
+    const result = await client.query(
+      `SELECT COUNT(*)::int AS n FROM company_members
+        WHERE company_id = $1 AND role IN ('owner', 'admin', 'editor', 'developer')`,
+      [companyId]
+    );
     return result.rows[0]?.n ?? 0;
   } catch (error) {
     console.error('Error counting company members:', error);
@@ -3794,7 +3804,11 @@ export async function joinCompanyByCodePostgres(
       return null;
     }
 
-    await client.query(`INSERT INTO company_members (id, company_id, user_id, role) VALUES ($1, $2, $3, 'developer')`, [
+    /*
+     * Editor: a shared code says nothing about who is redeeming it, so it grants the ability to
+     * build and nothing over other people. An owner can promote afterwards.
+     */
+    await client.query(`INSERT INTO company_members (id, company_id, user_id, role) VALUES ($1, $2, $3, 'editor')`, [
       crypto.randomUUID(),
       row.company_id,
       userId,

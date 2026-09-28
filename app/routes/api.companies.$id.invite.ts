@@ -20,17 +20,15 @@ import {
 } from '~/lib/database';
 import type { CompanyRole } from '~/lib/database';
 import { sendWorkspaceInvitationEmail } from '~/lib/email';
-import { isWorkspaceOwner } from '~/lib/workspace-roles';
-
-const INVITABLE_ROLES: CompanyRole[] = ['owner', 'developer', 'viewer'];
+import { canManageMembers, isAssignableRole } from '~/lib/workspace-roles';
 
 export async function loader({ request, context, params }: LoaderFunctionArgs) {
   const user = await requireAuth(request, context);
   const companyId = params.id!;
   const member = await getCompanyMember(companyId, user.id);
 
-  if (!isWorkspaceOwner(member?.role)) {
-    return json({ error: 'Only the workspace owner can view invitations' }, { status: 403 });
+  if (!canManageMembers(member?.role)) {
+    return json({ error: 'Only owners and admins can view invitations' }, { status: 403 });
   }
 
   return json({ invitations: await listCompanyInvitations(companyId) });
@@ -41,8 +39,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   const companyId = params.id!;
   const member = await getCompanyMember(companyId, user.id);
 
-  if (!isWorkspaceOwner(member?.role)) {
-    return json({ error: 'Only the workspace owner can manage invitations' }, { status: 403 });
+  if (!canManageMembers(member?.role)) {
+    return json({ error: 'Only owners and admins can manage invitations' }, { status: 403 });
   }
 
   const method = request.method.toUpperCase();
@@ -55,7 +53,8 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       return json({ error: 'Enter a valid email address' }, { status: 400 });
     }
 
-    const chosenRole: CompanyRole = INVITABLE_ROLES.includes(role as CompanyRole) ? (role as CompanyRole) : 'developer';
+    // Falls back to editor rather than trusting an unknown value — an invite must never grant owner.
+    const chosenRole: CompanyRole = isAssignableRole(role) ? role : 'editor';
 
     const result = await inviteToCompany({
       companyId,

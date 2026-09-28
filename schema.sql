@@ -110,12 +110,18 @@ CREATE TABLE IF NOT EXISTS company_members (
     joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(company_id, user_id)
 );
--- The workspace-level role was called 'admin', which read as the platform admin console the
--- Prompify team uses — a different thing entirely, gated by isSuperadmin. Renamed to 'owner',
--- which is also what personal workspaces have always inserted, so both paths now agree.
--- Idempotent: after the first run no rows match. isWorkspaceOwner() still accepts the old value,
--- so this can run before or after the code deploy without locking anyone out.
-UPDATE company_members SET role = 'owner' WHERE role = 'admin';
+-- Roles are owner / admin / editor / viewer.
+--
+-- 'admin' USED to mean what 'owner' means now, and a one-off UPDATE migrated those rows during the
+-- rename. That statement is deliberately NOT repeated here: 'admin' is now a real, lesser role, and
+-- re-running it on every boot would silently promote every admin to owner. It has already run on
+-- every environment — verify with:
+--   SELECT role, COUNT(*) FROM company_members GROUP BY role;
+-- and expect no rows predating the rename.
+--
+-- 'developer' was renamed to 'editor'. This one is safe to leave in place: nothing writes
+-- 'developer' any more, so after the first run it matches nothing.
+UPDATE company_members SET role = 'editor' WHERE role = 'developer';
 
 -- Email invitations to a workspace. Separate from company_invite_codes, which is a shareable
 -- link anyone can redeem; this names a specific address and is accepted only by someone signed in

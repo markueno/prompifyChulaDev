@@ -10,7 +10,6 @@ import { ConnectionStatusBanner } from '~/components/chat/ConnectionStatusBanner
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { UserProfile } from '~/components/auth/UserProfile';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher.client';
-import { WorkspaceNavLink } from './WorkspaceNavLink.client';
 
 /*
  * Hover-reveal top navbar. Mirrors the sidebar's hover pattern (Menu.client.tsx) but for the
@@ -132,7 +131,6 @@ export function FloatingHeader() {
             >
               Data
             </Link>
-            <ClientOnly>{() => <WorkspaceNavLink />}</ClientOnly>
             <Link
               to="/app/pricing"
               className={classNames(
