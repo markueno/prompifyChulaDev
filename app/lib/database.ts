@@ -59,6 +59,7 @@ import {
   getUserCompaniesPostgres,
   getCompanyMemberPostgres,
   getCompanyMembersPostgres,
+  getCompanyMemberUsagePostgres,
   addCompanyMemberPostgres,
   removeCompanyMemberPostgres,
   updateCompanyPostgres,
@@ -975,6 +976,14 @@ export async function getCompanyMember(companyId: string, userId: string) {
   }
 
   return null;
+}
+
+export async function getCompanyMemberUsage(companyId: string, windowDays?: number) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyMemberUsagePostgres(companyId, windowDays);
+  }
+
+  return [];
 }
 
 export async function getCompanyMembers(companyId: string) {

@@ -2440,6 +2440,59 @@ export async function getCompanyMemberPostgres(
   }
 }
 
+export interface CompanyMemberUsage {
+  user_id: string;
+  email: string;
+  role: CompanyRole;
+  joined_at: string;
+  /** Tokens this member spent IN THIS WORKSPACE over the window. Never their global usage. */
+  tokens_spent: number;
+}
+
+/**
+ * Workspace members with what each has spent here.
+ *
+ * A LEFT JOIN rather than a grouped scan of token_usage, so members who have not run anything
+ * still appear with zero instead of dropping out of the roster.
+ *
+ * Note this is spend, not allocation: token_balances is pooled per workspace, so there is no
+ * per-member allowance to report — only what each person drew from the shared pool.
+ */
+export async function getCompanyMemberUsagePostgres(companyId: string, windowDays = 30): Promise<CompanyMemberUsage[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT cm.user_id, u.email, cm.role, cm.joined_at,
+              COALESCE(SUM(tu.total_tokens), 0)::bigint AS tokens_spent
+         FROM company_members cm
+         JOIN users u ON u.id = cm.user_id
+         LEFT JOIN token_usage tu
+           ON tu.user_id = cm.user_id
+          AND tu.company_id = cm.company_id
+          AND tu.created_at >= NOW() - ($2 || ' days')::interval
+        WHERE cm.company_id = $1
+        GROUP BY cm.user_id, u.email, cm.role, cm.joined_at
+        ORDER BY tokens_spent DESC, u.email ASC`,
+      [companyId, String(windowDays)]
+    );
+
+    return result.rows.map((r: any) => ({
+      user_id: r.user_id,
+      email: r.email,
+      role: r.role,
+      joined_at: r.joined_at instanceof Date ? r.joined_at.toISOString() : String(r.joined_at),
+      tokens_spent: parseInt(String(r.tokens_spent ?? 0), 10),
+    }));
+  } catch (error) {
+    console.error('Error getting company member usage:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
 export async function getCompanyMembersPostgres(
   companyId: string
 ): Promise<{ user_id: string; email: string; role: CompanyRole; joined_at: string }[]> {

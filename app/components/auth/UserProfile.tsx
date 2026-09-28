@@ -6,12 +6,19 @@ import { ChangePasswordDialog } from '~/components/auth/ChangePasswordDialog';
 import type { User } from '~/lib/auth';
 import { controlPanelOpenStore } from '~/lib/stores/settings';
 import { profileStore } from '~/lib/stores/profile';
+import { useActiveWorkspace } from '~/lib/hooks/useActiveWorkspace';
+import { isWorkspaceOwner } from '~/lib/workspace-roles';
 
 interface UserProfileProps {
   user: User | null;
 }
 
 export function UserProfile({ user }: UserProfileProps) {
+  const activeWorkspace = useActiveWorkspace();
+  const showWorkspace = Boolean(
+    activeWorkspace && !activeWorkspace.is_personal && isWorkspaceOwner(activeWorkspace.role)
+  );
+
   const submit = useSubmit();
   const profile = useStore(profileStore);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -61,6 +68,21 @@ export function UserProfile({ user }: UserProfileProps) {
           >
             <div className="i-ph:shield-star text-lg" />
             Admin
+          </a>
+        )}
+
+        {/*
+         * Workspace management. Sits next to the platform "Admin" entry above, which is a
+         * different thing entirely — that one is the Prompify team's console over every account,
+         * this one is the owner's control over their own workspace.
+         */}
+        {showWorkspace && (
+          <a
+            href="/app/workspace"
+            className="flex items-center gap-2 px-2.5 py-2 text-sm w-full text-left text-[#231710]/70 dark:text-[#c4b19a] hover:bg-[#fed7aa]/50 dark:hover:bg-[rgba(240,228,213,0.08)] rounded-lg transition-colors"
+          >
+            <div className="i-ph:users-three text-lg" />
+            Workspace
           </a>
         )}
 
