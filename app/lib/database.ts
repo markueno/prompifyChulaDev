@@ -60,6 +60,8 @@ import {
   getCompanyMemberPostgres,
   getCompanyMembersPostgres,
   getCompanyMemberUsagePostgres,
+  countOwnedWorkspacesPostgres,
+  getTierIdsForOwnerPostgres,
   inviteToCompanyPostgres,
   listCompanyInvitationsPostgres,
   revokeCompanyInvitationPostgres,
@@ -1017,6 +1019,22 @@ export async function acceptCompanyInvitationByToken(token: string, userId: stri
   }
 
   return { success: false, error: 'Unsupported database' };
+}
+
+export async function countOwnedWorkspaces(userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return countOwnedWorkspacesPostgres(userId);
+  }
+
+  return 0;
+}
+
+export async function getTierIdsForOwner(userId: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getTierIdsForOwnerPostgres(userId);
+  }
+
+  return [];
 }
 
 export async function getCompanyMemberUsage(companyId: string, windowDays?: number) {

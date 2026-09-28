@@ -9,6 +9,7 @@ import { Form, useActionData, useNavigation } from '@remix-run/react';
 import { useState } from 'react';
 import { requireAuth } from '~/lib/auth';
 import { createCompany, getCompanyBySlug, addAuditLog } from '~/lib/database';
+import { getWorkspaceAllowance } from '~/lib/workspace-entitlements.server';
 import { Button } from '~/components/ui/Button';
 import { Card, CardContent, CardHeader } from '~/components/ui/Card';
 import { Input } from '~/components/ui/Input';
@@ -21,6 +22,8 @@ export const meta: MetaFunction = () => [
 
 interface ActionData {
   error?: string;
+  /** Set when the refusal is about entitlement, so the page can offer the pricing link. */
+  upgradeRequired?: boolean;
 }
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
@@ -41,6 +44,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return json<ActionData>({ error: 'Slug must be lowercase letters, numbers, and hyphens only' });
+  }
+
+  /*
+   * Creating workspaces is an enterprise capability. Checked here rather than only in the UI
+   * because this action is reachable by anyone who can post a form.
+   */
+  const allowance = await getWorkspaceAllowance(user.id);
+
+  if (!allowance.canCreate) {
+    return json<ActionData>({
+      error:
+        allowance.max === 0
+          ? 'Creating workspaces requires an enterprise plan. You can still join one with an invite or a code.'
+          : `Your plan allows ${allowance.max} workspace${allowance.max === 1 ? '' : 's'} and you already have ${allowance.owned}.`,
+      upgradeRequired: true,
+    });
   }
 
   const existing = await getCompanyBySlug(slug);
@@ -135,7 +154,20 @@ export default function NewCompanyPage() {
               </p>
             </div>
 
-            {actionData?.error && <p className="text-sm text-red-500">{actionData.error}</p>}
+            {actionData?.error &&
+              (actionData.upgradeRequired ? (
+                <div className="rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 p-3">
+                  <p className="text-sm text-[#231710] dark:text-[#f0e4d5]">{actionData.error}</p>
+                  <a
+                    href="/app/pricing"
+                    className="mt-2 inline-block text-sm font-medium text-[#f97316] hover:underline"
+                  >
+                    See enterprise plans
+                  </a>
+                </div>
+              ) : (
+                <p className="text-sm text-red-500">{actionData.error}</p>
+              ))}
 
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? 'Creating workspace…' : 'Create workspace'}

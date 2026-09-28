@@ -188,6 +188,62 @@ export function personalCompanyId(userId: string): string {
   return `cmp_personal_${userId}`;
 }
 
+/**
+ * Team workspaces this user owns. The personal workspace is excluded — it is provisioned
+ * automatically and is not something the plan's allowance is spent on.
+ */
+export async function countOwnedWorkspacesPostgres(userId: string): Promise<number> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT COUNT(*)::int AS n FROM companies WHERE owner_user_id = $1 AND is_personal = FALSE`,
+      [userId]
+    );
+    return result.rows[0]?.n ?? 0;
+  } catch (error) {
+    console.error('Error counting owned workspaces:', error);
+
+    /*
+     * Fail closed. A miscount that reads low would let someone exceed their plan; refusing to
+     * create is recoverable, silently over-provisioning is not.
+     */
+    return Number.MAX_SAFE_INTEGER;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Every tier this user is paying for, across each workspace they own plus their personal one.
+ *
+ * Returned as a list rather than one tier because the subscription model is per-workspace today
+ * (`subscriptions.company_id` is UNIQUE), so an account's entitlement is the best of what they
+ * hold rather than a single row. Callers take the maximum of whatever they care about.
+ */
+export async function getTierIdsForOwnerPostgres(userId: string): Promise<string[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT DISTINCT s.tier_id
+         FROM subscriptions s
+         JOIN companies c ON c.id = s.company_id
+        WHERE (c.owner_user_id = $1 OR c.id = $2)
+          AND s.status <> 'canceled'`,
+      [userId, personalCompanyId(userId)]
+    );
+    return result.rows.map((r: any) => r.tier_id).filter(Boolean);
+  } catch (error) {
+    console.error('Error reading tiers for owner:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
 /** Ensure the user's personal workspace (companies row + owner membership) exists. Idempotent. */
 async function ensurePersonalCompanyWithClient(client: PoolClient, userId: string): Promise<string> {
   const companyId = personalCompanyId(userId);

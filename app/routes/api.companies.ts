@@ -1,14 +1,19 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
 import { isWorkspaceOwner } from '~/lib/workspace-roles';
+import { getWorkspaceAllowance } from '~/lib/workspace-entitlements.server';
 import { createCompany, getCompanyBySlug, getCompanyMember, getUserCompanies, updateCompany } from '~/lib/database';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   try {
     const user = await requireAuth(request, context);
-    const companies = await getUserCompanies(user.id);
+    const [companies, allowance] = await Promise.all([getUserCompanies(user.id), getWorkspaceAllowance(user.id)]);
 
-    return json({ companies });
+    /*
+     * The allowance rides along because the workspace switcher already calls this on every page
+     * mount — a separate endpoint would double that traffic to answer three integers.
+     */
+    return json({ companies, allowance });
   } catch (error) {
     console.error('Error loading companies:', error);
     return json({ error: 'Failed to load companies' }, { status: 500 });
@@ -33,6 +38,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
       if (!/^[a-z0-9-]+$/.test(slug)) {
         return json({ error: 'Slug must be lowercase letters, numbers, and hyphens only' }, { status: 400 });
+      }
+
+      // Same entitlement gate as company.new.tsx — this route is open to any authenticated caller.
+      const allowance = await getWorkspaceAllowance(user.id);
+
+      if (!allowance.canCreate) {
+        return json(
+          {
+            error:
+              allowance.max === 0
+                ? 'Creating workspaces requires an enterprise plan.'
+                : `Your plan allows ${allowance.max} workspaces and you already have ${allowance.owned}.`,
+            code: 'upgrade_required',
+          },
+          { status: 402 }
+        );
       }
 
       const existing = await getCompanyBySlug(slug);

@@ -12,6 +12,8 @@ import {
 } from '~/lib/billing/stripe.server';
 import { getStripeCustomerIdForCompany, setStripeCustomerIdForCompany } from '~/lib/billing/billing-db.server';
 import { getActiveCompanyId } from '~/lib/workspace.server';
+import { getCompanyMember } from '~/lib/database';
+import { isWorkspaceOwner } from '~/lib/workspace-roles';
 
 const logger = createScopedLogger('api.billing.checkout');
 
@@ -45,8 +47,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
   }
 
   try {
-    // The workspace being billed (explicit, else the active workspace).
+    /*
+     * The workspace being billed (explicit, else the active workspace).
+     *
+     * An explicit companyId has to be checked: getActiveCompanyId verifies membership, but a value
+     * from the request body arrives unverified, and it decides which workspace gets a Stripe
+     * customer persisted against it and which one the resulting plan lands on.
+     */
     const companyId = body.companyId || (await getActiveCompanyId(request, user));
+
+    if (body.companyId) {
+      const member = await getCompanyMember(companyId, user.id);
+
+      if (!isWorkspaceOwner(member?.role)) {
+        return json({ error: 'You cannot buy a plan for a workspace you do not own.' }, { status: 403 });
+      }
+    }
 
     // Reuse the workspace's Stripe customer or create one and persist it.
     let customerId = await getStripeCustomerIdForCompany(companyId);

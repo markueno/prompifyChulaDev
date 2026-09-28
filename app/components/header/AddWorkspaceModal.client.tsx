@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogButton, DialogDescription, DialogRoot, DialogTitle } from '~/components/ui/Dialog';
 import { classNames } from '~/utils/classNames';
 
@@ -11,6 +11,29 @@ export function AddWorkspaceModal({ open, onClose }: AddWorkspaceModalProps) {
   const [joinCode, setJoinCode] = useState('');
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [allowance, setAllowance] = useState<{ max: number; owned: number; canCreate: boolean } | null>(null);
+
+  // Fetched when the modal opens rather than on mount, so a closed modal costs nothing.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let cancelled = false;
+
+    fetch('/api/companies')
+      .then(r => (r.ok ? (r.json() as Promise<{ allowance?: typeof allowance }>) : { allowance: null }))
+      .then(d => {
+        if (!cancelled) {
+          setAllowance(d.allowance ?? null);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const handleJoin = async () => {
     const code = joinCode.trim().toUpperCase();
@@ -94,31 +117,43 @@ export function AddWorkspaceModal({ open, onClose }: AddWorkspaceModalProps) {
             <div className="h-px flex-1 bg-bolt-elements-borderColor" />
           </div>
 
-          {/* Create new team */}
-          <a
-            href="/company/new"
-            className="flex items-center justify-between rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-4 py-3 transition-colors hover:border-[#f97316]"
-          >
-            <div>
-              <p className="text-sm font-medium text-bolt-elements-textPrimary">Create a new team</p>
-              <p className="text-xs text-bolt-elements-textSecondary">
-                Set up a shared workspace for your organization.
-              </p>
-            </div>
-            <span className="i-ph:arrow-right text-base text-bolt-elements-textSecondary" />
-          </a>
-
-          {/* Upgrade */}
-          <a
-            href="/app/pricing"
-            className="flex items-center justify-between rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-4 py-3 transition-colors hover:border-[#f97316]"
-          >
-            <div>
-              <p className="text-sm font-medium text-bolt-elements-textPrimary">Need more seats?</p>
-              <p className="text-xs text-bolt-elements-textSecondary">Upgrade your plan to add more team members.</p>
-            </div>
-            <span className="i-ph:arrow-right text-base text-bolt-elements-textSecondary" />
-          </a>
+          {/*
+           * Creating is enterprise-only, so an account that can't do it is told here rather than
+           * after filling in a form. The server refuses either way; this only saves the walk.
+           * While the allowance is still loading, show the link — a flash of "upgrade" for
+           * someone entitled to create is the worse mistake.
+           */}
+          {allowance && !allowance.canCreate ? (
+            <a
+              href="/app/pricing"
+              className="flex items-center justify-between rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-4 py-3 transition-colors hover:border-[#f97316]"
+            >
+              <div>
+                <p className="text-sm font-medium text-bolt-elements-textPrimary">
+                  {allowance.max === 0 ? 'Creating a workspace needs an enterprise plan' : 'Workspace limit reached'}
+                </p>
+                <p className="text-xs text-bolt-elements-textSecondary">
+                  {allowance.max === 0
+                    ? 'You can still join someone else’s workspace with an invite or a code.'
+                    : `Your plan allows ${allowance.max}; you have ${allowance.owned}.`}
+                </p>
+              </div>
+              <span className="i-ph:arrow-right text-base text-bolt-elements-textSecondary" />
+            </a>
+          ) : (
+            <a
+              href="/company/new"
+              className="flex items-center justify-between rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-4 py-3 transition-colors hover:border-[#f97316]"
+            >
+              <div>
+                <p className="text-sm font-medium text-bolt-elements-textPrimary">Create a new team</p>
+                <p className="text-xs text-bolt-elements-textSecondary">
+                  Set up a shared workspace for your organization.
+                </p>
+              </div>
+              <span className="i-ph:arrow-right text-base text-bolt-elements-textSecondary" />
+            </a>
+          )}
         </div>
 
         <div className="mt-6 flex justify-end">

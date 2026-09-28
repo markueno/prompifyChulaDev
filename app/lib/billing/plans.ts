@@ -43,6 +43,11 @@ export interface Plan {
    * and the admin member-add API) refuse once the member count reaches it.
    */
   seats: number;
+  /**
+   * Team workspaces this plan may own, beyond the owner's personal one. Zero means the account
+   * cannot create workspaces at all — it can still be invited into someone else's.
+   */
+  maxWorkspaces: number;
   /** Pricing-page grouping. The trial has none — it is never shown as a card. */
   segment?: PlanSegment;
   popular?: boolean;
@@ -81,6 +86,7 @@ export const PLANS: Plan[] = [
     priceAnnualPerMonthCents: 0,
     tokens: 150_000,
     seats: 1,
+    maxWorkspaces: 0,
     features: [`${TRIAL_PROMPT_LIMIT} prompts to try it out`, 'No card required'],
   },
   {
@@ -93,6 +99,7 @@ export const PLANS: Plan[] = [
     priceAnnualPerMonthCents: 600,
     tokens: 1_000_000,
     seats: 1,
+    maxWorkspaces: 0,
     popular: true,
     features: ['1M tokens / month', 'Solo hobby projects', 'Email support'],
     stripePriceEnvMonthly: 'STRIPE_PRICE_BUILDER_MONTHLY',
@@ -108,6 +115,7 @@ export const PLANS: Plan[] = [
     priceAnnualPerMonthCents: 1600,
     tokens: 2_500_000,
     seats: 1,
+    maxWorkspaces: 0,
     features: ['2.5M tokens / month', 'For active solo builders', 'Priority email support'],
     stripePriceEnvMonthly: 'STRIPE_PRICE_INNOVATOR_MONTHLY',
     stripePriceEnvAnnual: 'STRIPE_PRICE_INNOVATOR_ANNUAL',
@@ -126,6 +134,7 @@ export const PLANS: Plan[] = [
     priceAnnualPerMonthCents: 10500,
     tokens: 18_000_000,
     seats: 5,
+    maxWorkspaces: 0,
     features: ['Shared token pool', 'Up to 5 seats', 'For small teams', 'Priority email support'],
     stripePriceEnvMonthly: 'STRIPE_PRICE_TEAM_MONTHLY',
     stripePriceEnvAnnual: 'STRIPE_PRICE_TEAM_ANNUAL',
@@ -140,7 +149,8 @@ export const PLANS: Plan[] = [
     priceAnnualPerMonthCents: 29000,
     tokens: 50_000_000,
     seats: 10,
-    features: ['Shared token pool', 'Up to 10 seats', 'For growing teams', 'Priority support'],
+    maxWorkspaces: 3,
+    features: ['Shared token pool', 'Up to 10 seats', 'Up to 3 workspaces', 'For growing teams', 'Priority support'],
     stripePriceEnvMonthly: 'STRIPE_PRICE_BUSINESS_MONTHLY',
     stripePriceEnvAnnual: 'STRIPE_PRICE_BUSINESS_ANNUAL',
   },
@@ -154,7 +164,14 @@ export const PLANS: Plan[] = [
     priceAnnualPerMonthCents: 62500,
     tokens: 120_000_000,
     seats: 20,
-    features: ['Shared token pool', 'Up to 20 seats', 'For large teams', 'Priority support + onboarding'],
+    maxWorkspaces: 8,
+    features: [
+      'Shared token pool',
+      'Up to 20 seats',
+      'Up to 8 workspaces',
+      'For large teams',
+      'Priority support + onboarding',
+    ],
     stripePriceEnvMonthly: 'STRIPE_PRICE_SCALE_MONTHLY',
     stripePriceEnvAnnual: 'STRIPE_PRICE_SCALE_ANNUAL',
   },
