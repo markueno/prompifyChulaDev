@@ -42,8 +42,60 @@ const FIELD_CLASS =
 
 const LABEL_CLASS = 'block text-sm font-medium text-[#231710] dark:text-[#f0e4d5] mb-1.5';
 
+/*
+ * Frosted panels rather than tinted ones.
+ *
+ * These sections used to be bg-[#f0e4d5]/50 on a bg-[#f0e4d5] page — the page's own colour at half
+ * strength over itself, which composites to very nearly the page again. With a border at /40 on
+ * top of that, the whole page read as one flat beige sheet with a hairline on it, and nothing
+ * looked divided from anything.
+ *
+ * A near-white translucent surface over the beige separates by LIGHTNESS, which survives at a
+ * glance where a hue shift of a few percent does not, and the blur gives it the frosted look the
+ * project list has. The border carries the brand orange properly instead of hinting at it.
+ */
 const SECTION_CLASS =
-  'rounded-xl border border-[#fed7aa]/40 dark:border-[#423322] bg-[#f0e4d5]/50 dark:bg-[#2d2014]/50 p-6';
+  'overflow-hidden rounded-2xl border border-[#f97316]/25 dark:border-[#f97316]/20 ' +
+  'bg-white/60 dark:bg-[#2d2014]/60 backdrop-blur-xl ' +
+  'shadow-[0_2px_16px_rgba(35,23,16,0.07)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.35)]';
+
+/** The header strip. Its rule is what actually divides a section's title from its controls. */
+const SECTION_HEADER_CLASS =
+  'flex items-start gap-3 border-b border-[#f97316]/15 dark:border-[#f97316]/15 ' +
+  'bg-white/40 dark:bg-white/5 px-6 py-4';
+
+const SECTION_BODY_CLASS = 'p-6';
+
+/**
+ * One settings block: an icon, a title, a line of explanation, then its controls below a rule.
+ *
+ * Extracted because all three sections repeated the same markup with slightly different spacing,
+ * which is how they drifted apart in the first place.
+ */
+function SettingsSection({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: string;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={SECTION_CLASS}>
+      <header className={SECTION_HEADER_CLASS}>
+        <span className={`${icon} mt-0.5 shrink-0 text-xl text-[#f97316]`} aria-hidden="true" />
+        <div>
+          <h2 className="text-base font-semibold leading-tight">{title}</h2>
+          <p className="mt-1 text-sm text-[#231710]/60 dark:text-[#c4b19a]">{description}</p>
+        </div>
+      </header>
+      <div className={SECTION_BODY_CLASS}>{children}</div>
+    </section>
+  );
+}
 
 export default function SettingsPage() {
   const { user, planName, billingInterval, subscriptionStatus, hasStripeCustomer } = useLoaderData<typeof loader>();
@@ -104,8 +156,18 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0e4d5] dark:bg-[#1a120a] text-[#231710] dark:text-[#f0e4d5]">
-      <div className="mx-auto max-w-3xl px-6 py-12">
+    <div className="relative min-h-screen overflow-hidden bg-[#f0e4d5] dark:bg-[#1a120a] text-[#231710] dark:text-[#f0e4d5]">
+      {/*
+       * Two soft washes of brand colour behind the panels. Frosted glass only reads as frosted
+       * when there is something behind it to blur — over a perfectly flat fill the backdrop-blur
+       * has no effect at all and the panels just look like paler rectangles.
+       */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-[#f97316]/10 blur-3xl dark:bg-[#f97316]/10" />
+        <div className="absolute -right-24 top-1/3 h-80 w-80 rounded-full bg-[#fed7aa]/40 blur-3xl dark:bg-[#f97316]/5" />
+      </div>
+
+      <div className="relative mx-auto max-w-3xl px-6 py-12">
         {/*
          * This page renders without the app chrome — no Header, no sidebar — so without this there
          * is no way back except the browser's own button.
@@ -125,135 +187,131 @@ export default function SettingsPage() {
           </Link>
         </div>
 
-        {/* ── Account ─────────────────────────────────────────────── */}
-        <section className={`${SECTION_CLASS} mb-6`}>
-          <h2 className="text-lg font-semibold mb-1">Account</h2>
-          <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a] mb-4">
-            Update your password. You'll need your current password to confirm.
-          </p>
-
-          <div className="mb-4">
-            <label className={LABEL_CLASS}>Email</label>
-            <input
-              type="email"
-              value={user?.email ?? ''}
-              readOnly
-              className={`${FIELD_CLASS} opacity-60 cursor-not-allowed`}
-            />
-          </div>
-
-          <form onSubmit={handlePasswordSubmit} className="space-y-4">
-            <div>
-              <label className={LABEL_CLASS}>Current password</label>
+        <div className="space-y-6">
+          <SettingsSection
+            icon="i-ph:user-circle"
+            title="Account"
+            description="Update your password. You'll need your current password to confirm."
+          >
+            <div className="mb-4">
+              <label className={LABEL_CLASS}>Email</label>
               <input
-                type="password"
-                value={currentPassword}
-                onChange={e => setCurrentPassword(e.target.value)}
-                required
-                className={FIELD_CLASS}
-                autoComplete="current-password"
-              />
-            </div>
-            <div>
-              <label className={LABEL_CLASS}>New password</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                required
-                minLength={8}
-                className={FIELD_CLASS}
-                autoComplete="new-password"
-              />
-            </div>
-            <div>
-              <label className={LABEL_CLASS}>Confirm new password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                required
-                minLength={8}
-                className={FIELD_CLASS}
-                autoComplete="new-password"
+                type="email"
+                value={user?.email ?? ''}
+                readOnly
+                className={`${FIELD_CLASS} opacity-60 cursor-not-allowed`}
               />
             </div>
 
-            {passwordError && <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>}
-            {passwordSuccess && (
-              <p className="text-sm text-green-600 dark:text-green-400">Password updated successfully.</p>
-            )}
+            <form onSubmit={handlePasswordSubmit} className="space-y-4">
+              <div>
+                <label className={LABEL_CLASS}>Current password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={e => setCurrentPassword(e.target.value)}
+                  required
+                  className={FIELD_CLASS}
+                  autoComplete="current-password"
+                />
+              </div>
+              <div>
+                <label className={LABEL_CLASS}>New password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  className={FIELD_CLASS}
+                  autoComplete="new-password"
+                />
+              </div>
+              <div>
+                <label className={LABEL_CLASS}>Confirm new password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  className={FIELD_CLASS}
+                  autoComplete="new-password"
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={passwordBusy}
-              className="rounded-lg bg-[#f97316] px-4 py-2 text-sm font-semibold text-white hover:bg-[#ea580c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {passwordBusy ? 'Updating…' : 'Update password'}
-            </button>
-          </form>
-        </section>
-
-        {/* ── Billing ─────────────────────────────────────────────── */}
-        <section className={`${SECTION_CLASS} mb-6`}>
-          <h2 className="text-lg font-semibold mb-1">Billing</h2>
-          <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a] mb-4">
-            Manage your subscription, payment method, and invoices via Stripe.
-          </p>
-
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <div>
-              <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a]">Current plan</p>
-              <p className="text-lg font-semibold">
-                {planName}
-                {billingInterval && (
-                  <span className="ml-2 text-sm font-normal text-[#231710]/60 dark:text-[#c4b19a]">
-                    ({billingInterval === 'year' ? 'Annual' : 'Monthly'})
-                  </span>
-                )}
-              </p>
-              {subscriptionStatus && subscriptionStatus !== 'active' && (
-                <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">Status: {subscriptionStatus}</p>
+              {passwordError && <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>}
+              {passwordSuccess && (
+                <p className="text-sm text-green-600 dark:text-green-400">Password updated successfully.</p>
               )}
-            </div>
-          </div>
 
-          <div className="flex gap-3">
-            {hasStripeCustomer && (
               <button
-                type="button"
-                onClick={handleManageBilling}
-                className="rounded-lg border border-[#fed7aa]/60 dark:border-[#423322] bg-white dark:bg-[#221a10] px-4 py-2 text-sm font-medium text-[#231710] dark:text-[#f0e4d5] hover:border-[#f97316] transition-colors"
+                type="submit"
+                disabled={passwordBusy}
+                className="rounded-lg bg-[#f97316] px-4 py-2 text-sm font-semibold text-white hover:bg-[#ea580c] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Manage billing
+                {passwordBusy ? 'Updating…' : 'Update password'}
               </button>
-            )}
-            <a
-              href="/app/pricing"
-              className="rounded-lg bg-[#f97316] px-4 py-2 text-sm font-semibold text-white hover:bg-[#ea580c] transition-colors"
-            >
-              Change plan
-            </a>
-          </div>
-        </section>
+            </form>
+          </SettingsSection>
 
-        {/*
-         * Workspace administration deliberately is not here. It lives at /app/workspace, reached
-         * from the workspace switcher — this page is about your account, not about running a team.
-         */}
+          <SettingsSection
+            icon="i-ph:credit-card"
+            title="Billing"
+            description="Manage your subscription, payment method, and invoices via Stripe."
+          >
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a]">Current plan</p>
+                <p className="text-lg font-semibold">
+                  {planName}
+                  {billingInterval && (
+                    <span className="ml-2 text-sm font-normal text-[#231710]/60 dark:text-[#c4b19a]">
+                      ({billingInterval === 'year' ? 'Annual' : 'Monthly'})
+                    </span>
+                  )}
+                </p>
+                {subscriptionStatus && subscriptionStatus !== 'active' && (
+                  <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">Status: {subscriptionStatus}</p>
+                )}
+              </div>
+            </div>
 
-        {/* ── Integrations ────────────────────────────────────────── */}
-        <section className={SECTION_CLASS}>
-          <h2 className="text-lg font-semibold mb-1">Integrations</h2>
-          <p className="text-sm text-[#231710]/60 dark:text-[#c4b19a] mb-4">
-            Connect your GitHub and Netlify accounts to deploy your apps directly.
-          </p>
+            <div className="flex gap-3">
+              {hasStripeCustomer && (
+                <button
+                  type="button"
+                  onClick={handleManageBilling}
+                  className="rounded-lg border border-[#fed7aa]/60 dark:border-[#423322] bg-white dark:bg-[#221a10] px-4 py-2 text-sm font-medium text-[#231710] dark:text-[#f0e4d5] hover:border-[#f97316] transition-colors"
+                >
+                  Manage billing
+                </button>
+              )}
+              <a
+                href="/app/pricing"
+                className="rounded-lg bg-[#f97316] px-4 py-2 text-sm font-semibold text-white hover:bg-[#ea580c] transition-colors"
+              >
+                Change plan
+              </a>
+            </div>
+          </SettingsSection>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <GithubConnection />
-            <NetlifyConnection />
-          </div>
-        </section>
+          {/*
+           * Workspace administration deliberately is not here. It lives at /app/workspace, reached
+           * from the workspace switcher — this page is about your account, not about running a team.
+           */}
+
+          <SettingsSection
+            icon="i-ph:plugs-connected"
+            title="Integrations"
+            description="Connect your GitHub and Netlify accounts to deploy your apps directly."
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <GithubConnection />
+              <NetlifyConnection />
+            </div>
+          </SettingsSection>
+        </div>
       </div>
     </div>
   );
