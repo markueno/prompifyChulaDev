@@ -126,6 +126,34 @@ CREATE TABLE IF NOT EXISTS company_members (
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 CREATE INDEX IF NOT EXISTS idx_companies_deleted_at ON companies(deleted_at);
 
+/*
+ * A spending ceiling for one workspace, in tokens per billing period. NULL means uncapped, which
+ * is the default and what every existing workspace keeps.
+ *
+ * Tokens are pooled per OWNER, not per workspace (see resolvePoolCompanyId): everything one
+ * person owns draws from the single balance attached to their personal workspace. That is the
+ * right default — a team should not be blocked while the plan still has tokens — but it leaves no
+ * way to stop one workspace consuming the whole month's allowance before the others start. The cap
+ * divides the shared pool without splitting it: unspent room stays available to everyone else.
+ *
+ * Measured against token_usage.company_id for the period, so it is the workspace's own spend that
+ * counts regardless of which member did it, and it resets with the billing period rather than on a
+ * separate clock of its own.
+ */
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS token_cap INTEGER;
+-- ADD CONSTRAINT has no IF NOT EXISTS and this file re-runs on every boot, so it needs the guard.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_companies_token_cap_positive') THEN
+        ALTER TABLE companies ADD CONSTRAINT chk_companies_token_cap_positive
+            CHECK (token_cap IS NULL OR token_cap > 0);
+    END IF;
+END $$;
+
+-- The cap query sums a workspace's usage for the current period; without this it is a full scan of
+-- token_usage on every prompt.
+CREATE INDEX IF NOT EXISTS idx_token_usage_company_created ON token_usage(company_id, created_at);
+
 -- Roles are owner / admin / editor / viewer.
 --
 -- 'admin' USED to mean what 'owner' means now, and a one-off UPDATE migrated those rows during the

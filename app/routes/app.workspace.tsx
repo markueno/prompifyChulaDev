@@ -26,6 +26,7 @@ import {
   getCompanyDailyUsage,
   getCompanyProjectUsage,
   getTokenBalanceRemainingForCompany,
+  getWorkspaceTokenCap,
 } from '~/lib/database';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import { canManageMembers, consumesSeat, isWorkspaceOwner } from '~/lib/workspace-roles';
@@ -49,7 +50,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     return redirect('/app/overview');
   }
 
-  const [members, seats, companies, invitations, daily, projects, remaining] = await Promise.all([
+  const [members, seats, companies, invitations, daily, projects, remaining, tokenCap] = await Promise.all([
     getCompanyMemberUsage(companyId, USAGE_WINDOW_DAYS),
     getCompanySeats(companyId),
     getUserCompanies(user.id),
@@ -57,6 +58,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     getCompanyDailyUsage(companyId, USAGE_WINDOW_DAYS),
     getCompanyProjectUsage(companyId, USAGE_WINDOW_DAYS),
     getTokenBalanceRemainingForCompany(companyId, user.id),
+    getWorkspaceTokenCap(companyId, user.id),
   ]);
 
   const active = companies.find((c: any) => c.id === companyId);
@@ -73,6 +75,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     daily,
     projects,
     remaining,
+    tokenCap,
     windowDays: USAGE_WINDOW_DAYS,
   });
 }
@@ -190,27 +193,163 @@ function OverviewTab({
   );
 }
 
+/**
+ * The cap control. Owner-only to change, but the figure is shown to admins too — an admin who can
+ * see that the workspace is near its ceiling can ask for more, which is better than discovering it
+ * when a prompt is refused.
+ */
+function TokenCapCard({
+  companyId,
+  cap,
+  used,
+  canEdit,
+}: {
+  companyId: string;
+  cap: number | null;
+  used: number;
+  canEdit: boolean;
+}) {
+  const revalidator = useRevalidator();
+  const [draft, setDraft] = useState(cap === null ? '' : String(cap));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    const trimmed = draft.trim();
+
+    // An empty box means "no limit", which is how the cap is removed.
+    const next = trimmed === '' ? null : Number(trimmed);
+
+    if (next !== null && (!Number.isInteger(next) || next <= 0)) {
+      setError('Enter a whole number above zero, or leave it empty for no limit.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/companies', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, tokenCap: next }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || 'Could not save the limit');
+      }
+
+      revalidator.revalidate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save the limit');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const pct = cap && cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
+
+  return (
+    <section className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-5">
+      <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">Token limit</h2>
+      <p className="mt-1 text-xs text-bolt-elements-textSecondary">
+        Tokens are pooled across every workspace you own. A limit reserves the rest of the pool for your other
+        workspaces — it does not buy more. Leave it empty for no limit.
+      </p>
+
+      {cap !== null && (
+        <div className="mt-4">
+          <div className="flex items-baseline justify-between text-xs text-bolt-elements-textSecondary">
+            <span>
+              {used.toLocaleString()} of {cap.toLocaleString()} used this period
+            </span>
+            <span>{pct}%</span>
+          </div>
+          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-bolt-elements-background-depth-3">
+            <div
+              className={classNames('h-full rounded-full', pct >= 100 ? 'bg-red-500' : 'bg-orange-500')}
+              style={{ width: `${Math.max(pct, 2)}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {canEdit ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            placeholder="No limit"
+            aria-label="Token limit for this workspace"
+            className="w-40 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary focus:outline-none focus:ring-1 focus:ring-orange-500"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save limit'}
+          </button>
+          {error && <span className="text-xs text-red-500">{error}</span>}
+        </div>
+      ) : (
+        <p className="mt-4 text-xs text-bolt-elements-textSecondary">
+          {cap === null ? 'No limit set.' : 'Only the workspace owner can change this.'}
+        </p>
+      )}
+    </section>
+  );
+}
+
 function TokensTab({
+  companyId,
   daily,
   projects,
   remaining,
+  tokenCap,
+  isOwner,
   windowDays,
 }: {
+  companyId: string;
   daily: { day: string; tokens: number }[];
   projects: { chatId: string; name: string; urlId: string | null; projectId: string | null; tokens: number }[];
   remaining: number;
+  tokenCap: { cap: number | null; used: number; periodStart: string | null };
+  isOwner: boolean;
   windowDays: number;
 }) {
   const maxDay = daily.reduce((m, d) => Math.max(m, d.tokens), 0);
   const maxProject = projects.reduce((m, p) => Math.max(m, p.tokens), 0);
   const spent = daily.reduce((sum, d) => sum + d.tokens, 0);
 
+  /*
+   * What this workspace can still spend: the smaller of the shared pool and what its own cap
+   * leaves. Showing the pool alone would promise tokens a capped workspace cannot actually use.
+   */
+  const capRoom = tokenCap.cap === null ? null : Math.max(0, tokenCap.cap - tokenCap.used);
+  const available = capRoom === null ? remaining : Math.min(remaining, capRoom);
+
   return (
     <div className="space-y-8">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Stat label="Remaining" value={remaining.toLocaleString()} hint="Drawn from the owner's pool" />
+        <Stat
+          label="Available"
+          value={available.toLocaleString()}
+          hint={
+            capRoom !== null && capRoom < remaining
+              ? "Limited by this workspace's limit"
+              : "Drawn from the owner's pool"
+          }
+        />
         <Stat label={`Spent (${windowDays}d)`} value={spent.toLocaleString()} hint="This workspace only" />
       </div>
+
+      <TokenCapCard companyId={companyId} cap={tokenCap.cap} used={tokenCap.used} canEdit={isOwner} />
 
       <section className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-5">
         <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">Spend per day</h2>
@@ -258,8 +397,20 @@ function TokensTab({
 }
 
 export default function WorkspacePage() {
-  const { companyId, companyName, members, seats, invitations, daily, projects, remaining, windowDays, user } =
-    useLoaderData<typeof loader>();
+  const {
+    companyId,
+    companyName,
+    members,
+    seats,
+    invitations,
+    daily,
+    projects,
+    remaining,
+    tokenCap,
+    isOwner,
+    windowDays,
+    user,
+  } = useLoaderData<typeof loader>();
   const [searchParams] = useSearchParams();
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState<string | null>(null);
@@ -414,7 +565,15 @@ export default function WorkspacePage() {
           ) : null}
 
           {tab === 'tokens' ? (
-            <TokensTab daily={daily} projects={projects} remaining={remaining} windowDays={windowDays} />
+            <TokensTab
+              companyId={companyId}
+              daily={daily}
+              projects={projects}
+              remaining={remaining}
+              tokenCap={tokenCap}
+              isOwner={isOwner}
+              windowDays={windowDays}
+            />
           ) : null}
 
           <section

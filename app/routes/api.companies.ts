@@ -9,6 +9,7 @@ import {
   getCompanyBySlug,
   getCompanyMember,
   getUserCompanies,
+  setWorkspaceTokenCap,
   updateCompany,
 } from '~/lib/database';
 
@@ -80,10 +81,12 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     if (method === 'PATCH') {
-      const { companyId, name, githubOrg } = (await request.json()) as {
+      const { companyId, name, githubOrg, tokenCap } = (await request.json()) as {
         companyId: string;
         name?: string;
         githubOrg?: string;
+        /** Omit to leave the cap alone; null clears it; a positive number sets it. */
+        tokenCap?: number | null;
       };
 
       if (!companyId) {
@@ -106,7 +109,30 @@ export async function action({ request, context }: ActionFunctionArgs) {
        * — entitlements come from the subscription tier and companies.seats, both set by the Stripe
        * webhook — so letting a request set it only ever misrepresented the workspace.
        */
-      const success = await updateCompany(companyId, { name, github_org: githubOrg });
+      let success = true;
+
+      if (name !== undefined || githubOrg !== undefined) {
+        success = await updateCompany(companyId, { name, github_org: githubOrg });
+      }
+
+      /*
+       * `undefined` means "not part of this request" and null means "remove the cap", so the two
+       * cannot be collapsed — a plain falsy check would silently clear the cap on every rename.
+       */
+      if (tokenCap !== undefined) {
+        if (tokenCap !== null && (!Number.isInteger(tokenCap) || tokenCap <= 0)) {
+          return json(
+            { error: 'Token limit must be a whole number above zero, or empty for no limit' },
+            { status: 400 }
+          );
+        }
+
+        const capSet = await setWorkspaceTokenCap(companyId, tokenCap);
+
+        if (!capSet) {
+          return json({ error: 'Could not set the token limit for this workspace' }, { status: 400 });
+        }
+      }
 
       return json({ success });
     }

@@ -31,6 +31,8 @@ import {
   deleteChatPostgres,
   renameChatPostgres,
   duplicateChatPostgres,
+  getWorkspaceTokenCapPostgres,
+  setWorkspaceTokenCapPostgres,
   insertPromptPostgres,
   getPromptsByChatIdPostgres,
   logUserActivityPostgres,
@@ -656,6 +658,40 @@ export async function deleteChat(chatId: string, userId: string) {
     }
   } catch (error) {
     console.error('Error deleting chat:', error);
+    return false;
+  }
+}
+
+/**
+ * A workspace's per-period token ceiling and what it has spent against it.
+ *
+ * Fails open (cap: null) on any error, including a non-Postgres deployment: a cap is a budgeting
+ * preference, not a security boundary, and the pool balance check is the real limit.
+ */
+export async function getWorkspaceTokenCap(companyId: string, userId: string) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return getWorkspaceTokenCapPostgres(companyId, userId);
+    }
+
+    return { cap: null, used: 0, periodStart: null };
+  } catch (error) {
+    console.error('Error reading workspace token cap:', error);
+    return { cap: null, used: 0, periodStart: null };
+  }
+}
+
+export async function setWorkspaceTokenCap(companyId: string, cap: number | null) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return setWorkspaceTokenCapPostgres(companyId, cap);
+    }
+
+    console.warn('Workspace token caps not implemented for SQLite');
+
+    return false;
+  } catch (error) {
+    console.error('Error setting workspace token cap:', error);
     return false;
   }
 }

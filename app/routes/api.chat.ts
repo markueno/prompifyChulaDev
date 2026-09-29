@@ -16,6 +16,7 @@ import {
   saveChat,
   insertTokenUsageAndConsume,
   getTokenBalanceRemainingForCompany,
+  getWorkspaceTokenCap,
   getCompanyIdForChat,
   getCompanyMember,
   getUserStatus,
@@ -178,6 +179,30 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
                 'This workspace has run out of tokens for the billing period. Upgrade the plan to keep building.',
               code: 'token_balance_exhausted',
               remaining,
+            },
+            { status: 402 }
+          );
+        }
+
+        /*
+         * The workspace's own ceiling, checked after the pool because the pool is the harder
+         * limit: if the plan is empty, saying "this workspace is capped" would point the owner at
+         * the wrong setting. A cap only ever refuses while tokens remain — that is the whole point
+         * of it, reserving what is left for the owner's other workspaces.
+         *
+         * Uncapped workspaces short-circuit on `cap === null`, which is the default and covers
+         * every personal workspace.
+         */
+        const { cap, used } = await getWorkspaceTokenCap(billingCompanyId, user.id);
+
+        if (cap !== null && used >= cap) {
+          return json(
+            {
+              message:
+                'This workspace has reached its token limit for the billing period. Its owner can raise the limit in workspace settings.',
+              code: 'workspace_cap_reached',
+              cap,
+              used,
             },
             { status: 402 }
           );

@@ -16,6 +16,7 @@ import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
 import { BuildingOverlay } from '~/components/ui/BuildingOverlay';
 import { TrialEndedDialog } from '~/components/chat/TrialEndedDialog';
+import { TokensExhaustedDialog, type TokensExhaustedReason } from '~/components/chat/TokensExhaustedDialog';
 import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
@@ -62,9 +63,10 @@ const RECOVERY_CANDIDATE_TIMEOUT_MS = 10_000;
 /**
  * Surface Remix JSON error bodies (e.g. 402 token balance) in the same toast format as other chat
  * errors. The `code` comes back alongside the text because some rejections are handled rather than
- * announced — `trial_exhausted` opens the upgrade dialog instead of a toast.
+ * announced — `trial_exhausted` and the two token limits open a dialog instead of a toast, and
+ * `cap`/`used` let that dialog quote the real figures.
  */
-function parseChatRequestError(error: unknown): { message: string; code?: string } {
+function parseChatRequestError(error: unknown): { message: string; code?: string; cap?: number; used?: number } {
   const fallback = 'No details were returned';
 
   if (error && typeof error === 'object' && 'message' in error) {
@@ -75,10 +77,10 @@ function parseChatRequestError(error: unknown): { message: string; code?: string
 
       if (trimmed.startsWith('{')) {
         try {
-          const data = JSON.parse(trimmed) as { message?: string; code?: string };
+          const data = JSON.parse(trimmed) as { message?: string; code?: string; cap?: number; used?: number };
 
           if (typeof data.message === 'string' && data.message.length > 0) {
-            return { message: data.message, code: data.code };
+            return { message: data.message, code: data.code, cap: data.cap, used: data.used };
           }
         } catch {
           /* use raw message */
@@ -482,6 +484,13 @@ export const ChatImpl = memo(
     const [chatStarted, setChatStarted] = useState(initialMessages.length > 0);
     /** Set when the chat API rejects a prompt with `trial_exhausted`; opens the upgrade dialog. */
     const [trialEnded, setTrialEnded] = useState(false);
+
+    /** Set when the chat API rejects a prompt for want of tokens; opens TokensExhaustedDialog. */
+    const [tokensExhausted, setTokensExhausted] = useState<{
+      reason: TokensExhaustedReason;
+      cap?: number;
+      used?: number;
+    } | null>(null);
     const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
     const [imageDataList, setImageDataList] = useState<string[]>([]);
     const [searchParams, setSearchParams] = useSearchParams();
@@ -558,7 +567,7 @@ export const ChatImpl = memo(
       onError: e => {
         logger.error('Request failed\n\n', e, error);
 
-        const { message: detail, code } = parseChatRequestError(e);
+        const { message: detail, code, cap, used } = parseChatRequestError(e);
         logStore.logError('Chat request failed', e, {
           component: 'Chat',
           action: 'request',
@@ -571,6 +580,21 @@ export const ChatImpl = memo(
          */
         if (code === 'trial_exhausted') {
           setTrialEnded(true);
+          return;
+        }
+
+        /*
+         * Same reasoning as the trial: running out of tokens is a state to resolve, and the two
+         * causes need different advice. A toast would scroll away and leave the person retyping the
+         * same prompt into a box that will keep refusing it.
+         */
+        if (code === 'workspace_cap_reached') {
+          setTokensExhausted({ reason: 'cap', cap, used });
+          return;
+        }
+
+        if (code === 'token_balance_exhausted') {
+          setTokensExhausted({ reason: 'pool' });
           return;
         }
 
@@ -1179,6 +1203,13 @@ export const ChatImpl = memo(
           data={chatData}
         />
         <TrialEndedDialog open={trialEnded} onClose={() => setTrialEnded(false)} />
+        <TokensExhaustedDialog
+          open={tokensExhausted !== null}
+          reason={tokensExhausted?.reason ?? 'pool'}
+          cap={tokensExhausted?.cap}
+          used={tokensExhausted?.used}
+          onClose={() => setTokensExhausted(null)}
+        />
       </>
     );
   }

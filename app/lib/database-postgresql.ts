@@ -1298,6 +1298,119 @@ export async function getCompanySeatsPostgres(companyId: string): Promise<number
   }
 }
 
+/**
+ * What a workspace has spent this period, and the ceiling it is spending against.
+ *
+ * `cap` is null when the workspace is uncapped, which is the default; `used` is still reported so
+ * the figure can be shown either way. See the `companies.token_cap` comment in schema.sql for why
+ * a cap exists at all when balances are pooled per owner.
+ */
+export interface WorkspaceTokenCap {
+  cap: number | null;
+  used: number;
+  /** Start of the period the cap is measured over, or null if the payer has no active balance. */
+  periodStart: string | null;
+}
+
+/*
+ * The cap resets with the billing period, and the period is whatever the PAYER's active balance
+ * rows cover — there is no separate clock. Taking the earliest active effective_start means a
+ * top-up bought mid-month does not silently restart everyone's cap window.
+ *
+ * Returns null when the payer has no active balance at all, in which case there is no period to
+ * measure and the caller should not apply the cap: the pool check ahead of it already refuses.
+ */
+async function currentPeriodStart(client: PoolClient, poolCompanyId: string, userId: string): Promise<string | null> {
+  const now = new Date().toISOString();
+  const result = await client.query(
+    `SELECT MIN(effective_start) AS period_start
+     FROM token_balances
+     WHERE (company_id = $1 OR (company_id IS NULL AND user_id = $2))
+       AND effective_start <= $3
+       AND (effective_end IS NULL OR effective_end >= $3)`,
+    [poolCompanyId, userId, now]
+  );
+
+  const start = result.rows[0]?.period_start;
+
+  return start ? new Date(start).toISOString() : null;
+}
+
+export async function getWorkspaceTokenCapPostgres(companyId: string, userId: string): Promise<WorkspaceTokenCap> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const capRow = await client.query('SELECT token_cap FROM companies WHERE id = $1', [companyId]);
+    const cap = capRow.rows[0]?.token_cap ?? null;
+
+    /*
+     * Stop here when there is no cap, which is the default and so the case on nearly every prompt.
+     * Everything below is only needed to measure spend AGAINST a cap, and this runs in the chat
+     * endpoint's pre-flight path where three needless round trips per prompt would be felt.
+     */
+    if (cap === null) {
+      return { cap: null, used: 0, periodStart: null };
+    }
+
+    const poolCompanyId = await resolvePoolCompanyId(client, companyId, userId);
+    const periodStart = await currentPeriodStart(client, poolCompanyId, userId);
+
+    if (!periodStart) {
+      return { cap, used: 0, periodStart: null };
+    }
+
+    /*
+     * Scoped by token_usage.company_id, so it is the workspace's own spend whoever made it — the
+     * point of the cap is to bound one workspace, not one person.
+     */
+    const usedRow = await client.query(
+      `SELECT COALESCE(SUM(total_tokens), 0)::bigint AS used
+       FROM token_usage
+       WHERE company_id = $1 AND created_at >= $2`,
+      [companyId, periodStart]
+    );
+
+    return { cap, used: parseInt(String(usedRow.rows[0]?.used ?? 0), 10), periodStart };
+  } catch (error) {
+    console.error('Error reading workspace token cap:', error);
+
+    /*
+     * Fail OPEN: a cap is a budgeting preference, not a security boundary, and reporting a
+     * database hiccup as "you have spent everything" would block paying customers. The pool
+     * balance check is the real limit and has its own handling.
+     */
+    return { cap: null, used: 0, periodStart: null };
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Set or clear a workspace's cap. `null` clears it. Personal workspaces are refused: they are the
+ * pool's own home, so capping one would mean capping the balance against itself.
+ */
+export async function setWorkspaceTokenCapPostgres(companyId: string, cap: number | null): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `UPDATE companies
+       SET token_cap = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND is_personal = FALSE AND deleted_at IS NULL`,
+      [companyId, cap]
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('Error setting workspace token cap:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
 /** Number of members in a workspace (for seat-limit enforcement). */
 /**
  * Members counted against the plan's seat allowance.
