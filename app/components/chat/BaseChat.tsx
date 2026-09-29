@@ -34,6 +34,7 @@ import type { ActionRunner } from '~/lib/runtime/action-runner';
 import { LOCAL_PROVIDERS } from '~/lib/stores/settings';
 import { PromptingMultipleChoice } from './PromptingMultipleChoice';
 import { useCircuitOpen } from '~/lib/hooks/useCircuitOpen';
+import { useProjectViewOnly } from '~/lib/hooks/useProjectViewOnly';
 
 const TEXTAREA_MIN_HEIGHT = 76;
 
@@ -135,6 +136,12 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
      * (ARCHITECTURE-v2.md:674-677).
      */
     const circuitOpen = useCircuitOpen();
+    /*
+     * True only on a project this person may look at but not change. Distinct from !canBuild,
+     * which is also true for a workspace viewer on pages that are not a project at all.
+     */
+    const viewOnlyProject = useProjectViewOnly();
+
     const [apiKeys, setApiKeys] = useState<Record<string, string>>(getApiKeysFromCookies());
     const [modelList, setModelList] = useState<ModelInfo[]>([]);
     const [isModelSettingsCollapsed, setIsModelSettingsCollapsed] = useState(true);
@@ -481,7 +488,17 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
         className={classNames(styles.BaseChat, 'relative flex h-full w-full overflow-hidden')}
         data-chat-visible={showChat}
       >
-        <ClientOnly>{() => <Menu />}</ClientOnly>
+        {/*
+         * The project sidebar is hidden from a viewer. It is their own workspace's history — their
+         * own projects, with rename and delete on every row — which is neither relevant while
+         * looking at somebody else's project nor something to hand them mid-visit. The header's
+         * navigation links remain, so this is not a trap.
+         *
+         * Keyed on the project route rather than on canBuild: canBuild is also false for a
+         * workspace viewer sitting on the landing page, and taking away their own project list
+         * there would be nothing to do with sharing.
+         */}
+        {viewOnlyProject ? null : <ClientOnly>{() => <Menu />}</ClientOnly>}
         {chatStarted && isAtBottom === false && onJumpToBottom && (
           <button
             type="button"
@@ -859,7 +876,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                  * The same role set by construction: canSeeProjectInternals and canBuildInProject
                  * are one predicate, so anyone refused the composer is also shown preview only.
                  */
-                previewOnly={!canBuild}
+                previewOnly={viewOnlyProject}
               />
             )}
           </ClientOnly>

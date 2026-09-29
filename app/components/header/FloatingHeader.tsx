@@ -10,6 +10,7 @@ import { ConnectionStatusBanner } from '~/components/chat/ConnectionStatusBanner
 import { ChatDescription } from '~/lib/persistence/ChatDescription.client';
 import { UserProfile } from '~/components/auth/UserProfile';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher.client';
+import { useProjectViewOnly } from '~/lib/hooks';
 
 /*
  * Hover-reveal top navbar. Mirrors the sidebar's hover pattern (Menu.client.tsx) but for the
@@ -28,6 +29,14 @@ const CLOSE_DELAY = 350; // ms grace before closing (lets you move into a dropdo
 export function FloatingHeader() {
   const chat = useStore(chatStore);
   const { user } = useLoaderData<{ user: any }>();
+
+  /*
+   * Someone who may only look at this project keeps the plain navigation and their own account
+   * menu, and loses everything that acts on the project or on a workspace: deploying, publishing,
+   * and the workspace switcher — which is misleading as well as useless, since a guest shared one
+   * project is not in that workspace at all.
+   */
+  const viewOnly = useProjectViewOnly();
   const location = useLocation();
   const onOverview = location.pathname.startsWith('/app/overview');
   const onPricing = location.pathname.startsWith('/app/pricing');
@@ -154,10 +163,10 @@ export function FloatingHeader() {
         {() => (
           <div className="header-app-toolbar mr-1 flex items-center gap-2">
             <ConnectionStatusBanner />
-            {started && <HeaderActionButtons />}
+            {started && !viewOnly && <HeaderActionButtons />}
             {user && (
               <>
-                <ClientOnly>{() => <WorkspaceSwitcher />}</ClientOnly>
+                {!viewOnly && <ClientOnly>{() => <WorkspaceSwitcher />}</ClientOnly>}
                 <NotificationBell />
                 <UserProfile user={user} />
               </>

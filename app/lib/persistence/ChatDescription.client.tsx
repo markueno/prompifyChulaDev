@@ -1,11 +1,12 @@
 import { useStore } from '@nanostores/react';
 import { TooltipProvider } from '@radix-ui/react-tooltip';
 import WithTooltip from '~/components/ui/Tooltip';
-import { useEditChatDescription } from '~/lib/hooks';
+import { useEditChatDescription, useProjectViewOnly } from '~/lib/hooks';
 import { description as descriptionStore } from '~/lib/persistence';
 
 export function ChatDescription() {
   const initialDescription = useStore(descriptionStore)!;
+  const viewOnly = useProjectViewOnly();
 
   const { editing, handleChange, handleBlur, handleSubmit, handleKeyDown, currentDescription, toggleEditMode } =
     useEditChatDescription({
@@ -16,6 +17,14 @@ export function ChatDescription() {
   if (!initialDescription) {
     // doing this to prevent showing edit button until chat description is set
     return null;
+  }
+
+  /*
+   * A viewer sees the name and no pencil. Renaming is refused server-side for them anyway, so
+   * offering the control would only produce an error after they had typed a new one.
+   */
+  if (viewOnly) {
+    return <div className="flex items-center justify-center">{currentDescription}</div>;
   }
 
   return (
