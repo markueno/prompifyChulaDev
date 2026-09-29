@@ -31,6 +31,7 @@ import {
   deleteChatPostgres,
   renameChatPostgres,
   duplicateChatPostgres,
+  type DuplicateChatResult,
   getWorkspaceTokenCapPostgres,
   setWorkspaceTokenCapPostgres,
   insertPromptPostgres,
@@ -710,17 +711,17 @@ export async function renameChat(chatId: string, userId: string, description: st
   }
 }
 
-export async function duplicateChat(chatId: string, userId: string) {
+export async function duplicateChat(chatId: string, userId: string): Promise<DuplicateChatResult> {
   try {
     if (DATABASE_TYPE === 'postgresql') {
       return duplicateChatPostgres(chatId, userId);
     } else {
       console.warn('Chat duplication not implemented for SQLite');
-      return null;
+      return { ok: false, reason: 'error' };
     }
   } catch (error) {
     console.error('Error duplicating chat:', error);
-    return null;
+    return { ok: false, reason: 'error' };
   }
 }
 

@@ -1932,8 +1932,14 @@ async function nextFreeUrlId(client: PoolClient, base: string): Promise<string> 
  * original, which the client cannot be trusted to assert.
  *
  * Returns the new chat's `url_id`, which is what the app navigates by.
+ *
+ * The result distinguishes "no such chat of yours" from "the copy failed", because collapsing the
+ * two into null reported a genuine database error to the user as `Chat not found` — which is a
+ * dead end to debug from, and is exactly what happened the first time this shipped.
  */
-export async function duplicateChatPostgres(chatId: string, userId: string): Promise<string | null> {
+export type DuplicateChatResult = { ok: true; urlId: string } | { ok: false; reason: 'not_found' | 'error' };
+
+export async function duplicateChatPostgres(chatId: string, userId: string): Promise<DuplicateChatResult> {
   const pool = getPostgresPool();
   const client = await pool.connect();
 
@@ -1948,7 +1954,7 @@ export async function duplicateChatPostgres(chatId: string, userId: string): Pro
     );
 
     if (source.rows.length === 0) {
-      return null;
+      return { ok: false, reason: 'not_found' };
     }
 
     const row = source.rows[0];
@@ -1956,12 +1962,26 @@ export async function duplicateChatPostgres(chatId: string, userId: string): Pro
     const newUrlId = await nextFreeUrlId(client, row.url_id || newId);
     const newDescription = `${row.description || 'Chat'} (copy)`;
 
+    /*
+     * Both JSONB columns MUST be stringified before going back in. pg reads jsonb into a real JS
+     * value, and on the way out it serializes a plain object as JSON but an ARRAY as a Postgres
+     * array literal — so handing back the messages array unchanged made every duplicate fail.
+     * saveChatPostgres stringifies for the same reason.
+     */
     await client.query(
       `
       INSERT INTO chats (id, user_id, project_id, url_id, description, messages, metadata, updated_at, last_activity)
       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `,
-      [newId, userId, row.project_id, newUrlId, newDescription, row.messages, row.metadata]
+      [
+        newId,
+        userId,
+        row.project_id,
+        newUrlId,
+        newDescription,
+        JSON.stringify(row.messages ?? []),
+        JSON.stringify(row.metadata ?? {}),
+      ]
     );
 
     // Same as saving a new chat: whoever created it owns it.
@@ -1974,10 +1994,10 @@ export async function duplicateChatPostgres(chatId: string, userId: string): Pro
       [crypto.randomUUID(), newId, userId]
     );
 
-    return newUrlId;
+    return { ok: true, urlId: newUrlId };
   } catch (error) {
     console.error('Error duplicating chat in PostgreSQL:', error);
-    return null;
+    return { ok: false, reason: 'error' };
   } finally {
     client.release();
   }

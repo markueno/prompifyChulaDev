@@ -157,14 +157,17 @@ export async function action({ request, context }: ActionFunctionArgs) {
           return json({ error: 'Chat ID is required' }, { status: 400 });
         }
 
-        const urlId = await duplicateChat(chatId, user.id);
+        const result = await duplicateChat(chatId, user.id);
 
-        if (urlId) {
-          await logUserActivity(user.id, 'chat_duplicated', { chatId, urlId });
-          return json({ success: true, urlId });
+        if (result.ok) {
+          await logUserActivity(user.id, 'chat_duplicated', { chatId, urlId: result.urlId });
+          return json({ success: true, urlId: result.urlId });
         }
 
-        return json({ error: 'Chat not found' }, { status: 404 });
+        // 404 only when the chat genuinely is not this user's; a failed copy is a 500, not a lie.
+        return result.reason === 'not_found'
+          ? json({ error: 'Chat not found' }, { status: 404 })
+          : json({ error: 'Could not duplicate this project' }, { status: 500 });
       }
 
       default:
