@@ -5,6 +5,7 @@ import type { FillBlanksTemplate } from '~/lib/questionnaire/types';
 import { CompanyContextModal } from './CompanyContextModal';
 import { DESIGN_SYSTEMS } from '~/lib/design-systems';
 import { readCachedContext, syncWorkspaceContext } from '~/lib/workspaceContext';
+import { selectedVertical } from '~/lib/stores/vertical';
 
 // ─── Color math ───────────────────────────────────────────────────────────────
 
@@ -776,12 +777,21 @@ export function PromptingMultipleChoice({ onPromptChange }: PromptingMultipleCho
   };
 
   const completeFlow = () => {
+    /*
+     * Publish the vertical before handing over the prompt. The wizard unmounts as soon as the chat
+     * starts, so this is the last moment anything downstream can learn which archetype was chosen
+     * — template selection reads it from here.
+     */
+    selectedVertical.set(answers.app_type || null);
     onPromptChange(buildPrompt(), buildSummary());
   };
 
   const goBack = () => {
     if (complete) {
       setComplete(false);
+
+      // Stepping back out of the summary un-chooses the vertical along with the prompt.
+      selectedVertical.set(null);
       onPromptChange('');
       setStep(totalSteps - 1);
 

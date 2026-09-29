@@ -17,6 +17,7 @@ import { BaseChat } from './BaseChat';
 import { BuildingOverlay } from '~/components/ui/BuildingOverlay';
 import { TrialEndedDialog } from '~/components/chat/TrialEndedDialog';
 import { TokensExhaustedDialog, type TokensExhaustedReason } from '~/components/chat/TokensExhaustedDialog';
+import { selectedVertical, templateForVertical } from '~/lib/stores/vertical';
 import Cookies from 'js-cookie';
 import { debounce } from '~/utils/debounce';
 import { useSettings } from '~/lib/hooks/useSettings';
@@ -939,13 +940,38 @@ export const ChatImpl = memo(
             : messageContent);
 
         if (autoSelectTemplate) {
-          const templateMessage = messageContent.length > 500 ? messageContent.substring(0, 500) : messageContent;
+          /*
+           * A vertical chosen in the wizard picks its template outright; only a free-form prompt
+           * asks the LLM.
+           *
+           * The LLM selector sees at most the first 500 characters, and a wizard-built prompt
+           * spends nearly all of those on boilerplate before the description starts — so it was
+           * choosing between eleven framework starters on almost no information, and could hand a
+           * CRM the Slidev presentation template. When the vertical is known there is nothing to
+           * infer: the answer is React + Vite, the only starter that satisfies the system prompt's
+           * vite.config requirement. Skipping the call also saves a round trip and its tokens.
+           *
+           * A free-form message is the user's own words, so the truncation is harmless there.
+           */
+          const vertical = selectedVertical.get();
+          const mapped = templateForVertical(vertical);
 
-          const { template, title } = await selectStarterTemplate({
-            message: templateMessage,
-            model,
-            provider,
-          });
+          let template: string;
+          let title: string | undefined;
+
+          if (mapped) {
+            template = mapped;
+            title = undefined;
+          } else {
+            const templateMessage = messageContent.length > 500 ? messageContent.substring(0, 500) : messageContent;
+            const selected = await selectStarterTemplate({
+              message: templateMessage,
+              model,
+              provider,
+            });
+            template = selected.template;
+            title = selected.title;
+          }
 
           if (template !== 'blank') {
             const temResp = await getTemplates(template, title).catch(e => {
