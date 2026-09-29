@@ -1897,18 +1897,25 @@ export async function getProjectOverviewPostgres(
     // Must match the highest $n actually referenced, which differs between the two branches.
     const usageParams = isPersonalWorkspace ? [workspaceId, userId] : [workspaceId];
 
+    /*
+     * Counts CHATS, not `projects` rows. A project row is a per-user container holding all of that
+     * member's chats, so counting them reported a number bearing no relation to the list of
+     * projects the user can actually see — the two surfaces disagreed and neither was wrong on its
+     * own terms.
+     */
     const projectAgg = isModerator
       ? await client.query(
           `SELECT
              COUNT(*)::int AS project_count,
-             COUNT(*) FILTER (WHERE p.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
-           FROM projects p`
+             COUNT(*) FILTER (WHERE updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
+           FROM chats`
         )
       : await client.query(
           `SELECT
-             COUNT(DISTINCT p.id)::int AS project_count,
-             COUNT(DISTINCT p.id) FILTER (WHERE p.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
-           FROM projects p
+             COUNT(DISTINCT c.id)::int AS project_count,
+             COUNT(DISTINCT c.id) FILTER (WHERE c.updated_at >= NOW() - INTERVAL '7 days')::int AS active_7d
+           FROM chats c
+           JOIN projects p ON p.id = c.project_id
            WHERE p.company_id = $1`,
           [workspaceId]
         );
