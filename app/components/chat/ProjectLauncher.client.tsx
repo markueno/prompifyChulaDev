@@ -11,6 +11,7 @@ import { classNames } from '~/utils/classNames';
 import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 import type { ChatHistoryItem } from '~/lib/persistence';
+import { fetchServerChats } from '~/lib/persistence/chatSync';
 
 const LAYOUT_KEY = 'prompify.projectLayout';
 
@@ -37,15 +38,20 @@ export function ProjectLauncher() {
 
     let cancelled = false;
 
-    fetch('/api/chats')
-      .then(r => (r.ok ? (r.json() as Promise<{ chats?: ChatHistoryItem[] }>) : { chats: [] }))
-      .then(d => {
+    /*
+     * Via fetchServerChats rather than calling /api/chats directly: the endpoint returns raw rows
+     * in snake_case, and this maps them to ChatHistoryItem. Reading the response unmapped silently
+     * yields undefined for every camelCase field, so the "is it openable" filter below rejected
+     * everything and the list rendered empty.
+     */
+    fetchServerChats()
+      .then(chats => {
         if (cancelled) {
           return;
         }
 
-        // Same filter the sidebar uses: a chat with no name or url is not openable.
-        setProjects((d.chats ?? []).filter(c => c.urlId && c.description));
+        // Same filter the sidebar uses: a chat with no name or url cannot be opened.
+        setProjects((chats ?? []).filter(c => c.urlId && c.description));
         setLoaded(true);
       })
       .catch(() => {
