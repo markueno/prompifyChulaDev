@@ -26,6 +26,35 @@ function readLayout(): Layout {
   }
 }
 
+/*
+ * Artwork is derived from the project's name rather than stored.
+ *
+ * Generated from a hash so a given project always looks the same — a tile whose colour changed on
+ * reload would read as a glitch, and it makes them recognisable at a glance before the name is
+ * read. Nothing is fetched and nothing is stored: no assets to ship, no broken images, no request
+ * per tile.
+ */
+const COVERS = [
+  { from: 'from-orange-500/40', to: 'to-rose-500/20', icon: 'i-ph:rocket-launch' },
+  { from: 'from-sky-500/40', to: 'to-indigo-500/20', icon: 'i-ph:compass' },
+  { from: 'from-emerald-500/40', to: 'to-teal-500/20', icon: 'i-ph:leaf' },
+  { from: 'from-violet-500/40', to: 'to-fuchsia-500/20', icon: 'i-ph:sparkle' },
+  { from: 'from-amber-500/40', to: 'to-orange-500/20', icon: 'i-ph:lightning' },
+  { from: 'from-cyan-500/40', to: 'to-blue-500/20', icon: 'i-ph:waves' },
+  { from: 'from-pink-500/40', to: 'to-purple-500/20', icon: 'i-ph:planet' },
+  { from: 'from-lime-500/40', to: 'to-green-500/20', icon: 'i-ph:tree-structure' },
+];
+
+function coverFor(name: string) {
+  let hash = 0;
+
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+
+  return COVERS[Math.abs(hash) % COVERS.length];
+}
+
 export function ProjectLauncher() {
   const [projects, setProjects] = useState<ChatHistoryItem[]>([]);
   const [layout, setLayout] = useState<Layout>('tiles');
@@ -120,40 +149,56 @@ export function ProjectLauncher() {
       {filteredItems.length === 0 ? (
         <p className="text-base text-white/60">No projects match that search.</p>
       ) : (
+        /*
+         * No inner scroll: the grid grows and the PAGE scrolls, so you can scroll past the prompt
+         * box and browse. A scroll area nested inside a scrolling page traps the wheel and makes
+         * the list feel like a separate little window.
+         */
         <div
           className={classNames(
-            'max-h-[22rem] overflow-y-auto pr-1',
             layout === 'tiles'
               ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
               : 'flex flex-col gap-2'
           )}
         >
-          {filteredItems.map(project => (
-            <a
-              key={project.id}
-              href={buildProjectChatPath(DEFAULT_PROJECT_ID, project.urlId ?? project.id)}
-              title={project.description}
-              className={classNames(
-                'rounded-xl border border-white/15 bg-white/5 text-white/90 transition-colors hover:border-[#f97316] hover:bg-white/10',
-                layout === 'tiles'
-                  ? 'flex aspect-square flex-col items-start justify-between p-4'
-                  : 'flex items-center gap-3 px-4 py-3'
-              )}
-            >
-              <span
-                className={classNames('i-ph:cube shrink-0 text-[#f97316]', layout === 'tiles' ? 'text-3xl' : 'text-xl')}
-              />
-              <span
+          {filteredItems.map(project => {
+            const cover = coverFor(project.description ?? project.id);
+
+            return (
+              <a
+                key={project.id}
+                href={buildProjectChatPath(DEFAULT_PROJECT_ID, project.urlId ?? project.id)}
+                title={project.description}
                 className={classNames(
-                  'text-base',
-                  // Tiles have height to spare, so a long name wraps instead of being cut short.
-                  layout === 'tiles' ? 'line-clamp-3 w-full font-medium leading-snug' : 'truncate'
+                  // Frosted rather than transparent: blurred, lightly tinted, with a hairline edge.
+                  'group overflow-hidden rounded-xl border border-white/20 bg-white/10 backdrop-blur-md text-white shadow-lg transition-all hover:border-[#f97316] hover:bg-white/15',
+                  layout === 'tiles' ? 'flex aspect-square flex-col' : 'flex items-center gap-3 px-4 py-3'
                 )}
               >
-                {project.description}
-              </span>
-            </a>
-          ))}
+                {layout === 'tiles' ? (
+                  <>
+                    <div
+                      className={classNames(
+                        'flex flex-1 items-center justify-center bg-gradient-to-br',
+                        cover.from,
+                        cover.to
+                      )}
+                    >
+                      <span className={classNames(cover.icon, 'text-4xl text-white/80')} />
+                    </div>
+                    <span className="line-clamp-2 border-t border-white/10 bg-black/20 px-3 py-2.5 text-base font-medium leading-snug">
+                      {project.description}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className={classNames(cover.icon, 'shrink-0 text-xl text-white/80')} />
+                    <span className="truncate text-base">{project.description}</span>
+                  </>
+                )}
+              </a>
+            );
+          })}
         </div>
       )}
     </div>
