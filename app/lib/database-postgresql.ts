@@ -1599,7 +1599,7 @@ export async function getChatsByUserPostgres(
    * Messages are fetched lazily when a chat is opened (via useChatHistory.loadChat).
    */
   const SELECT_COLS =
-    'c.id, c.project_id, c.url_id, c.description, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived';
+    'c.id, c.user_id, c.project_id, c.url_id, c.description, c.metadata, c.created_at, c.updated_at, c.last_activity, c.is_archived';
 
   const rowMapper = (row: any) => ({
     ...row,
@@ -1757,6 +1757,114 @@ export async function deleteChatPostgres(chatId: string, userId: string): Promis
   } catch (error) {
     console.error('Error deleting chat from PostgreSQL:', error);
     return false;
+  } finally {
+    client.release();
+  }
+}
+
+/*
+ * Rename a chat on the server.
+ *
+ * Until this existed, renaming was written to IndexedDB alone (`updateChatDescription`), so the new
+ * name survived only on the device that typed it and was overwritten by the server's copy on the
+ * next load. Scoped to the creator, exactly like deleting: workspace members can see and open each
+ * other's projects, but not retitle them.
+ */
+export async function renameChatPostgres(chatId: string, userId: string, description: string): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `
+      UPDATE chats
+      SET description = $3, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1 AND user_id = $2
+    `,
+      [chatId, userId, description]
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('Error renaming chat in PostgreSQL:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * A free `url_id` derived from a taken one. `chats.url_id` is globally UNIQUE, so a copy cannot
+ * reuse the original's slug, and the suffix is what the address bar will show.
+ */
+async function nextFreeUrlId(client: PoolClient, base: string): Promise<string> {
+  for (let n = 1; n < 100; n++) {
+    const candidate = n === 1 ? `${base}-copy` : `${base}-copy-${n}`;
+    const taken = await client.query('SELECT 1 FROM chats WHERE url_id = $1', [candidate]);
+
+    if (taken.rows.length === 0) {
+      return candidate;
+    }
+  }
+
+  // Pathological case only: 99 copies of one chat. A random suffix is ugly but always available.
+  return `${base}-copy-${crypto.randomUUID().slice(0, 8)}`;
+}
+
+/*
+ * Copy a chat, messages and all, into the same project.
+ *
+ * Done in Postgres rather than by round-tripping every message through the browser: the message
+ * array is the largest thing in the row, and the copy has to land in the same project as the
+ * original, which the client cannot be trusted to assert.
+ *
+ * Returns the new chat's `url_id`, which is what the app navigates by.
+ */
+export async function duplicateChatPostgres(chatId: string, userId: string): Promise<string | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const source = await client.query(
+      `
+      SELECT id, project_id, url_id, description, messages, metadata
+      FROM chats
+      WHERE id = $1 AND user_id = $2
+    `,
+      [chatId, userId]
+    );
+
+    if (source.rows.length === 0) {
+      return null;
+    }
+
+    const row = source.rows[0];
+    const newId = crypto.randomUUID();
+    const newUrlId = await nextFreeUrlId(client, row.url_id || newId);
+    const newDescription = `${row.description || 'Chat'} (copy)`;
+
+    await client.query(
+      `
+      INSERT INTO chats (id, user_id, project_id, url_id, description, messages, metadata, updated_at, last_activity)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `,
+      [newId, userId, row.project_id, newUrlId, newDescription, row.messages, row.metadata]
+    );
+
+    // Same as saving a new chat: whoever created it owns it.
+    await client.query(
+      `
+      INSERT INTO chat_members (id, chat_id, user_id, role)
+      VALUES ($1, $2, $3, 'owner')
+      ON CONFLICT (chat_id, user_id) DO NOTHING
+    `,
+      [crypto.randomUUID(), newId, userId]
+    );
+
+    return newUrlId;
+  } catch (error) {
+    console.error('Error duplicating chat in PostgreSQL:', error);
+    return null;
   } finally {
     client.release();
   }

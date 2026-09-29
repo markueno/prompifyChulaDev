@@ -1,6 +1,6 @@
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
-import { saveChat, getChatsByUser, deleteChat, logUserActivity } from '~/lib/database';
+import { saveChat, getChatsByUser, deleteChat, renameChat, duplicateChat, logUserActivity } from '~/lib/database';
 import { provisionAppSchema } from '~/lib/supabase-provision.server';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 
@@ -120,6 +120,51 @@ export async function action({ request, context }: ActionFunctionArgs) {
         } else {
           return json({ error: 'Failed to delete chat' }, { status: 500 });
         }
+      }
+
+      /*
+       * Rename and duplicate exist here because the project list is served from Postgres. Both
+       * actions used to be written to IndexedDB only, which meant they appeared to work and then
+       * silently reverted on the next load — and never reached the user's other devices at all.
+       */
+      case 'rename': {
+        const chatId = (formData?.get('chatId') as string) || '';
+        const description = ((formData?.get('description') as string) || '').trim();
+
+        if (!chatId || !description) {
+          return json({ error: 'Chat ID and description are required' }, { status: 400 });
+        }
+
+        if (description.length > 100) {
+          return json({ error: 'Description must be 100 characters or fewer' }, { status: 400 });
+        }
+
+        const success = await renameChat(chatId, user.id, description);
+
+        if (success) {
+          await logUserActivity(user.id, 'chat_renamed', { chatId });
+          return json({ success: true });
+        }
+
+        // The update matches on user_id, so a miss means it is not this user's chat to rename.
+        return json({ error: 'Chat not found' }, { status: 404 });
+      }
+
+      case 'duplicate': {
+        const chatId = (formData?.get('chatId') as string) || '';
+
+        if (!chatId) {
+          return json({ error: 'Chat ID is required' }, { status: 400 });
+        }
+
+        const urlId = await duplicateChat(chatId, user.id);
+
+        if (urlId) {
+          await logUserActivity(user.id, 'chat_duplicated', { chatId, urlId });
+          return json({ success: true, urlId });
+        }
+
+        return json({ error: 'Chat not found' }, { status: 404 });
       }
 
       default:

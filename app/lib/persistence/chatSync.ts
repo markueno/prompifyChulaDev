@@ -15,6 +15,7 @@ import type { IChatMetadata } from './db';
 /** A row as `getChatsByUserPostgres` returns it (snake_case, straight from Postgres). */
 interface ServerChatRow {
   id: string;
+  user_id?: string | null;
   url_id?: string | null;
   description?: string | null;
   messages?: Message[] | null;
@@ -33,6 +34,7 @@ export function mapServerChat(row: ServerChatRow): ChatHistoryItem {
 
   return {
     id: row.id,
+    ownerId: row.user_id ?? undefined,
     urlId: row.url_id ?? undefined,
     description: row.description ?? undefined,
     messages: Array.isArray(row.messages) ? row.messages : [],

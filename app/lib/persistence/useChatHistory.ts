@@ -37,6 +37,8 @@ export { db, chatId, description };
 export interface ChatHistoryItem {
   id: string;
   urlId?: string;
+  /** Who created it. Workspace listings are shared, so this is what says which are yours. */
+  ownerId?: string;
   description?: string;
   messages: Message[];
   timestamp: string;

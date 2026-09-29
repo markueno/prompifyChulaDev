@@ -29,6 +29,8 @@ import {
   getChatsByUserPostgres,
   getChatByIdPostgres,
   deleteChatPostgres,
+  renameChatPostgres,
+  duplicateChatPostgres,
   insertPromptPostgres,
   getPromptsByChatIdPostgres,
   logUserActivityPostgres,
@@ -655,6 +657,34 @@ export async function deleteChat(chatId: string, userId: string) {
   } catch (error) {
     console.error('Error deleting chat:', error);
     return false;
+  }
+}
+
+export async function renameChat(chatId: string, userId: string, description: string) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return renameChatPostgres(chatId, userId, description);
+    } else {
+      console.warn('Chat rename not implemented for SQLite');
+      return false;
+    }
+  } catch (error) {
+    console.error('Error renaming chat:', error);
+    return false;
+  }
+}
+
+export async function duplicateChat(chatId: string, userId: string) {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return duplicateChatPostgres(chatId, userId);
+    } else {
+      console.warn('Chat duplication not implemented for SQLite');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error duplicating chat:', error);
+    return null;
   }
 }
 
