@@ -80,6 +80,8 @@ interface BaseChatProps {
    * true: a missing value must never lock someone out.
    */
   canBuild?: boolean;
+  /** Which permission makes this view-only, so the notice can name the right one. */
+  viewOnlyReason?: 'workspace' | 'project' | null;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -120,6 +122,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       actionRunner,
       isModerator = false,
       canBuild = true,
+      viewOnlyReason = null,
       setInput,
     },
     ref
@@ -540,11 +543,14 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                   <span className="i-ph:eye mt-0.5 shrink-0 text-lg text-bolt-elements-textSecondary" />
                   <div>
                     <p className="text-sm font-medium text-bolt-elements-textPrimary">
-                      You have view-only access to this workspace
+                      {viewOnlyReason === 'project'
+                        ? 'You have view-only access to this project'
+                        : 'You have view-only access to this workspace'}
                     </p>
                     <p className="mt-1 text-sm text-bolt-elements-textSecondary">
-                      You can open and read its projects, but not build in them. Ask an owner or admin to make you an
-                      editor, or switch to your personal workspace to build your own.
+                      {viewOnlyReason === 'project'
+                        ? 'You were shared this project as a viewer, so you can see it running but not change it. Ask whoever shared it to make you an editor.'
+                        : 'You can open and read its projects, but not build in them. Ask an owner or admin to make you an editor, or switch to your personal workspace to build your own.'}
                     </p>
                   </div>
                 </div>

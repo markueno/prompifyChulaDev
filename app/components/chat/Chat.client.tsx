@@ -189,13 +189,25 @@ export const ChatImpl = memo(
     useShortcuts();
 
     type ShellLoaderData =
-      | { user?: { id?: string; email?: string; isModerator?: boolean }; canBuild?: boolean }
+      | {
+          user?: { id?: string; email?: string; isModerator?: boolean };
+          canBuild?: boolean;
+          /** 'workspace' or 'project' — which permission is the reason, so the notice can say. */
+          viewOnlyReason?: 'workspace' | 'project' | null;
+        }
       | undefined;
 
     const appIndexData = useRouteLoaderData('routes/app._index') as ShellLoaderData;
     const appLayoutData = useRouteLoaderData('routes/app') as ShellLoaderData;
     const chatIdData = useRouteLoaderData('routes/chat.$id') as ShellLoaderData;
-    const user = appIndexData?.user ?? appLayoutData?.user ?? chatIdData?.user;
+
+    /*
+     * The project chat route resolves the PROJECT's own role as well as the workspace's, so it
+     * has to be consulted — without it, someone invited to a single project as a viewer was
+     * offered a composer that the server then refused.
+     */
+    const projectChatData = useRouteLoaderData('routes/projects.$projectId.chats.$id') as ShellLoaderData;
+    const user = projectChatData?.user ?? appIndexData?.user ?? appLayoutData?.user ?? chatIdData?.user;
     const profile = useStore(profileStore);
     useStore(chatId);
 
@@ -207,7 +219,9 @@ export const ChatImpl = memo(
      * provides it, since every other mount of this component is one where the user can build —
      * a missing value must not silently lock people out.
      */
-    const canBuild = appIndexData?.canBuild ?? appLayoutData?.canBuild ?? chatIdData?.canBuild ?? true;
+    const canBuild =
+      projectChatData?.canBuild ?? appIndexData?.canBuild ?? appLayoutData?.canBuild ?? chatIdData?.canBuild ?? true;
+    const viewOnlyReason = projectChatData?.viewOnlyReason ?? appIndexData?.viewOnlyReason ?? null;
     const messageAuthor = getMessageAuthor(user, profile);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1159,6 +1173,7 @@ export const ChatImpl = memo(
           providerList={activeProviders}
           isModerator={isModerator}
           canBuild={canBuild}
+          viewOnlyReason={viewOnlyReason}
           messageRef={messageRef}
           scrollRef={scrollRef}
           isAtBottom={snap.isAtBottom}

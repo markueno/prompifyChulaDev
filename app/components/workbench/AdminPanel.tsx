@@ -8,6 +8,13 @@ import { EventLogsTab } from '~/components/@settings/tabs/event-logs/EventLogsTa
 import { AdminSecuritySection } from '~/components/workbench/AdminSecuritySection';
 import { AdminDataSection } from '~/components/workbench/AdminDataSection';
 import { workbenchStore } from '~/lib/stores/workbench';
+import {
+  ASSIGNABLE_PROJECT_ROLES,
+  PROJECT_ROLE_DESCRIPTIONS,
+  PROJECT_ROLE_LABELS,
+  normalizeProjectRole,
+  type ProjectRole,
+} from '~/lib/project-roles';
 
 export type AdminSectionId =
   | 'overview'
@@ -105,6 +112,9 @@ const UsersSection = memo(() => {
   const [searchQuery, setSearchQuery] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+
+  // Editor by default: the role that matches what every invitation granted before roles existed.
+  const [inviteRole, setInviteRole] = useState<ProjectRole>('editor');
   const [inviting, setInviting] = useState(false);
   const [lastInviteLink, setLastInviteLink] = useState<string | null>(null);
   const [editMember, setEditMember] = useState<ChatMember | null>(null);
@@ -215,9 +225,13 @@ const UsersSection = memo(() => {
       return true;
     }
 
+    /*
+     * An admin may act on editors and viewers but not on other admins — mirrors the server, which
+     * refuses that with "Only the owner can change an admin's role".
+     */
     if (currentUserRole === 'admin') {
-      return member.role === 'member';
-    } // admin can only edit/remove members
+      return normalizeProjectRole(member.role) !== 'admin';
+    }
 
     return false;
   };
@@ -240,7 +254,7 @@ const UsersSection = memo(() => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ email: inviteEmail.trim() }),
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
       });
       const data = (await res.json()) as any;
 
@@ -344,8 +358,11 @@ const UsersSection = memo(() => {
             className="px-3 py-2 text-sm rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-accent-500/50"
           >
             <option value="all">all roles</option>
-            <option value="admin">admin</option>
-            <option value="member">member</option>
+            {ASSIGNABLE_PROJECT_ROLES.map(r => (
+              <option key={r} value={r}>
+                {PROJECT_ROLE_LABELS[r]}
+              </option>
+            ))}
           </select>
         )}
       </div>
@@ -369,6 +386,29 @@ const UsersSection = memo(() => {
                 className="w-full px-3 py-2 mb-4 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-accent-500/50"
                 required
               />
+
+              <label className="block text-sm font-medium text-bolt-elements-textSecondary mb-1">Role</label>
+              <select
+                value={inviteRole}
+                onChange={e => setInviteRole(e.target.value as ProjectRole)}
+                className="w-full px-3 py-2 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-accent-500/50"
+              >
+                {ASSIGNABLE_PROJECT_ROLES.map(r => (
+                  <option key={r} value={r}>
+                    {PROJECT_ROLE_LABELS[r]}
+                  </option>
+                ))}
+              </select>
+              {/*
+               * What the role actually means, next to the choice rather than in documentation
+               * nobody reads. Sharing a project is the moment someone decides how much of their
+               * work to hand over, and "viewer" does not say on its own that it withholds the
+               * conversation.
+               */}
+              <p className="mt-2 mb-4 text-xs text-bolt-elements-textTertiary">
+                {PROJECT_ROLE_DESCRIPTIONS[inviteRole]}
+              </p>
+
               <div className="flex gap-2 justify-end">
                 <button
                   type="button"
@@ -443,9 +483,15 @@ const UsersSection = memo(() => {
                   className="w-full px-3 py-2 rounded-lg bg-bolt-elements-background-depth-1 border border-bolt-elements-borderColor text-bolt-elements-textPrimary focus:outline-none focus:ring-2 focus:ring-accent-500/50"
                   required
                 >
-                  <option value="admin">admin</option>
-                  <option value="member">member</option>
+                  {ASSIGNABLE_PROJECT_ROLES.map(r => (
+                    <option key={r} value={r}>
+                      {PROJECT_ROLE_LABELS[r]}
+                    </option>
+                  ))}
                 </select>
+                <p className="mt-2 text-xs text-bolt-elements-textTertiary">
+                  {PROJECT_ROLE_DESCRIPTIONS[(editRole as ProjectRole) ?? 'editor']}
+                </p>
               </div>
               <button
                 type="submit"
@@ -547,7 +593,9 @@ const UsersSection = memo(() => {
                                 className="flex items-center gap-2 px-3 py-2 text-sm rounded-lg cursor-pointer hover:bg-bolt-elements-background-depth-3 text-bolt-elements-textPrimary outline-none"
                                 onSelect={() => {
                                   setEditMember(m);
-                                  setEditRole(m.role === 'owner' ? 'admin' : m.role);
+                                  setEditRole(
+                                    m.role === 'owner' ? 'admin' : (normalizeProjectRole(m.role) ?? 'editor')
+                                  );
                                 }}
                               >
                                 <div className="i-ph:pencil-simple w-4 h-4" />
