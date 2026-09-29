@@ -4,7 +4,9 @@ import { redirect } from '@remix-run/cloudflare';
 
 export { links, meta };
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
-import { getSubscriptionByCompanyId } from '~/lib/database';
+import { getCompanyMember, getSubscriptionByCompanyId } from '~/lib/database';
+import { personalCompanyId } from '~/lib/database-postgresql';
+import { canBuildInWorkspace } from '~/lib/workspace-roles';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 
 export async function loader({ request, context, params }: LoaderFunctionArgs) {
@@ -22,15 +24,21 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
    * loader only authenticates and hands the ids to the app shell (which carries no chat data).
    */
   if (isAuthDisabled(context)) {
-    return json({ id: params.id, projectId: params.projectId, user: getMockAdminUser() });
+    return json({ id: params.id, projectId: params.projectId, user: getMockAdminUser(), canBuild: true });
   }
 
   const user = await requireAuth(request, context);
   const companyId = await getActiveCompanyId(request, user);
-  const sub = await getSubscriptionByCompanyId(companyId);
+  const [sub, member] = await Promise.all([
+    getSubscriptionByCompanyId(companyId),
+    getCompanyMember(companyId, user.id),
+  ]);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
 
-  return json({ id: params.id, projectId: params.projectId, user: userWithTier });
+  // Same rule as the app shell: a viewer must not be offered a composer that will be refused.
+  const canBuild = companyId === personalCompanyId(user.id) ? true : canBuildInWorkspace(member?.role);
+
+  return json({ id: params.id, projectId: params.projectId, user: userWithTier, canBuild });
 }
 
 export default AppIndexRoute;

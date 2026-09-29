@@ -5,22 +5,36 @@ import { Chat } from '~/components/chat/Chat.client';
 import { FloatingHeader } from '~/components/header/FloatingHeader';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
-import { getSubscriptionByCompanyId } from '~/lib/database';
+import { getCompanyMember, getSubscriptionByCompanyId } from '~/lib/database';
+import { personalCompanyId } from '~/lib/database-postgresql';
+import { canBuildInWorkspace } from '~/lib/workspace-roles';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import landingStyles from '~/styles/landing.css?url';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
     const mockUser = getMockAdminUser();
-    return json({ user: mockUser });
+    return json({ user: mockUser, canBuild: true });
   }
 
   const user = await requireAuth(request, context);
   const companyId = await getActiveCompanyId(request, user);
-  const sub = await getSubscriptionByCompanyId(companyId);
+  const [sub, member] = await Promise.all([
+    getSubscriptionByCompanyId(companyId),
+    getCompanyMember(companyId, user.id),
+  ]);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
 
-  return json({ user: userWithTier });
+  /*
+   * Whether this person may prompt in the workspace they are currently in. Resolved on the server
+   * so the composer is never rendered and then taken away, and so there is no moment where a
+   * viewer can type into something that will be refused.
+   *
+   * A personal workspace has no member row and needs none — it is always your own.
+   */
+  const canBuild = companyId === personalCompanyId(user.id) ? true : canBuildInWorkspace(member?.role);
+
+  return json({ user: userWithTier, canBuild });
 }
 
 export const links: LinksFunction = () => [

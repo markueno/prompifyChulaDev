@@ -186,20 +186,26 @@ export const ChatImpl = memo(
   ({ description, initialMessages, storeMessageHistory, importChat, exportChat, ensureChatId }: ChatProps) => {
     useShortcuts();
 
-    const appIndexData = useRouteLoaderData('routes/app._index') as
-      | { user?: { id?: string; email?: string; isModerator?: boolean } }
+    type ShellLoaderData =
+      | { user?: { id?: string; email?: string; isModerator?: boolean }; canBuild?: boolean }
       | undefined;
-    const appLayoutData = useRouteLoaderData('routes/app') as
-      | { user?: { id?: string; email?: string; isModerator?: boolean } }
-      | undefined;
-    const chatIdData = useRouteLoaderData('routes/chat.$id') as
-      | { user?: { id?: string; email?: string; isModerator?: boolean } }
-      | undefined;
+
+    const appIndexData = useRouteLoaderData('routes/app._index') as ShellLoaderData;
+    const appLayoutData = useRouteLoaderData('routes/app') as ShellLoaderData;
+    const chatIdData = useRouteLoaderData('routes/chat.$id') as ShellLoaderData;
     const user = appIndexData?.user ?? appLayoutData?.user ?? chatIdData?.user;
     const profile = useStore(profileStore);
     useStore(chatId);
 
     const isModerator = user?.isModerator === true;
+
+    /*
+     * Whether this person may prompt in the workspace they are in. Resolved by the loader, so a
+     * viewer never sees a composer that will be refused. Defaults to true when no shell loader
+     * provides it, since every other mount of this component is one where the user can build —
+     * a missing value must not silently lock people out.
+     */
+    const canBuild = appIndexData?.canBuild ?? appLayoutData?.canBuild ?? chatIdData?.canBuild ?? true;
     const messageAuthor = getMessageAuthor(user, profile);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1128,6 +1134,7 @@ export const ChatImpl = memo(
           setProvider={handleProviderChange}
           providerList={activeProviders}
           isModerator={isModerator}
+          canBuild={canBuild}
           messageRef={messageRef}
           scrollRef={scrollRef}
           isAtBottom={snap.isAtBottom}

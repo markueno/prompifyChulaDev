@@ -11,6 +11,23 @@ interface Workspace {
   is_personal?: boolean;
 }
 
+/* 'developer' still appears on rows written before the developer→editor migration. */
+const ROLE_ICONS: Record<string, string> = {
+  owner: 'i-ph:crown-simple-fill text-[#f97316]',
+  admin: 'i-ph:shield-check-fill text-[#f97316]/80',
+  editor: 'i-ph:pencil-simple',
+  developer: 'i-ph:pencil-simple',
+  viewer: 'i-ph:eye',
+};
+
+const ROLE_TITLES: Record<string, string> = {
+  owner: 'Owner — you pay for and run this workspace',
+  admin: 'Admin — you can build and manage members',
+  editor: 'Editor — you can build here',
+  developer: 'Editor — you can build here',
+  viewer: 'Viewer — you can look, but not build',
+};
+
 function readCookie(name: string): string | null {
   if (typeof document === 'undefined') {
     return null;
@@ -195,9 +212,22 @@ export function WorkspaceSwitcher() {
                       : 'text-[#231710]/70 dark:text-[#f0e4d5]/80'
                   )}
                 >
-                  <span className="truncate">
-                    {w.name}
-                    {w.is_personal ? ' (Personal)' : ''}
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate">
+                      {w.name}
+                      {w.is_personal ? ' (Personal)' : ''}
+                    </span>
+                    {/*
+                     * Your role in each workspace, so "why can't I do anything here" is answerable
+                     * without leaving the menu. Omitted for personal workspaces, where you are
+                     * always the owner and the label would be noise.
+                     */}
+                    {!w.is_personal && w.role ? (
+                      <span
+                        title={ROLE_TITLES[w.role] ?? w.role}
+                        className={classNames('shrink-0 text-xs', ROLE_ICONS[w.role] ?? 'i-ph:user')}
+                      />
+                    ) : null}
                   </span>
                   {w.id === current?.id ? <span className="i-ph:check text-sm text-[#f97316]" /> : null}
                 </button>

@@ -74,6 +74,12 @@ interface BaseChatProps {
   actionRunner?: ActionRunner;
   /** When false, LLM/provider dropdown, model selection, and API key UI are hidden; defaults to Anthropic + Claude Sonnet 4.6 */
   isModerator?: boolean;
+  /**
+   * False when the signed-in user holds a read-only role in the active workspace. Hides the
+   * composer rather than letting them type into something the server will refuse. Defaults to
+   * true: a missing value must never lock someone out.
+   */
+  canBuild?: boolean;
 }
 
 export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
@@ -113,6 +119,7 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       data,
       actionRunner,
       isModerator = false,
+      canBuild = true,
       setInput,
     },
     ref
@@ -523,8 +530,29 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 }}
               </ClientOnly>
 
+              {/*
+               * Read-only members get an explanation instead of a composer. The server refuses
+               * their prompts either way (api.chat returns role_read_only); this exists so they
+               * find out before typing rather than after.
+               */}
+              {!canBuild ? (
+                <div className="flex w-full max-w-chat mx-auto mb-6 items-start gap-3 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 p-4">
+                  <span className="i-ph:eye mt-0.5 shrink-0 text-lg text-bolt-elements-textSecondary" />
+                  <div>
+                    <p className="text-sm font-medium text-bolt-elements-textPrimary">
+                      You have view-only access to this workspace
+                    </p>
+                    <p className="mt-1 text-sm text-bolt-elements-textSecondary">
+                      You can open and read its projects, but not build in them. Ask an owner or admin to make you an
+                      editor, or switch to your personal workspace to build your own.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
               {/* Show guided form or chat input */}
               <div
+                hidden={!canBuild}
                 className={classNames('flex flex-col gap-4 w-full max-w-chat mx-auto z-prompt mb-6', {
                   'sticky bottom-2': chatStarted,
                 })}
