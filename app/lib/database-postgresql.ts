@@ -1860,9 +1860,10 @@ export async function deleteChatPostgres(chatId: string, userId: string): Promis
   const client = await pool.connect();
 
   try {
+    // Creator or workspace owner — see CAN_ADMINISTER_CHAT_SQL.
     const query = `
-      DELETE FROM chats 
-      WHERE id = $1 AND user_id = $2
+      DELETE FROM chats c
+      WHERE c.id = $1 AND ${CAN_ADMINISTER_CHAT_SQL}
     `;
     const result = await client.query(query, [chatId, userId]);
 
@@ -1876,12 +1877,34 @@ export async function deleteChatPostgres(chatId: string, userId: string): Promis
 }
 
 /*
+ * Who may administer a project: rename it, delete it, copy it.
+ *
+ * Two people, and only two. Whoever created it, and the OWNER of the workspace it sits in — the
+ * workspace owner outranks the project owner, which is the rule that makes ownership transfer
+ * unnecessary. Nothing can be handed over, so without this a workspace owner would be unable to
+ * touch a project left behind by someone who has gone, and would need the database opening up.
+ *
+ * Deliberately not extended to workspace admins. Admins manage people; disposing of other
+ * people's work is the owner's call. Widening it later is one line here.
+ *
+ * A personal workspace collapses to the same thing: its owner is the creator anyway.
+ */
+const CAN_ADMINISTER_CHAT_SQL = `(
+  c.user_id = $2
+  OR EXISTS (
+    SELECT 1 FROM projects p
+    JOIN companies co ON co.id = p.company_id
+    WHERE p.id = c.project_id AND co.owner_user_id = $2 AND co.deleted_at IS NULL
+  )
+)`;
+
+/*
  * Rename a chat on the server.
  *
  * Until this existed, renaming was written to IndexedDB alone (`updateChatDescription`), so the new
  * name survived only on the device that typed it and was overwritten by the server's copy on the
- * next load. Scoped to the creator, exactly like deleting: workspace members can see and open each
- * other's projects, but not retitle them.
+ * next load. Ordinary workspace members can see and open each other's projects but not retitle
+ * them; see CAN_ADMINISTER_CHAT_SQL for who can.
  */
 export async function renameChatPostgres(chatId: string, userId: string, description: string): Promise<boolean> {
   const pool = getPostgresPool();
@@ -1890,9 +1913,9 @@ export async function renameChatPostgres(chatId: string, userId: string, descrip
   try {
     const result = await client.query(
       `
-      UPDATE chats
+      UPDATE chats c
       SET description = $3, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND user_id = $2
+      WHERE c.id = $1 AND ${CAN_ADMINISTER_CHAT_SQL}
     `,
       [chatId, userId, description]
     );
@@ -1946,9 +1969,9 @@ export async function duplicateChatPostgres(chatId: string, userId: string): Pro
   try {
     const source = await client.query(
       `
-      SELECT id, project_id, url_id, description, messages, metadata
-      FROM chats
-      WHERE id = $1 AND user_id = $2
+      SELECT c.id, c.project_id, c.url_id, c.description, c.messages, c.metadata
+      FROM chats c
+      WHERE c.id = $1 AND ${CAN_ADMINISTER_CHAT_SQL}
     `,
       [chatId, userId]
     );

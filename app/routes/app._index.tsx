@@ -7,14 +7,14 @@ import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { requireAuth, isAuthDisabled, getMockAdminUser } from '~/lib/auth';
 import { getCompanyMember, getSubscriptionByCompanyId } from '~/lib/database';
 import { personalCompanyId } from '~/lib/database-postgresql';
-import { canBuildInWorkspace } from '~/lib/workspace-roles';
+import { canBuildInWorkspace, isWorkspaceOwner } from '~/lib/workspace-roles';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import landingStyles from '~/styles/landing.css?url';
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   if (isAuthDisabled(context)) {
     const mockUser = getMockAdminUser();
-    return json({ user: mockUser, canBuild: true });
+    return json({ user: mockUser, canBuild: true, ownsWorkspace: true });
   }
 
   const user = await requireAuth(request, context);
@@ -32,9 +32,17 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
    *
    * A personal workspace has no member row and needs none — it is always your own.
    */
-  const canBuild = companyId === personalCompanyId(user.id) ? true : canBuildInWorkspace(member?.role);
+  const isPersonal = companyId === personalCompanyId(user.id);
+  const canBuild = isPersonal ? true : canBuildInWorkspace(member?.role);
 
-  return json({ user: userWithTier, canBuild });
+  /*
+   * Whether this person owns the workspace they are in, which outranks owning an individual
+   * project in it. The project list uses it to decide who gets the rename/delete controls on a
+   * colleague's project; the server enforces the same rule regardless.
+   */
+  const ownsWorkspace = isPersonal || isWorkspaceOwner(member?.role);
+
+  return json({ user: userWithTier, canBuild, ownsWorkspace });
 }
 
 export const links: LinksFunction = () => [

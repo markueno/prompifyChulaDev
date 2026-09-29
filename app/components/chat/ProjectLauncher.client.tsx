@@ -80,8 +80,16 @@ async function postChatAction(action: string, fields: Record<string, string>) {
 }
 
 export function ProjectLauncher() {
-  const loaderData = useLoaderData<{ user?: { id?: string } }>();
+  const loaderData = useLoaderData<{ user?: { id?: string }; ownsWorkspace?: boolean }>();
   const currentUserId = loaderData?.user?.id;
+
+  /*
+   * The workspace owner outranks every project owner in it, so they administer any project here,
+   * not only the ones they made. That rule is what stands in for ownership transfer, which does
+   * not exist: nothing can be handed over, so someone has to be able to deal with work left
+   * behind by a member who has gone.
+   */
+  const ownsWorkspace = loaderData?.ownsWorkspace === true;
 
   const [projects, setProjects] = useState<ChatHistoryItem[]>([]);
   const [layout, setLayout] = useState<Layout>('tiles');
@@ -323,11 +331,10 @@ export function ProjectLauncher() {
               layout={layout}
               busy={busyId === project.id}
               /*
-               * Renaming, duplicating and deleting are scoped to the creator server-side. A
-               * workspace listing is shared, so offering a colleague controls that can only fail
-               * would be worse than not offering them.
+               * A workspace listing is shared, so offering a colleague controls that can only
+               * fail would be worse than not offering them. Mirrors the server's own rule.
                */
-              owned={!currentUserId || project.ownerId === currentUserId}
+              owned={ownsWorkspace || !currentUserId || project.ownerId === currentUserId}
               renaming={renamingId === project.id}
               renameDraft={renameDraft}
               onRenameDraftChange={setRenameDraft}

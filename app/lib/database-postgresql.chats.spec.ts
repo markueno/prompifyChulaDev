@@ -25,7 +25,7 @@ vi.mock('pg', () => {
     async query(sql: string, params: any[] = []) {
       state.calls.push({ sql, params });
 
-      if (/SELECT id, project_id, url_id, description, messages, metadata/i.test(sql)) {
+      if (/SELECT c\.id, c\.project_id, c\.url_id, c\.description, c\.messages, c\.metadata/i.test(sql)) {
         return { rowCount: state.sourceRows.length, rows: state.sourceRows };
       }
 
