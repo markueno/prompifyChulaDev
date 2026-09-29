@@ -15,6 +15,7 @@ import { useSearchFilter } from '~/lib/hooks/useSearchFilter';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 import type { ChatHistoryItem } from '~/lib/persistence';
 import { fetchServerChats } from '~/lib/persistence/chatSync';
+import { ShareProjectDialog } from '~/components/chat/ShareProjectDialog';
 
 const LAYOUT_KEY = 'prompify.projectLayout';
 
@@ -101,6 +102,9 @@ export function ProjectLauncher() {
 
   /** The project the delete confirmation is asking about. Deleting is the one unrecoverable one. */
   const [pendingDelete, setPendingDelete] = useState<ChatHistoryItem | null>(null);
+
+  /** The project being shared, if the share dialog is open. */
+  const [pendingShare, setPendingShare] = useState<ChatHistoryItem | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const { filteredItems, handleSearchChange } = useSearchFilter({ items: projects, searchFields: ['description'] });
@@ -341,12 +345,21 @@ export function ProjectLauncher() {
               onRenameCommit={commitRename}
               onRenameCancel={() => setRenamingId(null)}
               onRenameStart={() => startRename(project)}
+              onShare={() => setPendingShare(project)}
               onDuplicate={() => duplicate(project)}
               onDownload={() => download(project)}
               onDelete={() => setPendingDelete(project)}
             />
           ))}
         </div>
+      )}
+
+      {pendingShare && (
+        <ShareProjectDialog
+          chatId={pendingShare.id}
+          projectName={pendingShare.description ?? 'Untitled project'}
+          onClose={() => setPendingShare(null)}
+        />
       )}
 
       {pendingDelete && (
@@ -371,6 +384,7 @@ interface ProjectCardProps {
   onRenameCommit: () => void;
   onRenameCancel: () => void;
   onRenameStart: () => void;
+  onShare: () => void;
   onDuplicate: () => void;
   onDownload: () => void;
   onDelete: () => void;
@@ -387,6 +401,7 @@ function ProjectCard({
   onRenameCommit,
   onRenameCancel,
   onRenameStart,
+  onShare,
   onDuplicate,
   onDownload,
   onDelete,
@@ -486,6 +501,12 @@ function ProjectCard({
             className="z-[100] min-w-[11rem] rounded-lg border border-[#fed7aa]/60 bg-[#f0e4d5] p-1 shadow-lg dark:border-white/10 dark:bg-[#231710]"
           >
             {owned && <MenuItem icon="i-ph:pencil-simple" label="Rename" onSelect={onRenameStart} />}
+            {/*
+             * Sharing sits with the owner's actions because only an owner or admin may invite,
+             * and `owned` is the same rule the server applies. It is deliberately above the
+             * separator: sharing is a normal thing to do with a project, not a dangerous one.
+             */}
+            {owned && <MenuItem icon="i-ph:user-plus" label="Share…" onSelect={onShare} />}
             {owned && <MenuItem icon="i-ph:copy" label="Duplicate" onSelect={onDuplicate} />}
             <MenuItem icon="i-ph:download-simple" label="Download" onSelect={onDownload} />
             {owned && (
