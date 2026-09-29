@@ -1,6 +1,12 @@
 import pg from 'pg';
 import crypto from 'crypto';
 import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
+import {
+  canManageProjectMembers,
+  isAssignableProjectRole,
+  normalizeProjectRole,
+  type ProjectRole,
+} from '~/lib/project-roles';
 // Codebase-snapshot persistence deps (ported from feat/persistence-architecture-v2).
 import { keyForHash } from '~/lib/.server/storage';
 import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
@@ -883,6 +889,11 @@ export async function getActiveSessionCountPostgres(userId: string) {
  *
  *   personal workspace → the person prompting pays
  *   team workspace     → the workspace's owner pays
+ *   shared project     → the person prompting pays, even in a team workspace
+ *
+ * That third line covers someone invited to one PROJECT without being in the workspace at all.
+ * They are a guest, and a guest spending the host's plan is how a shared link becomes a way to
+ * drain someone else's tokens. Membership of the workspace is what makes the owner pay for you.
  *
  * So two people collaborating on a shared personal project each spend their own tokens, while
  * everyone in a team workspace draws the owner's pool — and every workspace one person owns,
@@ -915,6 +926,20 @@ async function resolvePoolCompanyId(
    * identified is worse than charging the person who is actually here.
    */
   if (!company || company.is_personal || !company.owner_user_id) {
+    return personalCompanyId(promptingUserId);
+  }
+
+  /*
+   * A guest on a single shared project, rather than a member of the workspace, pays for their own
+   * prompts. Checked against company_members because that is exactly the line between the two:
+   * chat_members alone means they were let into one project, nothing more.
+   */
+  const membership = await client.query(`SELECT 1 FROM company_members WHERE company_id = $1 AND user_id = $2`, [
+    workspaceCompanyId,
+    promptingUserId,
+  ]);
+
+  if (membership.rows.length === 0) {
     return personalCompanyId(promptingUserId);
   }
 
@@ -2308,6 +2333,101 @@ export async function getProjectOverviewPostgres(
 }
 
 // Chat members and invitations (multi-user project sharing)
+
+/**
+ * What a given person may do in a given project, resolved from every source of authority at once.
+ *
+ * There are three, and they have to be combined rather than checked in isolation:
+ *
+ *   creator of the project        → owner
+ *   owner of the enclosing workspace → owner, because a workspace owner outranks a project owner
+ *   otherwise                     → the STRONGER of their project role and their workspace role
+ *
+ * That last line is the one worth stating. Someone can hold both a workspace role and a
+ * project-level invitation, and taking whichever is weaker would mean inviting a workspace editor
+ * to one project as a viewer silently demoted them there — an invitation should never take access
+ * away. Taking the stronger also means a project share cannot be used to sneak someone past their
+ * workspace role, because /api/chat checks the workspace separately.
+ *
+ * `exists` is reported separately from `role` because the two mean very different things to a
+ * caller. A chat id that matches no row is usually a project about to be created by the request
+ * being checked — treating that as "no access" would refuse the first message of every new
+ * project — whereas a row that exists with no role is a real denial.
+ */
+const PROJECT_ROLE_RANK: Record<string, number> = { viewer: 0, editor: 1, admin: 2, owner: 3 };
+
+function strongerRole(a: ProjectRole | null, b: ProjectRole | null): ProjectRole | null {
+  if (!a) {
+    return b;
+  }
+
+  if (!b) {
+    return a;
+  }
+
+  return PROJECT_ROLE_RANK[a] >= PROJECT_ROLE_RANK[b] ? a : b;
+}
+
+export interface EffectiveProjectRole {
+  exists: boolean;
+  role: ProjectRole | null;
+}
+
+export async function getEffectiveProjectRolePostgres(chatId: string, userId: string): Promise<EffectiveProjectRole> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `
+      SELECT c.user_id AS creator_id,
+             co.owner_user_id AS workspace_owner_id,
+             cm.role AS project_role,
+             m.role AS workspace_role
+      FROM chats c
+      LEFT JOIN projects p ON p.id = c.project_id
+      LEFT JOIN companies co ON co.id = p.company_id AND co.deleted_at IS NULL
+      LEFT JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = $2
+      LEFT JOIN company_members m ON m.company_id = co.id AND m.user_id = $2
+      WHERE c.id = $1 OR c.url_id = $1
+      LIMIT 1
+    `,
+      [chatId, userId]
+    );
+
+    const row = result.rows[0];
+
+    if (!row) {
+      return { exists: false, role: null };
+    }
+
+    if (row.creator_id === userId || row.workspace_owner_id === userId) {
+      return { exists: true, role: 'owner' };
+    }
+
+    /*
+     * Workspace roles and project roles share their names on purpose, so a workspace role maps
+     * across unchanged. 'developer' is the pre-migration spelling of editor and normalizes the
+     * same way 'member' does on the project side.
+     */
+    const fromWorkspace = normalizeProjectRole(row.workspace_role === 'developer' ? 'editor' : row.workspace_role);
+    const fromProject = normalizeProjectRole(row.project_role);
+
+    return { exists: true, role: strongerRole(fromProject, fromWorkspace) };
+  } catch (error) {
+    console.error('Error resolving project role:', error);
+
+    /*
+     * Fail CLOSED, and claim the project exists so the caller denies rather than treating this as
+     * a project still to be created. Unlike the token cap, this decides who reads a private
+     * conversation, and a database hiccup must not be a way to see one.
+     */
+    return { exists: true, role: null };
+  } finally {
+    client.release();
+  }
+}
+
 export async function getChatMembersPostgres(
   chatId: string,
   requestingUserId: string,
@@ -2382,7 +2502,7 @@ export async function inviteToChatPostgres(
   chatId: string,
   invitingUserId: string,
   email: string,
-  role: string = 'member'
+  role: string = 'editor'
 ): Promise<{ success: boolean; error?: string; token?: string; alreadyMember?: boolean }> {
   const pool = getPostgresPool();
   const client = await pool.connect();
@@ -2405,24 +2525,29 @@ export async function inviteToChatPostgres(
       };
     }
 
-    // Check inviter has access (owner or admin)
-    const accessCheck = await client.query(
-      `
-      SELECT cm.role, c.user_id FROM chats c
-      LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
-      WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-    `,
-      [chatId, invitingUserId]
-    );
+    /*
+     * Who may invite, via the one resolver rather than a second inline copy of the rule. That
+     * matters here because the previous version looked only at the chat and its chat_members, so
+     * the owner of the enclosing WORKSPACE — who outranks the project's owner — could not invite
+     * anyone to a project inside their own workspace.
+     */
+    const { role: inviterRole } = await getEffectiveProjectRolePostgres(chatId, invitingUserId);
 
-    if (accessCheck.rows.length === 0) {
+    if (!inviterRole) {
       return { success: false, error: 'Access denied to this project.' };
     }
 
-    const inviterRole = accessCheck.rows[0].user_id === invitingUserId ? 'owner' : accessCheck.rows[0].role;
-
-    if (inviterRole !== 'owner' && inviterRole !== 'admin') {
+    if (!canManageProjectMembers(inviterRole)) {
       return { success: false, error: 'Only owners and admins can invite' };
+    }
+
+    /*
+     * Reject an unknown role rather than storing it. chat_members.role is plain TEXT with no CHECK
+     * constraint, so anything written here is read back and trusted by the permission checks.
+     * 'owner' is refused along with the rest: there is exactly one, and it is never granted.
+     */
+    if (!isAssignableProjectRole(role)) {
+      return { success: false, error: 'Choose a role of admin, editor or viewer' };
     }
 
     const invitee = await client.query(`SELECT id FROM users WHERE email = $1`, [normalizedEmail]);
@@ -2594,8 +2719,9 @@ export async function updateChatMemberRolePostgres(
   const client = await pool.connect();
 
   try {
-    if (!['admin', 'member'].includes(newRole)) {
-      return { success: false, error: 'Invalid role' };
+    // admin / editor / viewer. Never 'owner': there is one, and it is not transferable.
+    if (!isAssignableProjectRole(newRole)) {
+      return { success: false, error: 'Choose a role of admin, editor or viewer' };
     }
 
     const chatRow = await client.query(`SELECT id, user_id as owner_id FROM chats WHERE id = $1 OR url_id = $1`, [
@@ -2611,28 +2737,16 @@ export async function updateChatMemberRolePostgres(
       return { success: false, error: 'Cannot change owner role' };
     }
 
-    let requesterRole: string;
+    // Same resolver the invite path uses, so the workspace owner is recognised here too.
+    const requesterRole = isModerator
+      ? 'owner'
+      : (await getEffectiveProjectRolePostgres(chatId, requestingUserId)).role;
 
-    if (isModerator) {
-      requesterRole = 'owner';
-    } else {
-      const accessCheck = await client.query(
-        `
-        SELECT c.user_id, cm.role FROM chats c
-        LEFT JOIN chat_members cm ON c.id = cm.chat_id AND cm.user_id = $2
-        WHERE (c.id = $1 OR c.url_id = $1) AND (c.user_id = $2 OR cm.user_id = $2)
-      `,
-        [chatId, requestingUserId]
-      );
-
-      if (accessCheck.rows.length === 0) {
-        return { success: false, error: 'Access denied' };
-      }
-
-      requesterRole = accessCheck.rows[0].user_id === requestingUserId ? 'owner' : accessCheck.rows[0].role || 'member';
+    if (!requesterRole) {
+      return { success: false, error: 'Access denied' };
     }
 
-    if (requesterRole === 'member') {
+    if (!canManageProjectMembers(requesterRole)) {
       return { success: false, error: 'Only owners and admins can edit roles' };
     }
 
@@ -2642,7 +2756,7 @@ export async function updateChatMemberRolePostgres(
         [chatId, targetUserId]
       );
 
-      if (targetMember.rows[0]?.role === 'admin') {
+      if (normalizeProjectRole(targetMember.rows[0]?.role) === 'admin') {
         return { success: false, error: "Only the owner can change an admin's role" };
       }
     }

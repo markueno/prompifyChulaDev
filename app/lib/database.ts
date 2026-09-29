@@ -32,6 +32,8 @@ import {
   renameChatPostgres,
   duplicateChatPostgres,
   type DuplicateChatResult,
+  getEffectiveProjectRolePostgres,
+  type EffectiveProjectRole,
   getWorkspaceTokenCapPostgres,
   setWorkspaceTokenCapPostgres,
   insertPromptPostgres,
@@ -660,6 +662,24 @@ export async function deleteChat(chatId: string, userId: string) {
   } catch (error) {
     console.error('Error deleting chat:', error);
     return false;
+  }
+}
+
+/**
+ * What a person may do in one project, combining their project role with their workspace role.
+ *
+ * Fails closed (null) on anything unexpected: this decides who reads a private conversation.
+ */
+export async function getEffectiveProjectRole(chatId: string, userId: string): Promise<EffectiveProjectRole> {
+  try {
+    if (DATABASE_TYPE === 'postgresql') {
+      return getEffectiveProjectRolePostgres(chatId, userId);
+    }
+
+    return { exists: false, role: null };
+  } catch (error) {
+    console.error('Error resolving project role:', error);
+    return { exists: true, role: null };
   }
 }
 

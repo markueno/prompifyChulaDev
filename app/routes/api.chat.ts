@@ -17,12 +17,14 @@ import {
   insertTokenUsageAndConsume,
   getTokenBalanceRemainingForCompany,
   getWorkspaceTokenCap,
+  getEffectiveProjectRole,
   getCompanyIdForChat,
   getCompanyMember,
   getUserStatus,
 } from '~/lib/database';
 import { personalCompanyId } from '~/lib/database-postgresql';
 import { canBuildInWorkspace } from '~/lib/workspace-roles';
+import { canBuildInProject } from '~/lib/project-roles';
 import { getActiveCompanyId } from '~/lib/workspace.server';
 import { getTrialStatusForCompany } from '~/lib/billing/billing-db.server';
 import { FREE_TIER_ID, TRIAL_PROMPT_LIMIT } from '~/lib/billing/plans';
@@ -142,6 +144,30 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         if (!canBuildInWorkspace(member.role)) {
           return json(
             { message: 'Your role in this workspace is view-only.', code: 'role_read_only' },
+            { status: 403 }
+          );
+        }
+      }
+
+      /*
+       * The PROJECT's own role, which is a separate question from the workspace's and has to be
+       * asked separately. Someone invited to one project as a viewer must not be able to prompt in
+       * it, and a guest who is in no workspace at all reaches this point having passed no check —
+       * the membership branch above only runs for team workspaces they belong to.
+       *
+       * Only for an existing chat: a brand-new one has no members yet and its creator is about to
+       * become the owner.
+       */
+      if (chatId) {
+        const { exists, role: projectRole } = await getEffectiveProjectRole(chatId, user.id);
+
+        if (exists && !projectRole) {
+          return json({ message: 'You do not have access to this project.', code: 'not_a_member' }, { status: 403 });
+        }
+
+        if (exists && !canBuildInProject(projectRole)) {
+          return json(
+            { message: 'You have view-only access to this project.', code: 'role_read_only' },
             { status: 403 }
           );
         }
