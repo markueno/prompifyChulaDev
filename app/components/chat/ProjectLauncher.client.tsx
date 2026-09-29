@@ -18,8 +18,12 @@ import { fetchServerChats } from '~/lib/persistence/chatSync';
 import { ShareProjectDialog } from '~/components/chat/ShareProjectDialog';
 
 const LAYOUT_KEY = 'prompify.projectLayout';
+const SORT_KEY = 'prompify.projectSort';
 
 type Layout = 'tiles' | 'list';
+
+/** 'recent' is newest-first by last update; 'name' is A–Z. */
+type Sort = 'recent' | 'name';
 
 /** Reading localStorage throws in some privacy modes; a failed read just means the default. */
 function readLayout(): Layout {
@@ -28,6 +32,50 @@ function readLayout(): Layout {
   } catch {
     return 'tiles';
   }
+}
+
+/** Recent by default: the thing you were working on yesterday is the usual reason you are here. */
+function readSort(): Sort {
+  try {
+    return localStorage.getItem(SORT_KEY) === 'name' ? 'name' : 'recent';
+  } catch {
+    return 'recent';
+  }
+}
+
+/*
+ * When a project was last touched, written the way someone would say it.
+ *
+ * Shown only in list mode, where there is a row's width to spare — a square tile has room for the
+ * name and little else, and a date under every one of them turned the grid into a table.
+ */
+function formatUpdated(timestamp: string): string {
+  const then = new Date(timestamp);
+
+  if (Number.isNaN(then.getTime())) {
+    return '';
+  }
+
+  const days = Math.floor((Date.now() - then.getTime()) / 86_400_000);
+
+  if (days <= 0) {
+    return 'Today';
+  }
+
+  if (days === 1) {
+    return 'Yesterday';
+  }
+
+  if (days < 7) {
+    return `${days} days ago`;
+  }
+
+  // Past a week the actual date is more use than a count, and the year only matters across one.
+  return then.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    ...(then.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }),
+  });
 }
 
 /*
@@ -94,6 +142,7 @@ export function ProjectLauncher() {
 
   const [projects, setProjects] = useState<ChatHistoryItem[]>([]);
   const [layout, setLayout] = useState<Layout>('tiles');
+  const [sort, setSort] = useState<Sort>('recent');
   const [loaded, setLoaded] = useState(false);
 
   /** The project whose name is being edited inline, and the text as typed so far. */
@@ -118,6 +167,7 @@ export function ProjectLauncher() {
 
   useEffect(() => {
     setLayout(readLayout());
+    setSort(readSort());
 
     let cancelled = false;
 
@@ -149,6 +199,35 @@ export function ProjectLauncher() {
       // A remembered preference is a convenience; losing it is not worth surfacing.
     }
   }, []);
+
+  const chooseSort = useCallback((next: Sort) => {
+    setSort(next);
+
+    try {
+      localStorage.setItem(SORT_KEY, next);
+    } catch {
+      // As above — a lost preference is not worth telling anyone about.
+    }
+  }, []);
+
+  /*
+   * Sorted after filtering, and on a copy: filteredItems comes from the search hook and sorting it
+   * in place would mutate what the hook holds.
+   *
+   * The server already returns newest-first, so 'recent' is only re-asserting that — cheap, and it
+   * keeps the order correct after a rename or a duplicate has gone in without a refetch.
+   */
+  const orderedItems = useMemo(() => {
+    const items = [...filteredItems];
+
+    if (sort === 'name') {
+      return items.sort((a, b) =>
+        (a.description ?? '').localeCompare(b.description ?? '', undefined, { sensitivity: 'base' })
+      );
+    }
+
+    return items.sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+  }, [filteredItems, sort]);
 
   const startRename = useCallback((project: ChatHistoryItem) => {
     setRenamingId(project.id);
@@ -291,7 +370,35 @@ export function ProjectLauncher() {
           aria-label="Search your projects"
           className="h-12 w-full max-w-2xl rounded-lg border border-white/20 bg-white/10 px-4 text-base text-white backdrop-blur-md placeholder:text-white/50 focus:outline-none focus:ring-1 focus:ring-[#f97316]"
         />
-        <div className="flex flex-1 justify-end">
+        <div className="flex flex-1 justify-end gap-2">
+          {/*
+           * Ordering, in its own group so it reads as a separate decision from layout — the two get
+           * combined otherwise and pressing one looks like it might change the other.
+           */}
+          <div className="flex h-12 shrink-0 overflow-hidden rounded-lg border border-white/20 bg-white/10 backdrop-blur-md">
+            {(
+              [
+                { value: 'recent', icon: 'i-ph:clock-counter-clockwise', label: 'Sort by last updated' },
+                { value: 'name', icon: 'i-ph:sort-ascending', label: 'Sort A to Z' },
+              ] as const
+            ).map(option => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => chooseSort(option.value)}
+                aria-label={option.label}
+                title={option.label}
+                aria-pressed={sort === option.value}
+                className={classNames(
+                  'flex w-11 items-center justify-center text-xl transition-colors',
+                  sort === option.value ? 'bg-white/20 text-white' : 'text-white/60 hover:text-white'
+                )}
+              >
+                <span className={option.icon} />
+              </button>
+            ))}
+          </div>
+
           <div className="flex h-12 shrink-0 overflow-hidden rounded-lg border border-white/20 bg-white/10 backdrop-blur-md">
             {(['tiles', 'list'] as const).map(option => (
               <button
@@ -313,7 +420,7 @@ export function ProjectLauncher() {
         </div>
       </div>
 
-      {filteredItems.length === 0 ? (
+      {orderedItems.length === 0 ? (
         <p className="text-center text-base text-white/60">No projects match that search.</p>
       ) : (
         /*
@@ -328,7 +435,7 @@ export function ProjectLauncher() {
               : 'flex flex-col gap-2'
           )}
         >
-          {filteredItems.map(project => (
+          {orderedItems.map(project => (
             <ProjectCard
               key={project.id}
               project={project}
@@ -450,7 +557,22 @@ function ProjectCard({
         ) : (
           <>
             <span className={classNames(icon, 'shrink-0 text-xl text-white/70')} />
-            {!renaming && <span className="truncate pr-7 text-base">{project.description}</span>}
+            {/* Keeps clear of the menu button on narrow screens, where the date is hidden. */}
+            {!renaming && <span className="truncate pr-7 text-base sm:pr-0">{project.description}</span>}
+            {/*
+             * When it was last touched, at the right edge with room left for the menu button.
+             * List mode only: a square tile has space for a name and little else, and a date under
+             * every one of them turns the grid into a table.
+             *
+             * ml-auto rather than a spacer, so a long name shortens before the date does, and the
+             * date is what stays legible. Hidden on the narrowest screens where the name needs
+             * every pixel.
+             */}
+            {!renaming && (
+              <span className="ml-auto hidden shrink-0 pr-7 text-xs text-white/50 sm:block">
+                {formatUpdated(project.timestamp)}
+              </span>
+            )}
           </>
         )}
       </a>
