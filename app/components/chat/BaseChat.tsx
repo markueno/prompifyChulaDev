@@ -855,6 +855,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                 actionRunner={actionRunner ?? ({} as ActionRunner)}
                 chatStarted={chatStarted}
                 isStreaming={isStreaming}
+                /*
+                 * The same role set by construction: canSeeProjectInternals and canBuildInProject
+                 * are one predicate, so anyone refused the composer is also shown preview only.
+                 */
+                previewOnly={!canBuild}
               />
             )}
           </ClientOnly>

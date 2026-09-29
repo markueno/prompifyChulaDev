@@ -39,6 +39,14 @@ import { PushToGitHubDialog } from '~/components/@settings/tabs/connections/comp
 interface WorkspaceProps {
   chatStarted?: boolean;
   isStreaming?: boolean;
+  /**
+   * A viewer: shown the running app, with the code, the diff and the admin panel out of reach.
+   *
+   * Presentation only, and it must not be mistaken for access control. The preview runs in this
+   * browser via WebContainer, so the files are here to be found by anyone who opens devtools —
+   * what is genuinely withheld from a viewer is the conversation, which /api/chat/:id never sends.
+   */
+  previewOnly?: boolean;
   actionRunner: ActionRunner;
   metadata?: {
     gitUrl?: string;
@@ -291,7 +299,7 @@ const FileModifiedDropdown = memo(
 );
 
 export const Workbench = memo(
-  ({ chatStarted, isStreaming, actionRunner, metadata, updateChatMestaData }: WorkspaceProps) => {
+  ({ chatStarted, isStreaming, previewOnly, actionRunner, metadata, updateChatMestaData }: WorkspaceProps) => {
     renderLogger.trace('Workbench');
 
     const [isSyncing, setIsSyncing] = useState(false);
@@ -322,6 +330,17 @@ export const Workbench = memo(
     const setSelectedView = (view: WorkbenchViewType) => {
       workbenchStore.currentView.set(view);
     };
+
+    /*
+     * A viewer starts on the preview and stays there. The store's default is 'code', and every
+     * other tab is reached only through controls hidden below, so this is what stops a viewer
+     * landing on an empty editor with no way to get to the app they were sent to look at.
+     */
+    useEffect(() => {
+      if (previewOnly) {
+        setSelectedView('preview');
+      }
+    }, [previewOnly]);
 
     const prevHasPreview = useRef(hasPreview);
     useEffect(() => {
@@ -562,37 +581,48 @@ export const Workbench = memo(
             <div className="absolute inset-0 px-0 lg:px-2 lg:pb-2">
               <div className="h-full flex flex-col bg-bolt-elements-background-depth-2 border border-bolt-elements-borderColor shadow-sm rounded-none lg:rounded-b-lg overflow-hidden">
                 <div className="flex items-center px-3 py-2 border-b border-bolt-elements-borderColor">
-                  <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
-                  {/* Problems tab button with live error badge */}
-                  <button
-                    className={`relative ml-1 flex items-center gap-1 px-2.5 py-0.5 rounded-full text-sm transition-colors ${
-                      selectedView === 'problems'
-                        ? 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
-                        : 'bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive'
-                    }`}
-                    onClick={() => setSelectedView('problems')}
-                    title="Problems panel"
-                  >
-                    Problems
-                    <ErrorBadge />
-                  </button>
-                  {/* Review button — on-demand AI scan of modified files (Layer 5) */}
-                  <button
-                    className="relative ml-1 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    onClick={handleReview}
-                    disabled={isReviewing}
-                    title="Ask AI to review recently modified files for bugs (low token cost)"
-                  >
-                    {isReviewing ? (
-                      <div className="i-ph:spinner animate-spin w-3.5 h-3.5" />
-                    ) : (
-                      <div className="i-ph:magnifying-glass w-3.5 h-3.5" />
-                    )}
-                    {isReviewing ? 'Reviewing…' : 'Review'}
-                  </button>
+                  {previewOnly ? (
+                    <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent">
+                      <span className="i-ph:eye w-3.5 h-3.5" />
+                      Preview
+                    </span>
+                  ) : (
+                    <Slider selected={selectedView} options={sliderOptions} setSelected={setSelectedView} />
+                  )}
+                  {/* Problems, Review and version history are build tools — not for a viewer. */}
+                  {!previewOnly && (
+                    <>
+                      <button
+                        className={`relative ml-1 flex items-center gap-1 px-2.5 py-0.5 rounded-full text-sm transition-colors ${
+                          selectedView === 'problems'
+                            ? 'bg-bolt-elements-item-backgroundAccent text-bolt-elements-item-contentAccent'
+                            : 'bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive'
+                        }`}
+                        onClick={() => setSelectedView('problems')}
+                        title="Problems panel"
+                      >
+                        Problems
+                        <ErrorBadge />
+                      </button>
+                      {/* Review button — on-demand AI scan of modified files (Layer 5) */}
+                      <button
+                        className="relative ml-1 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm bg-bolt-elements-item-backgroundActive text-bolt-elements-item-contentDefault hover:text-bolt-elements-item-contentActive disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        onClick={handleReview}
+                        disabled={isReviewing}
+                        title="Ask AI to review recently modified files for bugs (low token cost)"
+                      >
+                        {isReviewing ? (
+                          <div className="i-ph:spinner animate-spin w-3.5 h-3.5" />
+                        ) : (
+                          <div className="i-ph:magnifying-glass w-3.5 h-3.5" />
+                        )}
+                        {isReviewing ? 'Reviewing…' : 'Review'}
+                      </button>
 
-                  {/* Day 17 — version history dropdown (restore any earlier project state) */}
-                  <VersionHistoryDropdown />
+                      {/* Day 17 — version history dropdown (restore any earlier project state) */}
+                      <VersionHistoryDropdown />
+                    </>
+                  )}
 
                   {/* Share button — expands export options inline */}
                   {selectedView === 'code' && (
