@@ -55,14 +55,14 @@ const LABEL_CLASS = 'block text-sm font-medium text-[#231710] dark:text-[#f0e4d5
  * project list has. The border carries the brand orange properly instead of hinting at it.
  */
 const SECTION_CLASS =
-  'overflow-hidden rounded-2xl border border-[#f97316]/25 dark:border-[#f97316]/20 ' +
-  'bg-white/60 dark:bg-[#2d2014]/60 backdrop-blur-xl ' +
-  'shadow-[0_2px_16px_rgba(35,23,16,0.07)] dark:shadow-[0_2px_16px_rgba(0,0,0,0.35)]';
+  'overflow-hidden rounded-2xl border border-white/50 dark:border-[#f97316]/20 ' +
+  'bg-white/70 dark:bg-[#2d2014]/70 backdrop-blur-xl ' +
+  'shadow-[0_4px_24px_rgba(35,23,16,0.12)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.4)]';
 
 /** The header strip. Its rule is what actually divides a section's title from its controls. */
 const SECTION_HEADER_CLASS =
-  'flex items-start gap-3 border-b border-[#f97316]/15 dark:border-[#f97316]/15 ' +
-  'bg-white/40 dark:bg-white/5 px-6 py-4';
+  'flex items-start gap-3 border-b border-[#f97316]/20 dark:border-[#f97316]/15 ' +
+  'bg-white/50 dark:bg-white/5 px-6 py-4';
 
 const SECTION_BODY_CLASS = 'p-6';
 
@@ -156,15 +156,25 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f0e4d5] dark:bg-[#1a120a] text-[#231710] dark:text-[#f0e4d5]">
+    /*
+     * A deeper ground than the rest of the app, and a gradient rather than a flat fill.
+     *
+     * The panels are near-white, so how much they stand out is decided entirely by what sits
+     * behind them: against the app's usual #f0e4d5 the contrast was slight even after the panels
+     * stopped being the same colour as the page. Darkening the background is what makes them read
+     * as raised, and it gives the blur something to work with down the length of the page rather
+     * than only where the two washes fall.
+     */
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-[#e2d0b9] via-[#d9c5ab] to-[#cfb99c] text-[#231710] dark:from-[#150e07] dark:via-[#120c06] dark:to-[#0d0804] dark:text-[#f0e4d5]">
       {/*
        * Two soft washes of brand colour behind the panels. Frosted glass only reads as frosted
        * when there is something behind it to blur — over a perfectly flat fill the backdrop-blur
        * has no effect at all and the panels just look like paler rectangles.
        */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-[#f97316]/10 blur-3xl dark:bg-[#f97316]/10" />
-        <div className="absolute -right-24 top-1/3 h-80 w-80 rounded-full bg-[#fed7aa]/40 blur-3xl dark:bg-[#f97316]/5" />
+        <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-[#f97316]/15 blur-3xl dark:bg-[#f97316]/10" />
+        <div className="absolute -right-24 top-1/3 h-80 w-80 rounded-full bg-[#fed7aa]/50 blur-3xl dark:bg-[#f97316]/10" />
+        <div className="absolute bottom-0 left-1/4 h-72 w-72 rounded-full bg-[#f97316]/10 blur-3xl dark:bg-[#f97316]/5" />
       </div>
 
       <div className="relative mx-auto max-w-3xl px-6 py-12">
@@ -181,7 +191,7 @@ export default function SettingsPage() {
           </div>
           <Link
             to="/app/"
-            className="rounded-lg border border-[#fed7aa]/60 dark:border-[#423322] bg-white dark:bg-[#221a10] px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-[#fed7aa]/30 dark:hover:bg-[#2a2016]"
+            className="rounded-lg border border-white/60 dark:border-[#423322] bg-white/80 dark:bg-[#221a10] px-4 py-2 text-sm font-medium shadow-sm backdrop-blur-md transition-colors hover:bg-white dark:hover:bg-[#2a2016]"
           >
             Back to app
           </Link>
