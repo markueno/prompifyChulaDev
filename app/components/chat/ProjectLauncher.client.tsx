@@ -27,32 +27,34 @@ function readLayout(): Layout {
 }
 
 /*
- * Artwork is derived from the project's name rather than stored.
+ * A project's icon is derived from its name rather than stored.
  *
- * Generated from a hash so a given project always looks the same — a tile whose colour changed on
- * reload would read as a glitch, and it makes them recognisable at a glance before the name is
- * read. Nothing is fetched and nothing is stored: no assets to ship, no broken images, no request
- * per tile.
+ * Only the shape varies, not the colour: eight tinted gradients turned the page into a paint
+ * chart and competed with the background. Every tile is the same neutral frosted panel, and the
+ * glyph alone is what makes one recognisable before its name is read.
+ *
+ * Hashed so it is stable — an icon that changed on reload would read as a glitch — and derived
+ * rather than fetched, so no assets ship and no image can fail to load.
  */
-const COVERS = [
-  { from: 'from-orange-500/40', to: 'to-rose-500/20', icon: 'i-ph:rocket-launch' },
-  { from: 'from-sky-500/40', to: 'to-indigo-500/20', icon: 'i-ph:compass' },
-  { from: 'from-emerald-500/40', to: 'to-teal-500/20', icon: 'i-ph:leaf' },
-  { from: 'from-violet-500/40', to: 'to-fuchsia-500/20', icon: 'i-ph:sparkle' },
-  { from: 'from-amber-500/40', to: 'to-orange-500/20', icon: 'i-ph:lightning' },
-  { from: 'from-cyan-500/40', to: 'to-blue-500/20', icon: 'i-ph:waves' },
-  { from: 'from-pink-500/40', to: 'to-purple-500/20', icon: 'i-ph:planet' },
-  { from: 'from-lime-500/40', to: 'to-green-500/20', icon: 'i-ph:tree-structure' },
+const ICONS = [
+  'i-ph:rocket-launch',
+  'i-ph:compass',
+  'i-ph:leaf',
+  'i-ph:sparkle',
+  'i-ph:lightning',
+  'i-ph:waves',
+  'i-ph:planet',
+  'i-ph:tree-structure',
 ];
 
-function coverFor(name: string) {
+function iconFor(name: string) {
   let hash = 0;
 
   for (let i = 0; i < name.length; i++) {
     hash = (hash * 31 + name.charCodeAt(i)) | 0;
   }
 
-  return COVERS[Math.abs(hash) % COVERS.length];
+  return ICONS[Math.abs(hash) % ICONS.length];
 }
 
 export function ProjectLauncher() {
@@ -118,17 +120,11 @@ export function ProjectLauncher() {
      * have built, and the reading width that suits a prompt box makes it a cramped two columns.
      * The parent already supplies the page padding.
      */
-    <div className="w-full">
+    /* Breathing room at the sides and below, so nothing sits against the edge of the window. */
+    <div className="w-full px-6 pb-16 sm:px-10">
       <div className="mb-4 flex items-center gap-3">
         <span className="text-lg font-semibold text-white">Your projects</span>
-        <input
-          type="search"
-          onChange={handleSearchChange}
-          placeholder="Search projects"
-          aria-label="Search your projects"
-          className="ml-auto w-48 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-base text-white placeholder:text-white/50 focus:w-64 focus:outline-none focus:ring-1 focus:ring-[#f97316] transition-all"
-        />
-        <div className="flex shrink-0 overflow-hidden rounded-lg border border-white/20">
+        <div className="ml-auto flex shrink-0 overflow-hidden rounded-lg border border-white/20">
           {(['tiles', 'list'] as const).map(option => (
             <button
               key={option}
@@ -146,8 +142,19 @@ export function ProjectLauncher() {
         </div>
       </div>
 
+      {/* Centred and wide: searching is the main thing you do here once there are more than a few. */}
+      <div className="mb-5 flex justify-center">
+        <input
+          type="search"
+          onChange={handleSearchChange}
+          placeholder="Search projects"
+          aria-label="Search your projects"
+          className="w-full max-w-2xl rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-base text-white backdrop-blur-md placeholder:text-white/50 focus:outline-none focus:ring-1 focus:ring-[#f97316]"
+        />
+      </div>
+
       {filteredItems.length === 0 ? (
-        <p className="text-base text-white/60">No projects match that search.</p>
+        <p className="text-center text-base text-white/60">No projects match that search.</p>
       ) : (
         /*
          * No inner scroll: the grid grows and the PAGE scrolls, so you can scroll past the prompt
@@ -157,12 +164,12 @@ export function ProjectLauncher() {
         <div
           className={classNames(
             layout === 'tiles'
-              ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+              ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6'
               : 'flex flex-col gap-2'
           )}
         >
           {filteredItems.map(project => {
-            const cover = coverFor(project.description ?? project.id);
+            const icon = iconFor(project.description ?? project.id);
 
             return (
               <a
@@ -170,29 +177,25 @@ export function ProjectLauncher() {
                 href={buildProjectChatPath(DEFAULT_PROJECT_ID, project.urlId ?? project.id)}
                 title={project.description}
                 className={classNames(
-                  // Frosted rather than transparent: blurred, lightly tinted, with a hairline edge.
-                  'group overflow-hidden rounded-xl border border-white/20 bg-white/10 backdrop-blur-md text-white shadow-lg transition-all hover:border-[#f97316] hover:bg-white/15',
-                  layout === 'tiles' ? 'flex aspect-square flex-col' : 'flex items-center gap-3 px-4 py-3'
+                  /*
+                   * One neutral frosted panel for every tile. The colour used to come from the
+                   * name, which made a wall of them look like a paint chart; the icon carries
+                   * that job alone now.
+                   */
+                  'group overflow-hidden rounded-xl border border-white/20 bg-white/10 backdrop-blur-md text-white shadow-md transition-all hover:border-[#f97316] hover:bg-white/20',
+                  layout === 'tiles' ? 'flex aspect-square flex-col p-3' : 'flex items-center gap-3 px-4 py-3'
                 )}
               >
                 {layout === 'tiles' ? (
                   <>
-                    <div
-                      className={classNames(
-                        'flex flex-1 items-center justify-center bg-gradient-to-br',
-                        cover.from,
-                        cover.to
-                      )}
-                    >
-                      <span className={classNames(cover.icon, 'text-4xl text-white/80')} />
+                    <div className="flex flex-1 items-center justify-center">
+                      <span className={classNames(icon, 'text-2xl text-white/70')} />
                     </div>
-                    <span className="line-clamp-2 border-t border-white/10 bg-black/20 px-3 py-2.5 text-base font-medium leading-snug">
-                      {project.description}
-                    </span>
+                    <span className="line-clamp-2 text-sm font-medium leading-snug">{project.description}</span>
                   </>
                 ) : (
                   <>
-                    <span className={classNames(cover.icon, 'shrink-0 text-xl text-white/80')} />
+                    <span className={classNames(icon, 'shrink-0 text-xl text-white/70')} />
                     <span className="truncate text-base">{project.description}</span>
                   </>
                 )}
