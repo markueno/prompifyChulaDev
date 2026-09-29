@@ -307,6 +307,14 @@ export function LandingPage() {
                 </div>
                 <Form reloadDocument method="post" action="/api/auth/login" className="landing-login-modal-form">
                   <input type="hidden" name="intent" value="login" />
+                  {/*
+                   * Carries the page the user was trying to reach through the login round trip.
+                   * Without it a deep link — an invitation, a shared project — is lost at sign-in
+                   * and they land on the app wondering why nothing happened.
+                   */}
+                  {searchParams.get('redirectTo') ? (
+                    <input type="hidden" name="redirectTo" value={searchParams.get('redirectTo') ?? ''} />
+                  ) : null}
                   {loginError && (
                     <div className="landing-login-modal-error" role="alert">
                       {loginError}

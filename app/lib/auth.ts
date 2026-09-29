@@ -77,6 +77,36 @@ export function getMockAdminUser(): User {
   };
 }
 
+/**
+ * Where to send someone after they sign in, encoded into the login redirect.
+ *
+ * Without this a deep link is lost the moment it bounces through login: an invitation link
+ * carrying a one-time token would drop the token, sign the person in, and leave them on the app
+ * with no idea what happened — which is exactly how workspace invitations appeared to do nothing.
+ *
+ * Only same-site paths are kept. A value from the URL that is allowed to be absolute, or
+ * protocol-relative (`//evil.example`), turns the login form into an open redirect.
+ */
+function loginRedirectFor(request: Request): string {
+  const url = new URL(request.url);
+  const target = `${url.pathname}${url.search}`;
+
+  if (!target.startsWith('/') || target.startsWith('//') || url.pathname === '/') {
+    return '/?login=1';
+  }
+
+  return `/?login=1&redirectTo=${encodeURIComponent(target)}`;
+}
+
+/** Same guard, applied to a value arriving from a form. Returns null when it cannot be trusted. */
+export function safeRedirectTarget(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) {
+    return null;
+  }
+
+  return value;
+}
+
 export async function requireAuth(request: Request, context: any): Promise<User> {
   if (isAuthDisabled(context)) {
     return getMockAdminUser();
@@ -85,7 +115,7 @@ export async function requireAuth(request: Request, context: any): Promise<User>
   const token = getAuthToken(request);
 
   if (!token) {
-    throw redirect('/?login=1');
+    throw redirect(loginRedirectFor(request));
   }
 
   let decoded: any;
@@ -99,14 +129,14 @@ export async function requireAuth(request: Request, context: any): Promise<User>
 
     decoded = jwt.verify(token, secret);
   } catch {
-    throw redirect('/?login=1');
+    throw redirect(loginRedirectFor(request));
   }
 
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   const session = await validateSession(tokenHash);
 
   if (!session) {
-    throw redirect('/?login=1&message=session_expired');
+    throw redirect(`${loginRedirectFor(request)}&message=session_expired`);
   }
 
   // fire-and-forget — last_used update doesn't need to block the response

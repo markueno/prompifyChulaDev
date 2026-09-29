@@ -2,7 +2,13 @@ import { json, redirect, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { createAuthCookie, clearAuthCookie, getAuthToken, isEmailVerificationRequired } from '~/lib/auth';
+import {
+  createAuthCookie,
+  clearAuthCookie,
+  getAuthToken,
+  isEmailVerificationRequired,
+  safeRedirectTarget,
+} from '~/lib/auth';
 
 interface LoginRequest {
   email: string;
@@ -39,10 +45,15 @@ async function handleLogin({ request, context }: ActionFunctionArgs) {
   let email: string;
   let password: string;
 
+  /** Where the user was headed before login bounced them. Null unless they arrived from a deep link. */
+  let redirectTo: string | null = null;
+
   if (isFormSubmit) {
     const formData = await request.formData();
     email = (formData.get('email') as string) || '';
     password = (formData.get('password') as string) || '';
+
+    redirectTo = safeRedirectTarget(formData.get('redirectTo'));
 
     const intent = (formData.get('intent') as string) || '';
 
@@ -242,7 +253,8 @@ async function handleLogin({ request, context }: ActionFunctionArgs) {
       const headers = new Headers();
       headers.append('Set-Cookie', createAuthCookie(token, request));
 
-      return redirect('/app/', { headers });
+      /* Back to the deep link that sent them here — an invitation, a shared project — or the app. */
+      return redirect(redirectTo ?? '/app/', { headers });
     }
 
     return json<LoginResponse>({

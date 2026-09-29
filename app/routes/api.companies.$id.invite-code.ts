@@ -1,6 +1,7 @@
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
 import { canManageMembers } from '~/lib/workspace-roles';
+import { personalCompanyId } from '~/lib/database-postgresql';
 import {
   getCompanyMember,
   createCompanyInviteCode,
@@ -17,6 +18,15 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   }
 
   const member = await getCompanyMember(companyId, user.id);
+
+  /*
+   * A personal workspace has exactly one member and cannot take another, so a join code for it
+   * would be an invitation into someone's private space. The owner passes the role check, which
+   * is why this needs stating separately.
+   */
+  if (companyId === personalCompanyId(user.id)) {
+    return json({ error: 'Personal workspaces cannot be shared.' }, { status: 400 });
+  }
 
   if (!canManageMembers(member?.role)) {
     return json({ error: 'Only owners and admins can view invite codes' }, { status: 403 });
@@ -36,6 +46,15 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
   }
 
   const member = await getCompanyMember(companyId, user.id);
+
+  /*
+   * A personal workspace has exactly one member and cannot take another, so a join code for it
+   * would be an invitation into someone's private space. The owner passes the role check, which
+   * is why this needs stating separately.
+   */
+  if (companyId === personalCompanyId(user.id)) {
+    return json({ error: 'Personal workspaces cannot be shared.' }, { status: 400 });
+  }
 
   if (!canManageMembers(member?.role)) {
     return json({ error: 'Only owners and admins can manage invite codes' }, { status: 403 });
