@@ -213,6 +213,24 @@ export async function action(args: ActionFunctionArgs) {
 
   const sql = `INSERT INTO "${table.table_name}" (${quotedCols}) VALUES ${valueGroups.join(', ')} RETURNING id`;
 
+  /*
+   * Seeding is meant to fill an EMPTY table, and until this check existed nothing said so on the
+   * server: a second call inserted the whole sample set again, and a third a third time. The
+   * data action already avoids re-seeding a reused master table, but that guard lives in the
+   * client (action-runner.ts), so a retry, a double-click on "Generate sample data", or any other
+   * caller went straight through it.
+   *
+   * Answered as an idempotent no-op rather than an error. This endpoint runs mid-generation, and
+   * failing a build because the sample rows are already present would be the wrong outcome —
+   * "make sure there is sample data" has been satisfied either way. The flag lets the button say
+   * why nothing appeared.
+   */
+  const existing = await runAppQuery(ownerId, `SELECT 1 FROM "${table.table_name}" LIMIT 1`, []);
+
+  if (existing.ok && (existing.rows?.length ?? 0) > 0) {
+    return json({ inserted: 0, skipped: true, reason: 'table_not_empty' });
+  }
+
   const result = await runAppQuery(ownerId, sql, params);
 
   if (!result.ok) {

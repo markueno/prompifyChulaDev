@@ -372,8 +372,14 @@ export class ActionRunner {
           continue;
         }
 
-        const result = (await seedRes.json()) as { inserted?: number };
-        logger.info(`data action: seeded ${result.inserted ?? 0} rows into "${table.tableName}"`);
+        const result = (await seedRes.json()) as { inserted?: number; skipped?: boolean; reason?: string };
+
+        // Skipping is the server refusing to seed a table that already has rows, not a failure.
+        logger.info(
+          result.skipped
+            ? `data action: left "${table.tableName}" alone (${result.reason ?? 'already seeded'})`
+            : `data action: seeded ${result.inserted ?? 0} rows into "${table.tableName}"`
+        );
       } catch (err) {
         logger.error(`data action: seed fetch failed for "${table.tableName}":`, err);
       }
