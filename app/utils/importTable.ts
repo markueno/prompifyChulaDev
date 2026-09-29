@@ -35,8 +35,22 @@ export function sanitizeIdentifier(raw: string, fallbackIndex = 0): string {
  * timestamps are auto-added by the import route, so a user column named `id`
  * becomes `id_2`.
  */
+/*
+ * The three columns api.import-data.ts adds to every table itself: the uuid primary key and the
+ * two timestamps. A user column of the same name has to be renamed before it gets there, because
+ * that route does not merge or ignore the clash — it refuses the entire import with
+ * `Column "id" is reserved`. `id` is about the most common column name there is in a spreadsheet,
+ * so without this an ordinary CSV simply could not be imported.
+ */
+const RESERVED_COLUMN_NAMES = ['id', 'created_at', 'updated_at'];
+
 export function uniqueColumnNames(names: string[]): string[] {
-  const seen = new Set<string>();
+  /*
+   * Seeded with the reserved names, so they are already taken before the first real column is
+   * considered and fall out of the same suffixing loop as any other duplicate — `id` becomes
+   * `id_2`, and a second `id` after it becomes `id_3`.
+   */
+  const seen = new Set<string>(RESERVED_COLUMN_NAMES);
   const result: string[] = [];
 
   for (const original of names) {
