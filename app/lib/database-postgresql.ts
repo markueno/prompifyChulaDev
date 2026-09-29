@@ -2894,6 +2894,76 @@ export async function acceptCompanyInvitationByTokenPostgres(
   }
 }
 
+/** Tokens this workspace spent per calendar day, oldest first, for the usage chart. */
+export async function getCompanyDailyUsagePostgres(
+  companyId: string,
+  windowDays = 30
+): Promise<{ day: string; tokens: number }[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+              COALESCE(SUM(total_tokens), 0)::bigint AS tokens
+         FROM token_usage
+        WHERE company_id = $1 AND created_at >= NOW() - ($2 || ' days')::interval
+        GROUP BY 1
+        ORDER BY 1 ASC`,
+      [companyId, String(windowDays)]
+    );
+
+    return result.rows.map((r: any) => ({ day: r.day, tokens: parseInt(String(r.tokens ?? 0), 10) }));
+  } catch (error) {
+    console.error('Error getting company daily usage:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Tokens spent per project in this workspace.
+ *
+ * Grouped by chat, not by `projects`: a project row is a per-user container holding all of that
+ * member's chats, so grouping by it would collapse every app one person built into a single
+ * meaningless line. A chat is what the product calls a project.
+ */
+export async function getCompanyProjectUsagePostgres(
+  companyId: string,
+  windowDays = 30
+): Promise<{ chatId: string; name: string; urlId: string | null; projectId: string | null; tokens: number }[]> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT tu.chat_id, c.description, c.url_id, c.project_id,
+              COALESCE(SUM(tu.total_tokens), 0)::bigint AS tokens
+         FROM token_usage tu
+         LEFT JOIN chats c ON c.id = tu.chat_id
+        WHERE tu.company_id = $1 AND tu.created_at >= NOW() - ($2 || ' days')::interval
+        GROUP BY tu.chat_id, c.description, c.url_id, c.project_id
+        ORDER BY tokens DESC
+        LIMIT 50`,
+      [companyId, String(windowDays)]
+    );
+
+    return result.rows.map((r: any) => ({
+      chatId: r.chat_id,
+      name: r.description?.trim() || 'Untitled project',
+      urlId: r.url_id ?? null,
+      projectId: r.project_id ?? null,
+      tokens: parseInt(String(r.tokens ?? 0), 10),
+    }));
+  } catch (error) {
+    console.error('Error getting company project usage:', error);
+    return [];
+  } finally {
+    client.release();
+  }
+}
+
 export interface CompanyMemberUsage {
   user_id: string;
   email: string;

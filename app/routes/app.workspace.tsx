@@ -1,12 +1,15 @@
 /**
- * Workspace management — members, their spend, seats and invites.
+ * Workspace settings — Overview, Users and Tokens.
  *
- * Owner-only, and only for a real workspace: a personal workspace has one member and no seats to
- * manage, so the page would be an empty shell. The nav hides the link under the same conditions,
- * but the check here is the one that matters — hiding a link is not access control.
+ * Owners and admins only, and only for a real workspace: a personal workspace has one member and
+ * no seats to administer, so the page would be an empty shell. Reached from the workspace
+ * switcher rather than the main navbar, which is about a user's own work. The checks here are the
+ * ones that matter — hiding an entry point is not access control.
+ *
+ * The tab lives in the URL so a particular view can be linked to and survives a reload.
  */
 import { json, redirect, type LinksFunction, type MetaFunction, type LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { useLoaderData, useRevalidator } from '@remix-run/react';
+import { Link, useLoaderData, useRevalidator, useSearchParams } from '@remix-run/react';
 import { useState } from 'react';
 import { ClientOnly } from 'remix-utils/client-only';
 import { Header } from '~/components/header/Header';
@@ -20,9 +23,13 @@ import {
   getCompanySeats,
   getUserCompanies,
   listCompanyInvitations,
+  getCompanyDailyUsage,
+  getCompanyProjectUsage,
+  getTokenBalanceRemainingForCompany,
 } from '~/lib/database';
 import { getActiveCompanyId } from '~/lib/workspace.server';
-import { canManageMembers } from '~/lib/workspace-roles';
+import { canManageMembers, consumesSeat, isWorkspaceOwner } from '~/lib/workspace-roles';
+import { classNames } from '~/utils/classNames';
 import { personalCompanyId } from '~/lib/database-postgresql';
 import landingStyles from '~/styles/landing.css?url';
 
@@ -42,20 +49,30 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     return redirect('/app/overview');
   }
 
-  const [members, seats, companies, invitations] = await Promise.all([
+  const [members, seats, companies, invitations, daily, projects, remaining] = await Promise.all([
     getCompanyMemberUsage(companyId, USAGE_WINDOW_DAYS),
     getCompanySeats(companyId),
     getUserCompanies(user.id),
     listCompanyInvitations(companyId),
+    getCompanyDailyUsage(companyId, USAGE_WINDOW_DAYS),
+    getCompanyProjectUsage(companyId, USAGE_WINDOW_DAYS),
+    getTokenBalanceRemainingForCompany(companyId, user.id),
   ]);
+
+  const active = companies.find((c: any) => c.id === companyId);
 
   return json({
     user,
     companyId,
-    companyName: companies.find((c: any) => c.id === companyId)?.name ?? 'Workspace',
+    companyName: active?.name ?? 'Workspace',
+    companySlug: active?.slug ?? null,
+    isOwner: isWorkspaceOwner(member?.role),
     members,
     seats,
     invitations,
+    daily,
+    projects,
+    remaining,
     windowDays: USAGE_WINDOW_DAYS,
   });
 }
@@ -97,8 +114,153 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
+const TABS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'users', label: 'Users' },
+  { id: 'tokens', label: 'Tokens' },
+] as const;
+
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-bolt-elements-textSecondary">{label}</p>
+      <p className="mt-1 truncate text-xl font-semibold text-bolt-elements-textPrimary">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-bolt-elements-textSecondary">{hint}</p> : null}
+    </div>
+  );
+}
+
+/** Horizontal bar, sized against the largest value in its own list. */
+function Bar({ value, max }: { value: number; max: number }) {
+  const pct = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
+
+  return (
+    <div className="h-1.5 w-full rounded-full bg-bolt-elements-background-depth-3">
+      <div className="h-1.5 rounded-full bg-[#f97316]" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+function OverviewTab({
+  members,
+  daily,
+  remaining,
+  seats,
+  seatsUsed,
+  windowDays,
+}: {
+  members: any[];
+  daily: { day: string; tokens: number }[];
+  remaining: number;
+  seats: number;
+  seatsUsed: number;
+  windowDays: number;
+}) {
+  /*
+   * "Least active" only counts people who have actually run something. Naming whoever spent zero
+   * would just surface the newest member every time, which says nothing about activity.
+   */
+  const spenders = members.filter(m => m.tokens_spent > 0);
+  const most = spenders.length ? spenders.reduce((a, b) => (b.tokens_spent > a.tokens_spent ? b : a)) : null;
+  const least = spenders.length ? spenders.reduce((a, b) => (b.tokens_spent < a.tokens_spent ? b : a)) : null;
+  const busiest = daily.length ? daily.reduce((a, b) => (b.tokens > a.tokens ? b : a)) : null;
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <Stat label="Members" value={String(members.length)} hint={`${seatsUsed} of ${seats} seats — viewers are free`} />
+      <Stat label="Tokens remaining" value={remaining.toLocaleString()} hint="Shared across this owner's workspaces" />
+      <Stat
+        label={`Busiest day (${windowDays}d)`}
+        value={busiest ? busiest.tokens.toLocaleString() : '—'}
+        hint={busiest ? new Date(busiest.day).toLocaleDateString() : 'No usage recorded yet'}
+      />
+      <Stat
+        label="Most active"
+        value={most ? most.email : '—'}
+        hint={most ? `${most.tokens_spent.toLocaleString()} tokens` : 'Nobody has run anything yet'}
+      />
+      <Stat
+        label="Least active"
+        value={least && spenders.length > 1 ? least.email : '—'}
+        hint={
+          spenders.length > 1 ? `${least!.tokens_spent.toLocaleString()} tokens` : 'Needs at least two people building'
+        }
+      />
+    </div>
+  );
+}
+
+function TokensTab({
+  daily,
+  projects,
+  remaining,
+  windowDays,
+}: {
+  daily: { day: string; tokens: number }[];
+  projects: { chatId: string; name: string; urlId: string | null; projectId: string | null; tokens: number }[];
+  remaining: number;
+  windowDays: number;
+}) {
+  const maxDay = daily.reduce((m, d) => Math.max(m, d.tokens), 0);
+  const maxProject = projects.reduce((m, p) => Math.max(m, p.tokens), 0);
+  const spent = daily.reduce((sum, d) => sum + d.tokens, 0);
+
+  return (
+    <div className="space-y-8">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Stat label="Remaining" value={remaining.toLocaleString()} hint="Drawn from the owner's pool" />
+        <Stat label={`Spent (${windowDays}d)`} value={spent.toLocaleString()} hint="This workspace only" />
+      </div>
+
+      <section className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-5">
+        <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">Spend per day</h2>
+        {daily.length === 0 ? (
+          <p className="mt-3 text-sm text-bolt-elements-textSecondary">No usage in the last {windowDays} days.</p>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {daily.map(d => (
+              <li key={d.day} className="flex items-center gap-3 text-sm">
+                <span className="w-24 shrink-0 text-xs text-bolt-elements-textSecondary">
+                  {new Date(d.day).toLocaleDateString()}
+                </span>
+                <Bar value={d.tokens} max={maxDay} />
+                <span className="w-24 shrink-0 text-right text-xs text-bolt-elements-textSecondary">
+                  {d.tokens.toLocaleString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-5">
+        <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">Spend per project</h2>
+        {projects.length === 0 ? (
+          <p className="mt-3 text-sm text-bolt-elements-textSecondary">No usage in the last {windowDays} days.</p>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {projects.map(p => (
+              <li key={p.chatId} className="flex items-center gap-3 text-sm">
+                <span className="w-48 shrink-0 truncate text-bolt-elements-textPrimary" title={p.name}>
+                  {p.name}
+                </span>
+                <Bar value={p.tokens} max={maxProject} />
+                <span className="w-24 shrink-0 text-right text-xs text-bolt-elements-textSecondary">
+                  {p.tokens.toLocaleString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function WorkspacePage() {
-  const { companyId, companyName, members, seats, invitations, windowDays, user } = useLoaderData<typeof loader>();
+  const { companyId, companyName, members, seats, invitations, daily, projects, remaining, windowDays, user } =
+    useLoaderData<typeof loader>();
+  const [searchParams] = useSearchParams();
   const revalidator = useRevalidator();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,7 +268,16 @@ export default function WorkspacePage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('editor');
 
-  const seatsLeft = seats - members.length;
+  const requested = searchParams.get('tab');
+  const tab = TABS.some(t => t.id === requested) ? (requested as string) : 'overview';
+
+  /*
+   * Seats are spent by roles that can build, so viewers do not count — the same rule the server
+   * applies when admitting someone. Counting every member here would show a workspace as full
+   * while invitations were still succeeding.
+   */
+  const seatsUsed = members.filter((m: any) => consumesSeat(m.role)).length;
+  const seatsLeft = seats - seatsUsed;
 
   const invite = async () => {
     setBusy('invite');
@@ -194,13 +365,30 @@ export default function WorkspacePage() {
         <Header />
 
         <main className="mx-auto w-full max-w-5xl flex-1 overflow-auto px-5 py-8">
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-2xl font-bold text-bolt-elements-textPrimary">{companyName}</h1>
             <p className="mt-1 text-sm text-bolt-elements-textSecondary">
-              {members.length} of {seats} seats used · {totalSpent.toLocaleString()} tokens spent in the last{' '}
-              {windowDays} days.
+              {seatsUsed} of {seats} seats used · {totalSpent.toLocaleString()} tokens spent in the last {windowDays}{' '}
+              days.
             </p>
           </div>
+
+          {/* Tab in the URL so a view can be linked to and survives a reload. */}
+          <nav className="mb-8 flex gap-1 border-b border-bolt-elements-borderColor">
+            {TABS.map(t => (
+              <Link
+                key={t.id}
+                to={`/app/workspace?tab=${t.id}`}
+                className={classNames('-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors', {
+                  'border-[#f97316] text-bolt-elements-textPrimary': tab === t.id,
+                  'border-transparent text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary':
+                    tab !== t.id,
+                })}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </nav>
 
           {error ? (
             <div className="mb-6 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
@@ -214,12 +402,30 @@ export default function WorkspacePage() {
             </div>
           ) : null}
 
-          <section className="mb-8 rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-5">
+          {tab === 'overview' ? (
+            <OverviewTab
+              members={members}
+              daily={daily}
+              remaining={remaining}
+              seats={seats}
+              seatsUsed={seatsUsed}
+              windowDays={windowDays}
+            />
+          ) : null}
+
+          {tab === 'tokens' ? (
+            <TokensTab daily={daily} projects={projects} remaining={remaining} windowDays={windowDays} />
+          ) : null}
+
+          <section
+            hidden={tab !== 'users'}
+            className="mb-8 rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-5"
+          >
             <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">Invite someone</h2>
             <p className="mt-0.5 text-xs text-bolt-elements-textSecondary">
               {seatsLeft > 0
-                ? `${seatsLeft} seat${seatsLeft === 1 ? '' : 's'} left on your plan.`
-                : 'Every seat on your plan is taken — upgrade to invite more people.'}
+                ? `${seatsLeft} seat${seatsLeft === 1 ? '' : 's'} left on your plan. Viewers are free.`
+                : 'Every seat on your plan is taken — upgrade to invite more builders. You can still add viewers.'}
             </p>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -274,7 +480,10 @@ export default function WorkspacePage() {
             ) : null}
           </section>
 
-          <section className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 overflow-hidden">
+          <section
+            hidden={tab !== 'users'}
+            className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 overflow-hidden"
+          >
             <div className="border-b border-bolt-elements-borderColor px-5 py-3">
               <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">Members</h2>
               <p className="mt-0.5 text-xs text-bolt-elements-textSecondary">

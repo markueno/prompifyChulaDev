@@ -60,6 +60,8 @@ import {
   getCompanyMemberPostgres,
   getCompanyMembersPostgres,
   getCompanyMemberUsagePostgres,
+  getCompanyDailyUsagePostgres,
+  getCompanyProjectUsagePostgres,
   countOwnedWorkspacesPostgres,
   archiveCompanyPostgres,
   getTierIdsForOwnerPostgres,
@@ -1050,6 +1052,22 @@ export async function countOwnedWorkspaces(userId: string) {
 export async function getTierIdsForOwner(userId: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return getTierIdsForOwnerPostgres(userId);
+  }
+
+  return [];
+}
+
+export async function getCompanyDailyUsage(companyId: string, windowDays?: number) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyDailyUsagePostgres(companyId, windowDays);
+  }
+
+  return [];
+}
+
+export async function getCompanyProjectUsage(companyId: string, windowDays?: number) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getCompanyProjectUsagePostgres(companyId, windowDays);
   }
 
   return [];
