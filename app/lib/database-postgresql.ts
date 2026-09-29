@@ -7,6 +7,7 @@ import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
 import { diffManifests } from '~/lib/snapshots/diffManifests';
 import { getPlan } from '~/lib/billing/plans';
 import type { CompanyRole } from '~/lib/workspace-roles';
+import { consumesSeat } from '~/lib/workspace-roles';
 // Database schema, inlined at build time. schema.sql is the single source of truth.
 // eslint-disable-next-line no-restricted-imports
 import schemaSql from '../../schema.sql?raw';
@@ -2856,11 +2857,19 @@ export async function acceptCompanyInvitationByTokenPostgres(
       return { success: true, companySlug: inv.slug };
     }
 
-    const countResult = await client.query(`SELECT COUNT(*)::int AS n FROM company_members WHERE company_id = $1`, [
-      inv.company_id,
-    ]);
+    /*
+     * Seats are only spent by roles that can build, so a viewer never triggers this at all.
+     *
+     * Both numbers come from the shared helpers rather than being computed here. This previously
+     * read `companies.seats` straight off the row — which is 1 until a Stripe webhook writes it,
+     * and never does for a team workspace — and counted every member including the owner. A
+     * workspace with one owner and a ten-seat plan therefore refused its very first invitation.
+     */
+    const seatNeeded = consumesSeat(inv.role);
+    const seats = seatNeeded ? await getCompanySeatsPostgres(inv.company_id) : 0;
+    const memberCount = seatNeeded ? await getCompanyMemberCountPostgres(inv.company_id) : 0;
 
-    if ((countResult.rows[0]?.n ?? 0) >= (inv.seats ?? 1)) {
+    if (seatNeeded && memberCount >= seats) {
       await client.query('ROLLBACK');
       return { success: false, error: 'This workspace has no seats left. Ask the owner to upgrade the plan.' };
     }

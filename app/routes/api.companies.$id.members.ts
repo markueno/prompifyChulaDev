@@ -1,6 +1,6 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
-import { canManageMembers, isAssignableRole, isWorkspaceOwner } from '~/lib/workspace-roles';
+import { canManageMembers, consumesSeat, isAssignableRole, isWorkspaceOwner } from '~/lib/workspace-roles';
 import {
   getCompanyMember,
   getCompanyMembers,
@@ -63,10 +63,13 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
         return json({ error: 'A workspace has exactly one owner, so that role cannot be granted.' }, { status: 400 });
       }
 
-      // Seat guard: only count NEW members against the plan's seat cap.
+      /*
+       * Seat guard: only NEW members who actually consume a seat. Viewers are free, so adding one
+       * to a workspace sitting at its cap must still succeed.
+       */
       const alreadyMember = await getCompanyMember(companyId, userId);
 
-      if (!alreadyMember) {
+      if (!alreadyMember && consumesSeat(role)) {
         const [seats, count] = await Promise.all([getCompanySeats(companyId), getCompanyMemberCount(companyId)]);
 
         if (count >= seats) {
