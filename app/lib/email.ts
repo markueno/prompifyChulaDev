@@ -7,7 +7,6 @@
  */
 
 import { TRIAL_PROMPT_LIMIT } from '~/lib/billing/plans';
-import { LOGO_DATA_URI } from '~/lib/email-assets';
 
 interface EmailOptions {
   to: string;
@@ -127,6 +126,31 @@ const COMPANY_LINES = [
 
 function appUrl(): string {
   return process.env.APP_URL || 'http://localhost:5173';
+}
+
+/**
+ * The logo block for the top of an email.
+ *
+ * Linked from the app's own domain, NOT embedded as a data URI. An earlier version embedded one
+ * on the reasoning that clients blocking remote images would still show it inline — that is
+ * wrong for the clients that matter. Gmail strips `data:` in an img src outright and Yahoo does
+ * the same, so on the two biggest webmail clients the logo was not being blocked pending a click,
+ * it was simply never appearing. Remote images at least render once the recipient allows them,
+ * and most clients allow them by default for an address the user has corresponded with.
+ *
+ * Falls back to a text wordmark when APP_URL is not a public https origin — on localhost or an
+ * unset APP_URL the image could never load for the recipient, and a broken-image icon reads far
+ * worse than type does.
+ */
+function logoBlock(): string {
+  const url = appUrl();
+  const isPublic = /^https:\/\//i.test(url) && !/localhost|127\.0\.0\.1|\.local(:|$|\/)/i.test(url);
+
+  if (!isPublic) {
+    return `<div style="font-family: ${FONT}; font-size: 26px; font-weight: 700; letter-spacing: -0.5px; color: ${BRAND.accent};">Prompify</div>`;
+  }
+
+  return `<img src="${url.replace(/\/$/, '')}/prompify2.png" width="74" alt="Prompify" style="display: block; border: 0; outline: none; width: 74px; max-width: 74px; height: auto;">`;
 }
 
 function escapeHtml(value: string): string {
@@ -269,7 +293,7 @@ function renderEmail(layout: EmailLayout): string {
 
           <tr>
             <td align="center" style="padding: 34px 24px 0;">
-              <img src="${LOGO_DATA_URI}" width="74" alt="Prompify" style="display: block; border: 0; outline: none; width: 74px; max-width: 74px; height: auto;">
+              ${logoBlock()}
             </td>
           </tr>
 
