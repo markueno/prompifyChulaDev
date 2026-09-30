@@ -17,6 +17,13 @@ import crypto from 'crypto';
  *
  * The invariant this creates: the plaintext exists only in the email that was sent, and in the one
  * response that issued it. It cannot be recovered afterwards, by us or by anyone else.
+ *
+ * NOT under .server/ despite being server-only by intent. Remix refuses a value import from a
+ * .server module in anything reachable from the client bundle, and database-postgresql.ts is
+ * reachable — routes import personalCompanyId from it. Putting it there broke the production
+ * build while passing typecheck, lint and tests, none of which model bundler boundaries. It is
+ * safe here regardless: SHA-256 of a caller-supplied string holds no secret, and auth.ts already
+ * imports crypto from a client-reachable module for the same reason.
  */
 export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');

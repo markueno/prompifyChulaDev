@@ -7,9 +7,9 @@ import {
   normalizeProjectRole,
   type ProjectRole,
 } from '~/lib/project-roles';
-import { hashToken } from '~/lib/.server/token-hash';
+import { hashToken } from '~/lib/token-hash';
 // Codebase-snapshot persistence deps (ported from feat/persistence-architecture-v2).
-import { keyForHash } from '~/lib/.server/storage';
+import { keyForHash } from '~/lib/snapshots/blobKey';
 import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
 import { diffManifests } from '~/lib/snapshots/diffManifests';
 import { getPlan } from '~/lib/billing/plans';

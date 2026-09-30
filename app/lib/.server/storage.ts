@@ -48,13 +48,12 @@ function getBucket(): string {
   return bucket;
 }
 
-/**
- * Content-addressed key: blobs/<sha[0:2]>/<sha[2:4]>/<sha>
- * Fans files across prefixes so no single prefix becomes hot. ARCHITECTURE-v2.md:154.
+/*
+ * Re-exported from a client-safe module. It is pure string maths and needs no credentials, whereas
+ * everything else here holds the S3 client — and Remix's .server boundary is per module, not per
+ * export, so anything reachable from the browser could not import it from this file.
  */
-export function keyForHash(sha256: string): string {
-  return `blobs/${sha256.slice(0, 2)}/${sha256.slice(2, 4)}/${sha256}`;
-}
+export { keyForHash } from '~/lib/snapshots/blobKey';
 
 /**
  * Day 18 (GC) — delete one object. Idempotent: S3/OBS DeleteObject succeeds even when the
