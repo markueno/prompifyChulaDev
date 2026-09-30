@@ -16,6 +16,7 @@ import { buildProjectChatPath, DEFAULT_PROJECT_ID } from '~/utils/chatRoutes';
 import type { ChatHistoryItem } from '~/lib/persistence';
 import { fetchServerChats } from '~/lib/persistence/chatSync';
 import { ShareProjectDialog } from '~/components/chat/ShareProjectDialog';
+import { downloadProjectZip } from '~/lib/projectExport';
 
 const LAYOUT_KEY = 'prompify.projectLayout';
 const SORT_KEY = 'prompify.projectSort';
@@ -129,7 +130,7 @@ async function postChatAction(action: string, fields: Record<string, string>) {
 }
 
 export function ProjectLauncher() {
-  const loaderData = useLoaderData<{ user?: { id?: string }; ownsWorkspace?: boolean }>();
+  const loaderData = useLoaderData<{ user?: { id?: string }; ownsWorkspace?: boolean; canBuild?: boolean }>();
   const currentUserId = loaderData?.user?.id;
 
   /*
@@ -139,6 +140,17 @@ export function ProjectLauncher() {
    * behind by a member who has gone.
    */
   const ownsWorkspace = loaderData?.ownsWorkspace === true;
+
+  /*
+   * Downloads are for people who can build here. A workspace viewer was being offered "Download"
+   * and handed an empty JSON file, because the server withholds messages from viewers — and the
+   * code is not theirs to take either.
+   *
+   * Not `owned`, which is creator-or-workspace-owner: that would wrongly deny a workspace editor
+   * the code for a colleague's project they can already open and edit. Defaults to true so a
+   * missing loader value cannot lock people out of their own work.
+   */
+  const canBuild = loaderData?.canBuild !== false;
 
   const [projects, setProjects] = useState<ChatHistoryItem[]>([]);
   const [layout, setLayout] = useState<Layout>('tiles');
@@ -279,10 +291,37 @@ export function ProjectLauncher() {
   );
 
   /*
+   * The project's SOURCE, as a ZIP, rebuilt from its latest saved snapshot — see projectExport.
+   * This is what someone pressing "download" on a project means, and until it existed the only
+   * download here handed them the conversation instead.
+   */
+  const downloadCode = useCallback(async (project: ChatHistoryItem) => {
+    setBusyId(project.id);
+
+    try {
+      const result = await downloadProjectZip(project.id, project.description ?? 'project');
+
+      if (result.ok) {
+        toast.success(`Downloaded ${result.fileCount} files`);
+      } else if (result.reason === 'no-code') {
+        /*
+         * Ordinary, not an error: snapshots are written from the workbench, so a project that has
+         * only ever been a conversation has no code to give. Say what to do about it.
+         */
+        toast.info('This project has no saved code yet — open it once, then try again.');
+      } else {
+        toast.error('Could not download the code for this project.');
+      }
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
+
+  /*
    * Download the whole conversation as JSON, matching the sidebar's export format. The listing
    * query omits `messages` to stay fast, so the content has to be fetched before it can be saved.
    */
-  const download = useCallback(async (project: ChatHistoryItem) => {
+  const downloadChat = useCallback(async (project: ChatHistoryItem) => {
     setBusyId(project.id);
 
     try {
@@ -454,7 +493,9 @@ export function ProjectLauncher() {
               onRenameStart={() => startRename(project)}
               onShare={() => setPendingShare(project)}
               onDuplicate={() => duplicate(project)}
-              onDownload={() => download(project)}
+              canDownload={canBuild}
+              onDownloadCode={() => downloadCode(project)}
+              onDownloadChat={() => downloadChat(project)}
               onDelete={() => setPendingDelete(project)}
             />
           ))}
@@ -493,7 +534,9 @@ interface ProjectCardProps {
   onRenameStart: () => void;
   onShare: () => void;
   onDuplicate: () => void;
-  onDownload: () => void;
+  canDownload: boolean;
+  onDownloadCode: () => void;
+  onDownloadChat: () => void;
   onDelete: () => void;
 }
 
@@ -510,7 +553,9 @@ function ProjectCard({
   onRenameStart,
   onShare,
   onDuplicate,
-  onDownload,
+  canDownload,
+  onDownloadCode,
+  onDownloadChat,
   onDelete,
 }: ProjectCardProps) {
   const icon = useMemo(() => iconFor(project.description ?? project.id), [project.description, project.id]);
@@ -630,7 +675,12 @@ function ProjectCard({
              */}
             {owned && <MenuItem icon="i-ph:user-plus" label="Share…" onSelect={onShare} />}
             {owned && <MenuItem icon="i-ph:copy" label="Duplicate" onSelect={onDuplicate} />}
-            <MenuItem icon="i-ph:download-simple" label="Download" onSelect={onDownload} />
+            {canDownload && (
+              <>
+                <MenuItem icon="i-ph:file-zip" label="Download code (.zip)" onSelect={onDownloadCode} />
+                <MenuItem icon="i-ph:chat-text" label="Download chat (.json)" onSelect={onDownloadChat} />
+              </>
+            )}
             {owned && (
               <>
                 <DropdownMenu.Separator className="my-1 h-px bg-[#231710]/10 dark:bg-white/10" />
