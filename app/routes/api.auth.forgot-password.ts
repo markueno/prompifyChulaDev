@@ -1,4 +1,5 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
+import { getClientIp } from '~/lib/.server/client-ip';
 import { createPasswordResetToken, logEmail, checkRateLimit, getUserStatus } from '~/lib/database';
 import { sendPasswordResetEmail } from '~/lib/email';
 import { canResetPassword, parseAccountStatus } from '~/lib/account-status';
@@ -21,10 +22,7 @@ export async function action({ request, context: _context }: ActionFunctionArgs)
     return json<ForgotPasswordResponse>({ success: false, message: 'Method not allowed' }, { status: 405 });
   }
 
-  const clientIP =
-    request.headers.get('CF-Connecting-IP') ||
-    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
-    'unknown';
+  const clientIP = getClientIp(request);
   const rateResult = await checkRateLimit(clientIP, 'forgot-password', 5, 60);
 
   if (!rateResult.allowed) {

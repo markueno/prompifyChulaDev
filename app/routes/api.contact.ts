@@ -1,4 +1,5 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
+import { getClientIp } from '~/lib/.server/client-ip';
 import { contactEmailLooksUnsafe, normalizeContactPlainText } from '~/lib/contact-input-sanitize';
 import {
   CONTACT_COUNTRY_OPTIONS,
@@ -25,10 +26,7 @@ export async function action({ request, context: _context }: ActionFunctionArgs)
     return json<ContactResponse>({ error: 'Method not allowed' }, { status: 405 });
   }
 
-  const clientIP =
-    request.headers.get('CF-Connecting-IP') ||
-    request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
-    'unknown';
+  const clientIP = getClientIp(request);
   const rateResult = await checkRateLimit(clientIP, 'contact', 10, 60);
 
   if (!rateResult.allowed) {

@@ -4315,6 +4315,27 @@ export async function checkRateLimitPostgres(
   }
 }
 
+/**
+ * Forget a rate-limit counter, called when the attempt it was guarding succeeded.
+ *
+ * checkRateLimit counts every call, not only failures, so without this a legitimate person
+ * logging in and out a few times would exhaust their own allowance. Clearing on success means
+ * the counter only ever accumulates consecutive failures, which is what it is for.
+ */
+export async function clearRateLimitPostgres(key: string, endpoint: string): Promise<void> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('DELETE FROM rate_limits WHERE ip_address = $1 AND endpoint = $2', [key, endpoint]);
+  } catch (error) {
+    // Never let this fail the request it follows — the attempt already succeeded.
+    console.error('Error clearing rate limit:', error);
+  } finally {
+    client.release();
+  }
+}
+
 /*
  * ============================================================
  * Company Invite Codes (B2B Phase 2)

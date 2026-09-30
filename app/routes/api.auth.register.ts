@@ -1,4 +1,5 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
+import { getClientIp } from '~/lib/.server/client-ip';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { getUserByEmail, createUser, logEmail, checkRateLimit } from '~/lib/database';
@@ -114,10 +115,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     // Rate limiting check (database-backed, shared across instances)
-    const clientIP =
-      request.headers.get('CF-Connecting-IP') ||
-      request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim() ||
-      'unknown';
+    const clientIP = getClientIp(request);
     const rateResult = await checkRateLimit(clientIP, 'register', 3, 3600);
 
     if (!rateResult.allowed) {

@@ -86,6 +86,7 @@ import {
   addAuditLogPostgres,
   getAuditLogsPostgres,
   checkRateLimitPostgres,
+  clearRateLimitPostgres,
   createCompanyInviteCodePostgres,
   listCompanyInviteCodesPostgres,
   deactivateCompanyInviteCodePostgres,
@@ -1267,6 +1268,18 @@ export async function checkRateLimit(
   }
 
   return checkRateLimitSQLite(key, endpoint, maxAttempts, windowSeconds);
+}
+
+/**
+ * Forget a counter after the attempt it guarded succeeded. No-op on SQLite, which is not a
+ * deployment target here — the durable limiter is Postgres-only.
+ */
+export async function clearRateLimit(key: string, endpoint: string): Promise<void> {
+  if (DATABASE_TYPE === 'postgresql') {
+    return clearRateLimitPostgres(key, endpoint);
+  }
+
+  return undefined;
 }
 
 export async function checkRateLimitSQLite(

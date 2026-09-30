@@ -9,6 +9,7 @@ import {
   isEmailVerificationRequired,
   safeRedirectTarget,
 } from '~/lib/auth';
+import { getClientIp } from '~/lib/.server/client-ip';
 
 interface LoginRequest {
   email: string;
@@ -27,11 +28,23 @@ interface LoginResponse {
   message?: string;
 }
 
-// Rate limiting storage (in production, use Redis or database)
-const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
+/*
+ * Login is limited on two keys at once, both through the durable database limiter the other auth
+ * endpoints already use.
+ *
+ * It previously used an in-process Map keyed on `CF-Connecting-IP` alone. Behind nginx that header
+ * is absent, so every request keyed as 'unknown': one shared bucket, five failures anywhere
+ * locking out every user for fifteen minutes, while an attacker sending a forged header got a
+ * private bucket per value and unlimited attempts. The Map also reset on every deploy.
+ *
+ * Two keys because either alone leaves a gap: per-IP misses an attack spread across many hosts,
+ * and per-email misses someone spraying one password across many accounts.
+ */
+const LOGIN_MAX_PER_IP = 10;
+const LOGIN_MAX_PER_EMAIL = 5;
+const LOGIN_WINDOW_SECONDS = 15 * 60;
 
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-const MAX_LOGIN_ATTEMPTS = 5;
+const TOO_MANY_MESSAGE = 'Too many login attempts. Please try again in 15 minutes.';
 
 async function handleLogin({ request, context }: ActionFunctionArgs) {
   if (request.method !== 'POST') {
@@ -102,39 +115,33 @@ async function handleLogin({ request, context }: ActionFunctionArgs) {
       );
     }
 
-    // Rate limiting check
-    const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
-    const now = Date.now();
-    const attempts = loginAttempts.get(clientIP);
+    const clientIP = getClientIp(request);
 
-    if (attempts) {
-      if (now - attempts.lastAttempt < RATE_LIMIT_WINDOW) {
-        if (attempts.count >= MAX_LOGIN_ATTEMPTS) {
-          if (isFormSubmit) {
-            return redirect(
-              '/?login=1&error=' + encodeURIComponent('Too many login attempts. Please try again in 15 minutes.')
-            );
-          }
+    /*
+     * Fails OPEN on a thrown error. checkRateLimit can throw if the database is briefly
+     * unreachable, and a metering failure must not lock every user out of the product; it fails
+     * CLOSED only on an explicit `allowed: false`, which is a real decision rather than an
+     * accident.
+     */
+    let rateLimited = false;
 
-          return json<LoginResponse>(
-            {
-              success: false,
-              message: 'Too many login attempts. Please try again in 15 minutes.',
-            },
-            { status: 429 }
-          );
-        }
-      } else {
-        // Reset counter if window has passed
-        loginAttempts.delete(clientIP);
-      }
+    try {
+      const [byIp, byEmail] = await Promise.all([
+        checkRateLimit(clientIP, 'login:ip', LOGIN_MAX_PER_IP, LOGIN_WINDOW_SECONDS),
+        checkRateLimit(emailNormalized, 'login:email', LOGIN_MAX_PER_EMAIL, LOGIN_WINDOW_SECONDS),
+      ]);
+      rateLimited = !byIp.allowed || !byEmail.allowed;
+    } catch (error) {
+      console.error('Login rate limit check failed; allowing request', error);
     }
 
-    // Update rate limiting
-    const currentAttempts = loginAttempts.get(clientIP) || { count: 0, lastAttempt: now };
-    currentAttempts.count += 1;
-    currentAttempts.lastAttempt = now;
-    loginAttempts.set(clientIP, currentAttempts);
+    if (rateLimited) {
+      if (isFormSubmit) {
+        return redirect('/?login=1&error=' + encodeURIComponent(TOO_MANY_MESSAGE));
+      }
+
+      return json<LoginResponse>({ success: false, message: TOO_MANY_MESSAGE }, { status: 429 });
+    }
 
     // Get user from database
     const user = (await getUserByEmail(emailNormalized)) as
@@ -246,8 +253,12 @@ async function handleLogin({ request, context }: ActionFunctionArgs) {
 
     await createUserSession(user.id || '', tokenHash, expiresAt, clientIP, userAgent);
 
-    // Clear rate limiting on successful login
-    loginAttempts.delete(clientIP);
+    /*
+     * Both counters are cleared on success, so they only ever hold CONSECUTIVE failures.
+     * checkRateLimit counts every call rather than only failures, so without this a person
+     * logging in and out a few times would exhaust their own allowance.
+     */
+    await Promise.all([clearRateLimit(clientIP, 'login:ip'), clearRateLimit(emailNormalized, 'login:email')]);
 
     if (isFormSubmit) {
       const headers = new Headers();
@@ -291,6 +302,8 @@ import {
   createUserSession,
   ensureUserTrial,
   logoutUser,
+  checkRateLimit,
+  clearRateLimit,
 } from '~/lib/database';
 
 /**
