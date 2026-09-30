@@ -9,9 +9,11 @@
  * deployed apps). Never reuse JWT_SECRET for data access — a leak would
  * compromise both contexts (OWASP).
  *
- * Phase-v1 note: when DATA_API_SECRET is unset we fall back to JWT_SECRET so the
- * staging environment works without a new env var; the security hardening pass
- * must set a dedicated DATA_API_SECRET in production.
+ * The JWT_SECRET fallback survives for local development only. In production an unset
+ * DATA_API_SECRET now throws rather than silently signing data tokens with the session secret:
+ * sharing one key across both contexts means a single leak compromises platform sessions AND every
+ * generated app's data, which is the exact outcome the separation exists to prevent. A
+ * misconfiguration that weakens a boundary should be loud, not quiet.
  */
 import jwt from 'jsonwebtoken';
 
@@ -20,13 +22,30 @@ const ISSUER = 'prompify:data-proxy';
 
 function getSecret(context?: Record<string, unknown>): string {
   const cf = context as Record<string, unknown> | undefined;
-  const fromEnv = (cf?.DATA_API_SECRET as string) || process.env.DATA_API_SECRET || process.env.JWT_SECRET || '';
+  const dedicated = (cf?.DATA_API_SECRET as string) || process.env.DATA_API_SECRET || '';
 
-  if (!fromEnv) {
-    throw new Error('DATA_API_SECRET (or JWT_SECRET fallback) is required for data tokens');
+  if (dedicated) {
+    return dedicated;
   }
 
-  return fromEnv;
+  /*
+   * No dedicated secret. Acceptable locally, never in production — see the note above.
+   */
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'DATA_API_SECRET must be set in production. Data tokens must not share JWT_SECRET: one leak ' +
+        'would compromise both platform sessions and the data of every generated app. ' +
+        'Generate one with: openssl rand -hex 32'
+    );
+  }
+
+  const fallback = process.env.JWT_SECRET || '';
+
+  if (!fallback) {
+    throw new Error('DATA_API_SECRET (or JWT_SECRET in development) is required for data tokens');
+  }
+
+  return fallback;
 }
 
 export interface DataTokenClaims {

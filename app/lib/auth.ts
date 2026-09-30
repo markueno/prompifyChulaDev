@@ -39,13 +39,42 @@ function parseBooleanEnv(value: string | undefined, defaultValue: boolean): bool
   return defaultValue;
 }
 
-// Check if authentication is temporarily disabled
+/**
+ * Whether the local development auth bypass is active.
+ *
+ * This is the most dangerous flag in the codebase: when it is on, every request is served as
+ * getMockAdminUser(), which carries both isModerator and isSuperadmin. There is no authentication
+ * at all, for anyone.
+ *
+ * So it is refused outright in production. It was previously honoured wherever it was set, which
+ * made a single typo in an environment file — or the VITE_AUTH_DISABLED spelling, which
+ * docker-compose does not default — a total compromise with no visible symptom. A developer
+ * convenience should not be reachable from the environment that holds customer data.
+ *
+ * The refusal is logged rather than silent: someone who set it deliberately needs to know why it
+ * is not taking effect.
+ */
+let warnedAboutProductionBypass = false;
+
 export function isAuthDisabled(context: any): boolean {
   const cloudflareEnv = context?.cloudflare?.env || {};
   const processEnv = process.env || {};
   const authDisabled = cloudflareEnv.AUTH_DISABLED || processEnv.AUTH_DISABLED || processEnv.VITE_AUTH_DISABLED;
+  const requested = authDisabled === 'true' || authDisabled === '1';
 
-  return authDisabled === 'true' || authDisabled === '1';
+  if (requested && processEnv.NODE_ENV === 'production') {
+    if (!warnedAboutProductionBypass) {
+      warnedAboutProductionBypass = true;
+      console.error(
+        'SECURITY: AUTH_DISABLED is set but is being IGNORED because NODE_ENV=production. ' +
+          'This flag disables authentication entirely and is for local development only. Unset it.'
+      );
+    }
+
+    return false;
+  }
+
+  return requested;
 }
 
 /**
