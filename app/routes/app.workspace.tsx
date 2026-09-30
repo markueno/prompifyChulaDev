@@ -29,7 +29,7 @@ import {
   getWorkspaceTokenCap,
 } from '~/lib/database';
 import { getActiveCompanyId } from '~/lib/workspace.server';
-import { canManageMembers, consumesSeat, isWorkspaceOwner } from '~/lib/workspace-roles';
+import { ASSIGNABLE_ROLES, canManageMembers, consumesSeat, isWorkspaceOwner } from '~/lib/workspace-roles';
 import { classNames } from '~/utils/classNames';
 import { personalCompanyId } from '~/lib/database-postgresql';
 import landingStyles from '~/styles/landing.css?url';
@@ -93,6 +93,11 @@ export const meta: MetaFunction = () => [
   { title: 'Workspace — Prompify' },
   { name: 'description', content: 'Members, usage and invitations for this workspace.' },
 ];
+
+/** 'developer' rows predate the rename, so the select needs them to resolve to a real option. */
+function normalizeRole(role: string): string {
+  return role === 'developer' ? 'editor' : role;
+}
 
 /** 'developer' still appears on rows written before the developer→editor migration. */
 const ROLE_LABELS: Record<string, string> = {
@@ -190,6 +195,92 @@ function OverviewTab({
         }
       />
     </div>
+  );
+}
+
+/**
+ * Rename the workspace.
+ *
+ * PATCH /api/companies has always accepted `name` and been owner-gated; there was simply no UI, so
+ * a workspace was stuck with whatever it was called at creation. Mirrors TokenCapCard, which does
+ * the same shape against the same endpoint.
+ */
+function WorkspaceNameCard({ companyId, name, canEdit }: { companyId: string; name: string; canEdit: boolean }) {
+  const revalidator = useRevalidator();
+  const [draft, setDraft] = useState(name);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    const trimmed = draft.trim();
+
+    if (!trimmed) {
+      setError('A workspace needs a name.');
+      return;
+    }
+
+    if (trimmed === name) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/companies', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyId, name: trimmed }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || 'Could not rename the workspace');
+      }
+
+      revalidator.revalidate();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not rename the workspace');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 p-5">
+      <h2 className="text-sm font-semibold text-bolt-elements-textPrimary">Workspace name</h2>
+      <p className="mt-1 text-xs text-bolt-elements-textSecondary">
+        What this workspace is called in the switcher and on invitations.
+      </p>
+
+      {canEdit ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <input
+            value={draft}
+            maxLength={100}
+            onChange={e => setDraft(e.target.value)}
+            aria-label="Workspace name"
+            className="w-64 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-3 py-2 text-sm text-bolt-elements-textPrimary focus:outline-none focus:ring-1 focus:ring-orange-500"
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || !draft.trim() || draft.trim() === name}
+            className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save name'}
+          </button>
+          {error && <span className="text-xs text-red-500">{error}</span>}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm text-bolt-elements-textPrimary">
+          {name}
+          <span className="ml-2 text-xs text-bolt-elements-textSecondary">
+            Only the workspace owner can change this.
+          </span>
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -416,6 +507,9 @@ export default function WorkspacePage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  /** The accept link from the last invite or resend. Shown once; not recoverable afterwards. */
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('editor');
 
@@ -441,7 +535,11 @@ export default function WorkspacePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string; emailed?: boolean };
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        emailed?: boolean;
+        acceptUrl?: string;
+      };
 
       if (!res.ok) {
         setError(data.error ?? 'That invitation could not be sent.');
@@ -455,11 +553,58 @@ export default function WorkspacePage() {
             ? `Invitation sent to ${inviteEmail}.`
             : `Invitation created for ${inviteEmail}, but the email could not be sent. Check email settings.`
         );
+
+        /*
+         * Shown once and never again: the token is stored hashed, so this response is the only
+         * copy besides the email itself. Losing it means resending, which issues a new one.
+         */
+        setInviteLink(data.acceptUrl ?? null);
         setInviteEmail('');
         revalidator.revalidate();
       }
     } catch {
       setError('That invitation could not be sent.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /*
+   * Resending is just re-inviting the same address: the invitation upserts, replacing the old
+   * token with a fresh one. It exists because an invite link can no longer be read back out of
+   * the database, so a lost email previously left the invitee stuck.
+   */
+  const resendInvite = async (email: string, role: string) => {
+    setBusy(`resend:${email}`);
+    setError(null);
+    setNotice(null);
+    setInviteLink(null);
+
+    try {
+      const res = await fetch(`/api/companies/${companyId}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        emailed?: boolean;
+        acceptUrl?: string;
+      };
+
+      if (!res.ok) {
+        setError(data.error ?? 'That invitation could not be resent.');
+      } else {
+        setNotice(
+          data.emailed
+            ? `A new invitation was sent to ${email}. The previous link no longer works.`
+            : `A new invitation was created for ${email}, but the email could not be sent — copy the link below.`
+        );
+        setInviteLink(data.acceptUrl ?? null);
+        revalidator.revalidate();
+      }
+    } catch {
+      setError('That invitation could not be resent.');
     } finally {
       setBusy(null);
     }
@@ -553,15 +698,52 @@ export default function WorkspacePage() {
             </div>
           ) : null}
 
+          {/*
+           * The accept link, shown once. It cannot be retrieved later — the token is stored
+           * hashed, so this and the email are the only copies — which is why it says so.
+           */}
+          {inviteLink ? (
+            <div className="mb-6 rounded-lg border border-bolt-elements-borderColor bg-bolt-elements-background-depth-2 px-4 py-3">
+              <p className="text-xs text-bolt-elements-textSecondary">
+                Invite link — copy it now if you want to send it yourself. It will not be shown again.
+              </p>
+              <div className="mt-2 flex gap-2">
+                <input
+                  readOnly
+                  value={inviteLink}
+                  onFocus={e => e.currentTarget.select()}
+                  className="min-w-0 flex-1 rounded-md border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-2 py-1.5 text-xs text-bolt-elements-textPrimary"
+                />
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard?.writeText(inviteLink).catch(() => {})}
+                  className="shrink-0 rounded-md border border-bolt-elements-borderColor px-2.5 py-1.5 text-xs font-medium text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-3"
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInviteLink(null)}
+                  className="shrink-0 rounded-md px-2.5 py-1.5 text-xs text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {tab === 'overview' ? (
-            <OverviewTab
-              members={members}
-              daily={daily}
-              remaining={remaining}
-              seats={seats}
-              seatsUsed={seatsUsed}
-              windowDays={windowDays}
-            />
+            <div className="space-y-8">
+              <OverviewTab
+                members={members}
+                daily={daily}
+                remaining={remaining}
+                seats={seats}
+                seatsUsed={seatsUsed}
+                windowDays={windowDays}
+              />
+              <WorkspaceNameCard companyId={companyId} name={companyName} canEdit={isOwner} />
+            </div>
           ) : null}
 
           {tab === 'tokens' ? (
@@ -625,13 +807,27 @@ export default function WorkspacePage() {
                           {inv.role} · expires {new Date(inv.expires_at).toLocaleDateString()}
                         </span>
                       </span>
-                      <button
-                        onClick={() => revokeInvite(inv.id)}
-                        disabled={busy === inv.id}
-                        className="text-xs text-bolt-elements-textSecondary hover:text-red-500 disabled:opacity-50"
-                      >
-                        Revoke
-                      </button>
+                      <span className="flex shrink-0 items-center gap-3">
+                        {/*
+                         * Resend exists because the accept link cannot be read back: the token is
+                         * stored hashed, so a lost email has no recovery other than issuing a new
+                         * invitation. This replaces the old token.
+                         */}
+                        <button
+                          onClick={() => resendInvite(inv.email, inv.role)}
+                          disabled={busy === `resend:${inv.email}`}
+                          className="text-xs text-bolt-elements-textSecondary hover:text-orange-500 disabled:opacity-50"
+                        >
+                          {busy === `resend:${inv.email}` ? 'Sending…' : 'Resend'}
+                        </button>
+                        <button
+                          onClick={() => revokeInvite(inv.id)}
+                          disabled={busy === inv.id}
+                          className="text-xs text-bolt-elements-textSecondary hover:text-red-500 disabled:opacity-50"
+                        >
+                          Revoke
+                        </button>
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -666,7 +862,6 @@ export default function WorkspacePage() {
                   {members.map((m: any) => {
                     const isSelf = m.user_id === user.id;
                     const isOwnerRow = m.role === 'owner';
-                    const isAdminRow = m.role === 'admin';
 
                     return (
                       <tr
@@ -696,19 +891,27 @@ export default function WorkspacePage() {
                            */}
                           {isSelf || isOwnerRow ? null : (
                             <div className="flex justify-end gap-2">
-                              <button
+                              {/*
+                               * A select over every assignable role, not the admin/editor toggle
+                               * this replaced — that toggle could never reach viewer, so someone
+                               * invited as an editor could not be demoted when their job changed.
+                               *
+                               * Seats need no handling here: consumesSeat already excludes
+                               * viewers, so a demotion frees one by itself.
+                               */}
+                              <select
                                 disabled={busy === m.user_id}
-                                onClick={() =>
-                                  mutate(
-                                    { userId: m.user_id, role: isAdminRow ? 'editor' : 'admin' },
-                                    'PATCH',
-                                    m.user_id
-                                  )
-                                }
-                                className="rounded-md border border-bolt-elements-borderColor px-2.5 py-1 text-xs text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary hover:bg-bolt-elements-background-depth-2 disabled:opacity-50"
+                                value={normalizeRole(m.role)}
+                                aria-label={`Role for ${m.email}`}
+                                onChange={e => mutate({ userId: m.user_id, role: e.target.value }, 'PATCH', m.user_id)}
+                                className="rounded-md border border-bolt-elements-borderColor bg-bolt-elements-background-depth-1 px-2 py-1 text-xs text-bolt-elements-textPrimary disabled:opacity-50"
                               >
-                                {isAdminRow ? 'Make editor' : 'Make admin'}
-                              </button>
+                                {ASSIGNABLE_ROLES.map(r => (
+                                  <option key={r} value={r}>
+                                    {ROLE_LABELS[r] ?? r}
+                                  </option>
+                                ))}
+                              </select>
                               <button
                                 disabled={busy === m.user_id}
                                 onClick={() => mutate({ userId: m.user_id }, 'DELETE', m.user_id)}

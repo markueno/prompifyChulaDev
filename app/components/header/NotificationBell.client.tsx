@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useFetcher } from '@remix-run/react';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'react-toastify';
 import { Button } from '~/components/ui/Button';
 import { classNames } from '~/utils/classNames';
 
 interface Invitation {
   id: string;
   chat_id: string;
-  token: string;
   role: string;
   created_at: string;
   project_name: string;
@@ -20,6 +20,7 @@ type Tab = 'notifications' | 'news';
 export function NotificationBell() {
   const fetcher = useFetcher<{ invitations: Invitation[] }>();
   const [open, setOpen] = useState(false);
+  const [accepting, setAccepting] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('notifications');
   const invitations = fetcher.data?.invitations ?? [];
 
@@ -111,11 +112,39 @@ export function NotificationBell() {
               <div className="py-8 text-center text-sm text-bolt-elements-textSecondary">No invitations</div>
             ) : (
               <div className="space-y-1">
+                {/*
+                 * Accepted by invitation id, not by token. The invitations list no longer carries
+                 * one: tokens are hashed at rest, and a signed-in invitee needs no secret anyway
+                 * — the session proves who they are and the server re-checks the invited address.
+                 */}
                 {invitations.map(inv => (
-                  <a
+                  <button
                     key={inv.id}
-                    href={`/invite/accept?token=${inv.token}`}
-                    className="block p-3 rounded-lg hover:bg-bolt-elements-background-depth-3 transition-colors text-left"
+                    type="button"
+                    disabled={accepting !== null}
+                    onClick={async () => {
+                      setAccepting(inv.id);
+
+                      try {
+                        const res = await fetch(`/api/invitations/${encodeURIComponent(inv.id)}/accept`, {
+                          method: 'POST',
+                          credentials: 'same-origin',
+                        });
+                        const data = (await res.json().catch(() => ({}))) as { chatUrl?: string; error?: string };
+
+                        if (data.chatUrl) {
+                          window.location.href = data.chatUrl;
+                          return;
+                        }
+
+                        toast.error(data.error || 'Could not accept the invitation');
+                      } catch {
+                        toast.error('Could not accept the invitation');
+                      } finally {
+                        setAccepting(null);
+                      }
+                    }}
+                    className="block w-full p-3 rounded-lg hover:bg-bolt-elements-background-depth-3 transition-colors text-left disabled:opacity-60"
                   >
                     <p className="text-sm font-medium text-bolt-elements-textPrimary">
                       You're Invited to {inv.project_name} as{' '}
@@ -127,7 +156,7 @@ export function NotificationBell() {
                     <p className="text-xs text-bolt-elements-textSecondary mt-1">
                       {formatDistanceToNow(new Date(inv.created_at), { addSuffix: true })}
                     </p>
-                  </a>
+                  </button>
                 ))}
               </div>
             )}

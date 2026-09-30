@@ -85,7 +85,12 @@ export async function action({ request, context, params }: ActionFunctionArgs) {
       ipAddress: request.headers.get('x-forwarded-for'),
     });
 
-    return json({ success: true, emailed });
+    /*
+     * The accept link is returned so the caller can show it ONCE. It cannot be fetched later:
+     * the token is stored hashed, so this response and the email are the only copies. Re-posting
+     * the same address is the resend path — it replaces the pending invitation with a fresh token.
+     */
+    return json({ success: true, emailed, acceptUrl });
   }
 
   if (method === 'DELETE') {

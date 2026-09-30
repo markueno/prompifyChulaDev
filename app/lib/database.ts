@@ -46,6 +46,7 @@ import {
   getChatInvitationsPostgres,
   addChatMemberPostgres,
   acceptInvitationByTokenPostgres,
+  acceptInvitationByIdPostgres,
   updateChatMemberRolePostgres,
   removeChatMemberPostgres,
   getSubscriptionByUserIdPostgres,
@@ -951,6 +952,21 @@ export async function addChatMember(chatId: string, userId: string, role?: strin
 export async function acceptInvitationByToken(token: string, userId: string, userEmail: string) {
   if (DATABASE_TYPE === 'postgresql') {
     return acceptInvitationByTokenPostgres(token, userId, userEmail);
+  }
+
+  return { success: false, error: 'Not supported' };
+}
+
+/**
+ * Accept by invitation id, for someone already signed in as the invited address.
+ *
+ * No token changes hands: the session proves who they are and the invitation's own email column
+ * proves it was meant for them. This is what lets tokens stay hashed at rest — they are only
+ * needed by people who have not signed in yet.
+ */
+export async function acceptInvitationById(invitationId: string, userId: string, userEmail: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return acceptInvitationByIdPostgres(invitationId, userId, userEmail);
   }
 
   return { success: false, error: 'Not supported' };

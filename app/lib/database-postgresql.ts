@@ -7,6 +7,7 @@ import {
   normalizeProjectRole,
   type ProjectRole,
 } from '~/lib/project-roles';
+import { hashToken } from '~/lib/.server/token-hash';
 // Codebase-snapshot persistence deps (ported from feat/persistence-architecture-v2).
 import { keyForHash } from '~/lib/.server/storage';
 import { computeVersionMeta } from '~/lib/snapshots/versionMeta';
@@ -420,7 +421,8 @@ export async function createUserPostgres(user: any) {
         user.email,
         user.passwordHash,
         user.isVerified,
-        user.verificationToken,
+        // Hashed at rest like every other single-use credential; see token-hash.ts.
+        user.verificationToken ? hashToken(user.verificationToken) : null,
         user.verificationExpires,
         user.createdAt,
       ]
@@ -478,7 +480,8 @@ export async function getUserByVerificationTokenPostgres(token: string) {
   const client = await pool.connect();
 
   try {
-    const result = await client.query('SELECT * FROM users WHERE verification_token = $1', [token]);
+    // Stored as a hash; see token-hash.ts. The column holds no recoverable secret.
+    const result = await client.query('SELECT * FROM users WHERE verification_token = $1', [hashToken(token)]);
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error getting user by verification token:', error);
@@ -549,8 +552,12 @@ export async function createPasswordResetTokenPostgres(
     const token = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + RESET_TOKEN_EXPIRY_HOURS * 60 * 60 * 1000);
 
+    /*
+     * The hash is stored; the plaintext is returned once, to be put in the email, and then exists
+     * nowhere we control. A database read therefore yields no usable reset link.
+     */
     await client.query('UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3', [
-      token,
+      hashToken(token),
       expires,
       user.id,
     ]);
@@ -570,7 +577,7 @@ export async function getUserByResetTokenPostgres(token: string) {
   const client = await pool.connect();
 
   try {
-    const result = await client.query('SELECT * FROM users WHERE reset_token = $1', [token]);
+    const result = await client.query('SELECT * FROM users WHERE reset_token = $1', [hashToken(token)]);
     return result.rows[0] || null;
   } catch (error) {
     console.error('Error getting user by reset token:', error);
@@ -592,7 +599,7 @@ export async function setPasswordFromResetTokenPostgres(token: string, passwordH
       SET password_hash = $1, reset_token = NULL, reset_expires = NULL, updated_at = CURRENT_TIMESTAMP
       WHERE reset_token = $2 AND reset_expires > CURRENT_TIMESTAMP
     `,
-      [passwordHash, token]
+      [passwordHash, hashToken(token)]
     );
     return (result.rowCount ?? 0) > 0;
   } catch (error) {
@@ -2563,24 +2570,25 @@ export async function inviteToChatPostgres(
       }
     }
 
-    const existingInvite = await client.query(
-      `SELECT token FROM chat_invitations WHERE chat_id = $1 AND LOWER(email) = $2 AND status = 'pending' AND expires_at > NOW()`,
-      [resolvedChatId, normalizedEmail]
-    );
-
-    if (existingInvite.rows.length > 0) {
-      return { success: false, error: 'Invitation already sent to this email' };
-    }
+    /*
+     * A live pending invitation is REPLACED rather than refused, so there is nothing to check for
+     * first. It used to error here, which was reasonable while the token could be read back out of
+     * the database and re-shared — now that it is stored hashed, refusing would leave anyone who
+     * lost the link with no way to get another. The INSERT below upserts, so the previous token
+     * stops working, which is the intent.
+     */
 
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // The hash is stored; the plaintext is returned once for the email and then unrecoverable.
     await client.query(
       `
       INSERT INTO chat_invitations (id, chat_id, email, invited_by_user_id, role, status, token, expires_at)
       VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7)
       ON CONFLICT (chat_id, email) DO UPDATE SET token = $6, expires_at = $7, status = 'pending', invited_by_user_id = $4
     `,
-      [crypto.randomUUID(), resolvedChatId, normalizedEmail, invitingUserId, role, token, expiresAt]
+      [crypto.randomUUID(), resolvedChatId, normalizedEmail, invitingUserId, role, hashToken(token), expiresAt]
     );
 
     return { success: true, token };
@@ -2592,11 +2600,19 @@ export async function inviteToChatPostgres(
   }
 }
 
+/**
+ * A signed-in person's own pending project invitations.
+ *
+ * Deliberately returns `id` and no token. The token is stored as a hash so it could not be
+ * returned anyway, but the better reason is that it is not needed: the caller is already
+ * authenticated as the invited address, so identity is proven by the session rather than by
+ * holding a secret. Accepting goes through `acceptInvitationByIdPostgres`, which re-checks the
+ * address server-side. Tokens now exist only for people who are not signed in yet.
+ */
 export async function getPendingInvitationsForUserPostgres(userEmail: string): Promise<
   {
     id: string;
     chat_id: string;
-    token: string;
     role: string;
     created_at: string;
     project_name: string;
@@ -2610,7 +2626,7 @@ export async function getPendingInvitationsForUserPostgres(userEmail: string): P
     const normalizedEmail = userEmail.trim().toLowerCase();
     const result = await client.query(
       `
-      SELECT ci.id, ci.chat_id, ci.token, ci.role, ci.created_at,
+      SELECT ci.id, ci.chat_id, ci.role, ci.created_at,
              COALESCE(c.description, 'Untitled project') as project_name,
              u.email as inviter_email
       FROM chat_invitations ci
@@ -2853,8 +2869,16 @@ export async function removeChatMemberPostgres(
   }
 }
 
-export async function acceptInvitationByTokenPostgres(
-  token: string,
+/**
+ * Accept a project invitation, found either by its emailed token or by its id for someone already
+ * signed in as the invited address.
+ *
+ * One transaction covering both writes. It previously marked the invitation accepted and *then*
+ * called addChatMemberPostgres, which opens its own pool connection — so a failure in the second
+ * step burned the invitation and left the person with no access and no way to retry.
+ */
+async function acceptChatInvitation(
+  where: { by: 'token'; token: string } | { by: 'id'; id: string },
   userId: string,
   userEmail: string
 ): Promise<{ success: boolean; chatUrl?: string; error?: string }> {
@@ -2863,36 +2887,80 @@ export async function acceptInvitationByTokenPostgres(
 
   try {
     const normalizedEmail = userEmail.trim().toLowerCase();
+
+    await client.query('BEGIN');
+
+    /*
+     * FOR UPDATE OF ci so two clicks on the same invitation cannot both proceed — the second waits
+     * and then finds the status no longer 'pending'.
+     */
+    const predicate = where.by === 'token' ? 'ci.token = $1' : 'ci.id = $1';
+    const key = where.by === 'token' ? hashToken(where.token) : where.id;
+
     const invResult = await client.query(
       `
       SELECT ci.id, ci.chat_id, ci.email, ci.role, c.url_id
       FROM chat_invitations ci
       JOIN chats c ON ci.chat_id = c.id
-      WHERE ci.token = $1 AND ci.status = 'pending' AND ci.expires_at > NOW()
+      WHERE ${predicate} AND ci.status = 'pending' AND ci.expires_at > NOW()
+      FOR UPDATE OF ci
     `,
-      [token]
+      [key]
     );
 
     if (invResult.rows.length === 0) {
+      await client.query('ROLLBACK');
       return { success: false, error: 'Invitation not found or expired' };
     }
 
     const inv = invResult.rows[0];
 
+    /*
+     * Bound to the invited address in both paths. For the id path this is what replaces holding
+     * the token: the session proves who they are, and this proves the invitation was for them.
+     */
     if (inv.email.toLowerCase() !== normalizedEmail) {
+      await client.query('ROLLBACK');
       return { success: false, error: 'This invitation was sent to a different email address' };
     }
 
+    /*
+     * Re-validate the stored role rather than trusting it. chat_members.role is plain TEXT with no
+     * CHECK constraint and every permission check downstream believes it, so a row that predates
+     * role validation — or one written by hand — must not be able to grant itself 'owner'.
+     */
+    const role = isAssignableProjectRole(inv.role) ? inv.role : 'viewer';
+
     await client.query(`UPDATE chat_invitations SET status = 'accepted' WHERE id = $1`, [inv.id]);
-    await addChatMemberPostgres(inv.chat_id, userId, inv.role);
+    await client.query(
+      `
+      INSERT INTO chat_members (id, chat_id, user_id, role)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (chat_id, user_id) DO UPDATE SET role = $4
+    `,
+      [crypto.randomUUID(), inv.chat_id, userId, role]
+    );
+
+    await client.query('COMMIT');
 
     return { success: true, chatUrl: buildProjectChatPath(DEFAULT_PROJECT_ID, inv.url_id || inv.chat_id) };
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Error accepting invitation:', error);
+
     return { success: false, error: 'Failed to accept invitation' };
   } finally {
     client.release();
   }
+}
+
+export async function acceptInvitationByTokenPostgres(token: string, userId: string, userEmail: string) {
+  return acceptChatInvitation({ by: 'token', token }, userId, userEmail);
+}
+
+/** For a signed-in invitee acting on their own notification list — no token involved. */
+export async function acceptInvitationByIdPostgres(invitationId: string, userId: string, userEmail: string) {
+  return acceptChatInvitation({ by: 'id', id: invitationId }, userId, userEmail);
 }
 
 /*
@@ -3084,7 +3152,15 @@ export async function inviteToCompanyPostgres(params: {
          token = EXCLUDED.token,
          expires_at = EXCLUDED.expires_at,
          invited_by_user_id = EXCLUDED.invited_by_user_id`,
-      [crypto.randomUUID(), params.companyId, normalizedEmail, params.invitedByUserId, params.role, token]
+      [
+        crypto.randomUUID(),
+        params.companyId,
+        normalizedEmail,
+        params.invitedByUserId,
+        params.role,
+        // Hash stored; the plaintext goes in the email and is returned once, then unrecoverable.
+        hashToken(token),
+      ]
     );
 
     return { success: true, token };
@@ -3167,7 +3243,7 @@ export async function getCompanyInvitationByTokenPostgres(token: string): Promis
          JOIN companies c ON c.id = ci.company_id
          LEFT JOIN users u ON u.id = ci.invited_by_user_id
         WHERE ci.token = $1 AND ci.status = 'pending' AND ci.expires_at > NOW()`,
-      [token]
+      [hashToken(token)]
     );
 
     const row = result.rows[0];
@@ -3215,7 +3291,7 @@ export async function acceptCompanyInvitationByTokenPostgres(
          JOIN companies c ON c.id = ci.company_id
         WHERE ci.token = $1 AND ci.status = 'pending' AND ci.expires_at > NOW()
         FOR UPDATE OF c`,
-      [token]
+      [hashToken(token)]
     );
 
     if (invResult.rows.length === 0) {

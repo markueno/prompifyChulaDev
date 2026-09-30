@@ -167,6 +167,46 @@ CREATE INDEX IF NOT EXISTS idx_token_usage_company_created ON token_usage(compan
 -- 'developer' any more, so after the first run it matches nothing.
 UPDATE company_members SET role = 'editor' WHERE role = 'developer';
 
+/*
+ * Single-use credentials became hashed at rest (app/lib/.server/token-hash.ts). Tokens written
+ * before that are plaintext, and the plaintext IS the only copy — there is nothing to migrate
+ * them from, since a hash cannot be derived from a value we no longer have any reason to keep.
+ * So they are invalidated.
+ *
+ * The cost is close to nil: reset tokens live one hour, and a pending invitation only needs
+ * resending. The alternative — matching plaintext as a fallback during a grace period — would
+ * keep the vulnerable lookup alive in exchange for saving a few people one click.
+ *
+ * Old tokens are in fact already INERT: a lookup now hashes what the caller submits and compares,
+ * and sha256(token) never equals token, so a stored plaintext value can no longer be matched by
+ * anything. This runs for hygiene and for honesty in the UI — an invitation left 'pending' would
+ * be offered to its invitee and then fail when clicked.
+ *
+ * It must run EXACTLY ONCE, which is why it is guarded. Nothing distinguishes an old plaintext
+ * token from a new hash by inspection — randomBytes(32).toString('hex') and a SHA-256 hex digest
+ * are both 64 lowercase hex characters — so an unguarded `status = 'pending'` predicate would
+ * expire every legitimate invitation on the next restart. The admin->owner UPDATE that had to be
+ * removed from this file is the precedent for exactly that mistake.
+ *
+ * schema_migrations exists so this and any future one-off has somewhere to record itself, instead
+ * of each needing a bespoke guard that has to be reasoned about individually.
+ */
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    name TEXT PRIMARY KEY,
+    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE name = 'hash_single_use_tokens_v1') THEN
+        UPDATE users SET reset_token = NULL, reset_expires = NULL WHERE reset_token IS NOT NULL;
+        UPDATE company_invitations SET status = 'expired' WHERE status = 'pending';
+        UPDATE chat_invitations SET status = 'expired' WHERE status = 'pending';
+
+        INSERT INTO schema_migrations (name) VALUES ('hash_single_use_tokens_v1');
+    END IF;
+END $$;
+
 -- Email invitations to a workspace. Separate from company_invite_codes, which is a shareable
 -- link anyone can redeem; this names a specific address and is accepted only by someone signed in
 -- as it. Mirrors chat_invitations, which cannot be reused here because its chat_id is NOT NULL.
