@@ -20,6 +20,7 @@
 import { type LoaderFunctionArgs } from '@remix-run/cloudflare';
 import { requireAuth } from '~/lib/auth';
 import { issueDataApiToken } from '~/lib/.server/data-token';
+import { getChatById } from '~/lib/database';
 
 const WEBCONTAINER_ORIGIN_RE = /^https:\/\/[a-z0-9-]+\.local-credentialless\.webcontainer-api\.io$/;
 
@@ -40,12 +41,30 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     });
   }
 
-  // Issue a fresh data token (15-min TTL, scoped to this user+chat).
-  const token = await issueDataApiToken(user.id, chatId, env);
+  /*
+   * Confirm the caller can actually reach this chat before minting a credential for it. The
+   * chatId arrives in the query string, and this endpoint previously issued a token for whatever
+   * it was handed — the data proxy would still have refused the request, but an endpoint that
+   * mints credentials on demand should check first rather than rely on the next one to catch it.
+   */
+  const chat = await getChatById(chatId, user.id, user.isModerator);
+
+  if (!chat) {
+    return new Response('/* not found */', {
+      status: 404,
+      headers: { 'Content-Type': 'application/javascript' },
+    });
+  }
+
+  /*
+   * Issue on the canonical chat.id, matching /api/data/token, so the token's scope and the id the
+   * config hands the app are the same value.
+   */
+  const token = await issueDataApiToken(user.id, chat.id, env);
 
   const config = {
     apiUrl: `${new URL(request.url).origin}/api/data`,
-    chatId,
+    chatId: chat.id,
     token,
   };
 

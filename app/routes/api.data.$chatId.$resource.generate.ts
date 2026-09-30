@@ -12,46 +12,15 @@
  * seeding path for existing tables that the AI didn't seed at generation time.
  */
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { requireAuth, type User } from '~/lib/auth';
 import { getChatById } from '~/lib/database';
 import { getRegisteredTable, runAppQuery } from '~/lib/data-provision.server';
-import { validateDataApiToken } from '~/lib/.server/data-token';
+import { getCtxEnv, resolveDataApiPrincipal, tokenScopeAllows } from '~/lib/.server/data-auth';
 import { getPostgresPool } from '~/lib/database-postgresql';
 import { generateText } from 'ai';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import { DEFAULT_MODEL } from '~/utils/constants';
 
 const MAX_GENERATED_ROWS = 12;
-
-function getCtxEnv(context: ActionFunctionArgs['context']): Record<string, unknown> {
-  return (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
-}
-
-async function resolveUser(request: Request, context: ActionFunctionArgs['context']): Promise<User | null> {
-  const env = getCtxEnv(context);
-  const auth = request.headers.get('Authorization') || '';
-
-  if (auth.startsWith('Bearer ')) {
-    const claims = validateDataApiToken(auth.slice(7), env);
-
-    if (!claims) {
-      return null;
-    }
-
-    return {
-      id: claims.userId,
-      email: '',
-      isVerified: true,
-      isModerator: false,
-    };
-  }
-
-  try {
-    return await requireAuth(request, context);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Build a tight system prompt that asks the LLM for JSON rows matching the
@@ -108,11 +77,13 @@ function parseRowsFromLLM(text: string): Record<string, unknown>[] {
 }
 
 export async function action(args: ActionFunctionArgs) {
-  const user = await resolveUser(args.request, args.context);
+  const principal = await resolveDataApiPrincipal(args.request, args.context);
 
-  if (!user) {
+  if (!principal) {
     return json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const { user, tokenChatId } = principal;
 
   const { chatId, resource } = args.params;
 
@@ -125,6 +96,11 @@ export async function action(args: ActionFunctionArgs) {
 
   if (!chat) {
     return json({ error: 'Not found' }, { status: 404 });
+  }
+
+  // A bearer token is scoped to one chat; see data-auth.ts.
+  if (!tokenScopeAllows(tokenChatId, chat)) {
+    return json({ error: 'This token is not valid for this project' }, { status: 403 });
   }
 
   if (chat.user_id !== user.id && !user.isModerator) {

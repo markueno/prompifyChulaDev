@@ -15,11 +15,11 @@
  *     seeding on an existing empty table).
  */
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from '@remix-run/cloudflare';
-import { requireAuth, type User } from '~/lib/auth';
+import { type User } from '~/lib/auth';
 import { getChatById } from '~/lib/database';
 import { getPostgresPool } from '~/lib/database-postgresql';
 import { getRegisteredTable, runAppQuery, type AppTableMeta } from '~/lib/data-provision.server';
-import { validateDataApiToken } from '~/lib/.server/data-token';
+import { resolveDataApiPrincipal, tokenScopeAllows } from '~/lib/.server/data-auth';
 
 const MAX_SEED_ROWS = 200;
 const WEBCONTAINER_ORIGIN_RE = /^https:\/\/[a-z0-9-]+\.local-credentialless\.webcontainer-api\.io$/;
@@ -45,43 +45,18 @@ function corsHeadersFor(request: Request): Record<string, string> {
   return headers;
 }
 
-function getCtxEnv(context: ActionFunctionArgs['context']): Record<string, unknown> {
-  return (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
-}
-
-async function resolveUser(request: Request, context: ActionFunctionArgs['context']): Promise<User | null> {
-  const env = getCtxEnv(context);
-  const auth = request.headers.get('Authorization') || '';
-
-  if (auth.startsWith('Bearer ')) {
-    const claims = validateDataApiToken(auth.slice(7), env);
-
-    if (!claims) {
-      return null;
-    }
-
-    return {
-      id: claims.userId,
-      email: '',
-      isVerified: true,
-      isModerator: false,
-    };
-  }
-
-  try {
-    return await requireAuth(request, context);
-  } catch {
-    return null;
-  }
-}
-
 interface ResolvedContext {
   user: User;
   ownerId: string;
   table: AppTableMeta;
 }
 
-async function resolveTable(chatId: string, resource: string, user: User): Promise<ResolvedContext | Response> {
+async function resolveTable(
+  chatId: string,
+  resource: string,
+  user: User,
+  tokenChatId: string | null
+): Promise<ResolvedContext | Response> {
   if (!/^[a-z][a-z0-9_]{0,62}$/.test(resource)) {
     return json({ error: 'Invalid resource name' }, { status: 400 });
   }
@@ -90,6 +65,11 @@ async function resolveTable(chatId: string, resource: string, user: User): Promi
 
   if (!chat) {
     return json({ error: 'Not found' }, { status: 404 });
+  }
+
+  // A bearer token is scoped to one chat; see data-auth.ts.
+  if (!tokenScopeAllows(tokenChatId, chat)) {
+    return json({ error: 'This token is not valid for this project' }, { status: 403 });
   }
 
   if (chat.user_id !== user.id && !user.isModerator) {
@@ -118,11 +98,13 @@ export async function action(args: ActionFunctionArgs) {
     return new Response(null, { status: 204, headers: corsHeadersFor(args.request) });
   }
 
-  const user = await resolveUser(args.request, args.context);
+  const principal = await resolveDataApiPrincipal(args.request, args.context);
 
-  if (!user) {
+  if (!principal) {
     return json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const { user, tokenChatId } = principal;
 
   const { chatId, resource } = args.params;
 
@@ -130,7 +112,7 @@ export async function action(args: ActionFunctionArgs) {
     return json({ error: 'Bad route' }, { status: 400 });
   }
 
-  const resolved = await resolveTable(chatId, resource, user);
+  const resolved = await resolveTable(chatId, resource, user, tokenChatId);
 
   if (resolved instanceof Response) {
     return resolved;

@@ -16,11 +16,11 @@
  * app_tables registry, otherwise 404 (app A cannot read app B's tables).
  */
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from '@remix-run/cloudflare';
-import { requireAuth, type User } from '~/lib/auth';
+import { type User } from '~/lib/auth';
 import { getChatById, getCompanyMember } from '~/lib/database';
 import { getPostgresPool } from '~/lib/database-postgresql';
 import { getRegisteredTable, runAppQueryInSchema, type AppTableMeta } from '~/lib/data-provision.server';
-import { validateDataApiToken } from '~/lib/.server/data-token';
+import { resolveDataApiPrincipal, tokenScopeAllows } from '~/lib/.server/data-auth';
 
 const MAX_ROWS = 1000;
 const VALID_COLUMN = /^[a-z][a-z0-9_]{0,62}$/;
@@ -82,42 +82,12 @@ interface ResolvedContext {
   table: AppTableMeta;
 }
 
-function getCtxEnv(context: ActionFunctionArgs['context']): Record<string, unknown> {
-  return (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
-}
-
-/**
- * Resolve the requesting user. Bearer data token takes precedence (deployed
- * apps); otherwise the session cookie via requireAuth (in-IDE preview).
- * requireAuth throws a redirect Response on failure — we catch and return null.
- */
-async function resolveUser(request: Request, context: ActionFunctionArgs['context']): Promise<User | null> {
-  const env = getCtxEnv(context);
-  const auth = request.headers.get('Authorization') || '';
-
-  if (auth.startsWith('Bearer ')) {
-    const claims = validateDataApiToken(auth.slice(7), env);
-
-    if (!claims) {
-      return null;
-    }
-
-    return {
-      id: claims.userId,
-      email: '',
-      isVerified: true,
-      isModerator: false,
-    };
-  }
-
-  try {
-    return await requireAuth(request, context);
-  } catch {
-    return null;
-  }
-}
-
-async function resolveTable(chatId: string, resource: string, user: User): Promise<ResolvedContext | Response> {
+async function resolveTable(
+  chatId: string,
+  resource: string,
+  user: User,
+  tokenChatId: string | null
+): Promise<ResolvedContext | Response> {
   // Resource name must be a clean identifier before it even hits the registry.
   if (!VALID_COLUMN.test(resource)) {
     return json({ error: 'Invalid resource name' }, { status: 400 });
@@ -133,6 +103,18 @@ async function resolveTable(chatId: string, resource: string, user: User): Promi
 
   if (!chat) {
     return json({ error: 'Not found' }, { status: 404 });
+  }
+
+  /*
+   * A bearer token is scoped to one chat and must not reach another. Checked here, after the chat
+   * row exists, so the comparison can accept either `id` or `url_id` — the two token issuers
+   * disagree about which they embed.
+   *
+   * Without this, the 7-day token embedded in a shared deploy's public env-config.js would work
+   * against every project its owner could reach.
+   */
+  if (!tokenScopeAllows(tokenChatId, chat)) {
+    return json({ error: 'This token is not valid for this project' }, { status: 403 });
   }
 
   /*
@@ -186,11 +168,13 @@ export async function loader(args: LoaderFunctionArgs) {
 }
 
 async function loaderImpl({ request, params, context }: LoaderFunctionArgs) {
-  const user = await resolveUser(request, context);
+  const principal = await resolveDataApiPrincipal(request, context);
 
-  if (!user) {
+  if (!principal) {
     return json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const { user, tokenChatId } = principal;
 
   const { chatId, resource } = params;
 
@@ -198,7 +182,7 @@ async function loaderImpl({ request, params, context }: LoaderFunctionArgs) {
     return json({ error: 'Bad route' }, { status: 400 });
   }
 
-  const resolved = await resolveTable(chatId, resource, user);
+  const resolved = await resolveTable(chatId, resource, user, tokenChatId);
 
   if (resolved instanceof Response) {
     return resolved;
@@ -254,11 +238,13 @@ export async function action(args: ActionFunctionArgs) {
 }
 
 async function actionImpl({ request, params, context }: ActionFunctionArgs) {
-  const user = await resolveUser(request, context);
+  const principal = await resolveDataApiPrincipal(request, context);
 
-  if (!user) {
+  if (!principal) {
     return json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const { user, tokenChatId } = principal;
 
   const { chatId, resource } = params;
 
@@ -266,7 +252,7 @@ async function actionImpl({ request, params, context }: ActionFunctionArgs) {
     return json({ error: 'Bad route' }, { status: 400 });
   }
 
-  const resolved = await resolveTable(chatId, resource, user);
+  const resolved = await resolveTable(chatId, resource, user, tokenChatId);
 
   if (resolved instanceof Response) {
     return resolved;
