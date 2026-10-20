@@ -128,8 +128,42 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
       billingCompanyId =
         (chatId ? await getCompanyIdForChat(chatId) : null) || (await getActiveCompanyId(request, user));
 
-      // Membership check for team workspaces (the personal workspace is always the user's own).
-      if (billingCompanyId !== personal) {
+      /*
+       * Who may prompt here.
+       *
+       * For an EXISTING project the effective project role is the whole answer, because
+       * getEffectiveProjectRole already folds in the workspace role and returns the stronger of
+       * the two. Asking about workspace membership separately, as this used to, made membership an
+       * absolute gate — so someone invited to a single project as an editor was refused with
+       * "You are not a member of this workspace" despite the share granting exactly that. The UI
+       * showed them a composer, because it derives canBuild from their OWN active workspace, and
+       * the prompt then failed. It also made the guest-pays-their-own-tokens rule in
+       * resolvePoolCompanyId unreachable, since no guest ever got this far.
+       *
+       * Nothing is loosened for workspace members: a workspace viewer still resolves to 'viewer'
+       * and is still refused, because the stronger-of-the-two rule cannot weaken a role, only
+       * raise it.
+       *
+       * A NEW chat has no project and therefore no project role, so there the workspace is the
+       * only thing that can decide.
+       */
+      const { exists, role: projectRole } = chatId
+        ? await getEffectiveProjectRole(chatId, user.id)
+        : { exists: false, role: null };
+
+      if (exists) {
+        if (!projectRole) {
+          return json({ message: 'You do not have access to this project.', code: 'not_a_member' }, { status: 403 });
+        }
+
+        if (!canBuildInProject(projectRole)) {
+          return json(
+            { message: 'You have view-only access to this project.', code: 'role_read_only' },
+            { status: 403 }
+          );
+        }
+      } else if (billingCompanyId !== personal) {
+        // Creating something new in a team workspace: membership and role are the only gate.
         const member = await getCompanyMember(billingCompanyId, user.id);
 
         if (!member) {
@@ -144,30 +178,6 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         if (!canBuildInWorkspace(member.role)) {
           return json(
             { message: 'Your role in this workspace is view-only.', code: 'role_read_only' },
-            { status: 403 }
-          );
-        }
-      }
-
-      /*
-       * The PROJECT's own role, which is a separate question from the workspace's and has to be
-       * asked separately. Someone invited to one project as a viewer must not be able to prompt in
-       * it, and a guest who is in no workspace at all reaches this point having passed no check —
-       * the membership branch above only runs for team workspaces they belong to.
-       *
-       * Only for an existing chat: a brand-new one has no members yet and its creator is about to
-       * become the owner.
-       */
-      if (chatId) {
-        const { exists, role: projectRole } = await getEffectiveProjectRole(chatId, user.id);
-
-        if (exists && !projectRole) {
-          return json({ message: 'You do not have access to this project.', code: 'not_a_member' }, { status: 403 });
-        }
-
-        if (exists && !canBuildInProject(projectRole)) {
-          return json(
-            { message: 'You have view-only access to this project.', code: 'role_read_only' },
             { status: 403 }
           );
         }

@@ -43,27 +43,28 @@ export async function loader({ request, context, params }: LoaderFunctionArgs) {
   ]);
   const userWithTier = { ...user, accountTier: sub?.tier_display_name ?? null };
 
-  // Same rule as the app shell: a viewer must not be offered a composer that will be refused.
-  const canBuildInWorkspaceHere = companyId === personalCompanyId(user.id) ? true : canBuildInWorkspace(member?.role);
-
   /*
-   * Two separate permissions, and both have to pass. Someone can build across the workspace and
-   * still be a viewer on one project they were invited to individually, or the other way round.
+   * Exactly the rule /api/chat applies, deliberately duplicated rather than approximated — a
+   * composer that appears and is then refused is worse than no composer.
    *
-   * Only consulted when the project actually exists: a chat that is about to be created by its
-   * first message has no row and no members yet, and its creator must not be locked out of it.
+   * For an existing project the effective role decides on its own: it already folds in the
+   * workspace role and returns the stronger of the two. Combining it with a separate workspace
+   * test, as this used to, got two cases wrong — a guest shared one project was shown a composer
+   * the server refused, and someone whose ACTIVE workspace happened to be one they only view had
+   * the composer hidden on a project they were entitled to build in.
+   *
+   * A chat that does not exist yet is about to be created by this very request, so there is no
+   * project role to consult and the workspace decides.
    */
-  const canBuildHere = canBuildInWorkspaceHere && (!projectRole.exists || canBuildInProject(projectRole.role));
+  const canBuildHere = projectRole.exists
+    ? canBuildInProject(projectRole.role)
+    : companyId === personalCompanyId(user.id) || canBuildInWorkspace(member?.role);
 
   /*
-   * Which of the two is the reason, so the notice can say something true rather than something
-   * generic. The project is the more specific answer, so it wins when both apply.
+   * Which permission is the reason, so the notice says something true. 'project' whenever the
+   * project itself is what refuses — that is the specific and actionable answer.
    */
-  const viewOnlyReason = canBuildHere
-    ? null
-    : projectRole.exists && !canBuildInProject(projectRole.role)
-      ? 'project'
-      : 'workspace';
+  const viewOnlyReason = canBuildHere ? null : projectRole.exists ? 'project' : 'workspace';
 
   return json({
     id: params.id,
