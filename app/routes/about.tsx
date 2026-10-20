@@ -49,13 +49,12 @@ export const meta: MetaFunction = () => [
   { title: 'About Prompify — the team behind the AI app builder' },
   {
     name: 'description',
-    content:
-      'Who builds Prompify, why we built it, and how it works. Meet the team across Hong Kong and Thailand, and get in touch.',
+    content: 'The six people who build Prompify, across Hong Kong and Thailand — who we are, and how to reach us.',
   },
   { property: 'og:title', content: 'About Prompify — the team behind the AI app builder' },
   {
     property: 'og:description',
-    content: 'Meet the team behind Prompify, see how it works, and get in touch.',
+    content: 'The six people who build Prompify, across Hong Kong and Thailand, and how to reach us.',
   },
   { property: 'og:type', content: 'website' },
   { property: 'og:url', content: `${SITE_URL}/about` },
@@ -92,13 +91,6 @@ const TEAM: TeamMember[] = [
  */
 const TEAM_PHOTO = '';
 
-const STEPS = [
-  { title: 'Describe it', body: 'Write what you need in plain English — no code, no setup.' },
-  { title: 'Watch it build', body: 'Prompify generates the app and runs it live in your browser.' },
-  { title: 'Refine it', body: 'Ask for changes in chat, or edit the code directly. Every version is saved.' },
-  { title: 'Ship it', body: 'Publish your app and share it with your team.' },
-];
-
 const FAQS = [
   {
     q: 'What is Prompify?',
@@ -121,7 +113,6 @@ const FAQS = [
 const NAV = [
   { href: '#about', label: 'About' },
   { href: '#team', label: 'Team' },
-  { href: '#how', label: 'How it works' },
   { href: '#contact', label: 'Contact' },
   { href: '#faq', label: 'FAQ' },
 ];
@@ -550,23 +541,6 @@ export default function About() {
               Prompify turns plain-English prompts into working, live web apps you can run in your browser. We&apos;re a
               small, cross-border team building it across Hong Kong and Thailand.
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <a
-                href="#team"
-                onClick={e => onNavClick(e, '#team')}
-                className="rounded-full bg-white/10 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/20"
-                style={glass}
-              >
-                Meet the team
-              </a>
-              <a
-                href="#contact"
-                onClick={e => onNavClick(e, '#contact')}
-                className="rounded-full bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-600"
-              >
-                Get in touch
-              </a>
-            </div>
           </section>
 
           {/* ── Team ─────────────────────────────────────────────────────── */}
@@ -627,21 +601,6 @@ export default function About() {
                 </li>
               ))}
             </ul>
-          </section>
-
-          {/* ── How it works ─────────────────────────────────────────────── */}
-          <section id="how" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
-            <Eyebrow>How it works</Eyebrow>
-            <SectionHeading>From a sentence to a running app</SectionHeading>
-            <ol className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {STEPS.map((step, i) => (
-                <li key={step.title} className="rounded-xl p-5" style={glass}>
-                  <span className="text-sm font-bold text-accent-400">{String(i + 1).padStart(2, '0')}</span>
-                  <h3 className="mt-2 font-semibold text-white">{step.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-white/70">{step.body}</p>
-                </li>
-              ))}
-            </ol>
           </section>
 
           {/* ── Contact ──────────────────────────────────────────────────── */}
