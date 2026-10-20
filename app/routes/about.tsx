@@ -1,6 +1,7 @@
 import type { LinksFunction, LoaderFunctionArgs, MetaFunction } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
 import { Link, useFetcher, useLoaderData } from '@remix-run/react';
+import { useCallback, useEffect } from 'react';
 import { CONTACT_COUNTRY_OPTIONS, CONTACT_ENQUIRY_OPTIONS } from '~/lib/contact-form-options';
 import { optionalAuth } from '~/lib/auth';
 
@@ -247,6 +248,56 @@ function AboutBackdrop() {
   );
 }
 
+/** Scroll to a section, honouring scroll-margin-top and reduced-motion. */
+function scrollToHash(hash: string) {
+  const el = document.querySelector(hash);
+
+  if (!el) {
+    return false;
+  }
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' });
+
+  return true;
+}
+
+/**
+ * In-page navigation, done by hand.
+ *
+ * A plain `<a href="#team">` took TWO clicks to work. The first click changes the hash, React
+ * Router treats that as a location change, and the <ScrollRestoration> in root.tsx resets the
+ * scroll — undoing the jump the browser just made. The second click changes no location, so
+ * nothing interferes and the native jump survives.
+ *
+ * So: scroll it ourselves, and update the hash with replaceState, which keeps the URL shareable
+ * without handing a navigation to the router. replaceState also keeps the back button meaning
+ * "the page before this one" rather than "the section before this one".
+ */
+function useSectionNav() {
+  const onNavClick = useCallback((event: React.MouseEvent<HTMLAnchorElement>, hash: string) => {
+    // Leave modified clicks alone — open-in-new-tab should still work.
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+      return;
+    }
+
+    if (scrollToHash(hash)) {
+      event.preventDefault();
+      window.history.replaceState(null, '', hash);
+    }
+  }, []);
+
+  // A link straight to /about#contact should land on the section, not the top of the page.
+  useEffect(() => {
+    // After paint, so the target has its final position. 0 is a no-op to cancel.
+    const id = window.location.hash ? window.requestAnimationFrame(() => scrollToHash(window.location.hash)) : 0;
+
+    return () => window.cancelAnimationFrame(id);
+  }, []);
+
+  return onNavClick;
+}
+
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-accent-400">{children}</p>;
 }
@@ -409,6 +460,7 @@ function ContactForm() {
 
 export default function About() {
   const { isSignedIn } = useLoaderData<typeof loader>();
+  const onNavClick = useSectionNav();
 
   return (
     <div
@@ -447,6 +499,7 @@ export default function About() {
               <a
                 key={item.href}
                 href={item.href}
+                onClick={e => onNavClick(e, item.href)}
                 className="rounded-full px-3 py-1.5 text-sm text-white/75 transition hover:bg-white/10 hover:text-white"
               >
                 {item.label}
@@ -480,6 +533,7 @@ export default function About() {
             <div className="mt-8 flex flex-wrap gap-3">
               <a
                 href="#team"
+                onClick={e => onNavClick(e, '#team')}
                 className="rounded-full bg-white/10 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/20"
                 style={glass}
               >
@@ -487,6 +541,7 @@ export default function About() {
               </a>
               <a
                 href="#contact"
+                onClick={e => onNavClick(e, '#contact')}
                 className="rounded-full bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-600"
               >
                 Get in touch
