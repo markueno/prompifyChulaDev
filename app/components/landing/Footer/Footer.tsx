@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="info-bottom">
         <div className="info-col">
           <h4>Company</h4>
-          <a href="#about">About Us</a>
+          <a href="/about">About Us</a>
           <a href="#careers">Careers</a>
           <a href="#blog">Blog</a>
         </div>

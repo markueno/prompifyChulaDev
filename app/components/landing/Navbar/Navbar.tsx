@@ -53,6 +53,22 @@ export default function Navbar({ onLogin, onSignUp }: NavbarProps) {
       <img src="/prompify2.png" alt="Prompify" width={30} height={30} style={{ display: 'block' }} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+        <a
+          href="/about"
+          style={{
+            padding: '0.375rem 0.75rem',
+            color: 'rgba(255, 255, 255, 0.95)',
+            fontSize: '0.75rem',
+            fontWeight: 500,
+            textDecoration: 'none',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            textShadow: '0 1px 2px rgba(0,0,0,0.25)',
+          }}
+        >
+          About
+        </a>
+
         <button
           onClick={() => (onLogin ? onLogin() : (window.location.href = '/login'))}
           style={{

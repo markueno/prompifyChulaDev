@@ -1,54 +1,115 @@
 import type { LinksFunction, LoaderFunctionArgs, MetaFunction } from '@remix-run/cloudflare';
-import { json, redirect } from '@remix-run/cloudflare';
-import { Link } from '@remix-run/react';
+import { json } from '@remix-run/cloudflare';
+import { Link, useFetcher, useLoaderData } from '@remix-run/react';
 import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
-import { isAuthDisabled, optionalAuth } from '~/lib/auth';
+import { CONTACT_COUNTRY_OPTIONS, CONTACT_ENQUIRY_OPTIONS } from '~/lib/contact-form-options';
+import { optionalAuth } from '~/lib/auth';
+
+import landingStyles from '~/styles/landing.css?url';
 
 const SITE_URL = process.env.SITE_URL || 'https://prompify.com';
 
 /*
- * /about — public About page. Builds the E-E-A-T trust-signal STRUCTURE (who/why/how, contact,
- * FAQ) with placeholders left empty where no real data exists yet — never fabricated, per the
- * SEO/GEO golden rule. The founder/team bio, founding date, and contact channels below are
- * clearly marked TODOs for the owner to fill with real facts.
+ * /about — the public About + Contact page. Builds the E-E-A-T trust-signal structure
+ * (who/why/how, team, contact, FAQ) and carries the only public contact form outside the
+ * landing-page modal.
+ *
+ * Design note: LandingAppChrome paints a fixed photographic backdrop (#231710 under a burnt-orange
+ * wash), so this page is deliberately styled light-on-dark with frosted-glass panels, matching the
+ * landing navbar. It does NOT use the bolt-elements theme tokens — those flip with the app theme
+ * and would render dark-on-dark here.
  */
-export const links: LinksFunction = () => [{ rel: 'canonical', href: `${SITE_URL}/about` }];
+/*
+ * landing.css is required, not decorative: LandingAppChrome renders `.landing-page` /
+ * `.landing-hero-bg` / `.gradient-overlay`, and without those rules the fixed dark backdrop never
+ * applies — the background image lays out as a giant inline <img> and this page's light-on-dark
+ * text ends up unreadable. `_index.tsx` links it the same way.
+ */
+export const links: LinksFunction = () => [
+  { rel: 'canonical', href: `${SITE_URL}/about` },
+  { rel: 'stylesheet', href: landingStyles },
+];
 
 export const meta: MetaFunction = () => [
-  { title: 'About Prompify — AI app builder from prompts' },
+  { title: 'About Prompify — the team behind the AI app builder' },
   {
     name: 'description',
     content:
-      'What Prompify is, who built it, and how it works. Prompify turns plain-English prompts into working, live web apps you can run in your browser.',
+      'Who builds Prompify, why we built it, and how it works. Meet the team across Hong Kong and Thailand, and get in touch.',
   },
-  { property: 'og:title', content: 'About Prompify — AI app builder from prompts' },
+  { property: 'og:title', content: 'About Prompify — the team behind the AI app builder' },
   {
     property: 'og:description',
-    content: 'What Prompify is, who built it, and how it turns prompts into live web apps.',
+    content: 'Meet the team behind Prompify, see how it works, and get in touch.',
   },
   { property: 'og:type', content: 'website' },
   { property: 'og:url', content: `${SITE_URL}/about` },
   { name: 'twitter:card', content: 'summary' },
-  { name: 'twitter:title', content: 'About Prompify — AI app builder from prompts' },
+  { name: 'twitter:title', content: 'About Prompify — the team behind the AI app builder' },
 ];
 
+/*
+ * Public on purpose. This page used to redirect signed-in visitors (and all of local dev, under
+ * AUTH_DISABLED) straight to /app, which meant the team and contact form were unreachable for
+ * anyone logged in — and invisible while developing. An About/Contact page that existing
+ * customers cannot open is the wrong behaviour; the session is read only to tailor the header CTA.
+ */
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  /*
-   * Match the landing behavior: under AUTH_DISABLED or when already signed in, send people to
-   * the app rather than the marketing About page.
-   */
-  if (isAuthDisabled(context)) {
-    return redirect('/app/');
-  }
-
   const user = await optionalAuth(request, context);
-
-  if (user) {
-    return redirect('/app/');
-  }
-
-  return json({});
+  return json({ isSignedIn: Boolean(user) });
 }
+
+/** The project team. `photo` below is a single GROUP photo — drop a file in and it renders. */
+type TeamMember = { name: string; role: string; location: string };
+
+const TEAM: TeamMember[] = [
+  { name: 'Mark Masahiro Ueno', role: 'CEO', location: 'Hong Kong' },
+  { name: 'Alima Nur Begimbaeva', role: 'Project Lead & AI Engineer', location: 'Hong Kong' },
+  { name: 'Punpun Pannatorn Visansavadh', role: 'AI Engineer', location: 'Thailand' },
+  { name: 'Nina Patcharada Tawaditap', role: 'Frontend Developer', location: 'Thailand' },
+  { name: 'Peng Xiaojun', role: 'Fullstack Engineer', location: 'Hong Kong' },
+  { name: 'Kevin Yan Zixiao', role: 'Fullstack Engineer', location: 'Hong Kong' },
+];
+
+/*
+ * The one team photo. Leave empty to render the upload placeholder; set it to a path under
+ * /public (e.g. '/team/group.jpg') and the real image takes over. Nothing else needs changing.
+ */
+const TEAM_PHOTO = '';
+
+const STEPS = [
+  { title: 'Describe it', body: 'Write what you need in plain English — no code, no setup.' },
+  { title: 'Watch it build', body: 'Prompify generates the app and runs it live in your browser.' },
+  { title: 'Refine it', body: 'Ask for changes in chat, or edit the code directly. Every version is saved.' },
+  { title: 'Ship it', body: 'Publish your app and share it with your team.' },
+];
+
+const FAQS = [
+  {
+    q: 'What is Prompify?',
+    a: 'An AI app builder: describe what you need in plain English and get a working, live web app in your browser.',
+  },
+  {
+    q: 'How does it work?',
+    a: 'You write a prompt; Prompify generates the code, runs it in a WebContainer, saves it as a version, and lets you edit or deploy it.',
+  },
+  {
+    q: 'Do I need to write code?',
+    a: 'No — you describe what you want. You can edit the code if you choose to.',
+  },
+  {
+    q: 'What kind of apps can I build?',
+    a: 'Internal business tools: CRMs, inventory and stock systems, HR and leave tracking, booking and scheduling, and knowledge bases.',
+  },
+];
+
+const NAV = [
+  { href: '#about', label: 'About' },
+  { href: '#team', label: 'Team' },
+  { href: '#how', label: 'How it works' },
+  { href: '#contact', label: 'Contact' },
+  { href: '#faq', label: 'FAQ' },
+];
 
 const orgSchema = {
   '@context': 'https://schema.org',
@@ -60,6 +121,7 @@ const orgSchema = {
   // TODO:owner — fill these with real values when available. Left empty rather than fabricated.
   founder: { '@type': 'Person', name: '' },
   foundingDate: '',
+  employee: TEAM.map(m => ({ '@type': 'Person', name: m.name, jobTitle: m.role })),
   contactPoint: [{ '@type': 'ContactPoint', contactType: 'support', email: '', url: `${SITE_URL}/about` }],
 };
 
@@ -73,124 +135,397 @@ const aboutSchema = {
 const faqSchema = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
-  mainEntity: [
-    {
-      '@type': 'Question',
-      name: 'What is Prompify?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'Prompify is an AI app builder: you describe what you need in plain English and it generates a working, live web app you can run in your browser.',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'How does Prompify work?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'You write a prompt describing the app you want. Prompify generates the code, runs it in a WebContainer in your browser, and lets you edit and deploy the result. Each generation is saved as a version you can restore.',
-      },
-    },
-    {
-      '@type': 'Question',
-      name: 'Do I need to write code to use Prompify?',
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: 'No. You describe what you want in plain English. Prompify writes the code; you can edit it if you want to.',
-      },
-    },
-  ],
+  mainEntity: FAQS.map(f => ({
+    '@type': 'Question',
+    name: f.q,
+    acceptedAnswer: { '@type': 'Answer', text: f.a },
+  })),
 };
 
-export default function About() {
+// ─── Shared visual language ───────────────────────────────────────────────────
+
+/** Frosted panel, same treatment as the landing navbar. */
+const glass: React.CSSProperties = {
+  background: 'rgba(255, 255, 255, 0.07)',
+  border: '1px solid rgba(255, 255, 255, 0.14)',
+  backdropFilter: 'blur(22px) saturate(1.25)',
+  WebkitBackdropFilter: 'blur(22px) saturate(1.25)',
+};
+
+/** Anchored sections sit below the sticky bar rather than under it. */
+const anchorOffset: React.CSSProperties = { scrollMarginTop: '88px' };
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-accent-400">{children}</p>;
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return <h2 className="text-3xl font-bold leading-tight text-white sm:text-4xl">{children}</h2>;
+}
+
+// ─── Contact form ─────────────────────────────────────────────────────────────
+
+const fieldClass =
+  'w-full rounded-lg border border-white/15 bg-black/25 px-3.5 py-2.5 text-sm text-white placeholder-white/35 outline-none transition focus:border-accent-500 focus:ring-2 focus:ring-accent-500/35';
+const labelClass = 'mb-1.5 block text-sm font-medium text-white/85';
+
+function ContactForm() {
+  const fetcher = useFetcher<{ error?: string; success?: string }>();
+  const sending = fetcher.state === 'submitting';
+
+  if (fetcher.data?.success) {
+    return (
+      <div className="rounded-2xl p-6 sm:p-7" style={glass}>
+        <div className="flex items-start gap-3">
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-500/20 text-accent-300"
+            aria-hidden="true"
+          >
+            ✓
+          </div>
+          <div>
+            <h3 className="font-semibold text-white">Message sent</h3>
+            <p className="mt-1 text-sm text-white/70" role="status">
+              {fetcher.data.success}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <LandingAppChrome>
-      <div className="flex items-center justify-between px-6 py-5">
-        <Link to="/" className="text-2xl font-semibold text-accent">
-          Prompify
-        </Link>
-        <Link to="/" className="text-sm text-bolt-elements-textSecondary hover:text-bolt-elements-textPrimary">
-          ← Back to home
-        </Link>
+    <fetcher.Form method="post" action="/api/contact" className="rounded-2xl p-6 sm:p-7" style={glass}>
+      {fetcher.data?.error && (
+        <div
+          className="mb-4 rounded-lg border border-red-400/30 bg-red-500/15 px-3.5 py-2.5 text-sm text-red-100"
+          role="alert"
+        >
+          {fetcher.data.error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <label className={labelClass} htmlFor="about-enquiry">
+            Topic <span className="text-accent-400">*</span>
+          </label>
+          <select id="about-enquiry" name="enquiryType" required defaultValue="" className={fieldClass}>
+            <option value="" disabled>
+              Select a topic
+            </option>
+            {CONTACT_ENQUIRY_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value} className="bg-[#231710]">
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className={labelClass} htmlFor="about-name">
+            Full name <span className="text-accent-400">*</span>
+          </label>
+          <input
+            id="about-name"
+            name="name"
+            type="text"
+            required
+            maxLength={125}
+            autoComplete="name"
+            placeholder="Your name"
+            className={fieldClass}
+          />
+        </div>
+
+        <div>
+          <label className={labelClass} htmlFor="about-email">
+            Email <span className="text-accent-400">*</span>
+          </label>
+          <input
+            id="about-email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder="you@company.com"
+            className={fieldClass}
+          />
+        </div>
+
+        <div>
+          <label className={labelClass} htmlFor="about-country">
+            Country <span className="text-accent-400">*</span>
+          </label>
+          <select id="about-country" name="country" required defaultValue="" className={fieldClass}>
+            <option value="" disabled hidden>
+              Select country
+            </option>
+            {CONTACT_COUNTRY_OPTIONS.filter(o => o.value).map(opt => (
+              <option key={opt.value} value={opt.value} className="bg-[#231710]">
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className={labelClass} htmlFor="about-phone">
+            Phone <span className="text-accent-400">*</span>
+          </label>
+          <input
+            id="about-phone"
+            name="phone"
+            type="tel"
+            required
+            maxLength={40}
+            autoComplete="tel"
+            placeholder="e.g. 555 0100"
+            className={fieldClass}
+          />
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className={labelClass} htmlFor="about-message">
+            How can we help? <span className="text-accent-400">*</span>
+          </label>
+          <textarea
+            id="about-message"
+            name="message"
+            required
+            rows={4}
+            minLength={10}
+            maxLength={125}
+            placeholder="Tell us a little about what you need (max 125 characters)"
+            className={`${fieldClass} resize-y`}
+          />
+        </div>
       </div>
 
-      <main className="mx-auto w-full max-w-3xl px-6 pb-24 text-bolt-elements-textPrimary">
-        <h1 className="mt-8 text-4xl font-bold">About Prompify</h1>
-        <p className="mt-4 text-lg text-bolt-elements-textSecondary">
-          Prompify turns plain-English prompts into working, live web apps you can run in your browser.
-        </p>
+      <button
+        type="submit"
+        disabled={sending}
+        className="mt-5 w-full rounded-full bg-accent-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-500/50 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {sending ? 'Sending…' : 'Send message'}
+      </button>
+    </fetcher.Form>
+  );
+}
 
-        {/* JSON-LD: Organization + AboutPage + FAQPage */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutSchema) }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-        {/* E-E-A-T: Who / Why / How. Real structure; placeholders left for the owner to fill. */}
-        <section className="mt-12">
-          <h2 className="text-2xl font-semibold">Who is behind Prompify?</h2>
-          <div className="mt-3 rounded-lg border border-bolt-elements-borderColor p-4">
-            {/* TODO:owner — replace this placeholder with the real founder/team name, role, and a
-                short bio. Left empty per the no-fabrication rule. */}
-            <p className="text-bolt-elements-textSecondary">
-              <em>Founder &amp; team bio — to be added.</em> This section is intentionally a placeholder. When you have
-              a real founder name, role, and a short first-person bio, add it here (and set the <code>founder</code>{' '}
-              field in the JSON-LD above).
-            </p>
+export default function About() {
+  const { isSignedIn } = useLoaderData<typeof loader>();
+
+  return (
+    <LandingAppChrome>
+      {/* JSON-LD: Organization + AboutPage + FAQPage */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+
+      {/* ── Sticky section nav ─────────────────────────────────────────── */}
+      <header
+        className="sticky top-0 z-20 flex items-center justify-between gap-4 px-5 py-3 sm:px-8"
+        style={{
+          background: 'rgba(35, 23, 16, 0.72)',
+          backdropFilter: 'blur(24px) saturate(1.3)',
+          WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
+          borderBottom: '1px solid rgba(255,255,255,0.12)',
+        }}
+      >
+        <Link to="/" className="flex shrink-0 items-center gap-2" aria-label="Prompify home">
+          <img src="/prompify2.png" alt="" width={26} height={26} className="block" />
+          <span className="text-base font-semibold text-white">Prompify</span>
+        </Link>
+
+        <nav aria-label="Page sections" className="hidden items-center gap-1 md:flex">
+          {NAV.map(item => (
+            <a
+              key={item.href}
+              href={item.href}
+              className="rounded-full px-3 py-1.5 text-sm text-white/75 transition hover:bg-white/10 hover:text-white"
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+
+        <Link
+          to={isSignedIn ? '/app/' : '/'}
+          className="shrink-0 rounded-full bg-accent-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-600"
+        >
+          {isSignedIn ? 'Open app' : 'Start building'}
+        </Link>
+      </header>
+
+      <main className="w-full text-white">
+        {/* ── Hero ─────────────────────────────────────────────────────── */}
+        <section id="about" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 pb-14 pt-16 sm:px-8 sm:pt-24">
+          <Eyebrow>About us</Eyebrow>
+          <h1 className="max-w-3xl text-4xl font-bold leading-[1.1] sm:text-5xl md:text-6xl">
+            The team behind <span className="text-accent-400">Prompify</span>
+          </h1>
+          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/75">
+            Prompify turns plain-English prompts into working, live web apps you can run in your browser. We&apos;re a
+            small, cross-border team building it across Hong Kong and Thailand.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <a
+              href="#team"
+              className="rounded-full bg-white/10 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/20"
+              style={glass}
+            >
+              Meet the team
+            </a>
+            <a
+              href="#contact"
+              className="rounded-full bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-600"
+            >
+              Get in touch
+            </a>
           </div>
         </section>
 
-        <section className="mt-10">
-          <h2 className="text-2xl font-semibold">Why we built it</h2>
-          <p className="mt-3 text-bolt-elements-textSecondary">
-            {/* TODO:owner — replace with the real founding motivation. */}
-            <em>Founding story — to be added.</em> Describe the problem you set out to solve and why an AI app builder
-            was the answer.
-          </p>
+        {/* ── Team ─────────────────────────────────────────────────────── */}
+        <section id="team" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
+          <Eyebrow>Team</Eyebrow>
+          <SectionHeading>Six people, two countries</SectionHeading>
+
+          {/* One group photo. Placeholder until TEAM_PHOTO points at a real file. */}
+          <div className="mt-8 overflow-hidden rounded-2xl" style={glass}>
+            {TEAM_PHOTO ? (
+              <img src={TEAM_PHOTO} alt="The Prompify team" className="aspect-[16/9] w-full object-cover" />
+            ) : (
+              <div className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 border-2 border-dashed border-white/15 bg-black/20 text-center">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="34"
+                  height="34"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  className="text-white/35"
+                >
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <circle cx="8.5" cy="10.5" r="1.5" />
+                  <path d="m21 15-4.5-4.5L9 18" />
+                </svg>
+                <p className="text-sm font-medium text-white/55">Team photo coming soon</p>
+              </div>
+            )}
+          </div>
+
+          <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {TEAM.map(member => (
+              <li key={member.name} className="rounded-xl px-5 py-4 transition hover:bg-white/[0.11]" style={glass}>
+                <p className="text-xs font-semibold uppercase tracking-wide text-accent-400">{member.role}</p>
+                <p className="mt-1.5 font-semibold leading-snug text-white">{member.name}</p>
+                <p className="mt-2 flex items-center gap-1.5 text-sm text-white/60">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="13"
+                    height="13"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                    className="shrink-0"
+                  >
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                  {member.location}
+                </p>
+              </li>
+            ))}
+          </ul>
         </section>
 
-        <section className="mt-10">
-          <h2 className="text-2xl font-semibold">How it works</h2>
-          <ol className="mt-3 list-decimal space-y-2 pl-6 text-bolt-elements-textSecondary">
-            <li>You write a prompt describing the app you want in plain English.</li>
-            <li>Prompify generates the code and runs it live in a browser WebContainer.</li>
-            <li>Every generation is saved as a version you can restore later.</li>
-            <li>Edit the code directly or ask for changes in chat, then deploy.</li>
+        {/* ── How it works ─────────────────────────────────────────────── */}
+        <section id="how" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
+          <Eyebrow>How it works</Eyebrow>
+          <SectionHeading>From a sentence to a running app</SectionHeading>
+          <ol className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {STEPS.map((step, i) => (
+              <li key={step.title} className="rounded-xl p-5" style={glass}>
+                <span className="text-sm font-bold text-accent-400">{String(i + 1).padStart(2, '0')}</span>
+                <h3 className="mt-2 font-semibold text-white">{step.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-white/70">{step.body}</p>
+              </li>
+            ))}
           </ol>
         </section>
 
-        <section className="mt-10">
-          <h2 className="text-2xl font-semibold">Contact</h2>
-          {/* TODO:owner — add the real support email / contact form / social links here. */}
-          <p className="mt-3 text-bolt-elements-textSecondary">
-            <em>Contact details — to be added.</em> Set a real support email and the <code>contactPoint</code> in the
-            Organization JSON-LD above when available.
-          </p>
-        </section>
-
-        <section className="mt-12">
-          <h2 className="text-2xl font-semibold">FAQ</h2>
-          <div className="mt-3 space-y-4">
+        {/* ── Contact ──────────────────────────────────────────────────── */}
+        <section id="contact" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-10">
             <div>
-              <h3 className="font-semibold">What is Prompify?</h3>
-              <p className="text-bolt-elements-textSecondary">
-                An AI app builder: describe what you need in plain English and get a working, live web app in your
-                browser.
+              <Eyebrow>Contact</Eyebrow>
+              <SectionHeading>Talk to us</SectionHeading>
+              <p className="mt-4 text-base leading-relaxed text-white/70">
+                Questions about pricing, a demo, security review, or a partnership — send a note and the right person on
+                the team will reply.
               </p>
+              <ul className="mt-6 space-y-2.5 text-sm text-white/65">
+                <li className="flex items-start gap-2.5">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
+                  We usually reply within one business day.
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
+                  Tell us your use case and we&apos;ll show you a relevant build.
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
+                  Enterprise, security and compliance questions welcome.
+                </li>
+              </ul>
             </div>
-            <div>
-              <h3 className="font-semibold">How does it work?</h3>
-              <p className="text-bolt-elements-textSecondary">
-                You write a prompt; Prompify generates the code, runs it in a WebContainer, saves it as a version, and
-                lets you edit or deploy.
-              </p>
-            </div>
-            <div>
-              <h3 className="font-semibold">Do I need to write code?</h3>
-              <p className="text-bolt-elements-textSecondary">
-                No — you describe what you want. You can edit the code if you choose to.
-              </p>
-            </div>
+            <ContactForm />
           </div>
         </section>
+
+        {/* ── FAQ ──────────────────────────────────────────────────────── */}
+        <section id="faq" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
+          <Eyebrow>FAQ</Eyebrow>
+          <SectionHeading>Common questions</SectionHeading>
+          <div className="mt-8 space-y-3">
+            {FAQS.map(faq => (
+              <details key={faq.q} className="group rounded-xl px-5 py-4" style={glass}>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium text-white marker:content-['']">
+                  {faq.q}
+                  <span
+                    className="shrink-0 text-accent-400 transition-transform group-open:rotate-45"
+                    aria-hidden="true"
+                  >
+                    +
+                  </span>
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed text-white/70">{faq.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Footer ───────────────────────────────────────────────────── */}
+        <footer className="mt-6 border-t border-white/10 px-5 py-8 sm:px-8">
+          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4">
+            <p className="text-sm text-white/50">© 2026 Basic Concept Limited. All rights reserved.</p>
+            <Link
+              to="/"
+              className="text-sm text-white/70 underline-offset-4 transition hover:text-white hover:underline"
+            >
+              ← Back to home
+            </Link>
+          </div>
+        </footer>
       </main>
     </LandingAppChrome>
   );

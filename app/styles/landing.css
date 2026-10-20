@@ -488,6 +488,9 @@
 }
 
 @keyframes landingShimmer {
+  to {
+    background-position: 220% center;
+  }
 }
 
 .landing-outro p {
@@ -1923,10 +1926,21 @@ body {
 
 .shimmer-text {
   display: inline-block;
+  /* Gradient text. The fallback color shows if background-clip:text is unsupported. */
   color: #f97316;
+  background: linear-gradient(110deg, #c2410c 0%, #f97316 28%, #fdba74 50%, #f97316 72%, #c2410c 100%);
+  background-size: 220% auto;
+  background-position: 0% center;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.shimmer-text.active {
+/* The shimmer sweep is switched on when the section scrolls into view (JS adds .active). */
+@media (prefers-reduced-motion: no-preference) {
+  .shimmer-text.active {
+    animation: landingShimmer 3.4s linear infinite;
+  }
 }
 
 /* ============================================
