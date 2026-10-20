@@ -1,13 +1,13 @@
 import type { LinksFunction, LoaderFunctionArgs, MetaFunction } from '@remix-run/cloudflare';
 import { json } from '@remix-run/cloudflare';
 import { Link, useFetcher, useLoaderData } from '@remix-run/react';
-import { LandingAppChrome } from '~/components/landing/LandingAppChrome';
 import { CONTACT_COUNTRY_OPTIONS, CONTACT_ENQUIRY_OPTIONS } from '~/lib/contact-form-options';
 import { optionalAuth } from '~/lib/auth';
 
-import landingStyles from '~/styles/landing.css?url';
-
 const SITE_URL = process.env.SITE_URL || 'https://prompify.com';
+
+/** Brand ink — the same dark the landing page sits on, so the two pages feel related. */
+const INK = '#231710';
 
 /*
  * /about — the public About + Contact page. Builds the E-E-A-T trust-signal structure
@@ -20,15 +20,11 @@ const SITE_URL = process.env.SITE_URL || 'https://prompify.com';
  * and would render dark-on-dark here.
  */
 /*
- * landing.css is required, not decorative: LandingAppChrome renders `.landing-page` /
- * `.landing-hero-bg` / `.gradient-overlay`, and without those rules the fixed dark backdrop never
- * applies — the background image lays out as a giant inline <img> and this page's light-on-dark
- * text ends up unreadable. `_index.tsx` links it the same way.
+ * No landing.css here. This page paints its own backdrop (see AboutBackdrop) rather than using
+ * LandingAppChrome's photographic one, so it has no dependency on the landing stylesheet — which
+ * is deliberate: it previously rendered unreadable when that stylesheet wasn't linked.
  */
-export const links: LinksFunction = () => [
-  { rel: 'canonical', href: `${SITE_URL}/about` },
-  { rel: 'stylesheet', href: landingStyles },
-];
+export const links: LinksFunction = () => [{ rel: 'canonical', href: `${SITE_URL}/about` }];
 
 export const meta: MetaFunction = () => [
   { title: 'About Prompify — the team behind the AI app builder' },
@@ -154,6 +150,102 @@ const glass: React.CSSProperties = {
 
 /** Anchored sections sit below the sticky bar rather than under it. */
 const anchorOffset: React.CSSProperties = { scrollMarginTop: '88px' };
+
+/**
+ * The page backdrop: flat brand ink, with semi-opaque brand-orange graphics over it.
+ *
+ * Fixed and non-interactive, so it stays put while the page scrolls and never intercepts a click.
+ * Everything is CSS/SVG — no image to load, nothing to go stale, and it can't push layout around
+ * the way the old photographic backdrop's <img> could.
+ */
+function AboutBackdrop() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+      style={{ background: INK }}
+    >
+      {/* Soft brand glows — the main colour. Large and low-opacity so they read as light, not blobs. */}
+      <div
+        className="absolute"
+        style={{
+          top: '-18%',
+          left: '-12%',
+          width: '65vw',
+          height: '65vw',
+          background: 'radial-gradient(circle, rgba(249,115,22,0.20) 0%, rgba(249,115,22,0) 68%)',
+        }}
+      />
+      <div
+        className="absolute"
+        style={{
+          bottom: '-25%',
+          right: '-15%',
+          width: '70vw',
+          height: '70vw',
+          background: 'radial-gradient(circle, rgba(194,65,12,0.22) 0%, rgba(194,65,12,0) 68%)',
+        }}
+      />
+      <div
+        className="absolute"
+        style={{
+          top: '38%',
+          right: '26%',
+          width: '34vw',
+          height: '34vw',
+          background: 'radial-gradient(circle, rgba(253,186,116,0.10) 0%, rgba(253,186,116,0) 70%)',
+        }}
+      />
+
+      {/* Faint grid, for texture rather than pattern — barely visible by design. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage:
+            'linear-gradient(rgba(255,255,255,0.030) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.030) 1px, transparent 1px)',
+          backgroundSize: '64px 64px',
+          maskImage: 'radial-gradient(ellipse at 50% 0%, #000 35%, transparent 78%)',
+          WebkitMaskImage: 'radial-gradient(ellipse at 50% 0%, #000 35%, transparent 78%)',
+        }}
+      />
+
+      {/* Semi-opaque orange rings, echoing the logo's geometry. */}
+      <svg
+        className="absolute"
+        style={{ top: '-10vw', right: '-8vw', width: '52vw', height: '52vw', opacity: 0.5 }}
+        viewBox="0 0 400 400"
+        fill="none"
+      >
+        <circle cx="200" cy="200" r="150" stroke="rgba(249,115,22,0.16)" strokeWidth="1.5" />
+        <circle cx="200" cy="200" r="110" stroke="rgba(249,115,22,0.11)" strokeWidth="1.5" />
+        <circle cx="200" cy="200" r="70" stroke="rgba(249,115,22,0.08)" strokeWidth="1.5" />
+      </svg>
+      <svg
+        className="absolute"
+        style={{ bottom: '-14vw', left: '-10vw', width: '46vw', height: '46vw', opacity: 0.45 }}
+        viewBox="0 0 400 400"
+        fill="none"
+      >
+        <circle cx="200" cy="200" r="160" stroke="rgba(253,186,116,0.12)" strokeWidth="1.5" />
+        <circle cx="200" cy="200" r="118" stroke="rgba(253,186,116,0.09)" strokeWidth="1.5" />
+      </svg>
+
+      {/* The mark itself, as a watermark. Low enough not to compete with the text. */}
+      <img
+        src="/prompify2.png"
+        alt=""
+        className="absolute hidden select-none md:block"
+        style={{ bottom: '6vh', right: '5vw', width: '20vw', maxWidth: '260px', opacity: 0.05 }}
+      />
+
+      {/* Settles the top of the page so the sticky header always has something solid behind it. */}
+      <div
+        className="absolute inset-x-0 top-0 h-40"
+        style={{ background: `linear-gradient(${INK} 0%, rgba(35,23,16,0) 100%)` }}
+      />
+    </div>
+  );
+}
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-accent-400">{children}</p>;
@@ -319,214 +411,229 @@ export default function About() {
   const { isSignedIn } = useLoaderData<typeof loader>();
 
   return (
-    <LandingAppChrome>
-      {/* JSON-LD: Organization + AboutPage + FAQPage */}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+    <div
+      className="relative flex min-h-[100dvh] w-full flex-col"
+      style={{
+        background: INK,
+        fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      }}
+    >
+      <AboutBackdrop />
 
-      {/* ── Sticky section nav ─────────────────────────────────────────── */}
-      <header
-        className="sticky top-0 z-20 flex items-center justify-between gap-4 px-5 py-3 sm:px-8"
-        style={{
-          background: 'rgba(35, 23, 16, 0.72)',
-          backdropFilter: 'blur(24px) saturate(1.3)',
-          WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
-          borderBottom: '1px solid rgba(255,255,255,0.12)',
-        }}
-      >
-        <Link to="/" className="flex shrink-0 items-center gap-2" aria-label="Prompify home">
-          <img src="/prompify2.png" alt="" width={26} height={26} className="block" />
-          <span className="text-base font-semibold text-white">Prompify</span>
-        </Link>
+      {/* Everything below sits above the backdrop. */}
+      <div className="relative z-[1] flex min-h-0 w-full flex-1 flex-col">
+        {/* JSON-LD: Organization + AboutPage + FAQPage */}
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgSchema) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutSchema) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
-        <nav aria-label="Page sections" className="hidden items-center gap-1 md:flex">
-          {NAV.map(item => (
-            <a
-              key={item.href}
-              href={item.href}
-              className="rounded-full px-3 py-1.5 text-sm text-white/75 transition hover:bg-white/10 hover:text-white"
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-
-        <Link
-          to={isSignedIn ? '/app/' : '/'}
-          className="shrink-0 rounded-full bg-accent-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-600"
+        {/* ── Sticky section nav ─────────────────────────────────────────── */}
+        <header
+          className="sticky top-0 z-20 flex items-center justify-between gap-4 px-5 py-3 sm:px-8"
+          style={{
+            background: 'rgba(35, 23, 16, 0.72)',
+            backdropFilter: 'blur(24px) saturate(1.3)',
+            WebkitBackdropFilter: 'blur(24px) saturate(1.3)',
+            borderBottom: '1px solid rgba(255,255,255,0.12)',
+          }}
         >
-          {isSignedIn ? 'Open app' : 'Start building'}
-        </Link>
-      </header>
+          <Link to="/" className="flex shrink-0 items-center gap-2" aria-label="Prompify home">
+            <img src="/prompify2.png" alt="" width={26} height={26} className="block" />
+            <span className="text-base font-semibold text-white">Prompify</span>
+          </Link>
 
-      <main className="w-full text-white">
-        {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section id="about" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 pb-14 pt-16 sm:px-8 sm:pt-24">
-          <Eyebrow>About us</Eyebrow>
-          <h1 className="max-w-3xl text-4xl font-bold leading-[1.1] sm:text-5xl md:text-6xl">
-            The team behind <span className="text-accent-400">Prompify</span>
-          </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/75">
-            Prompify turns plain-English prompts into working, live web apps you can run in your browser. We&apos;re a
-            small, cross-border team building it across Hong Kong and Thailand.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href="#team"
-              className="rounded-full bg-white/10 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/20"
-              style={glass}
-            >
-              Meet the team
-            </a>
-            <a
-              href="#contact"
-              className="rounded-full bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-600"
-            >
-              Get in touch
-            </a>
-          </div>
-        </section>
+          <nav aria-label="Page sections" className="hidden items-center gap-1 md:flex">
+            {NAV.map(item => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="rounded-full px-3 py-1.5 text-sm text-white/75 transition hover:bg-white/10 hover:text-white"
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
 
-        {/* ── Team ─────────────────────────────────────────────────────── */}
-        <section id="team" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
-          <Eyebrow>Team</Eyebrow>
-          <SectionHeading>Six people, two countries</SectionHeading>
+          <Link
+            to={isSignedIn ? '/app/' : '/'}
+            className="shrink-0 rounded-full bg-accent-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-600"
+          >
+            {isSignedIn ? 'Open app' : 'Start building'}
+          </Link>
+        </header>
 
-          {/* One group photo. Placeholder until TEAM_PHOTO points at a real file. */}
-          <div className="mt-8 overflow-hidden rounded-2xl" style={glass}>
-            {TEAM_PHOTO ? (
-              <img src={TEAM_PHOTO} alt="The Prompify team" className="aspect-[16/9] w-full object-cover" />
-            ) : (
-              <div className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 border-2 border-dashed border-white/15 bg-black/20 text-center">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="34"
-                  height="34"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                  className="text-white/35"
-                >
-                  <rect x="3" y="5" width="18" height="14" rx="2" />
-                  <circle cx="8.5" cy="10.5" r="1.5" />
-                  <path d="m21 15-4.5-4.5L9 18" />
-                </svg>
-                <p className="text-sm font-medium text-white/55">Team photo coming soon</p>
-              </div>
-            )}
-          </div>
+        <main className="w-full text-white">
+          {/* ── Hero ─────────────────────────────────────────────────────── */}
+          <section
+            id="about"
+            style={anchorOffset}
+            className="mx-auto w-full max-w-5xl px-5 pb-14 pt-16 sm:px-8 sm:pt-24"
+          >
+            <Eyebrow>About us</Eyebrow>
+            <h1 className="max-w-3xl text-4xl font-bold leading-[1.1] sm:text-5xl md:text-6xl">
+              The team behind <span className="text-accent-400">Prompify</span>
+            </h1>
+            <p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/75">
+              Prompify turns plain-English prompts into working, live web apps you can run in your browser. We&apos;re a
+              small, cross-border team building it across Hong Kong and Thailand.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a
+                href="#team"
+                className="rounded-full bg-white/10 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/20"
+                style={glass}
+              >
+                Meet the team
+              </a>
+              <a
+                href="#contact"
+                className="rounded-full bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-600"
+              >
+                Get in touch
+              </a>
+            </div>
+          </section>
 
-          <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {TEAM.map(member => (
-              <li key={member.name} className="rounded-xl px-5 py-4 transition hover:bg-white/[0.11]" style={glass}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-accent-400">{member.role}</p>
-                <p className="mt-1.5 font-semibold leading-snug text-white">{member.name}</p>
-                <p className="mt-2 flex items-center gap-1.5 text-sm text-white/60">
+          {/* ── Team ─────────────────────────────────────────────────────── */}
+          <section id="team" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
+            <Eyebrow>Team</Eyebrow>
+            <SectionHeading>Six people, two countries</SectionHeading>
+
+            {/* One group photo. Placeholder until TEAM_PHOTO points at a real file. */}
+            <div className="mt-8 overflow-hidden rounded-2xl" style={glass}>
+              {TEAM_PHOTO ? (
+                <img src={TEAM_PHOTO} alt="The Prompify team" className="aspect-[16/9] w-full object-cover" />
+              ) : (
+                <div className="flex aspect-[16/9] w-full flex-col items-center justify-center gap-3 border-2 border-dashed border-white/15 bg-black/20 text-center">
                   <svg
                     viewBox="0 0 24 24"
-                    width="13"
-                    height="13"
+                    width="34"
+                    height="34"
                     fill="none"
                     stroke="currentColor"
-                    strokeWidth="2"
+                    strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     aria-hidden="true"
-                    className="shrink-0"
+                    className="text-white/35"
                   >
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" />
-                    <circle cx="12" cy="10" r="3" />
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <circle cx="8.5" cy="10.5" r="1.5" />
+                    <path d="m21 15-4.5-4.5L9 18" />
                   </svg>
-                  {member.location}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* ── How it works ─────────────────────────────────────────────── */}
-        <section id="how" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
-          <Eyebrow>How it works</Eyebrow>
-          <SectionHeading>From a sentence to a running app</SectionHeading>
-          <ol className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {STEPS.map((step, i) => (
-              <li key={step.title} className="rounded-xl p-5" style={glass}>
-                <span className="text-sm font-bold text-accent-400">{String(i + 1).padStart(2, '0')}</span>
-                <h3 className="mt-2 font-semibold text-white">{step.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-white/70">{step.body}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* ── Contact ──────────────────────────────────────────────────── */}
-        <section id="contact" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-10">
-            <div>
-              <Eyebrow>Contact</Eyebrow>
-              <SectionHeading>Talk to us</SectionHeading>
-              <p className="mt-4 text-base leading-relaxed text-white/70">
-                Questions about pricing, a demo, security review, or a partnership — send a note and the right person on
-                the team will reply.
-              </p>
-              <ul className="mt-6 space-y-2.5 text-sm text-white/65">
-                <li className="flex items-start gap-2.5">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
-                  We usually reply within one business day.
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
-                  Tell us your use case and we&apos;ll show you a relevant build.
-                </li>
-                <li className="flex items-start gap-2.5">
-                  <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
-                  Enterprise, security and compliance questions welcome.
-                </li>
-              </ul>
+                  <p className="text-sm font-medium text-white/55">Team photo coming soon</p>
+                </div>
+              )}
             </div>
-            <ContactForm />
-          </div>
-        </section>
 
-        {/* ── FAQ ──────────────────────────────────────────────────────── */}
-        <section id="faq" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
-          <Eyebrow>FAQ</Eyebrow>
-          <SectionHeading>Common questions</SectionHeading>
-          <div className="mt-8 space-y-3">
-            {FAQS.map(faq => (
-              <details key={faq.q} className="group rounded-xl px-5 py-4" style={glass}>
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium text-white marker:content-['']">
-                  {faq.q}
-                  <span
-                    className="shrink-0 text-accent-400 transition-transform group-open:rotate-45"
-                    aria-hidden="true"
-                  >
-                    +
-                  </span>
-                </summary>
-                <p className="mt-3 text-sm leading-relaxed text-white/70">{faq.a}</p>
-              </details>
-            ))}
-          </div>
-        </section>
+            <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {TEAM.map(member => (
+                <li key={member.name} className="rounded-xl px-5 py-4 transition hover:bg-white/[0.11]" style={glass}>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-accent-400">{member.role}</p>
+                  <p className="mt-1.5 font-semibold leading-snug text-white">{member.name}</p>
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-white/60">
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="13"
+                      height="13"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                      className="shrink-0"
+                    >
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    {member.location}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-        {/* ── Footer ───────────────────────────────────────────────────── */}
-        <footer className="mt-6 border-t border-white/10 px-5 py-8 sm:px-8">
-          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4">
-            <p className="text-sm text-white/50">© 2026 Basic Concept Limited. All rights reserved.</p>
-            <Link
-              to="/"
-              className="text-sm text-white/70 underline-offset-4 transition hover:text-white hover:underline"
-            >
-              ← Back to home
-            </Link>
-          </div>
-        </footer>
-      </main>
-    </LandingAppChrome>
+          {/* ── How it works ─────────────────────────────────────────────── */}
+          <section id="how" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
+            <Eyebrow>How it works</Eyebrow>
+            <SectionHeading>From a sentence to a running app</SectionHeading>
+            <ol className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {STEPS.map((step, i) => (
+                <li key={step.title} className="rounded-xl p-5" style={glass}>
+                  <span className="text-sm font-bold text-accent-400">{String(i + 1).padStart(2, '0')}</span>
+                  <h3 className="mt-2 font-semibold text-white">{step.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-white/70">{step.body}</p>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          {/* ── Contact ──────────────────────────────────────────────────── */}
+          <section id="contact" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:gap-10">
+              <div>
+                <Eyebrow>Contact</Eyebrow>
+                <SectionHeading>Talk to us</SectionHeading>
+                <p className="mt-4 text-base leading-relaxed text-white/70">
+                  Questions about pricing, a demo, security review, or a partnership — send a note and the right person
+                  on the team will reply.
+                </p>
+                <ul className="mt-6 space-y-2.5 text-sm text-white/65">
+                  <li className="flex items-start gap-2.5">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
+                    We usually reply within one business day.
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
+                    Tell us your use case and we&apos;ll show you a relevant build.
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
+                    Enterprise, security and compliance questions welcome.
+                  </li>
+                </ul>
+              </div>
+              <ContactForm />
+            </div>
+          </section>
+
+          {/* ── FAQ ──────────────────────────────────────────────────────── */}
+          <section id="faq" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
+            <Eyebrow>FAQ</Eyebrow>
+            <SectionHeading>Common questions</SectionHeading>
+            <div className="mt-8 space-y-3">
+              {FAQS.map(faq => (
+                <details key={faq.q} className="group rounded-xl px-5 py-4" style={glass}>
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-medium text-white marker:content-['']">
+                    {faq.q}
+                    <span
+                      className="shrink-0 text-accent-400 transition-transform group-open:rotate-45"
+                      aria-hidden="true"
+                    >
+                      +
+                    </span>
+                  </summary>
+                  <p className="mt-3 text-sm leading-relaxed text-white/70">{faq.a}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Footer ───────────────────────────────────────────────────── */}
+          <footer className="mt-6 border-t border-white/10 px-5 py-8 sm:px-8">
+            <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4">
+              <p className="text-sm text-white/50">© 2026 Basic Concept Limited. All rights reserved.</p>
+              <Link
+                to="/"
+                className="text-sm text-white/70 underline-offset-4 transition hover:text-white hover:underline"
+              >
+                ← Back to home
+              </Link>
+            </div>
+          </footer>
+        </main>
+      </div>
+    </div>
   );
 }
