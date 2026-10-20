@@ -11,6 +11,24 @@ const SITE_URL = process.env.SITE_URL || 'https://prompify.com';
 const INK = '#231710';
 
 /*
+ * LEAVING_PAGE_NOTE — why every link off this page carries `reloadDocument`.
+ *
+ * The landing page gets its styling from landing.css, declared in _index's own `links()`. This
+ * page no longer declares that stylesheet (it paints its own backdrop), so a client-side
+ * transition from here to "/" landed on the landing page without landing.css applied: the hero
+ * `<img>` rendered at natural size with no `object-fit`/`position: fixed`, i.e. a giant raw
+ * photograph, and only a manual refresh — a full document load, where the stylesheet is
+ * server-rendered into the markup — put it right.
+ *
+ * It worked before only because this page used to pull in landing.css as well, so the stylesheet
+ * already happened to be in the document. That was coincidence, not design.
+ *
+ * A full document load also suits both destinations independently: "/" is a heavy GSAP +
+ * ScrollTrigger + WebGL page that sets itself up on mount, and "/app/" is the whole workbench.
+ * Neither benefits from being client-side transitioned into from a static marketing page.
+ */
+
+/*
  * /about — the public About + Contact page. Builds the E-E-A-T trust-signal structure
  * (who/why/how, team, contact, FAQ) and carries the only public contact form outside the
  * landing-page modal.
@@ -489,7 +507,8 @@ export default function About() {
             borderBottom: '1px solid rgba(255,255,255,0.12)',
           }}
         >
-          <Link to="/" className="flex shrink-0 items-center gap-2" aria-label="Prompify home">
+          {/* reloadDocument: see the note on LEAVING_PAGE_NOTE below. */}
+          <Link reloadDocument to="/" className="flex shrink-0 items-center gap-2" aria-label="Prompify home">
             <img src="/prompify2.png" alt="" width={26} height={26} className="block" />
             <span className="text-base font-semibold text-white">Prompify</span>
           </Link>
@@ -508,6 +527,7 @@ export default function About() {
           </nav>
 
           <Link
+            reloadDocument
             to={isSignedIn ? '/app/' : '/'}
             className="shrink-0 rounded-full bg-accent-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-600"
           >
@@ -680,6 +700,7 @@ export default function About() {
             <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4">
               <p className="text-sm text-white/50">© 2026 Basic Concept Limited. All rights reserved.</p>
               <Link
+                reloadDocument
                 to="/"
                 className="text-sm text-white/70 underline-offset-4 transition hover:text-white hover:underline"
               >
