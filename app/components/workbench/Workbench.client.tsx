@@ -24,6 +24,7 @@ import { IconButton } from '~/components/ui/IconButton';
 import { PanelHeaderButton } from '~/components/ui/PanelHeaderButton';
 import { Slider, type SliderOptions } from '~/components/ui/Slider';
 import { workbenchStore, type WorkbenchViewType } from '~/lib/stores/workbench';
+import { buildAndCollectDeployFiles } from '~/lib/deploy-build';
 import { netlifyConnection } from '~/lib/stores/netlify';
 import { chatId as chatIdStore } from '~/lib/persistence';
 import { classNames } from '~/utils/classNames';
@@ -496,14 +497,12 @@ export const Workbench = memo(
       setIsSharing(true);
 
       try {
-        const fileMap = workbenchStore.files.get();
-        const files: Record<string, string> = {};
-
-        for (const [path, entry] of Object.entries(fileMap)) {
-          if (entry?.type === 'file' && entry.content !== undefined) {
-            files[path] = entry.content;
-          }
-        }
+        /*
+         * Share the BUILD OUTPUT, not the source tree. Sharing `workbenchStore.files.get()` meant
+         * the published site was the unbuilt project — an index.html pointing at /src/main.tsx,
+         * which a browser cannot run — and it published the user's full source along with it.
+         */
+        const files = await buildAndCollectDeployFiles('share preview build');
 
         const res = await fetch('/api/deploy', {
           method: 'POST',

@@ -4,12 +4,10 @@ import useViewport from '~/lib/hooks';
 import { chatStore } from '~/lib/stores/chat';
 import { netlifyConnection } from '~/lib/stores/netlify';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { webcontainer } from '~/lib/webcontainer';
+import { buildAndCollectDeployFiles } from '~/lib/deploy-build';
 import { classNames } from '~/utils/classNames';
-import { path } from '~/utils/path';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { ActionCallbackData } from '~/lib/runtime/message-parser';
 import { chatId } from '~/lib/persistence/useChatHistory'; // Add this import
 import { streamingState } from '~/lib/stores/streaming';
 import { NetlifyDeploymentLink } from '~/components/chat/NetlifyDeploymentLink.client';
@@ -59,109 +57,8 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
     try {
       setIsDeploying(true);
 
-      const artifact = workbenchStore.firstArtifact;
-
-      if (!artifact) {
-        throw new Error('No active project found');
-      }
-
-      const actionId = 'build-' + Date.now();
-      const actionData: ActionCallbackData = {
-        messageId: 'netlify build',
-        artifactId: artifact.id,
-        actionId,
-        action: {
-          type: 'build' as const,
-          content: 'npm run build',
-        },
-      };
-
-      // Add the action first
-      artifact.runner.addAction(actionData);
-
-      // Then run it
-      await artifact.runner.runAction(actionData);
-
-      if (!artifact.runner.buildOutput) {
-        throw new Error('Build failed');
-      }
-
-      // Get the build files
-      const container = await webcontainer;
-
-      // Get the build path and ensure it's properly formatted
-      const buildPath = artifact.runner.buildOutput.path;
-
-      console.log('[Deploy] Build path:', buildPath);
-      console.log('[Deploy] Build output:', artifact.runner.buildOutput);
-
-      // Check if the build path exists and is accessible
-      try {
-        // Extract the relative path from the build path for webcontainer access
-        const relativeBuildPath = buildPath.replace(container.workdir, '').replace(/^\/+/, '') || '.';
-        console.log('[Deploy] Relative build path for webcontainer:', relativeBuildPath);
-
-        const buildDirContents = await container.fs.readdir(relativeBuildPath, { withFileTypes: true });
-        console.log(
-          '[Deploy] Build directory contents:',
-          buildDirContents.map(entry => entry.name)
-        );
-      } catch (error) {
-        console.error('[Deploy] Build path not accessible:', buildPath, error);
-
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`Build directory not found: ${buildPath}. Error: ${errorMessage}`);
-      }
-
-      // Get all files recursively
-      async function getAllFiles(dirPath: string): Promise<Record<string, string>> {
-        const files: Record<string, string> = {};
-
-        try {
-          // Convert absolute path to relative path for webcontainer
-          const relativeDirPath = dirPath.replace(container.workdir, '').replace(/^\/+/, '') || '.';
-          console.log('[Deploy] Reading directory (relative):', relativeDirPath);
-
-          const entries = await container.fs.readdir(relativeDirPath, { withFileTypes: true });
-
-          for (const entry of entries) {
-            const fullPath = path.join(dirPath, entry.name);
-
-            if (entry.isFile()) {
-              try {
-                // Use relative path for webcontainer file reading
-                const relativeFilePath = path.join(relativeDirPath, entry.name);
-                const content = await container.fs.readFile(relativeFilePath, 'utf-8');
-
-                /*
-                 * Create a clean deployment path by removing the build directory prefix
-                 * and ensuring it starts with a forward slash for Netlify
-                 */
-                let deployPath = fullPath.replace(buildPath, '');
-
-                if (!deployPath.startsWith('/')) {
-                  deployPath = '/' + deployPath;
-                }
-
-                console.log('[Deploy] File path mapping:', fullPath, '->', deployPath);
-                files[deployPath] = content;
-              } catch (error) {
-                console.error('[Deploy] Failed to read file:', fullPath, error);
-                // Continue with other files instead of failing completely
-              }
-            } else if (entry.isDirectory()) {
-              const subFiles = await getAllFiles(fullPath);
-              Object.assign(files, subFiles);
-            }
-          }
-        } catch (error) {
-          console.error('[Deploy] Failed to read directory:', dirPath, error);
-        }
-
-        return files;
-      }
-
-      const fileContents = await getAllFiles(buildPath);
+      // Shared with "Share preview" so the two deploy paths can't ship different things.
+      const fileContents = await buildAndCollectDeployFiles('netlify build');
 
       console.log('[Deploy] Total files to deploy:', Object.keys(fileContents).length);
       console.log('[Deploy] File paths:', Object.keys(fileContents).slice(0, 10)); // Log first 10 file paths
