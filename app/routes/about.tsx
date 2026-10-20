@@ -546,7 +546,8 @@ export default function About() {
           {/* ── Team ─────────────────────────────────────────────────────── */}
           <section id="team" style={anchorOffset} className="mx-auto w-full max-w-5xl px-5 py-14 sm:px-8">
             <Eyebrow>Team</Eyebrow>
-            <SectionHeading>Six people, two countries</SectionHeading>
+            {/* Named rather than counted: Hong Kong is an SAR, so "two countries" was wrong. */}
+            <SectionHeading>Six people, Hong Kong and Thailand</SectionHeading>
 
             {/* One group photo. Placeholder until TEAM_PHOTO points at a real file. */}
             <div className="mt-8 overflow-hidden rounded-2xl" style={glass}>
