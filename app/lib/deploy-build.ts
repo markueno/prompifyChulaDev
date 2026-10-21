@@ -40,7 +40,14 @@ export async function buildAndCollectDeployFiles(messageId = 'deploy build'): Pr
   await artifact.runner.runAction(actionData);
 
   if (!artifact.runner.buildOutput) {
-    throw new Error('Build failed');
+    const failure = artifact.runner.buildError;
+
+    if (failure) {
+      console.error('[Deploy] Build failed:\n' + failure.output);
+      throw new Error(`Build failed: ${summarizeBuildError(failure.output) || failure.header}`);
+    }
+
+    throw new Error('Build failed (no output). Run `npm run build` in the terminal to see why.');
   }
 
   const container = await webcontainer;
@@ -100,4 +107,22 @@ export async function buildAndCollectDeployFiles(messageId = 'deploy build'): Pr
   }
 
   return files;
+}
+
+/**
+ * Pull the line a person needs out of a build log, for a toast: the first line that reports an
+ * error, without ANSI colour codes, warnings or stack frames. The full log still goes to the console
+ * and to the "Build Failed" alert.
+ */
+export function summarizeBuildError(output: string): string {
+  const lines = output
+    .replace(/\u001b\[[0-9;]*m/g, '')
+    .split('\n')
+    .map(line => line.trim());
+  const isNoise = (line: string) => !line || /deprecated|^warn\b|^at\s|^┃|^┗|^x?\s*build failed in\b/i.test(line);
+  const errorLine = lines.find(
+    line => !isNoise(line) && /error|failed|cannot|not found|invalid|unexpected|missing/i.test(line)
+  );
+
+  return (errorLine ?? '').slice(0, 300);
 }

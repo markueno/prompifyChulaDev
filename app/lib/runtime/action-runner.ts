@@ -78,6 +78,13 @@ export class ActionRunner {
   onAlert?: (alert: ActionAlert) => void;
   buildOutput?: { path: string; exitCode: number; output: string };
 
+  /*
+   * Output of the most recent FAILED build. runAction() swallows action errors, so without this the
+   * deploy flow could only report a stale or missing build folder ("Build directory not found")
+   * instead of the real compiler error.
+   */
+  buildError?: { header: string; output: string };
+
   constructor(
     webcontainerPromise: Promise<WebContainer>,
     getShellTerminal: () => BoltShell,
@@ -170,6 +177,10 @@ export class ActionRunner {
         case 'build': {
           this.#hadProductiveAction = true;
 
+          // Never let a later failure fall back to an earlier build's output.
+          this.buildOutput = undefined;
+          this.buildError = undefined;
+
           const buildOutput = await this.#runBuildAction(action);
 
           // Store build output for deployment
@@ -230,13 +241,20 @@ export class ActionRunner {
       this.#updateAction(actionId, { status: 'failed', error: 'Action failed' });
       logger.error(`[${action.type}]:Action failed\n\n`, error);
 
+      if (action.type === 'build') {
+        this.buildError =
+          error instanceof ActionCommandError
+            ? { header: error.header, output: error.output }
+            : { header: 'Build Failed', output: error instanceof Error ? error.message : String(error) };
+      }
+
       if (!(error instanceof ActionCommandError)) {
         return;
       }
 
       this.onAlert?.({
         type: 'error',
-        title: 'Dev Server Failed',
+        title: action.type === 'build' ? 'Build Failed' : 'Dev Server Failed',
         description: error.header,
         content: error.output,
       });
