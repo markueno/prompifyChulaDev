@@ -26,6 +26,43 @@ export async function action({ request, context }: ActionFunctionArgs) {
       return json({ error: 'Not connected to Netlify' }, { status: 401 });
     }
 
+    /*
+     * Some templates build with Vite SSR / React Router / Astro layouts: dist/client (browser
+     * files) + dist/server (server bundle). A static host can only serve the client half, and the
+     * server bundle must never be published. If the client half has its own index.html, deploy it
+     * as the site root.
+     */
+    const hasRootIndex = Object.keys(files).some(k => k === 'index.html' || k === '/index.html');
+    const hasClientIndex = Object.keys(files).some(k => k === 'client/index.html' || k === '/client/index.html');
+
+    if (!hasRootIndex && hasClientIndex) {
+      const clientOnly: Record<string, string> = {};
+
+      for (const [filePath, content] of Object.entries(files)) {
+        const normalized = filePath.startsWith('/') ? filePath : '/' + filePath;
+
+        if (normalized.startsWith('/client/')) {
+          clientOnly[normalized.slice('/client'.length)] = content;
+        }
+      }
+
+      console.log('[Deploy] SSR-style build detected; deploying dist/client as the site root');
+
+      for (const key of Object.keys(files)) {
+        delete files[key];
+      }
+
+      Object.assign(files, clientOnly);
+    } else if (!hasRootIndex && Object.keys(files).some(k => /^\/?server\//.test(k))) {
+      return json(
+        {
+          error:
+            'This app is built for server-side rendering (client/ + server/ with no index.html), which a static host cannot run. It needs a static (SPA) build before it can be deployed.',
+        },
+        { status: 400 }
+      );
+    }
+
     // Add debugging information
     console.log('[Deploy] Starting deployment for chatId:', chatId);
     console.log('[Deploy] Number of files to deploy:', Object.keys(files).length);
