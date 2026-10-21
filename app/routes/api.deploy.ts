@@ -123,8 +123,26 @@ export async function action({ request, context }: ActionFunctionArgs) {
     const cfEnv = (context?.cloudflare?.env as unknown as Record<string, unknown>) ?? {};
 
     if (chatId) {
-      const publicUrl = (cfEnv.PROMPIFY_PUBLIC_URL as string) || process.env.PROMPIFY_PUBLIC_URL || '';
-      const apiUrl = publicUrl ? `${publicUrl.replace(/\/$/, '')}/api/data` : '/api/data';
+      /*
+       * The deployed app runs on another host (e.g. *.netlify.app), so apiUrl MUST be absolute.
+       * A relative '/api/data' resolves against the deploy host and 404s. Fall back to APP_URL
+       * (set in docker-compose.prod.yaml) when PROMPIFY_PUBLIC_URL is not configured.
+       */
+      const publicUrl =
+        (cfEnv.PROMPIFY_PUBLIC_URL as string) ||
+        process.env.PROMPIFY_PUBLIC_URL ||
+        (cfEnv.APP_URL as string) ||
+        process.env.APP_URL ||
+        '';
+
+      if (!publicUrl) {
+        return json(
+          { error: 'Server misconfigured: set PROMPIFY_PUBLIC_URL so deployed apps can reach the data proxy' },
+          { status: 500 }
+        );
+      }
+
+      const apiUrl = `${publicUrl.replace(/\/$/, '')}/api/data`;
 
       let token = '';
 
@@ -132,7 +150,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
         const envForToken = cfEnv as Record<string, unknown>;
 
         if (user?.id) {
-          token = issueDataApiToken(user.id, chatId, envForToken, share ? '7d' : undefined);
+          /*
+           * Deployed apps are long-lived; a 15-min token makes their data 401 almost at once.
+           * Same lifetime as Share until per-app revocable tokens exist. Override with
+           * DEPLOY_DATA_TOKEN_TTL (e.g. '30d'). NOTE: the token is readable in the public page.
+           */
+          const deployTtl = (cfEnv.DEPLOY_DATA_TOKEN_TTL as string) || process.env.DEPLOY_DATA_TOKEN_TTL || '7d';
+          token = issueDataApiToken(user.id, chatId, envForToken, share ? '7d' : deployTtl);
         }
       } catch {
         // token stays empty — the in-IDE preview still works via cookie

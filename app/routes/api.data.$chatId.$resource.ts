@@ -34,10 +34,23 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 const WEBCONTAINER_ORIGIN_RE = /^https:\/\/[a-z0-9-]+\.local-credentialless\.webcontainer-api\.io$/;
 
+/*
+ * Deployed apps call the proxy cross-origin too. Bearer token only, no cookies, so
+ * reflecting these origins does not widen access: the token is still the gate.
+ */
+const DEPLOYED_ORIGIN_RES = [
+  /^https:\/\/[a-z0-9-]+\.netlify\.app$/, // Netlify deploys (incl. deploy previews: <id>--<site>)
+  /^https:\/\/[a-z0-9-]+\.prompify\.app$/, // future first-party hosting
+];
+
+function isAllowedOrigin(origin: string): boolean {
+  return WEBCONTAINER_ORIGIN_RE.test(origin) || DEPLOYED_ORIGIN_RES.some(re => re.test(origin));
+}
+
 function corsHeadersFor(request: Request): Record<string, string> {
   const origin = request.headers.get('Origin') || '';
 
-  if (!WEBCONTAINER_ORIGIN_RE.test(origin)) {
+  if (!isAllowedOrigin(origin)) {
     return {};
   }
 
