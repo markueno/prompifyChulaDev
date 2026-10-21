@@ -200,6 +200,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
       deployFiles[filePath.startsWith('/') ? filePath : '/' + filePath] = content;
     }
 
+    /*
+     * A static host serves '/' from '/index.html'. Without it Netlify still publishes the deploy and
+     * every URL is a 404, so refuse here with something the user can act on.
+     */
+    if (!deployFiles['/index.html']) {
+      const topLevel = [...new Set(Object.keys(deployFiles).map(p => p.split('/')[1]))].slice(0, 15);
+      console.error('[Deploy] No /index.html in build output. Top-level entries:', topLevel);
+
+      return json(
+        {
+          error: `Build output has no index.html at its root (found: ${topLevel.join(', ') || 'nothing'}). The app may build to a different folder than dist/.`,
+        },
+        { status: 400 }
+      );
+    }
+
     const fileDigests: Record<string, string> = {};
 
     for (const [normalizedPath, content] of Object.entries(deployFiles)) {
@@ -254,7 +270,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
          * one file per SHA ("If you have two files with the same SHA1, you don't have to upload
          * both"). Once the last required file lands, Netlify starts processing; any further PUT fails.
          */
-        const required = new Set<string>((status.required ?? deploy.required ?? []) as string[]);
+        const required = new Set<string>([
+          ...((deploy.required ?? []) as string[]),
+          ...((status.required ?? []) as string[]),
+        ]);
         const sentShas = new Set<string>();
 
         console.log(`[Deploy] Uploading ${required.size} required of ${Object.keys(deployFiles).length} files`);
