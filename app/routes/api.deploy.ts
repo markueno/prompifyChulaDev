@@ -188,14 +188,22 @@ export async function action({ request, context }: ActionFunctionArgs) {
       );
     }
 
-    // Create file digests
-    const fileDigests: Record<string, string> = {};
+    /*
+     * Normalise to one entry per served path. The map can hold the same file under two keys
+     * ('env-config.js' and '/env-config.js'); uploading it twice made the second PUT land after
+     * Netlify had started processing the deploy, which failed with "Failed to upload file
+     * /env-config.js after 3 retries". Later keys win, so the injected env-config.js is kept.
+     */
+    const deployFiles: Record<string, string> = {};
 
     for (const [filePath, content] of Object.entries(files)) {
-      // Ensure file path starts with a forward slash
-      const normalizedPath = filePath.startsWith('/') ? filePath : '/' + filePath;
-      const hash = crypto.createHash('sha1').update(content).digest('hex');
-      fileDigests[normalizedPath] = hash;
+      deployFiles[filePath.startsWith('/') ? filePath : '/' + filePath] = content;
+    }
+
+    const fileDigests: Record<string, string> = {};
+
+    for (const [normalizedPath, content] of Object.entries(deployFiles)) {
+      fileDigests[normalizedPath] = crypto.createHash('sha1').update(content).digest('hex');
     }
 
     // Create a new deploy with digests
@@ -209,22 +217,25 @@ export async function action({ request, context }: ActionFunctionArgs) {
         files: fileDigests,
         async: true,
         skip_processing: false,
-        draft: false, // Change this to false for production deployments
+        draft: false,
         function_schedules: [],
-        required: Object.keys(fileDigests), // Add this line
         framework: null,
       }),
     });
 
     if (!deployResponse.ok) {
-      return json({ error: 'Failed to create deployment' }, { status: 400 });
+      const errorText = await deployResponse.text().catch(() => '');
+      console.error('[Deploy] Create deploy failed:', deployResponse.status, errorText);
+
+      return json({ error: `Failed to create deployment (${deployResponse.status})` }, { status: 400 });
     }
 
     const deploy = (await deployResponse.json()) as any;
     let retryCount = 0;
     const maxRetries = 60;
+    let filesUploaded = false;
 
-    // Poll until deploy is ready for file uploads
+    // Poll until the deploy is ready for uploads, upload ONCE, then wait for "ready".
     while (retryCount < maxRetries) {
       const statusResponse = await fetch(`https://api.netlify.com/api/v1/sites/${targetSiteId}/deploys/${deploy.id}`, {
         headers: {
@@ -234,22 +245,37 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
       const status = (await statusResponse.json()) as any;
 
-      if (status.state === 'prepared' || status.state === 'uploaded') {
-        console.log('[Deploy] Starting file uploads for deploy:', deploy.id);
+      if (
+        !filesUploaded &&
+        (status.state === 'prepared' || status.state === 'uploading' || status.state === 'uploaded')
+      ) {
+        /*
+         * Netlify lists, by SHA1, only the files it does not already have. Upload exactly those,
+         * one file per SHA ("If you have two files with the same SHA1, you don't have to upload
+         * both"). Once the last required file lands, Netlify starts processing; any further PUT fails.
+         */
+        const required = new Set<string>((status.required ?? deploy.required ?? []) as string[]);
+        const sentShas = new Set<string>();
 
-        // Upload all files regardless of required array
-        for (const [filePath, content] of Object.entries(files)) {
-          const normalizedPath = filePath.startsWith('/') ? filePath : '/' + filePath;
+        console.log(`[Deploy] Uploading ${required.size} required of ${Object.keys(deployFiles).length} files`);
 
-          console.log('[Deploy] Uploading file:', normalizedPath, 'Size:', content.length);
+        for (const [normalizedPath, content] of Object.entries(deployFiles)) {
+          const sha = fileDigests[normalizedPath];
+
+          if (!required.has(sha) || sentShas.has(sha)) {
+            continue;
+          }
+
+          sentShas.add(sha);
 
           let uploadSuccess = false;
           let uploadRetries = 0;
+          let lastError = '';
 
           while (!uploadSuccess && uploadRetries < 3) {
             try {
               const uploadResponse = await fetch(
-                `https://api.netlify.com/api/v1/deploys/${deploy.id}/files${normalizedPath}`,
+                `https://api.netlify.com/api/v1/deploys/${deploy.id}/files${encodeURI(normalizedPath)}`,
                 {
                   method: 'PUT',
                   headers: {
@@ -263,21 +289,13 @@ export async function action({ request, context }: ActionFunctionArgs) {
               uploadSuccess = uploadResponse.ok;
 
               if (!uploadSuccess) {
-                const errorText = await uploadResponse.text();
-                console.error(
-                  '[Deploy] Upload failed for:',
-                  normalizedPath,
-                  'Status:',
-                  uploadResponse.status,
-                  'Error:',
-                  errorText
-                );
+                lastError = `${uploadResponse.status} ${await uploadResponse.text().catch(() => '')}`.trim();
+                console.error('[Deploy] Upload failed for:', normalizedPath, lastError);
                 uploadRetries++;
                 await new Promise(resolve => setTimeout(resolve, 2000));
-              } else {
-                console.log('[Deploy] Successfully uploaded:', normalizedPath);
               }
             } catch (error) {
+              lastError = error instanceof Error ? error.message : String(error);
               console.error('[Deploy] Upload error for:', normalizedPath, error);
               uploadRetries++;
               await new Promise(resolve => setTimeout(resolve, 2000));
@@ -285,11 +303,15 @@ export async function action({ request, context }: ActionFunctionArgs) {
           }
 
           if (!uploadSuccess) {
-            return json({ error: `Failed to upload file ${filePath} after ${uploadRetries} retries` }, { status: 500 });
+            return json(
+              { error: `Failed to upload file ${normalizedPath} after ${uploadRetries} retries: ${lastError}` },
+              { status: 500 }
+            );
           }
         }
 
-        console.log('[Deploy] All files uploaded successfully');
+        filesUploaded = true;
+        console.log('[Deploy] All required files uploaded');
       }
 
       if (status.state === 'ready') {
