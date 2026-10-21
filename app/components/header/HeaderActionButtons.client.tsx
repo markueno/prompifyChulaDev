@@ -26,15 +26,26 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const canHideChat = showWorkbench || !showChat;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const deployButtonRef = useRef<HTMLDivElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
   const isStreaming = useStore(streamingState);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
+      const target = event.target as Node;
+
+      /*
+       * The menu is portalled to the end of the body, so it is NOT inside dropdownRef. Checking
+       * only that ref counted a click on a menu item as a click outside — and because this runs on
+       * mousedown, the menu unmounted before the click could land, so "Deploy to Netlify" did
+       * nothing except close the dropdown. Both the trigger and the portalled menu must be tested.
+       */
+      if (dropdownRef.current?.contains(target) || menuRef.current?.contains(target)) {
+        return;
       }
+
+      setIsDropdownOpen(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
 
@@ -186,6 +197,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
           typeof document !== 'undefined' &&
           createPortal(
             <div
+              ref={menuRef}
               style={{ position: 'fixed', top: dropdownPos.top, right: dropdownPos.right, zIndex: 99999 }}
               className="flex flex-col gap-1 p-1 min-w-[13.5rem] bg-bolt-elements-background-depth-2 rounded-md shadow-lg bg-bolt-elements-backgroundDefault border border-bolt-elements-borderColor"
             >
@@ -282,6 +294,10 @@ interface ButtonProps {
   className?: string;
 }
 
+/*
+ * `disabled` used to style the button without ever reaching the <button>, so an item that looked
+ * greyed out still fired its onClick.
+ */
 function Button({ active = false, disabled = false, children, onClick, className }: ButtonProps) {
   return (
     <button
@@ -298,6 +314,7 @@ function Button({ active = false, disabled = false, children, onClick, className
         },
         className
       )}
+      disabled={disabled}
       onClick={onClick}
     >
       {children}
