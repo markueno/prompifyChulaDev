@@ -226,6 +226,23 @@ export async function action({ request, context }: ActionFunctionArgs) {
     }
 
     /*
+     * Single-page-app fallback. Generated apps route in the browser, so a deep link or a refresh
+     * on /deals asks Netlify for a file that does not exist and gets a 404. Netlify's documented
+     * fix is the rewrite '/*  /index.html  200'; real files (assets, env-config.js) are still
+     * served first because Netlify never shadows an existing file. Keep any rules the app ships
+     * and add ours last, as Netlify recommends for this catch-all.
+     * https://docs.netlify.com/manage/routing/redirects/rewrites-proxies
+     */
+    const SPA_FALLBACK_RULE = '/*  /index.html  200';
+    const redirectsKey = Object.keys(files).find(k => k === '_redirects' || k === '/_redirects');
+
+    if (!redirectsKey) {
+      files['/_redirects'] = `${SPA_FALLBACK_RULE}\n`;
+    } else if (!/\/index\.html\s+200/.test(files[redirectsKey])) {
+      files[redirectsKey] = `${files[redirectsKey].replace(/\s*$/, '')}\n${SPA_FALLBACK_RULE}\n`;
+    }
+
+    /*
      * Normalise to one entry per served path. The map can hold the same file under two keys
      * ('env-config.js' and '/env-config.js'); uploading it twice made the second PUT land after
      * Netlify had started processing the deploy, which failed with "Failed to upload file
