@@ -36,7 +36,7 @@ Examples:
 User: I need to build a todo app
 Response:
 <selection>
-  <templateName>react-basic-starter</templateName>
+  <templateName>bolt-vite-react</templateName>
   <title>Simple React todo application</title>
 </selection>
 </example>
@@ -52,16 +52,40 @@ Response:
 
 Instructions:
 1. For trivial tasks and simple scripts, always recommend the blank template
-2. For more complex projects, recommend templates from the provided list
-3. Follow the exact XML format
-4. Consider both technical requirements and tags
-5. If no perfect match exists, recommend the closest option
+2. For anything with a user interface (apps, dashboards, tools, sites), recommend bolt-vite-react unless the request clearly asks for plain JavaScript or TypeScript without React
+3. Only the templates listed above exist; never invent a template name
+4. Follow the exact XML format
+5. Consider both technical requirements and tags
+6. If no perfect match exists, recommend bolt-vite-react
 
 Important: Provide only the selection tags in your response, no additional text.
 MOST IMPORTANT: Choose the most reliable template based on requirements, not a hunch.
 `;
 
-const templates: Template[] = STARTER_TEMPLATES.filter(t => !t.name.includes('shadcn'));
+/*
+ * Templates a free-form prompt may start from. Published apps are hosted as static files (Netlify
+ * today, Prompify hosting later), so the build must produce a plain index.html. Server-rendered
+ * starters (Remix, Next.js, SvelteKit, Astro, Qwik) and non-app ones (Slidev, Angular) are left out:
+ * a free-form "sales CRM" prompt once picked Remix, which then could not be deployed without a manual
+ * SPA-mode conversion. Wizard-built prompts never get here; they use VERTICAL_TEMPLATES
+ * (bolt-vite-react) in ~/lib/stores/vertical.
+ */
+export const DEFAULT_APP_TEMPLATE = 'bolt-vite-react';
+export const DEPLOYABLE_TEMPLATE_NAMES = [DEFAULT_APP_TEMPLATE, 'bolt-vite-ts', 'vanilla-vite'];
+
+const templates: Template[] = STARTER_TEMPLATES.filter(t => DEPLOYABLE_TEMPLATE_NAMES.includes(t.name));
+
+/**
+ * Keep the LLM's answer inside the allowlist: 'blank' stays blank, a listed template is used as is,
+ * and anything else (an invented name, a template outside the list) becomes the default app template.
+ */
+export function coerceToDeployableTemplate(name: string): string {
+  if (name === 'blank' || DEPLOYABLE_TEMPLATE_NAMES.includes(name)) {
+    return name;
+  }
+
+  return DEFAULT_APP_TEMPLATE;
+}
 
 const parseSelectedTemplate = (llmOutput: string): { template: string; title: string } | null => {
   try {
@@ -99,12 +123,18 @@ export const selectStarterTemplate = async (options: { message: string; model: s
   const selectedTemplate = parseSelectedTemplate(text);
 
   if (selectedTemplate) {
-    return selectedTemplate;
+    const template = coerceToDeployableTemplate(selectedTemplate.template);
+
+    if (template !== selectedTemplate.template) {
+      console.log(`Template "${selectedTemplate.template}" is not deployable as a static site; using ${template}`);
+    }
+
+    return { ...selectedTemplate, template };
   } else {
-    console.log('No template selected, using blank template');
+    console.log(`No template selected, using ${DEFAULT_APP_TEMPLATE}`);
 
     return {
-      template: 'blank',
+      template: DEFAULT_APP_TEMPLATE,
       title: '',
     };
   }
