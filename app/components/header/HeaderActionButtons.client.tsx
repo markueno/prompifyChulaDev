@@ -5,6 +5,7 @@ import { chatStore } from '~/lib/stores/chat';
 import { netlifyConnection } from '~/lib/stores/netlify';
 import { workbenchStore } from '~/lib/stores/workbench';
 import { buildAndCollectDeployFiles } from '~/lib/deploy-build';
+import { MAKE_DEPLOYABLE_ENABLED, frameworkLabel, makeDeployable } from '~/lib/make-deployable';
 import { classNames } from '~/utils/classNames';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -22,6 +23,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
   const previews = useStore(workbenchStore.previews);
   const activePreview = previews[activePreviewIndex];
   const [isDeploying, setIsDeploying] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
   const isSmallViewport = useViewport(1024);
   const canHideChat = showWorkbench || !showChat;
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -156,9 +158,46 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
       );
     } catch (error) {
       console.error('Deploy error:', error);
-      toast.error(error instanceof Error ? error.message : 'Deployment failed');
+
+      const message = error instanceof Error ? error.message : 'Deployment failed';
+      const isServerRendered = message.includes('server-side rendering');
+
+      toast.error(
+        MAKE_DEPLOYABLE_ENABLED && isServerRendered
+          ? `${message} Use Deploy ▸ Make deployable to convert it automatically.`
+          : message
+      );
     } finally {
       setIsDeploying(false);
+    }
+  };
+
+  /*
+   * Temporary "Make deployable" helper (see ~/lib/make-deployable): converts an older
+   * server-rendered project to a static build, then runs the build. Hide it by setting
+   * MAKE_DEPLOYABLE_ENABLED to false.
+   */
+  const handleMakeDeployable = async () => {
+    setIsConverting(true);
+
+    try {
+      const result = await makeDeployable();
+      const label = frameworkLabel(result.framework);
+
+      if (result.ok) {
+        toast.success(
+          result.changes.length
+            ? `${label} app converted to a static build. Ready to deploy — click Deploy ▸ Deploy to Netlify.`
+            : `${label} app already builds as a static site. Ready to deploy.`
+        );
+      } else {
+        toast.error(`Could not make this ${label} app deployable yet: ${result.reason}`);
+      }
+    } catch (error) {
+      console.error('Make deployable error:', error);
+      toast.error(error instanceof Error ? error.message : 'Make deployable failed');
+    } finally {
+      setIsConverting(false);
     }
   };
 
@@ -219,6 +258,20 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
                 <span className="mx-auto">{!connection.user ? 'No Account Connected' : 'Deploy to Netlify'}</span>
                 {connection.user && <NetlifyDeploymentLink />}
               </Button>
+              {MAKE_DEPLOYABLE_ENABLED && (
+                <Button
+                  active
+                  onClick={() => {
+                    handleMakeDeployable();
+                    setIsDropdownOpen(false);
+                  }}
+                  disabled={isConverting || isDeploying || isStreaming}
+                  className="flex items-center w-full px-4 py-2 text-sm text-bolt-elements-textPrimary hover:bg-bolt-elements-item-backgroundActive gap-2 rounded-md"
+                >
+                  <div className="i-ph:wrench w-5 h-5" />
+                  <span className="mx-auto">{isConverting ? 'Converting…' : 'Make deployable'}</span>
+                </Button>
+              )}
               <Button
                 active={false}
                 disabled
