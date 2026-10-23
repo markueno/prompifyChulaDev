@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
-  const { description, content, source } = alert;
+  const { title: alertTitle, description, content, source } = alert;
   const autoPromptedSignatureRef = useRef<string | null>(null);
 
   const [autoFixEnabled, setAutoFixEnabled] = useState(() => {
@@ -32,13 +32,19 @@ export default function ChatAlert({ alert, clearAlert, postMessage }: Props) {
     typeof window === 'undefined'
       ? AUTO_FIX_CONSECUTIVE_KEY
       : `${AUTO_FIX_CONSECUTIVE_KEY}:${window.location.pathname}:${source ?? 'unknown'}`;
-  const title = isPreview ? 'Preview Error' : 'Terminal Error';
-  const message = isPreview
-    ? 'We encountered an error while running the preview. Would you like Prompify to analyze and help resolve this issue?'
-    : 'We encountered an error while running terminal commands. Would you like Prompify to analyze and help resolve this issue?';
+  // Use the alert's own title when it has one ("Build Failed", "Table setup failed", ...).
+  const title = alertTitle || (isPreview ? 'Preview Error' : 'Terminal Error');
+  const isTableSetup = alertTitle === 'Table setup failed'; // raised by ActionRunner#runDataAction
+  const message = isTableSetup
+    ? 'Some data tables could not be set up. Would you like Prompify to fix them?'
+    : isPreview
+      ? 'We encountered an error while running the preview. Would you like Prompify to analyze and help resolve this issue?'
+      : 'We encountered an error while running terminal commands. Would you like Prompify to analyze and help resolve this issue?';
 
   const formatErrorForPrompt = () =>
-    `*Fix this ${isPreview ? 'preview' : 'terminal'} error*\n\`\`\`${isPreview ? 'js' : 'sh'}\n${content}\n\`\`\`\n`;
+    `*Fix this ${alertTitle ? alertTitle.toLowerCase() : isPreview ? 'preview error' : 'terminal error'}*\n${
+      description ? `${description}\n` : ''
+    }\`\`\`${isPreview ? 'js' : 'sh'}\n${content}\n\`\`\`\n`;
 
   const resetConsecutiveCounter = () => {
     if (typeof window === 'undefined') {

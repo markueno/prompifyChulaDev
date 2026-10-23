@@ -284,8 +284,42 @@ export class ActionRunner {
 
     const id = chatId.get();
 
+    /*
+     * Deployment plan step 1.4: every way table setup can fail used to end in a console line only,
+     * so neither the user nor the AI saw it, and the AI's summary ("created the activities table")
+     * stood unchallenged. Failures are now collected and raised as one chat alert at the end, with
+     * the table name and the server's reason, which the existing "Ask Prompify" fix flow can use.
+     */
+    const failures: Array<{ table: string; reason: string }> = [];
+    let requestedCount = 0;
+
+    const reportFailures = () => {
+      if (failures.length === 0) {
+        return;
+      }
+
+      const names = [...new Set(failures.map(f => f.table))];
+      const summary =
+        requestedCount > 0
+          ? `${names.length} of ${requestedCount} table${requestedCount === 1 ? '' : 's'} not set up: ${names.join(', ')}`
+          : `Table setup did not run: ${failures[0].reason}`;
+
+      this.onAlert?.({
+        type: 'error',
+        title: 'Table setup failed',
+        description: summary,
+        content: [
+          'These tables were NOT created or seeded, even if a message says otherwise:',
+          ...failures.map(f => `- ${f.table}: ${f.reason}`),
+        ].join('\n'),
+        source: 'terminal',
+      });
+    };
+
     if (!id) {
       logger.warn('data action: chatId not set — skipping table provisioning');
+      failures.push({ table: '(all)', reason: 'no project id yet — open or save the project, then retry' });
+      reportFailures();
 
       return;
     }
@@ -303,14 +337,19 @@ export class ActionRunner {
       payload = JSON.parse(action.content);
     } catch {
       logger.error('data action: invalid JSON body');
+      failures.push({ table: '(all)', reason: 'the data action was not valid JSON' });
+      reportFailures();
 
       return;
     }
 
     const tables = Array.isArray(payload.tables) ? payload.tables : [];
+    requestedCount = tables.length;
 
     if (tables.length === 0) {
       logger.warn('data action: no tables in payload');
+      failures.push({ table: '(all)', reason: 'the data action listed no tables' });
+      reportFailures();
 
       return;
     }
@@ -318,6 +357,10 @@ export class ActionRunner {
     for (const table of tables) {
       if (!table.tableName || !Array.isArray(table.columns) || table.columns.length === 0) {
         logger.warn(`data action: skipping invalid table definition for "${table.tableName}"`);
+        failures.push({
+          table: table.tableName || '(unnamed)',
+          reason: !table.tableName ? 'table has no name' : 'table definition has no columns',
+        });
 
         continue;
       }
@@ -339,6 +382,10 @@ export class ActionRunner {
         if (!schemaRes.ok) {
           const err = await schemaRes.text();
           logger.warn(`data action: schema creation for "${table.tableName}" failed (${schemaRes.status}): ${err}`);
+          failures.push({
+            table: table.tableName,
+            reason: `create failed (HTTP ${schemaRes.status}): ${err.slice(0, 300)}`,
+          });
 
           continue;
         }
@@ -358,6 +405,10 @@ export class ActionRunner {
         );
       } catch (err) {
         logger.error(`data action: schema fetch failed for "${table.tableName}":`, err);
+        failures.push({
+          table: table.tableName,
+          reason: `create request failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
 
         continue;
       }
@@ -386,6 +437,10 @@ export class ActionRunner {
         if (!seedRes.ok) {
           const err = await seedRes.text();
           logger.warn(`data action: seed for "${table.tableName}" failed (${seedRes.status}): ${err}`);
+          failures.push({
+            table: table.tableName,
+            reason: `table created but sample rows not inserted (HTTP ${seedRes.status}): ${err.slice(0, 300)}`,
+          });
 
           continue;
         }
@@ -400,8 +455,14 @@ export class ActionRunner {
         );
       } catch (err) {
         logger.error(`data action: seed fetch failed for "${table.tableName}":`, err);
+        failures.push({
+          table: table.tableName,
+          reason: `table created but seeding request failed: ${err instanceof Error ? err.message : String(err)}`,
+        });
       }
     }
+
+    reportFailures();
 
     /*
      * Signal the Data panel to re-list tables. The panel lists once on mount /
