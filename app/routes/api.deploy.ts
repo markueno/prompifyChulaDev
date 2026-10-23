@@ -2,7 +2,7 @@ import { type ActionFunctionArgs, json } from '@remix-run/cloudflare';
 import crypto from 'crypto';
 import type { NetlifySiteInfo } from '~/types/netlify';
 import { requireAuth } from '~/lib/auth';
-import { updateAppStatus, addAuditLog } from '~/lib/database';
+import { updateAppStatus, addAuditLog, getAppDeploymentSiteId, saveAppDeployment } from '~/lib/database';
 import { issueDataApiToken } from '~/lib/.server/data-token';
 
 interface DeployRequestBody {
@@ -68,7 +68,17 @@ export async function action({ request, context }: ActionFunctionArgs) {
     console.log('[Deploy] Number of files to deploy:', Object.keys(files).length);
     console.log('[Deploy] File paths:', Object.keys(files).slice(0, 5)); // Log first 5 file paths
 
-    let targetSiteId = siteId;
+    /*
+     * Step 1.3: the project's site is remembered on the server, per user and per provider, so a
+     * deploy from another browser or device updates the same site instead of creating a new one.
+     * Share preview gets its own stable site ('netlify-preview') so sharing work in progress never
+     * overwrites the published app. A siteId sent by the browser (old localStorage value) is only
+     * used when nothing is stored yet, so existing sites are adopted rather than duplicated.
+     */
+    const deploymentProvider = share ? 'netlify-preview' : 'netlify';
+    const storedSiteId = chatId && user?.id ? await getAppDeploymentSiteId(chatId, user.id, deploymentProvider) : null;
+
+    let targetSiteId = storedSiteId || (share ? undefined : siteId);
     let siteInfo: NetlifySiteInfo | undefined;
 
     // If no siteId provided, create a new site
@@ -393,6 +403,20 @@ export async function action({ request, context }: ActionFunctionArgs) {
           console.log('[Deploy] Deployment completed successfully');
 
           const deployUrl = status.ssl_url || status.url;
+
+          if (chatId && user?.id && targetSiteId) {
+            const saved = await saveAppDeployment({
+              chatIdOrUrlId: chatId,
+              userId: user.id,
+              provider: deploymentProvider,
+              siteId: targetSiteId,
+              url: deployUrl,
+            });
+
+            if (!saved) {
+              console.warn('[Deploy] Could not remember the site for this project; next deploy may create a new site');
+            }
+          }
 
           if (projectId && companyId && user) {
             await updateAppStatus(projectId, 'active', { deploy_url: deployUrl });

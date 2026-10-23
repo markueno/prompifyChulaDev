@@ -4683,3 +4683,66 @@ export async function getAllUserTablesPostgres(userId: string, companyId?: strin
     client.release();
   }
 }
+
+/*
+ * App deployments (deployment plan step 1.3). `chatIdOrUrlId` accepts either form, because the
+ * client's chat id can be the url_id. Both helpers swallow errors: a failed lookup or save must
+ * never fail a deploy, it only falls back to creating a new site as before.
+ */
+export async function getAppDeploymentSiteIdPostgres(
+  chatIdOrUrlId: string,
+  userId: string,
+  provider: string
+): Promise<string | null> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `SELECT d.site_id
+       FROM app_deployments d
+       JOIN chats c ON c.id = d.chat_id
+       WHERE (c.id = $1 OR c.url_id = $1) AND d.user_id = $2 AND d.provider = $3
+       LIMIT 1`,
+      [chatIdOrUrlId, userId, provider]
+    );
+
+    return result.rows[0]?.site_id ?? null;
+  } catch (error) {
+    console.error('Error reading app deployment:', error);
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+export async function saveAppDeploymentPostgres(params: {
+  chatIdOrUrlId: string;
+  userId: string;
+  provider: string;
+  siteId: string;
+  url?: string | null;
+}): Promise<boolean> {
+  const pool = getPostgresPool();
+  const client = await pool.connect();
+
+  try {
+    const result = await client.query(
+      `INSERT INTO app_deployments (id, chat_id, user_id, provider, site_id, url)
+       SELECT $1, c.id, $3, $4, $5, $6
+       FROM chats c
+       WHERE c.id = $2 OR c.url_id = $2
+       LIMIT 1
+       ON CONFLICT (chat_id, user_id, provider)
+       DO UPDATE SET site_id = EXCLUDED.site_id, url = EXCLUDED.url, updated_at = CURRENT_TIMESTAMP`,
+      [crypto.randomUUID(), params.chatIdOrUrlId, params.userId, params.provider, params.siteId, params.url ?? null]
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('Error saving app deployment:', error);
+    return false;
+  } finally {
+    client.release();
+  }
+}

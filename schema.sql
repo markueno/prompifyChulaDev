@@ -754,3 +754,23 @@ CREATE TABLE IF NOT EXISTS company_invite_codes (
 );
 CREATE INDEX IF NOT EXISTS idx_invite_codes_code ON company_invite_codes(code);
 CREATE INDEX IF NOT EXISTS idx_invite_codes_company ON company_invite_codes(company_id);
+
+-- ============================================================================
+-- App deployments (deployment plan step 1.3) — which hosted site belongs to
+-- which project, stored server-side instead of in the browser's localStorage.
+-- One row per (chat, user, provider): users deploy into their own Netlify
+-- account, so the same project can have a different site per user.
+-- provider: 'netlify' (Deploy button), 'netlify-preview' (Share preview);
+-- later 'prompify' for first-party hosting. Additive only — safe to roll back.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS app_deployments (
+    id TEXT PRIMARY KEY,
+    chat_id TEXT NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    site_id TEXT NOT NULL,
+    url TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(chat_id, user_id, provider)
+);

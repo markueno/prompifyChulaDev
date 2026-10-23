@@ -86,6 +86,8 @@ import {
   getInactiveAppsPostgres,
   addAuditLogPostgres,
   getAuditLogsPostgres,
+  getAppDeploymentSiteIdPostgres,
+  saveAppDeploymentPostgres,
   checkRateLimitPostgres,
   clearRateLimitPostgres,
   createCompanyInviteCodePostgres,
@@ -1259,6 +1261,30 @@ export async function addAuditLog(params: {
 }) {
   if (DATABASE_TYPE === 'postgresql') {
     return addAuditLogPostgres(params);
+  }
+
+  return false;
+}
+
+/** Site id of this project's hosted app for this user and provider, or null (step 1.3). */
+export async function getAppDeploymentSiteId(chatIdOrUrlId: string, userId: string, provider: string) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return getAppDeploymentSiteIdPostgres(chatIdOrUrlId, userId, provider);
+  }
+
+  return null;
+}
+
+/** Remember which hosted site a project deploys to, so every browser reuses it (step 1.3). */
+export async function saveAppDeployment(params: {
+  chatIdOrUrlId: string;
+  userId: string;
+  provider: string;
+  siteId: string;
+  url?: string | null;
+}) {
+  if (DATABASE_TYPE === 'postgresql') {
+    return saveAppDeploymentPostgres(params);
   }
 
   return false;

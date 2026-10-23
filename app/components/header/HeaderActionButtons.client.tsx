@@ -74,8 +74,12 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
       console.log('[Deploy] Total files to deploy:', Object.keys(fileContents).length);
       console.log('[Deploy] File paths:', Object.keys(fileContents).slice(0, 10)); // Log first 10 file paths
 
-      // Use chatId instead of artifact.id
-      const existingSiteId = localStorage.getItem(`netlify-site-${currentChatId}`);
+      /*
+       * The server now remembers each project's site (deployment plan step 1.3). This old
+       * browser-stored id is only sent so a site deployed before that change is adopted once
+       * instead of duplicated; nothing writes it any more. Remove after one release.
+       */
+      const legacySiteId = localStorage.getItem(`netlify-site-${currentChatId}`);
 
       // Deploy using the API route with file contents
       const response = await fetch('/api/deploy', {
@@ -84,7 +88,7 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          siteId: existingSiteId || undefined,
+          siteId: legacySiteId || undefined,
           files: fileContents,
           token: connection.token,
           chatId: currentChatId, // Use chatId instead of artifact.id
@@ -135,11 +139,6 @@ export function HeaderActionButtons({}: HeaderActionButtonsProps) {
 
       if (attempts >= maxAttempts) {
         throw new Error('Deployment timed out');
-      }
-
-      // Store the site ID if it's a new site
-      if (data.site) {
-        localStorage.setItem(`netlify-site-${currentChatId}`, data.site.id);
       }
 
       toast.success(
