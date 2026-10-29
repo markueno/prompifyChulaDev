@@ -5,7 +5,7 @@ import { Menu } from '~/components/sidebar/Menu.client';
 import { IconButton } from '~/components/ui/IconButton';
 import { Workbench } from '~/components/workbench/Workbench.client';
 import { classNames } from '~/utils/classNames';
-import { PROVIDER_LIST, isImportChatHidden, isImportFolderHidden, isGitCloneHidden } from '~/utils/constants';
+import { isImportChatHidden, isImportFolderHidden, isGitCloneHidden } from '~/utils/constants';
 import { Messages } from './Messages.client';
 import { SendButton } from './SendButton.client';
 import { APIKeyManager, getApiKeysFromCookies } from './APIKeyManager';
@@ -617,7 +617,11 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                                 modelList={modelList}
                                 provider={provider}
                                 setProvider={setProvider}
-                                providerList={providerList || (PROVIDER_LIST as ProviderInfo[])}
+                                /*
+                                 * Empty until useSettings hydrates; every other use of
+                                 * providerList in this file already guards for that.
+                                 */
+                                providerList={providerList || []}
                                 apiKeys={apiKeys}
                                 modelLoading={isModelLoading}
                                 onRefreshModels={refreshOllamaModels}

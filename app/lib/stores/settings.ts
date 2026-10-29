@@ -1,5 +1,5 @@
 import { atom, map } from 'nanostores';
-import { PROVIDER_LIST } from '~/utils/constants';
+import { PROVIDER_NAMES, providerStub } from '~/utils/provider-metadata';
 import type { IProviderConfig } from '~/types/model';
 import type {
   TabVisibilityConfig,
@@ -72,13 +72,22 @@ const isBrowser = typeof window !== 'undefined';
 const getInitialProviderSettings = (): ProviderSetting => {
   const initialSettings: ProviderSetting = {};
 
-  // Start with default settings
-  PROVIDER_LIST.forEach(provider => {
-    initialSettings[provider.name] = {
-      ...provider,
+  /*
+   * Start with default settings.
+   *
+   * Seeded from provider NAMES rather than the live registry: this store is imported by a dozen
+   * client modules, so importing the registry here dragged every @ai-sdk package into the
+   * browser bundle. The spread used to copy the whole provider object, including functions that
+   * cannot survive the JSON round-trip through localStorage anyway. The fields the settings UI
+   * actually reads (staticModels, getApiKeyLink, labelForGetApiKey, icon) are filled in from
+   * /api/models once it responds.
+   */
+  PROVIDER_NAMES.forEach(name => {
+    initialSettings[name] = {
+      ...providerStub(name),
       settings: {
         // Local providers should be disabled by default
-        enabled: !LOCAL_PROVIDERS.includes(provider.name),
+        enabled: !LOCAL_PROVIDERS.includes(name),
       },
     };
   });
@@ -105,6 +114,67 @@ const getInitialProviderSettings = (): ProviderSetting => {
 };
 
 export const providersStore = map<ProviderSetting>(getInitialProviderSettings());
+
+/** Runs once per page load; reset on failure so a transient error can be retried. */
+let providerHydrationStarted = false;
+
+/**
+ * Fill in the provider metadata the store cannot know on its own.
+ *
+ * getInitialProviderSettings seeds from provider names only, because importing the live registry
+ * to get the rest would ship every @ai-sdk package to the browser. The settings tabs do read the
+ * rest — staticModels, icon, getApiKeyLink, labelForGetApiKey — so fetch it from /api/models,
+ * which already serialises exactly those fields.
+ *
+ * `providersOnly=true` keeps this cheap: without it the route also assembles the full model list,
+ * which calls out to every configured provider.
+ *
+ * Failure is non-fatal. The UI keeps the name-only entries, which is what it would have shown
+ * before the response arrived anyway.
+ */
+export async function hydrateProviderMetadata(): Promise<void> {
+  if (!isBrowser || providerHydrationStarted) {
+    return;
+  }
+
+  providerHydrationStarted = true;
+
+  try {
+    const response = await fetch('/api/models?providersOnly=true');
+
+    if (!response.ok) {
+      providerHydrationStarted = false;
+      return;
+    }
+
+    const data = (await response.json()) as { providers?: IProviderConfig[] };
+
+    if (!data.providers?.length) {
+      providerHydrationStarted = false;
+      return;
+    }
+
+    for (const incoming of data.providers) {
+      const existing = providersStore.get()[incoming.name];
+
+      if (!existing) {
+        continue;
+      }
+
+      providersStore.setKey(incoming.name, {
+        ...existing,
+        staticModels: incoming.staticModels ?? [],
+        getApiKeyLink: incoming.getApiKeyLink,
+        labelForGetApiKey: incoming.labelForGetApiKey,
+        icon: incoming.icon,
+        // `settings` is the user's own state — never overwrite it from the server.
+        settings: existing.settings,
+      });
+    }
+  } catch {
+    providerHydrationStarted = false;
+  }
+}
 
 // Create a function to update provider settings that handles both store and persistence
 export const updateProviderSettings = (provider: string, settings: ProviderSetting) => {

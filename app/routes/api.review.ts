@@ -1,6 +1,6 @@
 import { type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { generateText } from 'ai';
-import { PROVIDER_LIST } from '~/utils/constants';
+import { PROVIDER_LIST } from '~/utils/constants.server';
 import { LLMManager } from '~/lib/modules/llm/manager';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import type { ProviderInfo } from '~/types/model';

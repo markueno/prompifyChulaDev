@@ -1,5 +1,6 @@
 import { type Message } from 'ai';
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, MODEL_REGEX, PROVIDER_REGEX } from '~/utils/constants';
+import { DEFAULT_MODEL, MODEL_REGEX, PROVIDER_REGEX } from '~/utils/constants';
+import { DEFAULT_PROVIDER } from '~/utils/constants.server';
 import { IGNORE_PATTERNS, type FileMap } from './constants';
 import ignore from 'ignore';
 import type { ContextAnnotation } from '~/types/context';

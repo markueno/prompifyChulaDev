@@ -7,7 +7,7 @@ import { logStore } from '~/lib/stores/logs';
 import { motion } from 'framer-motion';
 import { classNames } from '~/utils/classNames';
 import { toast } from 'react-toastify';
-import { providerBaseUrlEnvKeys } from '~/utils/constants';
+import { providerBaseUrlEnvKeys } from '~/utils/provider-metadata';
 import { SiGoogle, SiHuggingface, SiPerplexity, SiOpenai } from 'react-icons/si';
 import { BsRobot, BsCloud } from 'react-icons/bs';
 import { TbBrain, TbCloudComputing } from 'react-icons/tb';

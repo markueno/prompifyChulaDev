@@ -10,7 +10,8 @@ import { useMessageParser, usePromptEnhancer, useShortcuts, useSnapScroll } from
 import { description, chatId, chatMetadata, useChatHistory } from '~/lib/persistence';
 import { chatStore } from '~/lib/stores/chat';
 import { workbenchStore } from '~/lib/stores/workbench';
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROMPT_COOKIE_KEY, PROVIDER_LIST } from '~/utils/constants';
+import { DEFAULT_MODEL, PROMPT_COOKIE_KEY } from '~/utils/constants';
+import { DEFAULT_PROVIDER_NAME, providerStub } from '~/utils/provider-metadata';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
 import { BaseChat } from './BaseChat';
@@ -183,7 +184,11 @@ interface ChatProps {
   description?: string;
 }
 
-const ANTHROPIC_PROVIDER = (PROVIDER_LIST.find(p => p.name === 'Anthropic') || DEFAULT_PROVIDER) as ProviderInfo;
+/*
+ * Name-only: the request carries `provider.name` and the server resolves the real provider from
+ * it, so the browser never needs the registry entry. Model lists reach the UI via /api/models.
+ */
+const ANTHROPIC_PROVIDER = providerStub('Anthropic');
 
 export const ChatImpl = memo(
   ({ description, initialMessages, storeMessageHistory, importChat, exportChat, ensureChatId }: ChatProps) => {
@@ -528,7 +533,7 @@ export const ChatImpl = memo(
     });
     const [provider, setProvider] = useState(() => {
       const savedProvider = Cookies.get('selectedProvider');
-      return (PROVIDER_LIST.find(p => p.name === savedProvider) || DEFAULT_PROVIDER) as ProviderInfo;
+      return providerStub(savedProvider || DEFAULT_PROVIDER_NAME);
     });
 
     useEffect(() => {

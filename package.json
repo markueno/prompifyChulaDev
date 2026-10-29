@@ -25,6 +25,7 @@
     "docker:dev": "docker-compose --profile development up --build",
     "docker:dev-https": "chmod +x generate-ssl.sh && ./generate-ssl.sh && docker-compose -f docker-compose.prod.yaml --profile production up --build",
     "typecheck": "tsc",
+    "check:client-bundle": "node scripts/check-client-bundle.mjs",
     "typegen": "wrangler types",
     "preview": "pnpm run build && pnpm run start",
     "prepare": "husky",

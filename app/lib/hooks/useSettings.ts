@@ -16,6 +16,7 @@ import {
   updateContextOptimization,
   updateEventLogs,
   updatePromptId,
+  hydrateProviderMetadata,
 } from '~/lib/stores/settings';
 import { useCallback, useEffect, useState } from 'react';
 import Cookies from 'js-cookie';
@@ -92,6 +93,15 @@ export function useSettings(): UseSettingsReturn {
       tabConfiguration,
     };
   });
+
+  /*
+   * The providers store is seeded with names only, so that the LLM registry stays out of the
+   * client bundle. Pull the rest (models, icon, api-key link) from /api/models on first use.
+   * Guarded internally so this runs once per page load however many components call the hook.
+   */
+  useEffect(() => {
+    void hydrateProviderMetadata();
+  }, []);
 
   useEffect(() => {
     const active = Object.entries(providers)

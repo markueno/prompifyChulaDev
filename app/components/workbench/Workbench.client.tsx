@@ -12,7 +12,8 @@ import type { FileHistory } from '~/types/actions';
 import { AdminPanel } from './AdminPanel';
 import { ErrorPanel, ErrorBadge, requestFixForError } from './ErrorPanel';
 import { getActiveErrors, updateErrorStatus, addError } from '~/lib/stores/errors';
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, PROVIDER_LIST } from '~/utils/constants';
+import { DEFAULT_MODEL } from '~/utils/constants';
+import { DEFAULT_PROVIDER_NAME, providerStub } from '~/utils/provider-metadata';
 import type { ReviewFile, ReviewIssue } from '~/routes/api.review';
 import { StreamingBadge } from '~/components/ui/BuildingOverlay';
 import { DiffView } from './DiffView';
@@ -423,8 +424,7 @@ export const Workbench = memo(
 
         const model = Cookies.get('selectedModel') || DEFAULT_MODEL;
         const providerName = Cookies.get('selectedProvider');
-        const provider = (PROVIDER_LIST.find(p => p.name === providerName) ||
-          DEFAULT_PROVIDER) as typeof DEFAULT_PROVIDER;
+        const provider = providerStub(providerName || DEFAULT_PROVIDER_NAME);
 
         const res = await fetch('/api/review', {
           method: 'POST',

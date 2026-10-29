@@ -69,6 +69,18 @@ export async function loader({
 
   const { providers, defaultProvider } = getProviderInfo(llmManager);
 
+  /*
+   * Providers-only mode: return the cached provider metadata without building a model list.
+   *
+   * The settings UI needs each provider's models, icon and api-key link, which it used to get by
+   * importing the registry straight into the browser bundle. It now asks for them here instead —
+   * but it has no use for the full model list, and assembling that calls out to every configured
+   * provider. This keeps the hydration request cheap.
+   */
+  if (url.searchParams.get('providersOnly') === 'true') {
+    return json<ModelsResponse>({ modelList: [], providers, defaultProvider });
+  }
+
   let modelList: ModelInfo[] = [];
 
   if (params.provider) {

@@ -10,7 +10,7 @@ import { BsRobot } from 'react-icons/bs';
 import type { IconType } from 'react-icons';
 import { BiChip } from 'react-icons/bi';
 import { TbBrandOpenai } from 'react-icons/tb';
-import { providerBaseUrlEnvKeys } from '~/utils/constants';
+import { providerBaseUrlEnvKeys } from '~/utils/provider-metadata';
 import { useToast } from '~/components/ui/use-toast';
 import { Progress } from '~/components/ui/Progress';
 import OllamaModelInstaller from './OllamaModelInstaller';

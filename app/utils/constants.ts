@@ -1,4 +1,3 @@
-import { LLMManager } from '~/lib/modules/llm/manager';
 import type { Template } from '~/types/template';
 
 // Generate a unique workdir name for each browser session
@@ -58,21 +57,14 @@ export const isSettingsHidden = (): boolean => {
   return hideSettings === 'true' || hideSettings === '1';
 };
 
-const llmManager = LLMManager.getInstance(import.meta.env);
-
-export const PROVIDER_LIST = llmManager.getAllProviders();
-/** Prefer the provider that actually defines DEFAULT_MODEL so first load matches Qwen + team key workflows. */
-export const DEFAULT_PROVIDER =
-  PROVIDER_LIST.find(p => (p.staticModels ?? []).some(m => m.name === DEFAULT_MODEL)) ??
-  llmManager.getDefaultProvider();
-
-export const providerBaseUrlEnvKeys: Record<string, { baseUrlKey?: string; apiTokenKey?: string }> = {};
-PROVIDER_LIST.forEach(provider => {
-  providerBaseUrlEnvKeys[provider.name] = {
-    baseUrlKey: provider.config.baseUrlKey,
-    apiTokenKey: provider.config.apiTokenKey,
-  };
-});
+/*
+ * PROVIDER_LIST, DEFAULT_PROVIDER and providerBaseUrlEnvKeys used to live here. They instantiated
+ * LLMManager at module scope, which pulled all nineteen providers and their @ai-sdk packages into
+ * the client bundle — ~600 KB gzipped — because this file is imported by a dozen client modules.
+ * They now live in ./constants.server.ts. The browser gets provider metadata from /api/models.
+ *
+ * Everything remaining in this file must stay free of ~/lib/modules/llm imports.
+ */
 
 // starter Templates
 
