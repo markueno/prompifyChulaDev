@@ -110,13 +110,47 @@ export async function fetchTextLimited(rawUrl: string, opts: FetchTextOptions): 
     throw new Error(`Unexpected content type: ${contentType || 'unknown'}`);
   }
 
-  const declaredLength = Number(response.headers.get('content-length') ?? '0');
+  return readCapped(response, opts.maxBytes);
+}
 
-  if (declaredLength > opts.maxBytes) {
-    throw new Error('Response too large');
+/**
+ * Read a response body as text, stopping at `maxBytes`.
+ *
+ * Truncating rather than rejecting is deliberate. fetchTextLimited used to throw 'Response too
+ * large' when content-length exceeded the cap, which dropped the whole stylesheet — and a
+ * production CSS bundle routinely exceeds any sane cap, so the one sheet actually holding the
+ * palette was the one most likely to be discarded. The tokens we want (`:root`, `@font-face`) sit
+ * near the top of a bundle, so a bounded prefix is worth far more than nothing.
+ *
+ * Reading through the stream means an over-large body stops costing bandwidth and memory at the
+ * cap, instead of being buffered in full and then sliced.
+ */
+export async function readCapped(response: Response, maxBytes: number): Promise<string> {
+  if (!response.body) {
+    return (await response.text()).slice(0, maxBytes);
   }
 
-  const text = await response.text();
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const chunks: string[] = [];
+  let read = 0;
 
-  return text.slice(0, opts.maxBytes);
+  try {
+    while (read < maxBytes) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      if (value) {
+        read += value.byteLength;
+        chunks.push(decoder.decode(value, { stream: true }));
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+
+  return chunks.join('').slice(0, maxBytes);
 }
