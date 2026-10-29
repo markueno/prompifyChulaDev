@@ -5,6 +5,12 @@ const HeroBackground = forwardRef<HTMLDivElement>((_, ref) => (
     <img
       src="/images/background1.jpeg"
       alt="Nature background"
+      /*
+       * LCP element: above the fold and full-viewport, so it must NOT be lazy — tell the
+       * browser to fetch it ahead of the other subresources instead.
+       */
+      fetchPriority="high"
+      decoding="async"
       style={{
         position: 'absolute',
         inset: 0,

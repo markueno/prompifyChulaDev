@@ -8,6 +8,9 @@ export function LandingAppChrome({ children }: { children: React.ReactNode }) {
         <img
           src={`${PIC_BASE}/background1.jpeg`}
           alt=""
+          /* Same full-viewport treatment as the home page hero, so same priority. */
+          fetchPriority="high"
+          decoding="async"
           onError={e => {
             (e.target as HTMLImageElement).style.display = 'none';
           }}

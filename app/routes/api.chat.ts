@@ -615,6 +615,13 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         Connection: 'keep-alive',
         'Cache-Control': 'no-cache',
         'Text-Encoding': 'chunked',
+        /*
+         * nginx buffers proxied responses by default, which holds generated tokens back until a
+         * ~32KB buffer fills and makes the assistant look frozen and then jumpy. This header
+         * switches buffering off for this response only, which is safer than `proxy_buffering
+         * off` in the config — it travels with the stream and cannot affect any other route.
+         */
+        'X-Accel-Buffering': 'no',
       },
     });
   } catch (error: any) {

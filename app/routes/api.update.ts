@@ -491,6 +491,8 @@ export const action: ActionFunction = async ({ request, context }) => {
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
+        // See api.chat.ts: stops nginx buffering a stream into ~32KB lumps.
+        'X-Accel-Buffering': 'no',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
       },

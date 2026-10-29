@@ -113,6 +113,8 @@ async function enhancerAction({ context, request }: ActionFunctionArgs) {
       status: 200,
       headers: {
         'Content-Type': 'text/event-stream',
+        // See api.chat.ts: stops nginx buffering a stream into ~32KB lumps.
+        'X-Accel-Buffering': 'no',
         Connection: 'keep-alive',
         'Cache-Control': 'no-cache',
         'Text-Encoding': 'chunked',
