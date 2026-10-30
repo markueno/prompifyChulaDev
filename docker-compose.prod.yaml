@@ -194,10 +194,9 @@ services:
   # No `depends_on` from app, and none wanted — renderPage() returns null if this is unreachable
   # and the extractor silently falls back to the static path.
   chromium:
-    # Floating on major v2 deliberately: pin an exact patch (`v2.x.y`) once you have run
-    # `docker pull` and chosen one. Left as v2 rather than inventing a patch number that may
-    # not exist and would fail the deploy.
-    image: ghcr.io/browserless/chromium:v2
+    # Pinned to an exact patch verified against the ghcr registry: browserless publishes
+    # `vX.Y.Z` tags only — there is no floating `v2`, which 404s and would fail the deploy.
+    image: ghcr.io/browserless/chromium:v2.57.3
     container_name: prompify-chromium
     restart: unless-stopped
     environment:
