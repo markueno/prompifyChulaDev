@@ -170,7 +170,7 @@ const PROVIDER_STATUS_URLS: Record<ProviderName, ProviderConfig> = {
     headers: {
       Authorization: 'Bearer $DEEPSEEK_API_KEY',
     },
-    testModel: 'deepseek-chat',
+    testModel: 'deepseek-v4-flash',
   },
 };
 

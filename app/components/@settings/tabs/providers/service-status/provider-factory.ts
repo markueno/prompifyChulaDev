@@ -34,7 +34,7 @@ export class ProviderStatusCheckerFactory {
       statusUrl: 'https://status.deepseek.com/',
       apiUrl: 'https://api.deepseek.com/v1/models',
       headers: {},
-      testModel: 'deepseek-chat',
+      testModel: 'deepseek-v4-flash',
     },
     Google: {
       statusUrl: 'https://status.cloud.google.com/',

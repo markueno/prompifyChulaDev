@@ -22,7 +22,7 @@ const llmManager = LLMManager.getInstance(import.meta.env);
 
 export const PROVIDER_LIST = llmManager.getAllProviders();
 
-/** Prefer the provider that actually defines DEFAULT_MODEL so first load matches Qwen + team key workflows. */
+/** Prefer the provider that actually defines DEFAULT_MODEL so first load uses the default provider (Deepseek). */
 export const DEFAULT_PROVIDER =
   PROVIDER_LIST.find(p => (p.staticModels ?? []).some(m => m.name === DEFAULT_MODEL)) ??
   llmManager.getDefaultProvider();

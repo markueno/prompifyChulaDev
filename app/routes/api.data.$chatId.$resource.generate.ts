@@ -139,16 +139,16 @@ export async function action(args: ActionFunctionArgs) {
   }
 
   /*
-   * Call the LLM DIRECTLY via LLMManager + the Qwen provider, using the runtime
-   * env (DASHSCOPE_API_KEY / DASHSCOPE_API_BASE_URL) on context.cloudflare.env.
+   * Call the LLM DIRECTLY via LLMManager + the Deepseek provider, using the runtime
+   * env (DEEPSEEK_API_KEY) on context.cloudflare.env.
    *
    * The previous implementation round-tripped through /api/llmcall via an internal
    * fetch with no session cookie and no model/provider, which always failed
    * (401 from requireAuth / 400 "Invalid or missing model") before ever reaching
-   * a provider. Calling Qwen directly here makes "Generate sample data" work
-   * with no client-side provider selection — Qwen is the implicit default,
-   * transparent to end users. The QwenProvider already injects
-   * enable_thinking:false to avoid the invisible-reasoning hang.
+   * a provider. Calling Deepseek directly here makes "Generate sample data" work
+   * with no client-side provider selection — Deepseek is the implicit default,
+   * transparent to end users. The DeepseekProvider already injects
+   * thinking:{type:'disabled'} to avoid the invisible-reasoning hang.
    */
   const prompt = buildGeneratePrompt(table.logical_name, columns);
   const env = (getCtxEnv(args.context) ?? {}) as Record<string, string>;
@@ -157,10 +157,10 @@ export async function action(args: ActionFunctionArgs) {
 
   try {
     const llmManager = LLMManager.getInstance(import.meta.env as unknown as Record<string, string>);
-    const provider = llmManager.getProvider('Qwen');
+    const provider = llmManager.getProvider('Deepseek');
 
     if (!provider) {
-      throw new Error('Qwen provider is not registered');
+      throw new Error('Deepseek provider is not registered');
     }
 
     const modelInstance = provider.getModelInstance({

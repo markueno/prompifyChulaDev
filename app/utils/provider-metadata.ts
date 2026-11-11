@@ -38,9 +38,9 @@ export const PROVIDER_NAMES = [
 
 /**
  * Matches DEFAULT_PROVIDER on the server, which resolves to whichever provider defines
- * DEFAULT_MODEL (`qwen3.7-max`).
+ * DEFAULT_MODEL (`deepseek-v4-pro`).
  */
-export const DEFAULT_PROVIDER_NAME = 'Qwen';
+export const DEFAULT_PROVIDER_NAME = 'Deepseek';
 
 /** Env var names per provider, for the settings tabs' "where does this key come from" hints. */
 export const providerBaseUrlEnvKeys: Record<string, { baseUrlKey?: string; apiTokenKey?: string }> = {

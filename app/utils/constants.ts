@@ -23,8 +23,8 @@ export const WORK_DIR = `/home/${WORK_DIR_NAME}`;
 export const MODIFICATIONS_TAG_NAME = 'bolt_file_modifications';
 export const MODEL_REGEX = /^\[Model: (.*?)\]\n\n/;
 export const PROVIDER_REGEX = /\[Provider: (.*?)\]\n\n/;
-/** DashScope/OpenAI-compat model id — align with Alibaba Model Studio (team keys work the same endpoint). */
-export const DEFAULT_MODEL = 'qwen3.7-max';
+/** Default model for generation. Defined by the Deepseek provider (providers/deepseek.ts). */
+export const DEFAULT_MODEL = 'deepseek-v4-pro';
 export const PROMPT_COOKIE_KEY = 'cachedPrompt';
 export const DISABLE_DYNAMIC_MODELS = 'DISABLE_DYNAMIC_MODELS';
 
