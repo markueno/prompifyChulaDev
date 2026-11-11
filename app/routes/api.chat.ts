@@ -1,9 +1,8 @@
 import { json, type ActionFunctionArgs } from '@remix-run/cloudflare';
 import { createDataStream, generateId } from 'ai';
-import { MAX_RESPONSE_SEGMENTS, MAX_TOKENS, type FileMap } from '~/lib/.server/llm/constants';
+import { MAX_RESPONSE_SEGMENTS, type FileMap } from '~/lib/.server/llm/constants';
 import { CONTINUE_PROMPT } from '~/lib/common/prompts/prompts';
 import { streamText, type Messages, type StreamingOptions } from '~/lib/.server/llm/stream-text';
-import SwitchableStream from '~/lib/.server/llm/switchable-stream';
 import type { IProviderSetting } from '~/types/model';
 import { createScopedLogger } from '~/utils/logger';
 import { getFilePaths, selectContext } from '~/lib/.server/llm/select-context';
@@ -256,7 +255,12 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     parseCookies(cookieHeader || '').providers || '{}'
   );
 
-  const stream = new SwitchableStream();
+  /*
+   * How many times this response has been continued after hitting the token limit.
+   * This used to read SwitchableStream.switches, which only counts switchSource() calls; this route
+   * never makes them since it moved to mergeIntoDataStream, so it stayed 0 and never stopped.
+   */
+  let continuations = 0;
 
   const cumulativeUsage = {
     completionTokens: 0,
@@ -483,13 +487,15 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
               return;
             }
 
-            if (stream.switches >= MAX_RESPONSE_SEGMENTS) {
+            if (continuations >= MAX_RESPONSE_SEGMENTS) {
               throw Error('Cannot continue message: Maximum segments reached');
             }
 
-            const switchesLeft = MAX_RESPONSE_SEGMENTS - stream.switches;
+            continuations++;
 
-            logger.info(`Reached max token limit (${MAX_TOKENS}): Continuing message (${switchesLeft} switches left)`);
+            const switchesLeft = MAX_RESPONSE_SEGMENTS - continuations;
+
+            logger.info(`Reached max token limit: Continuing message (${switchesLeft} switches left)`);
 
             const lastUserMessage = messages.filter(x => x.role == 'user').slice(-1)[0];
             const { model, provider } = extractPropertiesFromMessage(lastUserMessage);

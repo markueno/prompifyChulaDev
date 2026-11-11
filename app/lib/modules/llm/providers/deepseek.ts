@@ -70,10 +70,12 @@ export default class DeepseekProvider extends BaseProvider {
   /*
    * deepseek-chat / deepseek-reasoner / deepseek-coder were retired by DeepSeek on 2026-07-24.
    * V4 Pro is the default for app generation; V4 Flash is the cheaper, faster option.
+   * maxTokenAllowed is the per-reply output cap. V4 allows far more than Qwen's 8K, and a
+   * full multi-page app needs it — at 8K every reply was cut off and had to be continued.
    */
   staticModels: ModelInfo[] = [
-    { name: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', provider: 'Deepseek', maxTokenAllowed: 8192 },
-    { name: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash', provider: 'Deepseek', maxTokenAllowed: 8192 },
+    { name: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', provider: 'Deepseek', maxTokenAllowed: 32768 },
+    { name: 'deepseek-v4-flash', label: 'DeepSeek V4 Flash', provider: 'Deepseek', maxTokenAllowed: 32768 },
   ];
 
   getModelInstance(options: {
