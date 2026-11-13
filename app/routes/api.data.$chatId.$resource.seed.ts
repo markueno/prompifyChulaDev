@@ -48,6 +48,9 @@ function corsHeadersFor(request: Request): Record<string, string> {
 interface ResolvedContext {
   user: User;
   ownerId: string;
+
+  /** The chat's canonical id — the key the table registry uses, which the URL param may not be. */
+  chatDbId: string;
   table: AppTableMeta;
 }
 
@@ -86,7 +89,62 @@ async function resolveTable(
     return json({ error: 'Schema mismatch' }, { status: 500 });
   }
 
-  return { user, ownerId: chat.user_id, table };
+  return { user, ownerId: chat.user_id, chatDbId: chat.id, table };
+}
+
+/*
+ * Give sample rows a real parent for every foreign-key column they left empty.
+ *
+ * The generation prompt tells the model to declare FK columns (often NOT NULL) and to leave them
+ * null in sample rows rather than invent an id. Inserted as-is, every child table failed with
+ * "null value in column ... violates not-null constraint" and the app opened with empty screens.
+ * Parents are created and seeded before their children, so their ids exist by now: spread the
+ * sample rows across them in order. A value the caller did supply is never overwritten, and a
+ * parent that is missing, in another schema, or still empty is left alone — the insert then
+ * reports the real problem instead of this function guessing.
+ */
+async function fillForeignKeys(
+  rows: Record<string, unknown>[],
+  table: AppTableMeta,
+  chatDbId: string,
+  ownerId: string
+): Promise<void> {
+  for (const col of table.columns || []) {
+    const ref = col.references;
+
+    if (!ref?.table || (ref.column && ref.column !== 'id')) {
+      continue;
+    }
+
+    const isEmpty = (v: unknown) => v === null || v === undefined || v === '';
+
+    if (!rows.some(row => isEmpty(row[col.name]))) {
+      continue;
+    }
+
+    const parent = await getRegisteredTable(chatDbId, ref.table);
+
+    if (!parent || parent.schema_name !== table.schema_name) {
+      continue;
+    }
+
+    const parentRows = await runAppQuery(
+      ownerId,
+      `SELECT id FROM "${parent.table_name}" ORDER BY created_at, id LIMIT ${MAX_SEED_ROWS}`,
+      []
+    );
+    const parentIds = parentRows.ok ? (parentRows.rows ?? []).map(r => (r as { id: unknown }).id) : [];
+
+    if (parentIds.length === 0) {
+      continue;
+    }
+
+    rows.forEach((row, i) => {
+      if (isEmpty(row[col.name])) {
+        row[col.name] = parentIds[i % parentIds.length];
+      }
+    });
+  }
 }
 
 function columnSet(table: AppTableMeta): Set<string> {
@@ -118,7 +176,7 @@ export async function action(args: ActionFunctionArgs) {
     return resolved;
   }
 
-  const { ownerId, table } = resolved;
+  const { ownerId, table, chatDbId } = resolved;
   const cols = columnSet(table);
 
   let body: { rows?: Record<string, unknown>[] };
@@ -138,6 +196,18 @@ export async function action(args: ActionFunctionArgs) {
   if (rows.length > MAX_SEED_ROWS) {
     return json({ error: `Too many rows (max ${MAX_SEED_ROWS})` }, { status: 413 });
   }
+
+  /*
+   * Seeding only ever fills an empty table (checked below), so skip the parent lookups when the
+   * insert is not going to happen anyway.
+   */
+  const alreadyHasRows = await runAppQuery(ownerId, `SELECT 1 FROM "${table.table_name}" LIMIT 1`, []);
+
+  if (alreadyHasRows.ok && (alreadyHasRows.rows?.length ?? 0) > 0) {
+    return json({ inserted: 0, skipped: true, reason: 'table_not_empty' });
+  }
+
+  await fillForeignKeys(rows, table, chatDbId, ownerId);
 
   /*
    * Build a single multi-row INSERT. Each row may have a different subset of
@@ -206,13 +276,9 @@ export async function action(args: ActionFunctionArgs) {
    * failing a build because the sample rows are already present would be the wrong outcome —
    * "make sure there is sample data" has been satisfied either way. The flag lets the button say
    * why nothing appeared.
+   *
+   * The check itself runs earlier (`alreadyHasRows`), before the foreign-key lookups.
    */
-  const existing = await runAppQuery(ownerId, `SELECT 1 FROM "${table.table_name}" LIMIT 1`, []);
-
-  if (existing.ok && (existing.rows?.length ?? 0) > 0) {
-    return json({ inserted: 0, skipped: true, reason: 'table_not_empty' });
-  }
-
   const result = await runAppQuery(ownerId, sql, params);
 
   if (!result.ok) {
