@@ -190,6 +190,14 @@ export function useChatHistory() {
    */
   const lastPersistAtRef = useRef(0);
 
+  /*
+   * What was last persisted. Outside streaming there was no throttle at all, so anything that
+   * re-fired storeMessageHistory with the same chat (seen in prod 2026-11-13: ~30 POST /api/chats
+   * per second from one stuck tab) re-serialised and re-saved identical content until the page
+   * froze. Saving an unchanged chat is never useful, so it is skipped.
+   */
+  const lastPersistSignatureRef = useRef('');
+
   useEffect(() => {
     activeRef.current = true;
 
@@ -457,10 +465,27 @@ export function useChatHistory() {
        * so a new chat's id is still allocated immediately.
        */
       const now = Date.now();
-      const shouldPersist = !isLoading || now - lastPersistAtRef.current >= 2000;
+      const lastMessage = messages[messages.length - 1];
+      const lastContentLength =
+        typeof lastMessage?.content === 'string'
+          ? lastMessage.content.length
+          : JSON.stringify(lastMessage?.content ?? '').length;
+      const persistSignature = [
+        chatId.get(),
+        urlId,
+        messages.length,
+        lastMessage?.id,
+        lastContentLength,
+        description.get(),
+        JSON.stringify(chatMetadata.get() ?? null),
+      ].join('|');
+      const unchanged = persistSignature === lastPersistSignatureRef.current;
+
+      const shouldPersist = isLoading ? now - lastPersistAtRef.current >= 2000 : !unchanged;
 
       if (shouldPersist) {
         lastPersistAtRef.current = now;
+        lastPersistSignatureRef.current = persistSignature;
       }
 
       // Save to IndexedDB (existing functionality) — throttled during streaming.
