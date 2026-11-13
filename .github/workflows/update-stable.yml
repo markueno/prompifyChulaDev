@@ -59,8 +59,11 @@ jobs:
 
       - name: Determine Version Bump
         id: version_bump
+        # The commit message is attacker-controlled text. Pass it through env so the shell sees
+        # it as data; interpolating it into the script body lets a commit message run commands.
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
           if [[ $COMMIT_MSG =~ "#release:major" ]]; then
             echo "bump=major" >> $GITHUB_OUTPUT
           elif [[ $COMMIT_MSG =~ "#release:minor" ]]; then

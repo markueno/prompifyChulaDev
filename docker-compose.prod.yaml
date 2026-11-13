@@ -288,6 +288,9 @@ services:
   nginx:
     image: nginx:alpine
     container_name: prompify-nginx
+    # OPS-1: nginx keeps certificates in memory, so a cert renewed by certbot is not served until
+    # nginx reloads. Reload every 6h so a renewal is picked up without anyone remembering to.
+    command: /bin/sh -c "while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g 'daemon off;'"
     volumes:
       - ./nginx-prod.conf:/etc/nginx/nginx.conf:ro
       - certbot-etc:/etc/letsencrypt:ro
