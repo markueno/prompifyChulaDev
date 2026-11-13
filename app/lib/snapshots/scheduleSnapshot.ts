@@ -20,6 +20,16 @@ export const chatId = atom<string | undefined>(undefined);
 export const description = atom<string | undefined>(undefined);
 
 let snapshotSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+/*
+ * When the pending debounce window opened. Every scheduleSnapshotSave call restarts the timer, so
+ * a caller that keeps re-firing (seen in prod 2026-11-13: storeMessageHistory ~30x/sec from one
+ * tab) postponed the save forever and the project never got a version. The save now fires at
+ * most SNAPSHOT_MAX_WAIT_MS after the first call of a burst, however often it is re-armed.
+ */
+let snapshotDebounceStartedAt: number | undefined;
+const SNAPSHOT_DEBOUNCE_MS = 1000;
+const SNAPSHOT_MAX_WAIT_MS = 5000;
 let ensureChatIdInFlight: Promise<string | undefined> | undefined;
 
 /*
@@ -47,6 +57,7 @@ function flushPendingSave(): void {
   if (snapshotSaveTimer) {
     clearTimeout(snapshotSaveTimer);
     snapshotSaveTimer = undefined;
+    snapshotDebounceStartedAt = undefined;
   }
 
   // Fire the save now (best-effort — the page is unloading). inFlightSave tracks it.
@@ -393,6 +404,7 @@ export function scheduleSnapshotSave(
   lastSaveArgs = { fileMap, overrideChatId, lastMessageId, label, changedFilePath };
 
   if (immediate) {
+    snapshotDebounceStartedAt = undefined;
     inFlightSave = runSave(fileMap, overrideChatId, lastMessageId, label, changedFilePath).finally(() => {
       inFlightSave = undefined;
     });
@@ -400,16 +412,27 @@ export function scheduleSnapshotSave(
     return () => {};
   }
 
+  const now = Date.now();
+
+  if (snapshotDebounceStartedAt === undefined) {
+    snapshotDebounceStartedAt = now;
+  }
+
+  const delay = Math.max(0, Math.min(SNAPSHOT_DEBOUNCE_MS, SNAPSHOT_MAX_WAIT_MS - (now - snapshotDebounceStartedAt)));
+
   snapshotSaveTimer = setTimeout(() => {
+    snapshotSaveTimer = undefined;
+    snapshotDebounceStartedAt = undefined;
     inFlightSave = runSave(fileMap, overrideChatId, lastMessageId, label, changedFilePath).finally(() => {
       inFlightSave = undefined;
     });
-  }, 1000);
+  }, delay);
 
   return () => {
     if (snapshotSaveTimer) {
       clearTimeout(snapshotSaveTimer);
       snapshotSaveTimer = undefined;
+      snapshotDebounceStartedAt = undefined;
     }
   };
 }
