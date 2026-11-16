@@ -513,50 +513,13 @@ export class ActionRunner {
       unreachable('Shell terminal not found');
     }
 
-    /*
-     * Safety net: if node_modules is missing, auto-install before starting.
-     * This catches cases where the AI forgot to include an `npm install` shell action.
-     * Uses `npm ci` when package-lock.json exists (faster, uses lock file directly).
-     */
-    const webcontainer = await this.#webcontainer;
+    const installResp = await this.#installDependenciesIfMissing(shell);
 
-    let needsInstall = false;
-
-    try {
-      await webcontainer.fs.readdir('node_modules');
-    } catch {
-      needsInstall = true;
-    }
-
-    if (needsInstall) {
-      let hasLockFile = false;
-
-      try {
-        await webcontainer.fs.readFile('package-lock.json');
-        hasLockFile = true;
-      } catch {
-        try {
-          await webcontainer.fs.readFile('pnpm-lock.yaml');
-          hasLockFile = true;
-        } catch {
-          // no lock file — fall back to npm install
-        }
-      }
-
-      const installCmd = hasLockFile ? 'npm ci' : 'npm install';
-
-      logger.debug(`[start] node_modules missing — auto-running ${installCmd}`);
-
-      const installResp = await shell.executeCommand(this.runnerId.get(), installCmd, () => {
-        logger.debug('[start] Aborting auto-install');
-      });
-
-      if (installResp?.exitCode !== 0) {
-        throw new ActionCommandError(
-          'Dependency installation failed (auto-install before start)',
-          installResp?.output || 'No output available'
-        );
-      }
+    if (installResp && installResp.exitCode !== 0) {
+      throw new ActionCommandError(
+        'Dependency installation failed (auto-install before start)',
+        installResp.output || 'No output available'
+      );
     }
 
     const resp = await shell.executeCommand(this.runnerId.get(), action.content, () => {
@@ -766,7 +729,61 @@ export class ActionRunner {
     );
   }
 
+  /*
+   * Safety net: if node_modules is missing, install before starting. This catches cases where
+   * the AI forgot to include an `npm install` shell action. Uses `npm ci` when a lock file
+   * exists (faster, uses the lock file directly). Returns undefined when nothing needed
+   * installing, otherwise the install command's result for the caller to judge.
+   */
+  async #installDependenciesIfMissing(shell: BoltShell) {
+    const webcontainer = await this.#webcontainer;
+
+    try {
+      await webcontainer.fs.readdir('node_modules');
+      return undefined;
+    } catch {
+      // node_modules is missing — install below
+    }
+
+    let hasLockFile = false;
+
+    try {
+      await webcontainer.fs.readFile('package-lock.json');
+      hasLockFile = true;
+    } catch {
+      try {
+        await webcontainer.fs.readFile('pnpm-lock.yaml');
+        hasLockFile = true;
+      } catch {
+        // no lock file — fall back to npm install
+      }
+    }
+
+    const installCmd = hasLockFile ? 'npm ci' : 'npm install';
+
+    logger.debug(`[start] node_modules missing — auto-running ${installCmd}`);
+
+    return shell.executeCommand(this.runnerId.get(), installCmd, () => {
+      logger.debug('[start] Aborting auto-install');
+    });
+  }
+
   async maybeAutoStartDevServer() {
+    /*
+     * The artifact closes when its text finishes streaming, which is usually BEFORE its queued
+     * actions have run. Starting the dev server at that moment did two things wrong: it ran ahead
+     * of a start action that simply had not been reached yet (#hadStartAction is only set when
+     * the action executes), and executeCommand sends Ctrl+C first, so it interrupted whatever
+     * was running — typically `npm install` — and then failed with exit 127 because vite was not
+     * installed. Wait for the queue to drain, then decide.
+     */
+    let queue: Promise<void>;
+
+    do {
+      queue = this.#currentExecutionPromise;
+      await queue.catch(() => undefined);
+    } while (queue !== this.#currentExecutionPromise);
+
     if (this.#hadStartAction || !this.#hadProductiveAction || !this.#previewsStore) {
       return;
     }
@@ -784,6 +801,13 @@ export class ActionRunner {
       await shell.ready();
 
       if (!shell || !shell.terminal || !shell.process) {
+        return;
+      }
+
+      const installResp = await this.#installDependenciesIfMissing(shell);
+
+      if (installResp && installResp.exitCode !== 0) {
+        logger.warn(`[auto-start] dependency install exited with code ${installResp.exitCode}; not starting`);
         return;
       }
 

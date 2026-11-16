@@ -541,6 +541,24 @@ const FileInfo = memo(
   }
 );
 
+/*
+ * One highlighter for every diff view. Each mount used to create its own, and a highlighter holds
+ * its grammars and themes for as long as it lives, so browsing files in a long session piled up
+ * dozens of them ("[Shiki] 30 instances have been created") and made the page heavy.
+ */
+let diffHighlighterPromise: Promise<any> | undefined;
+
+function getDiffHighlighter(): Promise<any> {
+  diffHighlighterPromise ??= import('shiki').then(({ getHighlighter }) =>
+    getHighlighter({
+      themes: ['github-dark', 'github-light'],
+      langs: ['typescript', 'javascript', 'json', 'html', 'css', 'jsx', 'tsx'],
+    })
+  );
+
+  return diffHighlighterPromise;
+}
+
 const InlineDiffComparison = memo(({ beforeCode, afterCode, filename, language }: CodeComparisonProps) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [highlighter, setHighlighter] = useState<any>(null);
@@ -553,12 +571,17 @@ const InlineDiffComparison = memo(({ beforeCode, afterCode, filename, language }
   const { unifiedBlocks, hasChanges, isBinary, error } = useProcessChanges(beforeCode, afterCode);
 
   useEffect(() => {
-    import('shiki').then(({ getHighlighter }) =>
-      getHighlighter({
-        themes: ['github-dark', 'github-light'],
-        langs: ['typescript', 'javascript', 'json', 'html', 'css', 'jsx', 'tsx'],
-      }).then(setHighlighter)
-    );
+    let active = true;
+
+    getDiffHighlighter().then(shared => {
+      if (active) {
+        setHighlighter(shared);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   if (isBinary || error) {

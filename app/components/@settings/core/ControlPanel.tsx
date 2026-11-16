@@ -34,7 +34,6 @@ import FeaturesTab from '~/components/@settings/tabs/features/FeaturesTab';
 import DataTab from '~/components/@settings/tabs/data/DataTab';
 import DebugTab from '~/components/@settings/tabs/debug/DebugTab';
 import { EventLogsTab } from '~/components/@settings/tabs/event-logs/EventLogsTab';
-import UpdateTab from '~/components/@settings/tabs/update/UpdateTab';
 import ConnectionsTab from '~/components/@settings/tabs/connections/ConnectionsTab';
 import CloudProvidersTab from '~/components/@settings/tabs/providers/cloud/CloudProvidersTab';
 import ServiceStatusTab from '~/components/@settings/tabs/providers/status/ServiceStatusTab';
@@ -200,7 +199,8 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
         isExtraDevTab: true,
       });
 
-      return devTabs.sort((a, b) => a.order - b.order);
+      // The Update tab no longer exists (see useUpdateCheck); drop it even from a saved layout.
+      return devTabs.filter(tab => tab.id !== 'update').sort((a, b) => a.order - b.order);
     }
 
     // Optimize user mode tab filtering
@@ -211,6 +211,10 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
         }
 
         if (tab.id === 'notifications' && notificationsDisabled) {
+          return false;
+        }
+
+        if (tab.id === 'update') {
           return false;
         }
 
@@ -311,8 +315,6 @@ export const ControlPanel = ({ open, onClose }: ControlPanelProps) => {
         return <DebugTab />;
       case 'event-logs':
         return <EventLogsTab />;
-      case 'update':
-        return <UpdateTab />;
       case 'task-manager':
         return <TaskManagerTab />;
       case 'service-status':

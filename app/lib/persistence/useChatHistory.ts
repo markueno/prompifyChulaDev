@@ -442,8 +442,25 @@ export function useChatHistory() {
         setUrlId(urlId);
       }
 
-      if (!description.get() && firstArtifact?.title) {
-        description.set(firstArtifact?.title);
+      /*
+       * Name the project after the app, not after the file import that precedes it. A project
+       * started from a template opens with an "imported-files" artifact ("Importing Starter
+       * Files"), and naming from the first artifact gave nearly every project that same title.
+       * Prefer the first artifact that is not an import; the import's title is only a placeholder
+       * and is replaced once the app's own artifact arrives. A name the user chose is neither
+       * empty nor the placeholder, so it is never touched.
+       */
+      const artifactsById = workbenchStore.artifacts.get();
+      const appArtifact = workbenchStore.artifactIdList
+        .map(artifactId => artifactsById[artifactId])
+        .find(artifact => artifact?.title && artifact.id !== 'imported-files');
+      const placeholderTitle = firstArtifact?.id === 'imported-files' ? firstArtifact.title : undefined;
+      const currentDescription = description.get();
+
+      if (appArtifact?.title && (!currentDescription || currentDescription === placeholderTitle)) {
+        description.set(appArtifact.title);
+      } else if (!currentDescription && firstArtifact?.title) {
+        description.set(firstArtifact.title);
       }
 
       if (initialMessages.length === 0 && !chatId.get()) {
