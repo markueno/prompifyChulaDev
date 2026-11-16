@@ -2,6 +2,7 @@ import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
 import type { ITerminal } from '~/types/terminal';
 import { withResolvers } from './promises';
 import { atom } from 'nanostores';
+import { traceStart } from '~/lib/diagnostics/clientTrace';
 
 export async function newShellProcess(webcontainer: WebContainer, terminal: ITerminal) {
   const args: string[] = [];
@@ -107,6 +108,9 @@ export class BoltShell {
      * interrupt the current execution
      *  this.#shellInputStream?.write('\x03');
      */
+    const label = command.trim().slice(0, 80);
+    const promptWaitDone = traceStart('shell-wait-prompt', label);
+
     this.terminal.input('\x03');
     await this.waitTillOscCode('prompt');
 
@@ -114,15 +118,19 @@ export class BoltShell {
       await state.executionPrms;
     }
 
+    promptWaitDone();
+
     //start a new execution
     this.terminal.input(command.trim() + '\n');
 
     //wait for the execution to finish
+    const commandDone = traceStart('shell-command', label);
     const executionPromise = this.getCurrentExecutionResult();
     this.executionState.set({ sessionId, active: true, executionPrms: executionPromise, abort });
 
     const resp = await executionPromise;
     this.executionState.set({ sessionId, active: false });
+    commandDone(`exit=${resp?.exitCode}`);
 
     if (resp) {
       try {

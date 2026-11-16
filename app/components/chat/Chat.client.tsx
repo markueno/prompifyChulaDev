@@ -14,6 +14,7 @@ import { DEFAULT_MODEL, PROMPT_COOKIE_KEY } from '~/utils/constants';
 import { DEFAULT_PROVIDER_NAME, providerStub } from '~/utils/provider-metadata';
 import { cubicEasingFn } from '~/utils/easings';
 import { createScopedLogger, renderLogger } from '~/utils/logger';
+import { startClientTrace, trace, traceStart } from '~/lib/diagnostics/clientTrace';
 import { BaseChat } from './BaseChat';
 import { BuildingOverlay } from '~/components/ui/BuildingOverlay';
 import { TrialEndedDialog } from '~/components/chat/TrialEndedDialog';
@@ -392,6 +393,7 @@ export const ChatImpl = memo(
           messageId,
         });
 
+        trace('preview-recovery-fire', `attempt ${state.attempts}`);
         toast.info('Preview did not load. Asking the assistant to fix it…');
 
         appendFn({
@@ -586,6 +588,7 @@ export const ChatImpl = memo(
       sendExtraMessageFields: true,
       onError: e => {
         logger.error('Request failed\n\n', e, error);
+        trace('chat-error', e?.message);
 
         const { message: detail, code, cap, used } = parseChatRequestError(e);
         logStore.logError('Chat request failed', e, {
@@ -623,6 +626,11 @@ export const ChatImpl = memo(
       onFinish: (message, response) => {
         const usage = response.usage;
         setData(undefined);
+        trace('chat-finish', {
+          chars: message.content.length,
+          finishReason: response.finishReason,
+          completionTokens: usage?.completionTokens,
+        });
 
         if (usage) {
           console.log('Token usage:', usage);
@@ -699,6 +707,22 @@ export const ChatImpl = memo(
     // Keep isLoadingRef in sync so debounced auto-fix can check the latest value
     useEffect(() => {
       isLoadingRef.current = isLoading;
+    }, [isLoading]);
+
+    /*
+     * Flight recorder (clientTrace.ts): one span per chat request, so a reply that never finishes
+     * in the tab shows up in the server log as `chat-request` still running.
+     */
+    useEffect(() => {
+      startClientTrace();
+
+      if (!isLoading) {
+        return undefined;
+      }
+
+      const requestDone = traceStart('chat-request');
+
+      return () => requestDone();
     }, [isLoading]);
 
     // Hide the building overlay once the workbench becomes visible (code starts generating)
@@ -782,6 +806,7 @@ export const ChatImpl = memo(
         }
 
         if (autoFixAttemptsRef.current >= MAX_CONSECUTIVE_AUTO_FIX) {
+          trace('autofix-limit', `${alert.title}: ${alert.description}`);
           toast.warn(
             `Auto-fix limit reached (${MAX_CONSECUTIVE_AUTO_FIX} attempts). Check the Problems panel and fix manually.`
           );
@@ -799,6 +824,7 @@ export const ChatImpl = memo(
         const source = alert.source === 'preview' ? 'preview' : 'terminal';
         autoFixAttemptsRef.current += 1;
         lastAutoFixAtRef.current = Date.now();
+        trace('autofix-fire', `${source} #${autoFixAttemptsRef.current} ${alert.title}: ${alert.description}`);
 
         // Enrich with file context parsed from the stack trace
         let fileContext = '';
@@ -867,6 +893,7 @@ export const ChatImpl = memo(
     };
 
     const abort = () => {
+      trace('chat-abort');
       stop();
       chatStore.setKey('aborted', true);
       workbenchStore.abortAllActions();
@@ -1131,6 +1158,8 @@ export const ChatImpl = memo(
 
     useEffect(() => {
       const unsub = workbenchStore.previews.subscribe(previews => {
+        trace('previews', `${previews.length} ready`);
+
         if (previews.length > 0) {
           stopAllRecoveries('done');
         }

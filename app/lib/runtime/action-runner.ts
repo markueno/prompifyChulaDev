@@ -9,6 +9,7 @@ import type { BoltShell } from '~/utils/shell';
 import type { PreviewsStore } from '~/lib/stores/previews';
 import { chatId } from '~/lib/persistence';
 import { bumpDataProxyVersion } from '~/lib/stores/data-version';
+import { trace, traceStart } from '~/lib/diagnostics/clientTrace';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -162,6 +163,15 @@ export class ActionRunner {
 
     this.#updateAction(actionId, { status: 'running' });
 
+    // File writes are too many to be useful on the timeline; everything else is one line each.
+    const actionDone =
+      action.type === 'file'
+        ? undefined
+        : traceStart(
+            `action-${action.type}`,
+            action.type === 'shell' || action.type === 'start' ? action.content.trim().slice(0, 80) : undefined
+          );
+
     try {
       switch (action.type) {
         case 'shell': {
@@ -194,8 +204,13 @@ export class ActionRunner {
           // making the start app non blocking
 
           this.#runStartAction(action)
-            .then(() => this.#updateAction(actionId, { status: 'complete' }))
+            .then(() => {
+              actionDone?.('complete');
+              this.#updateAction(actionId, { status: 'complete' });
+            })
             .catch((err: Error) => {
+              actionDone?.(action.abortSignal.aborted ? 'aborted' : `failed: ${err?.message ?? err}`);
+
               if (action.abortSignal.aborted) {
                 return;
               }
@@ -230,10 +245,15 @@ export class ActionRunner {
         }
       }
 
+      actionDone?.(action.abortSignal.aborted ? 'aborted' : 'complete');
       this.#updateAction(actionId, {
         status: isStreaming ? 'running' : action.abortSignal.aborted ? 'aborted' : 'complete',
       });
     } catch (error) {
+      actionDone?.(
+        action.abortSignal.aborted ? 'aborted' : `failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+
       if (action.abortSignal.aborted) {
         return;
       }
@@ -778,11 +798,14 @@ export class ActionRunner {
      * installed. Wait for the queue to drain, then decide.
      */
     let queue: Promise<void>;
+    const queueDrained = traceStart('autostart-wait-queue');
 
     do {
       queue = this.#currentExecutionPromise;
       await queue.catch(() => undefined);
     } while (queue !== this.#currentExecutionPromise);
+
+    queueDrained();
 
     if (this.#hadStartAction || !this.#hadProductiveAction || !this.#previewsStore) {
       return;
@@ -796,6 +819,7 @@ export class ActionRunner {
 
     try {
       logger.info('Auto-injecting npm run dev (preview down, no start action in artifact)');
+      trace('autostart-dev-server');
 
       const shell = this.#shellTerminal();
       await shell.ready();
