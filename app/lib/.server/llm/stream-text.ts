@@ -170,18 +170,59 @@ ${props.summary}
   logger.info(`Sending llm call to ${provider.name} with model ${modelDetails.name}`);
 
   /*
-   * Bound every LLM call so a stalled provider fails visibly instead of spinning the
-   * request forever (the qwen3.7-max "invisible thinking" 20-min hang, EOD §4.5).
-   * Configurable via LLM_STREAM_TIMEOUT_MS; merged with any caller-supplied abort
-   * signal so neither the timeout nor a client cancel is lost. abortSignal is set
-   * AFTER `...options` so the merged signal always wins.
+   * Bound every LLM call so a stalled provider fails visibly instead of spinning the request
+   * forever (the qwen3.7-max "invisible thinking" 20-min hang, EOD §4.5).
+   *
+   * Two limits, because one was not enough. The original single limit was a 3-minute cap on the
+   * WHOLE call. That was fine while replies were capped at 8K tokens, but a full app is now one
+   * reply of up to 32K tokens, which takes longer than 3 minutes to stream — so healthy
+   * generations were cut off partway, silently, leaving the starter template's App.tsx in place
+   * ("Start prompting (or editing) to see magic happen") with half the app's files written.
+   *
+   *  - Idle limit (LLM_STREAM_IDLE_TIMEOUT_MS, default 3 min): abort when NOTHING has arrived for
+   *    that long. This is the stalled-provider guard, and it also covers a slow first token.
+   *  - Total limit (LLM_STREAM_TIMEOUT_MS, default 20 min): a backstop so no call runs unbounded.
+   *
+   * Merged with any caller-supplied abort signal so a client cancel is not lost. abortSignal is
+   * set AFTER `...options` so the merged signal always wins.
    */
-  const DEFAULT_LLM_TIMEOUT_MS = 180_000;
-  const configuredTimeout = Number((serverEnv as unknown as Record<string, unknown>)?.LLM_STREAM_TIMEOUT_MS);
-  const timeoutMs =
-    Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : DEFAULT_LLM_TIMEOUT_MS;
-  const timeoutSignal = AbortSignal.timeout(timeoutMs);
-  const abortSignal = options?.abortSignal ? AbortSignal.any([options.abortSignal, timeoutSignal]) : timeoutSignal;
+  const envRecord = serverEnv as unknown as Record<string, unknown> | undefined;
+  const readMs = (name: string, fallback: number) => {
+    const configured = Number(envRecord?.[name] ?? process.env[name]);
+
+    return Number.isFinite(configured) && configured > 0 ? configured : fallback;
+  };
+  const idleMs = readMs('LLM_STREAM_IDLE_TIMEOUT_MS', 180_000);
+  const totalMs = readMs('LLM_STREAM_TIMEOUT_MS', 1_200_000);
+
+  const timeoutController = new AbortController();
+  const startedAt = Date.now();
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const abortFor = (reason: string) => {
+    // Logged here because an aborted stream otherwise ends without a trace in the server log.
+    logger.error(
+      `Aborting ${provider.name}/${modelDetails.name} after ${Math.round((Date.now() - startedAt) / 1000)}s: ${reason}`
+    );
+    timeoutController.abort(new Error(reason));
+  };
+  const armIdleTimer = () => {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => abortFor(`no output for ${Math.round(idleMs / 1000)}s`), idleMs);
+  };
+  const totalTimer = setTimeout(() => abortFor(`exceeded the ${Math.round(totalMs / 1000)}s total limit`), totalMs);
+  const clearTimers = () => {
+    clearTimeout(idleTimer);
+    clearTimeout(totalTimer);
+  };
+
+  armIdleTimer();
+
+  const abortSignal = options?.abortSignal
+    ? AbortSignal.any([options.abortSignal, timeoutController.signal])
+    : timeoutController.signal;
+
+  abortSignal.addEventListener('abort', clearTimers, { once: true });
 
   return await _streamText({
     model: provider.getModelInstance({
@@ -195,5 +236,20 @@ ${props.summary}
     messages: convertToCoreMessages(processedMessages as any),
     ...options,
     abortSignal,
+    onChunk: event => {
+      armIdleTimer();
+
+      return options?.onChunk?.(event);
+    },
+    onFinish: event => {
+      clearTimers();
+
+      return options?.onFinish?.(event);
+    },
+    onError: event => {
+      clearTimers();
+
+      return options?.onError?.(event);
+    },
   });
 }
