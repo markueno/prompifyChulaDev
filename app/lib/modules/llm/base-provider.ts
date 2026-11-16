@@ -25,12 +25,19 @@ export abstract class BaseProvider implements ProviderInfo {
     defaultApiTokenKey: string;
   }) {
     const { apiKeys, providerSettings, serverEnv, defaultBaseUrlKey, defaultApiTokenKey } = options;
-    let settingsBaseUrl = providerSettings?.baseUrl;
     const manager = LLMManager.getInstance();
 
-    if (settingsBaseUrl && settingsBaseUrl.length == 0) {
-      settingsBaseUrl = undefined;
-    }
+    /*
+     * SECURITY: `providerSettings` comes from the browser's `providers` cookie, so its `baseUrl` is
+     * attacker-controlled. Honouring it meant any signed-in user could point a provider at their own
+     * server and have this server send the request there — with OUR key from the environment in the
+     * Authorization header (the key lookup below falls back to the env key). It also let them make
+     * this server fetch arbitrary internal URLs. The base URL now comes from the server's own
+     * configuration only, unless an operator explicitly opts in.
+     */
+    const allowClientBaseUrl =
+      (serverEnv?.ALLOW_CLIENT_PROVIDER_BASE_URL ?? process?.env?.ALLOW_CLIENT_PROVIDER_BASE_URL) === 'true';
+    const settingsBaseUrl = allowClientBaseUrl && providerSettings?.baseUrl ? providerSettings.baseUrl : undefined;
 
     const baseUrlKey = this.config.baseUrlKey || defaultBaseUrlKey;
     let baseUrl =
